@@ -146,7 +146,7 @@
   /* ---------- boutique : filtres et tri sans recharger ---------- */
   const shop = $('[data-shop]');
   if (shop) {
-    const grid = $('[data-grid]', shop), cards = $$('[data-card]', grid);
+    const cards = $$('[data-card]', shop);
     const count = $('[data-count]', shop);
     const pour = new URLSearchParams(location.search).get('pour');
     const evt = store.get('mg_evt', {});
@@ -161,6 +161,7 @@
         c.hidden = !ok; if (ok) n++;
       });
       if (count) count.textContent = n;
+      $$('[data-bloc]', shop).forEach(b => { b.hidden = !$$('[data-card]', b).some(c => !c.hidden); });
     };
     $$('[data-filter]', shop).forEach(a => {
       if (!$('[data-filter=""]', shop)) return; /* page rubrique : vrais liens */
@@ -179,9 +180,9 @@
     qi?.addEventListener('input', () => { if (!new URLSearchParams(location.search).get('q')) apply(); });
     $('[data-sort]', shop)?.addEventListener('change', e => {
       const v = e.target.value;
-      if (v === 'az') { cards.sort((a, b) => a.dataset.titre.localeCompare(b.dataset.titre, 'fr', { sensitivity: 'base' })).forEach(c => grid.appendChild(c)); return; }
+      if (v === 'az') { cards.sort((a, b) => a.dataset.titre.localeCompare(b.dataset.titre, 'fr', { sensitivity: 'base' })).forEach(c => c.parentElement.appendChild(c)); return; }
       const key = c => (v === 'ordre' ? +c.dataset.ordre : c.dataset.prix === '' ? 1e12 : +c.dataset.prix);
-      cards.sort((a, b) => (v === 'desc' ? key(b) - key(a) : key(a) - key(b))).forEach(c => grid.appendChild(c));
+      cards.sort((a, b) => (v === 'desc' ? key(b) - key(a) : key(a) - key(b))).forEach(c => c.parentElement.appendChild(c));
     });
   }
 

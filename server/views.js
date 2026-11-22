@@ -349,7 +349,13 @@ function crumbs(list) {
   return `<nav class="crumbs" aria-label="Fil d’Ariane"><a href="/">Accueil</a>${list.map(([t, h]) => h ? ` / <a href="${h}">${esc(t)}</a>` : ` / <span>${esc(t)}</span>`).join('')}</nav>`;
 }
 
-function boutique(c, { q = '', rub = '', titre, chapo, photo, path = '/boutique', liste = null, fil = null, chips = '', hero = '', seo = null, intro = null }) {
+/* rubrique présentée en sections (ex. La carte Magnolia : entrées, plats, fromages, desserts) */
+function sectionsRub(r, liste) {
+  if (!r || !r.parSections) return null;
+  const L = (liste || []).slice().sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
+  return RANGEMENTS.map(([k, t]) => [k, (r.titresSections || {})[k] || t, L.filter(p => rangementDe(p) === k)]).filter(b => b[2].length);
+}
+function boutique(c, { q = '', rub = '', titre, chapo, photo, path = '/boutique', liste = null, fil = null, chips = '', hero = '', seo = null, intro = null, sections = null }) {
   const rubs = c.rubriques.filter(r => r.statut !== 'masque' && r.slug !== 'lieux');
   const prods = liste || (q ? c.search(c, q, 400) : c.produits.filter(p => p.statut !== 'masque'));
   const r = rubs.find(x => x.slug === rub);
@@ -367,7 +373,8 @@ ${hero || (path === '/boutique' && !q ? bandeau(c, 'boutique') : photo ? bandeau
     </div>
   </div>
   <p class="count"><span data-count>${prods.length}</span> prestations · tarifs TTC · photos non contractuelles${q ? ` pour « ${esc(q)} »` : ''}</p>
-  <div class="cards grid" data-grid>${prods.map(p => card(p, c, { rubNom: !rub })).join('')}</div>
+  ${sections ? sections.map(([k, t, L]) => `<div class="spe-bloc" id="${k}" data-bloc><h2>${esc(t)}</h2><div class="cards grid" data-grid>${L.map(p => card(p, c, { rubNom: false })).join('')}</div></div>`).join('')
+    : `<div class="cards grid" data-grid>${prods.map(p => card(p, c, { rubNom: !rub })).join('')}</div>`}
   ${!prods.length ? `<div class="empty"><p>Aucune prestation ne correspond à « ${esc(q)} ».</p><p>Appelez-nous au <a href="tel:${esc(c.reglages.telephone)}">${esc(c.reglages.telephone)}</a> : nous trouvons toujours une solution.</p></div>` : ''}
 </section>`;
   return layout(c, { title: seo?.title || (r && path === '/' + r.slug && r.seoTitre) || titre, description: seo?.description || (r && path === '/' + r.slug && r.seoDescription) || chapo || (path === '/boutique' && !q ? bandeauDe(c, 'boutique').chapo : ''), body, path, image: path === '/boutique' && !q ? bandeauDe(c, 'boutique').photo : photo });
@@ -742,4 +749,5 @@ function facturePage(c, f, t) {
   return layout(c, { title: 'Facture ' + f.numero, body, bodyClass: 'p-doc' }).replace('<head>', '<head><meta name="robots" content="noindex">');
 }
 
-module.exports = { universListe, RANGEMENTS, pageSpecialites, specialite, sousVisibles, layout, home, boutique, produit, lieux, lieu, selection, texte, maison, livraison, commander, temoignages, contact, legal, erreur, espaceConnexion, espace, devisPage, facturePage, textToHtml, V, BANDEAUX_DEFAUT };
+module.exports = {
+  sectionsRub, universListe, RANGEMENTS, pageSpecialites, specialite, sousVisibles, layout, home, boutique, produit, lieux, lieu, selection, texte, maison, livraison, commander, temoignages, contact, legal, erreur, espaceConnexion, espace, devisPage, facturePage, textToHtml, V, BANDEAUX_DEFAUT };
