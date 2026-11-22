@@ -555,7 +555,7 @@
     const rub = rubs.find(x => x.slug === r) || {};
     return page('Catalogue', `<input type="search" placeholder="Rechercher dans tout le catalogue…" data-q>`, `
       <div class="catg"><nav class="rubs">${rubs.map(x => `<a href="#/catalogue?r=${x.slug}" class="${x.slug === r ? 'on' : ''}${x.statut === 'masque' ? ' hid' : ''}">${esc(x.nom)}<small>${prods.filter(p => p.rubrique === x.slug).length}</small></a>`).join('')}<button class="lnk" data-newrub>+ Nouvelle rubrique</button></nav>
-      <div><section class="box rubbox"><div class="bh"><h2>${esc(rub.nom || '')}</h2><button class="btn" data-new="${esc(r)}">+ Créer dans « ${esc(rub.nom || '')} »</button></div>
+      <div><section class="box rubbox"><div class="bh"><h2>${esc(rub.nom || '')}</h2><a class="btn voir-site" href="/${esc(r)}?apercu=1" target="_blank">👁 Voir la présentation sur le site</a><button class="btn" data-new="${esc(r)}">+ Créer dans « ${esc(rub.nom || '')} »</button></div>
         <form id="rf" class="g3"><label>Nom<input name="nom" value="${esc(rub.nom || '')}"></label><label>Accroche (sur la vignette)<input name="accroche" value="${esc(rub.accroche || '')}" placeholder="ex. Le monde entier à votre table"></label><label>Statut<select name="statut"><option value="visible">Visible</option><option value="masque"${rub.statut === 'masque' ? ' selected' : ''}>Masquée</option></select></label>
         <label class="span3">Texte d’introduction<textarea name="chapo" rows="2">${esc(rub.chapo || '')}</textarea></label>
         <label>Titre du paragraphe de présentation<input name="introTitre" value="${esc(rub.introTitre || '')}" placeholder="ex. Cocktails et buffets à la française"></label>
@@ -590,7 +590,7 @@
     const lireSous = () => $$('#sous .sousrow').forEach((row, i) => { const x = sous[i]; x.nom = $('[data-n]', row).value; x.pays = $('[data-pays]', row).value; x.statut = $('[data-st]', row).value; x.carte = $('[data-carte]', row).value; x.photo = $('input[type=hidden]', row).value; x.bandeauPhoto = $(`input[name=bp${i}]`, row)?.value || ''; for (const k of ['titrePage', 'chapo', 'bouton', 'seoTitre', 'seoDescription', 'introTitre', 'introTexte']) x[k] = $(`[data-k=${k}]`, row).value.trim(); x.parSections = !!$('[data-ps]', row).value; x.titresSections = Object.fromEntries($$('[data-ts]', row).map(e => [e.dataset.ts, e.value.trim()]).filter(e => e[1])); });
     const drawSous = () => {
       $('#sous').innerHTML = sous.map((x, i) => `<div class="sousrow" data-i="${i}">${photoField('sp' + i, x.photo, 'Photo')}<div class="sousf"><label>Nom<input data-n value="${esc(x.nom || '')}"></label><label>Pays ou région (petit titre doré)<input data-pays value="${esc(x.pays || '')}" placeholder="Liban"></label><label>Pays sur la carte<select data-carte><option value="">Automatique (d’après « Pays ou région »)</option>${LIEUX_CARTE.map(([k, t]) => `<option value="${k}"${x.carte === k ? ' selected' : ''}>${t}</option>`).join('')}</select></label><label>Statut<select data-st><option value="visible">Visible</option><option value="masque"${x.statut === 'masque' ? ' selected' : ''}>Masquée</option></select></label>
-        <p class="sm muted">${nbSous(x.slug)} prestation(s) · adresse : <a href="/${esc(cache.catR)}/${esc(x.slug || '')}" target="_blank">/${esc(cache.catR)}/${esc(x.slug || '…')} ↗</a> (à donner à l’agence pour la publicité Google)</p>
+        <p class="sm muted">${nbSous(x.slug)} prestation(s) · adresse : <a href="/${esc(cache.catR)}/${esc(x.slug || '')}" target="_blank">/${esc(cache.catR)}/${esc(x.slug || '…')} ↗</a> (à donner à l’agence pour la publicité Google)</p>${x.slug ? `<a class="btn ghost sm voir-site" href="/${esc(cache.catR)}/${esc(x.slug)}?apercu=1" target="_blank">👁 Voir la présentation sur le site</a>` : ''}
         <details class="landbox"><summary>Page d’atterrissage : bandeau et Google</summary>
           <div class="landf">${photoField('bp' + i, x.bandeauPhoto || '', 'Photo du bandeau (vide = photo de la vignette)')}<div>
           <label>Grand titre de la page<input data-k="titrePage" value="${esc(x.titrePage || '')}" placeholder="${esc(x.nom || '')}"></label>
@@ -726,7 +726,7 @@
     const [p, rubs] = await Promise.all([api(A + '/produits/' + id), cache.rubriques || api(A + '/rubriques')]);
     cache.rubriques = rubs; cache.p = p;
     const sec = s => `${s.titre || ''}\n${(s.items || []).join('\n')}${(s.paragraphes || []).length ? '\n' + s.paragraphes.map(x => '> ' + x).join('\n') : ''}${s.note ? '\n# ' + s.note : ''}${s.apres ? '\n## ' + s.apres : ''}`;
-    return page(esc(p.titre), `<a class="btn ghost" href="#/catalogue?r=${esc(p.rubrique)}">← Catalogue</a><a class="btn ghost" href="/${esc(p.rubrique)}/${esc(p.slug)}" target="_blank">Voir sur le site ↗</a>`, `
+    return page(esc(p.titre), `<a class="btn ghost" href="#/catalogue?r=${esc(p.rubrique)}">← Catalogue</a><a class="btn voir-site" href="/${esc(p.rubrique)}/${esc(p.slug)}?apercu=1" target="_blank">👁 Voir la présentation sur le site</a>`, `
       <form id="pf">
       <div class="cols c21">
         <section class="box"><h2>Informations</h2>
