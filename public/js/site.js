@@ -208,14 +208,15 @@
     const P = JSON.parse(form.dataset.conf);
     const body = $('[data-conf-body]', form);
     const perPers = /personne/.test(P.unite || '');
-    /* règle de Jean-Luc : la quantité de départ est le minimum de la prestation ;
-       pour une prestation « par personne », si le client a tapé son nombre exact d'invités (pavé de recherche ou devis), on part de ce nombre s'il dépasse le minimum */
+    /* règle de Jean-Luc (2026-11-22) : la fiche s'ouvre TOUJOURS sur le minimum de la prestation.
+       Si le client a déjà indiqué un nombre d'invités plus grand (pavé de recherche ou devis), on le lui propose en un clic, sans l'imposer. */
     const nbInv = +(store.get('mg_evt', {}).invites) || 0;
-    const qte0 = Math.max(P.min || 1, perPers ? nbInv : 0);
+    const qte0 = P.min || 1;
+    const propInv = perPers && nbInv > qte0 ? nbInv : 0;
     const R = P.regles || {};
     const plur = (u, n) => (n > 1 && u && !/[sx]$/.test(u) && !/ de /.test(u) ? u + 's' : u);
     let html = '';
-    if (!P.lieu) html += `<div class="conf-q"><span class="lab">Quantité</span><div class="qty"><button type="button" data-q="-1" aria-label="Moins">−</button><input type="number" name="qte" min="${P.min || 1}" value="${qte0}" inputmode="numeric" aria-label="Quantité"><button type="button" data-q="1" aria-label="Plus">+</button></div><span class="unit" data-unit>${esc(plur(P.unite || '', qte0))}</span></div>${P.min > 1 ? `<p class="small">Minimum : ${P.min} ${esc(plur(P.unite || '', P.min))}</p>` : ''}`;
+    if (!P.lieu) html += `<div class="conf-q"><span class="lab">Quantité</span><div class="qty"><button type="button" data-q="-1" aria-label="Moins">−</button><input type="number" name="qte" min="${P.min || 1}" value="${qte0}" inputmode="numeric" aria-label="Quantité"><button type="button" data-q="1" aria-label="Plus">+</button></div><span class="unit" data-unit>${esc(plur(P.unite || '', qte0))}</span></div>${P.min > 1 ? `<p class="small">Minimum : ${P.min} ${esc(plur(P.unite || '', P.min))}</p>` : ''}${propInv ? `<p class="small"><button type="button" class="lnk-inv" data-inv="${propInv}">Mettre ${propInv} ${esc(plur(P.unite || '', propInv))} (vos invités)</button></p>` : ''}`;
     if ((P.variantes || []).length) html += `<label class="conf-l">Formule<select name="variante">${P.variantes.map(v => `<option>${esc(v)}</option>`).join('')}</select></label>`;
     for (const g of P.groupes || []) {
       const opts = g.options || [];
@@ -259,6 +260,7 @@
       });
     };
     form.addEventListener('input', refresh); form.addEventListener('change', refresh);
+    $('[data-inv]', form)?.addEventListener('click', e => { q.value = e.currentTarget.dataset.inv; e.currentTarget.parentElement.remove(); refresh(); });
     $$('[data-q]', form).forEach(b => b.addEventListener('click', () => { const step = perPers && +q.value >= 20 ? 5 : 1; q.value = Math.max(P.min || 1, (+q.value || 0) + (+b.dataset.q) * step); refresh(); }));
     refresh();
     let go = 'add';
