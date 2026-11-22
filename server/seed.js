@@ -16,6 +16,8 @@ const ALCOOL = /champagne|\bvins?\b|cave|bi[eè]re|open ?bars?|alcool|cidre|whis
 const tvaProduit = p => (p.rubrique === 'boissons' && ALCOOL.test(p.titre) && !/softs?|caf[ée]|d[ée]jeuner|gla[cç]ons/i.test(p.titre)) ? 20 : (TVA_RUBRIQUE[p.rubrique] || 10);
 const TVA_RUBRIQUE = { 'personnel': 20, 'musique-animations': 20, 'lieux': 20, 'indispensables': 20 };
 
+/* La maison, à côté de « Une seule maison, une seule demande » : soirée corporate, vraie photo (Unsplash, Jean-Luc 2026-11-22) */
+const PHOTO_MAISON_INTRO = 'https://images.unsplash.com/photo-1768508948849-b2ee9e074ab1?auto=format&fit=crop&w=1600&q=80';
 const REGLAGES_DEFAUT = {
   nom: 'Magnolia Traiteur',
   sousNom: 'Traiteur · Événementiel',
@@ -43,6 +45,7 @@ const REGLAGES_DEFAUT = {
       { valeur: '7 j/7', label: 'livraison en Île-de-France' },
       { valeur: '1 seule', label: 'demande pour tout votre événement' },
     ],
+    photoMaisonIntro: PHOTO_MAISON_INTRO,
     bandeau: ['Saveurs du monde', 'Antillais', 'Chinois', 'Indien', 'Paëlla', 'Libanais', 'Italien', 'Africain', 'Couscous', 'Japonais'],
     suggestions: ['Paëlla', 'Buffet antillais', 'DJ', 'Huîtres', 'Louer des verres', 'Personnel de service', 'Lieux', 'Barbecue', 'Fontaine à chocolat', 'Pièce montée', 'Candy bar', 'Fruits de mer'],
     incontournables: ['grand-cocktail-magnolia', 'paella-royale', 'buffet-antillais-entree-plat-dessert', 'buffet-chinois-entrees-plat-dessert', 'buffet-indien-entree-plat-dessert', 'buffet-libanais-6-mezzes-1-plat', 'bar-a-burrata', 'couscous-royal'],
@@ -659,6 +662,12 @@ async function initSousRubriques(store, { log = console } = {}) {
     const p = await store.get('produits/buffet-chinois-assortiment-13-pieces-salees');
     if (p && p.prixCents === 2190) await store.set('produits/buffet-chinois-assortiment-13-pieces-salees', { ...p, prixCents: 1490 });
     await store.set('site/reglages', { ...(await store.get('site/reglages')), chinois13Prix: true });
+  }
+
+  /* photo de La maison : soirée corporate à la place du flambage (Jean-Luc, 2026-11-22). Une fois ; modifiable ensuite. */
+  const RSm = await store.get('site/reglages');
+  if (RSm && !RSm.photoMaisonCorporate) {
+    await store.set('site/reglages', { ...RSm, accueil: { ...(RSm.accueil || {}), photoMaisonIntro: PHOTO_MAISON_INTRO }, photoMaisonCorporate: true });
   }
 
   /* photos des vignettes « Nos univers » choisies par Jean-Luc (2026-11-22, sources dans data/credits-photos.md).
