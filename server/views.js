@@ -212,8 +212,7 @@ function home(c) {
 </section>
 <div class="marquee band-vert" aria-label="Nos spécialités du monde"><div class="marquee-t">${[0, 1].map(k => (A.bandeau || []).map(t => lienMot(c, t)).map(({ t, href }) => `<span${k ? ' aria-hidden="true"' : ''}><a href="${esc(href)}"${k ? ' tabindex="-1"' : ''}>${esc(t)}</a><i>✳</i></span>`).join('')).join('')}</div></div>
 <section class="chiffres wrap">${(A.chiffres || []).map(x => {
-  const nb = c.produits.filter(p => p.statut !== 'masque').length;
-  const v = /prestation/i.test(x.label || '') && /^\s*\d+\s*$/.test(x.valeur || '') ? String(nb) : x.valeur;
+  const v = x.valeur; // chiffres fixes, saisis dans Photos & textes (Jean-Luc, 2026-11-22)
   return `<div><b>${esc(v)}</b>${/\/\s*5\s*$/.test(v || '') ? '<i class="etoiles" aria-hidden="true">★★★★★</i>' : ''}<span>${esc(x.label === 'prestations en ligne, prix TTC' ? 'prestations en ligne' : x.label)}</span></div>`;
 }).join('')}</section>
 ${bandeLogos(c, { lien: true, titre: 'Particuliers et entreprises : ils nous font confiance' })}
@@ -334,7 +333,7 @@ function pageSections(c, r, x, chips, hero) {
 <section class="wrap shop spe-sections" id="prestations">
   <div class="shop-bar">${chips}</div>
   ${x.introTexte ? `<div class="spe-intro">${x.introTitre ? `<h2>${esc(x.introTitre)}</h2>` : ''}${String(x.introTexte).split(/\n+/).map(l => l.trim()).filter(Boolean).map(l => `<p>${esc(l)}</p>`).join("")}</div>` : ''}
-  ${blocs.map(([k, t, L]) => `<div class="spe-bloc" id="${k}"><h2>${esc(t)}</h2><p class="count">${L.length} prestation${L.length > 1 ? 's' : ''} · tarifs TTC</p><div class="cards grid">${L.map(p => card(p, c, { rubNom: false })).join('')}</div></div>`).join('')}
+  ${blocs.map(([k, t, L]) => `<div class="spe-bloc" id="${k}"><h2>${esc(t)}</h2><p class="count">${L.length} prestation${L.length > 1 ? 's' : ''} · tarifs TTC · photos non contractuelles</p><div class="cards grid">${L.map(p => card(p, c, { rubNom: false })).join('')}</div></div>`).join('')}
 </section>`;
   return layout(c, { title: x.seoTitre || speTitre(x), description: x.seoDescription || speChapo(x), body, path: `/${r.slug}/${x.slug}`, image: x.bandeauPhoto || x.photo });
 }
@@ -359,7 +358,7 @@ ${hero || (path === '/boutique' && !q ? bandeau(c, 'boutique') : photo ? bandeau
       <label class="tri"><span class="sr">Trier</span><select data-sort><option value="ordre">Ordre de la brochure</option><option value="az">Ordre alphabétique (A à Z)</option><option value="asc">Prix croissant</option><option value="desc">Prix décroissant</option></select></label>
     </div>
   </div>
-  <p class="count"><span data-count>${prods.length}</span> prestations · tarifs TTC${q ? ` pour « ${esc(q)} »` : ''}</p>
+  <p class="count"><span data-count>${prods.length}</span> prestations · tarifs TTC · photos non contractuelles${q ? ` pour « ${esc(q)} »` : ''}</p>
   <div class="cards grid" data-grid>${prods.map(p => card(p, c, { rubNom: !rub })).join('')}</div>
   ${!prods.length ? `<div class="empty"><p>Aucune prestation ne correspond à « ${esc(q)} ».</p><p>Appelez-nous au <a href="tel:${esc(c.reglages.telephone)}">${esc(c.reglages.telephone)}</a> : nous trouvons toujours une solution.</p></div>` : ''}
 </section>`;
