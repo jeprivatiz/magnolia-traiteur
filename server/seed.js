@@ -881,6 +881,11 @@ const DOUBLONS = [
 /* [titre, photo, texte alternatif] ; sources dans data/credits-photos-univers.md */
 /* [fiche, version, [[photo, description]…]] */
 const VRAIES_PHOTOS = [
+  /* Buffet italien : grand buffet d'antipasti à la place des tomates confites (Jean-Luc, 2026-11-22) ; Pexels 23388862, licence Pexels */
+  ['buffet-italien-entree-plat-dessert', 'v1', [['https://images.pexels.com/photos/23388862/pexels-photo-23388862.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Grand buffet italien : bruschettas, charcuteries, fromages, pains et antipasti'],
+    ['/site/c/italien22-produits/buffet-menu.webp.webp', 'Buffet italien généreux de charcuteries, antipasti et spécialités à partager'], ['/site/c/italien22-produits/charcuterie-sans-logo-20261106.webp.webp', 'Planche de charcuteries et fromages italiens'],
+    ['/site/c/italien22-produits/mozzarella-tomates-sans-logo-20261106.webp.webp', 'Brochettes mozzarella et tomates cerises'], ['/site/c/italien22-produits/cake-jambon-olives-sans-logo-20261106.webp.webp', 'Cake jambon et olives'],
+    ['/site/c/italien22-produits/gressins-sans-logo-20261106.webp.webp', 'Gressins'], ['/site/c/italien22-produits/olives-sans-logo-20261106.webp.webp', 'Olives noires']]],
   ['samoussa-legumes', 'v1', [['https://images.pexels.com/photos/9027521/pexels-photo-9027521.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Samoussas aux légumes croustillants, chutneys vert et tamarin']]],
   ['samoussas-legumes', 'v1', [['https://images.pexels.com/photos/4449068/pexels-photo-4449068.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Samoussas aux légumes dorés dans une corbeille, sauces à côté']]],
 ];
