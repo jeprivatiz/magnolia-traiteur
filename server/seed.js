@@ -754,6 +754,10 @@ const pexels = id => `https://images.pexels.com/photos/${id}/pexels-photo-${id}.
 const VIGNETTES_UNIVERS = {
   'traiteur-vegetarien-vegan': pexels(41063196),
   'grand-large': pexels(39143859),
+  // vraies photos à la place des images qui font « IA » (Jean-Luc, 2026-11-22)
+  'cocktails-buffets': pexels(34279947), // plateaux de petits fours, sans verres
+  'saveurs-du-monde': pexels(27294729),
+  'boissons': pexels(18853331),
 };
 
 module.exports = { RANGEMENTS, rangementDe, SPE_TEXTES, initSousRubriques, classerSous, SOUS_DEFAUT, importerAvisAncienSite, dateIso, seed, REGLAGES_DEFAUT, MODELES_DEFAUT, extraireAvis };
