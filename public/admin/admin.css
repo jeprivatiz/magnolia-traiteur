@@ -354,3 +354,10 @@ details[open] summary { margin-bottom: 12px; }
 .sousfiltre { margin: 4px 0 10px; }
 .sousfiltre label { margin: 0; }
 @media (max-width: 760px) { .sousrow { grid-template-columns: 1fr; } .sousf { grid-template-columns: 1fr; } }
+
+/* pages d'atterrissage (spécialités, rubriques) */
+.landbox { grid-column: 1 / -1; background: var(--carte); border: 1px solid var(--ligne); border-radius: 10px; padding: 8px 12px; margin: 4px 0 8px; }
+.landbox summary { cursor: pointer; font-weight: 500; }
+.landbox[open] summary { margin-bottom: 10px; }
+.landf { display: grid; grid-template-columns: minmax(140px, 200px) 1fr; gap: 14px; }
+@media (max-width: 760px) { .landf { grid-template-columns: 1fr; } }
