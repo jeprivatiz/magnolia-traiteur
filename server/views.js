@@ -229,20 +229,44 @@ function bandeau(c, cle, { fil, titre } = {}) {
   <p class="confiance"><span><span class="etoiles" aria-hidden="true">★★★★★</span> <b>${esc(G.note || '4,9')}/5</b> sur Google${G.nombre ? `, ${esc(G.nombre)} avis` : ''}</span><span>Livraison 7 j/7 en Île-de-France</span><span>Devis gratuit</span></p></div></section>`;
 }
 
+/* ---------- univers à spécialités (ex. Saveurs du monde → Paëlla, Libanais, Chinois…) ---------- */
+const sousVisibles = r => (r?.sous || []).filter(x => x.statut !== 'masque').sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
+const prodsDeSous = (c, r, sl) => (c.byRub.get(r.slug) || []).filter(p => p.sous === sl);
+function univers(c, r) {
+  const S = sousVisibles(r);
+  const tous = c.byRub.get(r.slug) || [];
+  const autres = tous.filter(p => !S.some(x => x.slug === p.sous));
+  const tuile = x => {
+    const n = prodsDeSous(c, r, x.slug).length;
+    return `<a class="tile spe" href="/${esc(r.slug)}/${esc(x.slug)}">${img(x.photo, x.nom)}${x.video ? `<video src="${esc(x.video)}" muted loop playsinline preload="none" aria-hidden="true" data-survol></video>` : ''}<span class="tile-t">${x.pays ? `<i class="pays">${esc(x.pays)}</i>` : ''}<b>${esc(x.nom)}</b><small>${n} prestation${n > 1 ? 's' : ''}</small><span class="voir">Voir nos propositions ${icon.arrow}</span></span></a>`;
+  };
+  const body = `<section class="phero">${img(r.photoAccueil || r.photo, '')}<div class="phero-c wrap">${crumbs([['La boutique', '/boutique'], [r.nom]])}<h1>${esc(r.nom)}</h1><p class="lead">${esc(r.chapo || r.accroche || 'Choisissez votre spécialité : chaque cuisine a ses buffets, ses plats et ses douceurs.')}</p></div></section>
+  <section class="wrap" id="specialites"><p class="eyebrow">Un voyage à votre table</p><h2>Choisissez votre spécialité</h2>
+  <div class="tiles specialites">${S.map(tuile).join('')}${autres.length ? `<a class="tile spe autres" href="/${esc(r.slug)}/tout"><span class="tile-t"><b>Autres saveurs</b><small>${autres.length} prestation${autres.length > 1 ? 's' : ''}</small><span class="voir">Voir ${icon.arrow}</span></span></a>` : ''}</div>
+  <p class="center tout-voir"><a class="lnk" href="/${esc(r.slug)}/tout">Voir les ${tous.length} prestations ${esc(r.nom.toLowerCase())} ensemble</a></p></section>`;
+  return layout(c, { title: r.nom, description: r.chapo || '', body, path: '/' + r.slug, image: r.photoAccueil || r.photo });
+}
+function specialite(c, r, x) {
+  const S = sousVisibles(r);
+  const liste = x ? prodsDeSous(c, r, x.slug) : (c.byRub.get(r.slug) || []);
+  const chips = `<div class="chips scroll-x spe-chips">${S.map(y => `<a class="chip${x && y.slug === x.slug ? ' on' : ''}" href="/${esc(r.slug)}/${esc(y.slug)}">${esc(y.nom)}</a>`).join('')}<a class="chip${!x ? ' on' : ''}" href="/${esc(r.slug)}/tout">Tout</a></div>`;
+  return boutique(c, { rub: r.slug, titre: x ? x.nom : r.nom, chapo: x ? (x.chapo || `${x.pays ? x.pays + ' : ' : ''}toutes nos propositions, prix TTC. Ajoutez vos choix à votre sélection, puis demandez votre devis.`) : r.chapo, photo: x ? x.photo : (r.photoAccueil || r.photo), path: `/${r.slug}/${x ? x.slug : 'tout'}`, liste, fil: [['La boutique', '/boutique'], [r.nom, '/' + r.slug], [x ? x.nom : 'Tout']], chips });
+}
+
 function crumbs(list) {
   return `<nav class="crumbs" aria-label="Fil d’Ariane"><a href="/">Accueil</a>${list.map(([t, h]) => h ? ` / <a href="${h}">${esc(t)}</a>` : ` / <span>${esc(t)}</span>`).join('')}</nav>`;
 }
 
-function boutique(c, { q = '', rub = '', titre, chapo, photo, path = '/boutique', liste = null }) {
+function boutique(c, { q = '', rub = '', titre, chapo, photo, path = '/boutique', liste = null, fil = null, chips = '' }) {
   const rubs = c.rubriques.filter(r => r.statut !== 'masque' && r.slug !== 'lieux');
   const prods = liste || (q ? c.search(c, q, 400) : c.produits.filter(p => p.statut !== 'masque'));
   const r = rubs.find(x => x.slug === rub);
   const body = `
-${path === '/boutique' && !q ? bandeau(c, 'boutique') : photo ? `<section class="phero">${img(photo, '')}<div class="phero-c wrap">${crumbs(r ? [['La boutique', '/boutique'], [r.nom]] : [[titre]])}<h1>${esc(titre)}</h1>${chapo ? `<p class="lead">${esc(chapo)}</p>` : ''}</div></section>`
+${path === '/boutique' && !q ? bandeau(c, 'boutique') : photo ? `<section class="phero">${img(photo, '')}<div class="phero-c wrap">${crumbs(fil || (r ? [['La boutique', '/boutique'], [r.nom]] : [[titre]]))}<h1>${esc(titre)}</h1>${chapo ? `<p class="lead">${esc(chapo)}</p>` : ''}</div></section>`
     : `<section class="wrap page-h">${crumbs([[titre]])}<h1>${esc(titre)}</h1><p class="lead">${esc(chapo || 'Toute la brochure, avec ses prix. Ajoutez vos choix à votre sélection, puis demandez votre devis.')}</p></section>`}
 <section class="wrap shop" id="prestations" data-shop>
   <div class="shop-bar">
-    <div class="chips scroll-x" role="tablist">${liste ? '' : `<a class="chip${!rub ? ' on' : ''}" href="/boutique" data-filter="">Tout <small>${c.produits.filter(p => p.statut !== 'masque').length}</small></a>`}${liste ? '' : rubs.map(x => `<a class="chip${x.slug === rub ? ' on' : ''}" href="/${x.slug}" data-filter="${x.slug}">${esc(x.nom)} <small>${c.byRub.get(x.slug)?.length || 0}</small></a>`).join('')}</div>
+    ${chips}<div class="chips scroll-x" role="tablist"${chips ? ' hidden' : ''}>${liste ? '' : `<a class="chip${!rub ? ' on' : ''}" href="/boutique" data-filter="">Tout <small>${c.produits.filter(p => p.statut !== 'masque').length}</small></a>`}${liste ? '' : rubs.map(x => `<a class="chip${x.slug === rub ? ' on' : ''}" href="/${x.slug}" data-filter="${x.slug}">${esc(x.nom)} <small>${c.byRub.get(x.slug)?.length || 0}</small></a>`).join('')}</div>
     <div class="shop-tools">
       <form class="shop-q" action="/boutique" role="search">${icon.search}<input type="search" name="q" value="${esc(q)}" placeholder="Paëlla, DJ, huîtres…" aria-label="Rechercher dans la boutique" data-shop-q></form>
       <label class="tri"><span class="sr">Trier</span><select data-sort><option value="ordre">Ordre de la brochure</option><option value="asc">Prix croissant</option><option value="desc">Prix décroissant</option></select></label>
@@ -273,7 +297,7 @@ function produit(c, p) {
   const conf = { slug: p.slug, titre: p.titre, prixCents: p.prixCents, unite: p.unite, min: p.min || 1, groupes: p.groupes || [], variantes: p.variantes || [], regles: p.regles || {}, photo: photos[0]?.src || p.video?.poster || '', rubrique: r.nom };
   const body = `
 <section class="wrap fiche">
-  ${crumbs([['La boutique', '/boutique'], [r.nom, '/' + r.slug], [p.titre]])}
+  ${crumbs([['La boutique', '/boutique'], [r.nom, '/' + r.slug], ...(() => { const x = sousVisibles(c.rubriques.find(y => y.slug === p.rubrique)).find(y => y.slug === p.sous); return x ? [[x.nom, `/${p.rubrique}/${x.slug}`]] : []; })(), [p.titre]])}
   <div class="fiche-g">
     <div class="fiche-media">${media}</div>
     <div class="fiche-info">
@@ -522,4 +546,4 @@ function facturePage(c, f, t) {
   return layout(c, { title: 'Facture ' + f.numero, body, bodyClass: 'p-doc' }).replace('<head>', '<head><meta name="robots" content="noindex">');
 }
 
-module.exports = { layout, home, boutique, produit, lieux, lieu, selection, texte, maison, livraison, commander, temoignages, contact, legal, erreur, espaceConnexion, espace, devisPage, facturePage, textToHtml, V, BANDEAUX_DEFAUT };
+module.exports = { univers, specialite, sousVisibles, layout, home, boutique, produit, lieux, lieu, selection, texte, maison, livraison, commander, temoignages, contact, legal, erreur, espaceConnexion, espace, devisPage, facturePage, textToHtml, V, BANDEAUX_DEFAUT };
