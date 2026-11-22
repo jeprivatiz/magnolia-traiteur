@@ -202,6 +202,33 @@ ${avisBloc(c)}
   return layout(c, { body, schema, bodyClass: 'home', description: A.sousTitre, image: vids[0]?.poster });
 }
 
+/* Grand bandeau photo en haut des pages d'arrivée (publicité Google Ads) : photo ou vidéo, titre, texte, boutons, ligne de confiance.
+   Tout se change dans le back-office › Photos & textes du site › Bandeaux des pages. */
+const BANDEAUX_DEFAUT = {
+  boutique: { photo: '/site/c/cocktail10-client-20261104.jpg.webp', video: '', titre: 'La boutique Magnolia', chapo: 'Buffets, cocktails, spécialités du monde, boissons, personnel et animations : plus de 350 prestations, prix TTC, livrées 7 jours sur 7 en Île-de-France.', bouton: 'Voir les prestations', ancre: '#prestations' },
+  lieux: { photo: '/site/v/lieux-ambiances.jpg', video: '', titre: 'Lieux de réception', chapo: 'Lofts, péniches, demeures et salons à privatiser à Paris et en Île-de-France. Associez votre lieu et votre traiteur dans une seule demande.', bouton: 'Voir les lieux', ancre: '#lieux' },
+  temoignages: { photo: '/site/v/temoignages-table.jpg', video: '/site/v/temoignages-table.mp4', titre: 'Avis clients', chapo: 'Mariages, anniversaires, séminaires, fêtes de famille : ils nous ont confié leur événement et le racontent.', bouton: 'Lire les avis', ancre: '#avis' },
+  maison: { photo: '', video: '', titre: 'La maison Magnolia', chapo: 'Votre événement commence ici.', bouton: 'Découvrir nos propositions', ancre: '/boutique' },
+};
+function bandeauDe(c, cle) {
+  const R = c.reglages, d = BANDEAUX_DEFAUT[cle] || {}, b = R.bandeaux?.[cle] || {};
+  const o = { ...d };
+  for (const k of Object.keys(b)) if (b[k] || (k === 'video' && b[k] === '')) o[k] = b[k];
+  if (cle === 'maison' && !o.photo) o.photo = R.accueil?.photoMaison || '';
+  return o;
+}
+function bandeau(c, cle, { fil, titre } = {}) {
+  const R = c.reglages, B = bandeauDe(c, cle);
+  const tel = (R.telephone || '').replace(/\s/g, '');
+  const G = R.avisGoogle || {};
+  const media = B.video
+    ? `<video src="${esc(B.video)}" poster="${esc(B.photo || '')}" autoplay muted loop playsinline preload="metadata" aria-hidden="true" data-autoplay></video>`
+    : img(B.photo, '', '', 'fetchpriority="high"').replace(' loading="lazy"', '');
+  return `<section class="phero land">${media}<div class="phero-c wrap">${crumbs(fil || [[titre || B.titre]])}<h1>${esc(titre || B.titre)}</h1>${B.chapo ? `<p class="lead">${esc(B.chapo)}</p>` : ''}
+  <div class="row land-cta"><a class="btn btn-or" href="${esc(B.ancre || '/boutique')}">${esc(B.bouton || 'Découvrir')}</a><a class="btn btn-ghost-light" href="tel:${esc(tel)}">${icon.phone}<span>${esc(R.telephone || '')}</span></a></div>
+  <p class="confiance"><span><span class="etoiles" aria-hidden="true">★★★★★</span> <b>${esc(G.note || '4,9')}/5</b> sur Google${G.nombre ? `, ${esc(G.nombre)} avis` : ''}</span><span>Livraison 7 j/7 en Île-de-France</span><span>Devis gratuit</span></p></div></section>`;
+}
+
 function crumbs(list) {
   return `<nav class="crumbs" aria-label="Fil d’Ariane"><a href="/">Accueil</a>${list.map(([t, h]) => h ? ` / <a href="${h}">${esc(t)}</a>` : ` / <span>${esc(t)}</span>`).join('')}</nav>`;
 }
@@ -211,9 +238,9 @@ function boutique(c, { q = '', rub = '', titre, chapo, photo, path = '/boutique'
   const prods = liste || (q ? c.search(c, q, 400) : c.produits.filter(p => p.statut !== 'masque'));
   const r = rubs.find(x => x.slug === rub);
   const body = `
-${photo ? `<section class="phero">${img(photo, '')}<div class="phero-c wrap">${crumbs(r ? [['La boutique', '/boutique'], [r.nom]] : [[titre]])}<h1>${esc(titre)}</h1>${chapo ? `<p class="lead">${esc(chapo)}</p>` : ''}</div></section>`
+${path === '/boutique' && !q ? bandeau(c, 'boutique') : photo ? `<section class="phero">${img(photo, '')}<div class="phero-c wrap">${crumbs(r ? [['La boutique', '/boutique'], [r.nom]] : [[titre]])}<h1>${esc(titre)}</h1>${chapo ? `<p class="lead">${esc(chapo)}</p>` : ''}</div></section>`
     : `<section class="wrap page-h">${crumbs([[titre]])}<h1>${esc(titre)}</h1><p class="lead">${esc(chapo || 'Toute la brochure, avec ses prix. Ajoutez vos choix à votre sélection, puis demandez votre devis.')}</p></section>`}
-<section class="wrap shop" data-shop>
+<section class="wrap shop" id="prestations" data-shop>
   <div class="shop-bar">
     <div class="chips scroll-x" role="tablist">${liste ? '' : `<a class="chip${!rub ? ' on' : ''}" href="/boutique" data-filter="">Tout <small>${c.produits.filter(p => p.statut !== 'masque').length}</small></a>`}${liste ? '' : rubs.map(x => `<a class="chip${x.slug === rub ? ' on' : ''}" href="/${x.slug}" data-filter="${x.slug}">${esc(x.nom)} <small>${c.byRub.get(x.slug)?.length || 0}</small></a>`).join('')}</div>
     <div class="shop-tools">
@@ -225,7 +252,7 @@ ${photo ? `<section class="phero">${img(photo, '')}<div class="phero-c wrap">${c
   <div class="cards grid" data-grid>${prods.map(p => card(p, c, { rubNom: !rub })).join('')}</div>
   ${!prods.length ? `<div class="empty"><p>Aucune prestation ne correspond à « ${esc(q)} ».</p><p>Appelez-nous au <a href="tel:${esc(c.reglages.telephone)}">${esc(c.reglages.telephone)}</a> : nous trouvons toujours une solution.</p></div>` : ''}
 </section>`;
-  return layout(c, { title: titre, description: chapo || '', body, path });
+  return layout(c, { title: titre, description: chapo || (path === '/boutique' && !q ? bandeauDe(c, 'boutique').chapo : ''), body, path, image: path === '/boutique' && !q ? bandeauDe(c, 'boutique').photo : photo });
 }
 
 function produit(c, p) {
@@ -275,9 +302,10 @@ ${proches.length ? `<section class="wrap"><div class="sec-h"><h2>Dans la même r
 
 function lieux(c) {
   const L = c.lieux.filter(l => l.statut !== 'masque');
-  const body = `<section class="wrap page-h">${crumbs([['Lieux de réception']])}<h1>Lieux de réception</h1><p class="lead">Lofts, péniches, demeures et salons à privatiser à Paris et en Île-de-France. Associez votre lieu à notre traiteur dans une seule demande.</p></section>
-  <section class="wrap"><div class="cards grid">${L.map(l => `<a class="card" href="/lieux/${esc(l.slug)}"><div class="card-img">${img(l.photos?.[0], l.nom)}${l.capacite ? `<span class="tag">Jusqu’à ${l.capacite} pers.</span>` : ''}</div><div class="card-b"><h3>${esc(l.nom)}</h3><p>${esc(l.ville || '')}</p><p>${esc(trunc(l.description, 110))}</p><div class="card-f"><span class="prix">${esc(l.prixTexte || 'Sur devis')}</span><span class="more">Découvrir ${icon.arrow}</span></div></div></a>`).join('')}</div></section>`;
-  return layout(c, { title: 'Lieux de réception', body, path: '/lieux' });
+  const body = `${bandeau(c, 'lieux')}
+  <section class="wrap" id="lieux"><div class="cards grid">${L.map(l => `<a class="card" href="/lieux/${esc(l.slug)}"><div class="card-img">${img(l.photos?.[0], l.nom)}${l.capacite ? `<span class="tag">Jusqu’à ${l.capacite} pers.</span>` : ''}</div><div class="card-b"><h3>${esc(l.nom)}</h3><p>${esc(l.ville || '')}</p><p>${esc(trunc(l.description, 110))}</p><div class="card-f"><span class="prix">${esc(l.prixTexte || 'Sur devis')}</span><span class="more">Découvrir ${icon.arrow}</span></div></div></a>`).join('')}</div></section>`;
+  const B = bandeauDe(c, 'lieux');
+  return layout(c, { title: B.titre, description: B.chapo, body, path: '/lieux', image: B.photo });
 }
 
 function lieu(c, l) {
@@ -325,10 +353,10 @@ function selection(c) {
   return layout(c, { title: 'Ma sélection', body, path: '/ma-selection', bodyClass: 'p-sel' });
 }
 
-function texte(c, { titre, chapo = '', html, path, photo = '' }) {
-  const body = `${photo ? `<section class="phero">${img(photo, '')}<div class="phero-c wrap">${crumbs([[titre]])}<h1>${esc(titre)}</h1>${chapo ? `<p class="lead">${esc(chapo)}</p>` : ''}</div></section>` : `<section class="wrap page-h">${crumbs([[titre]])}<h1>${esc(titre)}</h1>${chapo ? `<p class="lead">${esc(chapo)}</p>` : ''}</section>`}
+function texte(c, { titre, chapo = '', html, path, photo = '', land = '', image = '' }) {
+  const body = `${land ? bandeau(c, land) : photo ? `<section class="phero">${img(photo, '')}<div class="phero-c wrap">${crumbs([[titre]])}<h1>${esc(titre)}</h1>${chapo ? `<p class="lead">${esc(chapo)}</p>` : ''}</div></section>` : `<section class="wrap page-h">${crumbs([[titre]])}<h1>${esc(titre)}</h1>${chapo ? `<p class="lead">${esc(chapo)}</p>` : ''}</section>`}
   <section class="wrap prose">${html}</section>`;
-  return layout(c, { title: titre, description: chapo, body, path });
+  return layout(c, { title: titre, description: chapo, body, path, image: image || photo });
 }
 
 /* texte brut (pages reprises du brouillon) → paragraphes ; les lignes courtes deviennent des intertitres */
@@ -340,7 +368,8 @@ function maison(c) {
   const R = c.reglages;
   const html = `<div class="cols2"><div><h2>Une seule maison, une seule demande</h2><p>Anniversaire, mariage, fête de famille ou réception professionnelle : Magnolia Traiteur vous propose des idées et des prestations pour construire votre événement à Paris et en Île-de-France.</p><p>Cocktails, buffets, spécialités du monde, repas à composer, animations culinaires, boissons et douceurs ; mais aussi le personnel, le matériel, les artistes et les lieux de la brochure.</p><p>Tout est préparé dans notre laboratoire de Villebon-sur-Yvette et livré 7 jours sur 7.</p><p class="row"><a class="btn btn-vert" href="/boutique">Découvrir nos propositions</a></p></div>${img(R.accueil?.photoCommande, 'Personnel de réception Magnolia')}</div>
   <h2>Vos interlocuteurs</h2><div class="equipe">${(R.equipe || []).map(e => `<figure class="membre">${e.photo ? img(e.photo, e.nom) : `<div class="avatar">${esc((e.nom || '?')[0])}</div>`}<figcaption><b>${esc(e.nom)}</b><span>${esc(e.role)}</span>${e.citation ? `<blockquote>${esc(e.citation)}<cite>${esc(e.auteur || '')}</cite></blockquote>` : ''}</figcaption></figure>`).join('')}</div>`;
-  return texte(c, { titre: 'La maison Magnolia', chapo: 'Votre événement commence ici.', html: html + '</section>' + etapes(c) + avisBloc(c) + '<section>', path: '/maison', photo: R.accueil?.photoMaison });
+  const B = bandeauDe(c, 'maison');
+  return texte(c, { titre: B.titre, chapo: B.chapo, html: html + '</section>' + etapes(c) + avisBloc(c) + '<section>', path: '/maison', land: 'maison', image: B.photo });
 }
 
 function livraison(c) {
@@ -372,12 +401,24 @@ function commander(c) {
 }
 
 function temoignages(c) {
-  const html = `<div class="masonry">${c.avis.map(a => `<figure class="quote"><p class="stars">${'★'.repeat(a.note || 5)}</p><blockquote>« ${esc(a.texte)} »</blockquote><figcaption>${esc(a.auteur || '')}${a.evenement ? ' · ' + esc(a.evenement) : ''}</figcaption></figure>`).join('')}</div>`;
+  const R = c.reglages;
+  const avis = c.avis;
+  const logos = (R.logosClients || []).filter(l => logoExiste(l.src));
+  const ids = new Set(avis.map(a => a.id));
+  const bande = logos.length ? `<section class="bande-clients" aria-label="Ils nous ont fait confiance"><div class="marquee"><div class="marquee-t">${[0, 1].map(k => logos.map(l => {
+    const im = `<img src="${esc(l.src)}" alt="${k ? '' : esc(l.nom)}" title="${esc(l.nom)}" loading="lazy" decoding="async">`;
+    return l.avisId && ids.has(l.avisId) ? `<a href="#avis-${esc(l.avisId)}" data-avis-lien="${esc(l.avisId)}"${k ? ' tabindex="-1" aria-hidden="true"' : ''}>${im}</a>` : `<span${k ? ' aria-hidden="true"' : ''}>${im}</span>`;
+  }).join('')).join('')}</div></div></section>` : '';
+  const PAR = 24;
+  const carte = (a, i) => `<figure class="quote" id="avis-${esc(a.id)}"${i >= PAR ? ' hidden' : ''} data-avis-item><p class="stars" aria-label="${a.note || 5} sur 5">${'★'.repeat(a.note || 5)}</p>${a.titre ? `<h3>${esc(a.titre)}</h3>` : ''}<blockquote>« ${esc(a.texte)} »</blockquote>${a.photo ? `<img class="quote-ph" src="${esc(a.photo)}" alt="" loading="lazy" decoding="async">` : ''}<figcaption>${[String(a.auteur || '').replace(/([a-zà-ÿ])([A-ZÀ-Ý][a-zà-ÿ])/g, '$1 · $2'), a.lieu, a.evenement, a.date].filter(Boolean).map(esc).join(' · ')}</figcaption></figure>`;
+  const html = `<div class="masonry" data-avis-liste>${avis.map(carte).join('')}</div>${avis.length > PAR ? `<p class="center"><button class="btn btn-line" type="button" data-avis-plus="${PAR}">Voir plus d’avis <small>(${avis.length - PAR})</small></button></p>` : ''}`;
   const form = `<section class="avis-form" id="laisser-un-avis"><h2>Vous avez fêté un moment avec nous ?</h2><p>Racontez-le en quelques mots : votre avis sera publié après relecture par l’équipe.</p>
   <form class="card-form" data-avis novalidate><div class="f2"><label>Prénom et ville<input name="auteur" required maxlength="80" placeholder="Claire, Massy"></label><label>Votre événement<select name="evenement">${(c.reglages.evenements || []).map(e => `<option>${esc(e)}</option>`).join('')}</select></label></div>
   <div class="f2"><label>Votre note<select name="note"><option value="5">★★★★★ Excellent</option><option value="4">★★★★ Très bien</option><option value="3">★★★ Bien</option><option value="2">★★ Moyen</option><option value="1">★ Décevant</option></select></label><label>E-mail (jamais publié)<input type="email" name="email" required autocomplete="email"></label></div>
   <label>Votre avis<textarea name="texte" rows="4" required minlength="20" maxlength="1500"></textarea></label><input name="site" tabindex="-1" autocomplete="off" class="hp" aria-hidden="true"><button class="btn btn-vert">Envoyer mon avis</button></form></section>`;
-  return texte(c, { titre: 'Avis clients', chapo: `${c.reglages.avisGoogle?.note || '4,9'}/5 sur Google, ${c.reglages.avisGoogle?.nombre || ''} avis.`, html: html + form, path: '/temoignages' });
+  const B = bandeauDe(c, 'temoignages');
+  const body = `${bandeau(c, 'temoignages')}${bande}<section class="wrap avis-page" id="avis"><p class="avis-compte"><b>${avis.length}</b> avis publiés · <a href="${esc(R.avisGoogle?.url || '#')}" target="_blank" rel="noopener">voir aussi nos avis Google</a></p>${html}${form}</section>`;
+  return layout(c, { title: B.titre, description: B.chapo, body, path: '/temoignages', image: B.photo });
 }
 
 function contact(c) {
@@ -481,4 +522,4 @@ function facturePage(c, f, t) {
   return layout(c, { title: 'Facture ' + f.numero, body, bodyClass: 'p-doc' }).replace('<head>', '<head><meta name="robots" content="noindex">');
 }
 
-module.exports = { layout, home, boutique, produit, lieux, lieu, selection, texte, maison, livraison, commander, temoignages, contact, legal, erreur, espaceConnexion, espace, devisPage, facturePage, textToHtml, V };
+module.exports = { layout, home, boutique, produit, lieux, lieu, selection, texte, maison, livraison, commander, temoignages, contact, legal, erreur, espaceConnexion, espace, devisPage, facturePage, textToHtml, V, BANDEAUX_DEFAUT };

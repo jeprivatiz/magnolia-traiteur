@@ -446,3 +446,24 @@ function bandeauCookies() {
   if (c?.ads) chargerGoogle(); else if (!c) bandeauCookies();
   document.addEventListener('click', e => { if (e.target.closest('[data-cookies]')) { e.preventDefault(); try { localStorage.removeItem(MG_CONSENT); } catch { /* */ } bandeauCookies(); } });
 })();
+
+/* pages d'arrivée : vidéo du bandeau, avis « voir plus », clic sur un logo client → son avis */
+(() => {
+  document.querySelectorAll('.phero.land video').forEach(v => {
+    const go = () => { const p = v.play(); if (p) p.catch(() => {}); };
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { v.removeAttribute('autoplay'); return; }
+    go(); document.addEventListener('visibilitychange', () => { if (!document.hidden) go(); });
+  });
+  const plus = document.querySelector('[data-avis-plus]');
+  const montrer = el => { if (el && el.hidden) el.hidden = false; };
+  const reste = () => document.querySelectorAll('[data-avis-item][hidden]').length;
+  const maj = () => { if (!plus) return; const n = reste(); if (!n) plus.closest('p').remove(); else plus.querySelector('small').textContent = `(${n})`; };
+  if (plus) plus.addEventListener('click', () => { [...document.querySelectorAll('[data-avis-item][hidden]')].slice(0, +plus.dataset.avisPlus || 24).forEach(montrer); maj(); });
+  const cible = () => {
+    const id = decodeURIComponent(location.hash.slice(1));
+    if (!id.startsWith('avis-')) return;
+    const el = document.getElementById(id); if (!el) return;
+    montrer(el); maj(); requestAnimationFrame(() => el.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+  };
+  window.addEventListener('hashchange', cible); cible();
+})();

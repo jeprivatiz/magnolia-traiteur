@@ -501,3 +501,40 @@ textarea:focus, input:focus, select:focus { outline: 2px solid color-mix(in srgb
 @media (max-width: 860px) { .fiche-g { grid-template-columns: minmax(0, 1fr); } }
 .tri { display: block; flex: none; margin: 0; } .tri select { max-width: 100%; }
 .shop-bar, .shop-tools, .shop-bar > * { min-width: 0; } .shop-q { min-width: 0; flex: 1; }
+
+/* ---------- pages d'arrivée : grand bandeau photo + bande des logos clients ---------- */
+.phero.land { height: auto; min-height: clamp(440px, 72vh, 640px); margin-bottom: 0; display: flex; align-items: flex-end; }
+.phero.land > video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.phero.land::after { background: linear-gradient(180deg, rgba(8, 12, 10, .25) 0%, rgba(8, 12, 10, .35) 40%, rgba(8, 12, 10, .82) 100%); }
+.phero.land .phero-c { position: relative; bottom: auto; padding-top: 120px; padding-bottom: 44px; }
+.phero.land h1 { font-size: clamp(2.3rem, 5.4vw, 4rem); line-height: 1.05; margin: 0 0 14px; max-width: 16ch; }
+.phero.land .lead { max-width: 60ch; font-size: clamp(1rem, 1.6vw, 1.15rem); margin: 0 0 24px; }
+.land-cta { gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+.confiance { margin: 0; font-size: .88rem; color: rgba(255, 255, 255, .9); display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.confiance .etoiles { color: #e6b84d; letter-spacing: .08em; }
+.confiance > span + span::before { content: '·'; margin-right: 10px; opacity: .55; }
+.phero.land + .shop, .phero.land + #lieux { margin-top: 36px; }
+.phero.land + .prose { margin-top: 40px; }
+@media (max-width: 640px) {
+  .phero.land { min-height: 88svh; }
+  .phero.land .phero-c { padding-top: 140px; padding-bottom: 28px; }
+  .land-cta .btn { flex: 1 1 100%; }
+  .confiance { font-size: .8rem; }
+  .confiance { flex-direction: column; align-items: flex-start; gap: 2px; }
+  .confiance > span + span::before { content: '✓'; color: #e6b84d; opacity: 1; margin-right: 6px; }
+}
+
+.bande-clients { margin: 0; background: #fff; border-bottom: 1px solid var(--ligne); }
+.bande-clients .marquee { padding: 16px 0; }
+.bande-clients .marquee-t { animation-duration: 120s; align-items: center; }
+.bande-clients a, .bande-clients span { display: inline-flex; align-items: center; padding: 0 26px; }
+.bande-clients img { height: 54px; width: auto; max-width: 150px; object-fit: contain; transition: transform .2s; }
+.bande-clients a:hover img { transform: scale(1.08); }
+@media (max-width: 640px) { .bande-clients img { height: 40px; max-width: 110px; } .bande-clients a, .bande-clients span { padding: 0 16px; } }
+.avis-compte { color: var(--gris); font-size: .9rem; margin: 0 0 20px; }
+.quote h3 { font-family: var(--serif); font-size: 1.25rem; margin: 4px 0 8px; line-height: 1.25; }
+.quote-ph { display: block; width: 100%; max-height: 220px; object-fit: cover; border-radius: calc(var(--rayon) - 4px); margin: 0 0 12px; }
+.quote:target { outline: 2px solid var(--or); outline-offset: 2px; animation: cible 1.6s ease-out; }
+@keyframes cible { from { box-shadow: 0 0 0 10px rgba(176, 138, 79, .35); } to { box-shadow: 0 0 0 0 rgba(176, 138, 79, 0); } }
+.avis-page { margin-top: 36px; }
+.avis-page .avis-form { max-width: 860px; margin: 50px auto 0; }
