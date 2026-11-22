@@ -111,30 +111,19 @@
     pave.date.min = new Date().toISOString().slice(0, 10);
     pave.addEventListener('submit', e => {
       e.preventDefault();
-      store.set('mg_evt', { evt: pave.evt.value, date: pave.date.value, invites: +pave.invites.value });
-      location.href = '/boutique?pour=' + encodeURIComponent(pave.evt.value);
+      const us = $$('[name=u]:checked', pave).map(x => x.value);
+      store.set('mg_evt', { evt: pave.evt.value, date: pave.date.value, invites: +pave.invites.value, univers: us });
+      const pour = 'pour=' + encodeURIComponent(pave.evt.value);
+      location.href = us.length === 1 ? (us[0] === 'lieux' ? '/lieux' : `/${us[0]}?${pour}`) : us.length ? `/boutique?u=${us.join(',')}&${pour}` : '/boutique?' + pour;
     });
-  }
-
-  /* bandeau des univers du pavé (téléphone) : défile tout seul, lentement ; s'arrête dès qu'on le touche.
-     Le glissement du doigt ne doit pas changer la vidéo du haut de page. */
-  const univ = $('.pave-univ');
-  if (univ) {
-    let stop = matchMedia('(prefers-reduced-motion: reduce)').matches, pos = 0, sens = 1, pause = 0;
-    ['touchstart', 'touchmove', 'touchend'].forEach(t => univ.addEventListener(t, e => { e.stopPropagation(); stop = true; }, { passive: true }));
-    univ.addEventListener('mousedown', () => { stop = true; });
-    const pas = () => {
-      if (stop) return;
-      if (univ.offsetParent && univ.scrollWidth > univ.clientWidth) {
-        const max = univ.scrollWidth - univ.clientWidth;
-        if (pause > 0) pause--; else {
-          pos += .35 * sens; if (pos >= max || pos <= 0) { pos = Math.max(0, Math.min(max, pos)); sens = -sens; pause = 90; }
-          univ.scrollLeft = pos;
-        }
-      }
-      requestAnimationFrame(pas);
-    };
-    setTimeout(() => requestAnimationFrame(pas), 1500);
+    /* « Nos univers » : plusieurs choix possibles ; le champ résume ce qui est coché */
+    const ub = $('[data-pave-u]', pave);
+    if (ub) {
+      const txt = $('[data-pave-u-txt]', ub), vide = txt.textContent;
+      const maj = () => { const n = $$('[name=u]:checked', ub).map(x => x.closest('label').textContent.trim()); txt.textContent = n.length ? (n.length > 1 ? `${n[0]} + ${n.length - 1}` : n[0]) : vide; ub.classList.toggle('on', n.length > 0); };
+      (evt.univers || []).forEach(v => { const x = $(`[name=u][value="${v}"]`, ub); if (x) x.checked = true; });
+      ub.addEventListener('change', maj); maj();
+    }
   }
 
   /* ---------- ma sélection (gardée dans le navigateur) ---------- */
