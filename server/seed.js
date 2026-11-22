@@ -240,6 +240,8 @@ const PRIX_INDIEN = [
 const BANDEAUX_SPE = {
   'specialites-japonaises': '/site/c/paysages/japon.webp',
 };
+/* prestations de l'univers Petits-déjeuners (séparé de Boissons le 2026-11-22) */
+const PDJ = /petit-d[ée]jeuner|pause caf[ée]|accueil caf[ée]/i;
 const RANGEMENTS = [['buffets', 'Nos buffets'], ['entrees', 'Nos entrées à l’unité'], ['plats', 'Nos plats à l’unité'], ['accompagnements', 'Nos accompagnements à l’unité'], ['desserts', 'Nos desserts à l’unité'], ['divers', 'Produits divers à l’unité']];
 /* « Riz oriental : + 1,50 € HT/personne. » → « Riz oriental » (supplément d'un menu, pas un nom de plat) */
 const SUPPL = /\s*:\s*\+\s*[\d.,]+\s*€.*$/;
@@ -406,6 +408,28 @@ async function initSousRubriques(store, { log = console } = {}) {
     const bandeaux = Object.fromEntries(Object.entries(R.bandeaux || {}).map(([k, b]) => [k, { ...b, titre: net(b.titre), chapo: net(b.chapo) }]));
     const sousTitre = R.accueil?.sousTitre === 'Traiteur, animations et lieux de réception, à Paris et en Île-de-France.' ? 'Traiteur, animations et lieux de réception pour tous vos événements.' : net(R.accueil?.sousTitre);
     await store.set('site/reglages', { ...R, bandeaux, accueil: { ...(R.accueil || {}), sousTitre }, sansIdf: true });
+  }
+  // une fois (2026-11-22, demande de Jean-Luc) : « Boissons & petits-déjeuners » devient deux univers.
+  // « Boissons » reste à sa place ; « Petits-déjeuners » est créé tout à la fin de Nos univers, avec les formules café et petit-déjeuner.
+  const RBo = await store.get('rubriques/boissons');
+  if (RBo && !RBo.petitsDejInit) {
+    const rubs = (await store.list('rubriques')).map(d => d.data).filter(Boolean);
+    const PHOTO_PDJ = '/site/c/petits-dejeuners/buffet-petit-dejeuner.webp';
+    if (!rubs.some(r => r.slug === 'petits-dejeuners')) {
+      await store.set('rubriques/petits-dejeuners', {
+        slug: 'petits-dejeuners', nom: 'Petits-déjeuners', ordre: Math.max(0, ...rubs.map(r => r.ordre || 0)) + 1, photo: PHOTO_PDJ, photoAccueil: PHOTO_PDJ,
+        chapo: 'Pause café, petit-déjeuner classique ou luxe : de quoi bien commencer la journée de vos invités, livré et installé.', accroche: '', statut: 'visible', tva: 10,
+      });
+    }
+    let np = 0;
+    for (const d of await store.list('produits')) {
+      const x = d.data;
+      if (!x || x.rubrique !== 'boissons' || !PDJ.test(x.titre)) continue;
+      await store.set('produits/' + d.id, { ...x, rubrique: 'petits-dejeuners', photos: x.photos?.length ? x.photos : [{ src: PHOTO_PDJ, alt: x.titre }] });
+      np++;
+    }
+    await store.set('rubriques/boissons', { ...RBo, nom: RBo.nom === 'Boissons & petits-déjeuners' ? 'Boissons' : RBo.nom, petitsDejInit: true });
+    if (np) log.log?.(`[demarrage] ${np} prestations rangées dans « Petits-déjeuners »`);
   }
 }
 
