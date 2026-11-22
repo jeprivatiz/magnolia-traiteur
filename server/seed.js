@@ -39,7 +39,7 @@ const REGLAGES_DEFAUT = {
     ],
     chiffres: [
       { valeur: '4,9/5', label: 'sur Google, plus de 800 avis' },
-      { valeur: '377', label: 'prestations en ligne' },
+      { valeur: '800', label: 'plus de 800 prestations par an' },
       { valeur: '7 j/7', label: 'livraison en Île-de-France' },
       { valeur: '1 seule', label: 'demande pour tout votre événement' },
     ],
@@ -644,6 +644,12 @@ async function initSousRubriques(store, { log = console } = {}) {
       }
     }
     await store.set('site/reglages', { ...(await store.get('site/reglages')), sushisSansLogo: true });
+  }
+  /* chiffre de l'accueil : « 800 / plus de 800 prestations par an » à la place du nombre de prestations en ligne (Jean-Luc, 2026-11-22). Une fois. */
+  const RSh = await store.get('site/reglages');
+  if (RSh && !RSh.chiffre800) {
+    const ch = (RSh.accueil?.chiffres || []).map(x => /prestations en ligne/i.test(x.label || '') ? { valeur: '800', label: 'plus de 800 prestations par an' } : x);
+    await store.set('site/reglages', { ...RSh, accueil: { ...(RSh.accueil || {}), chiffres: ch }, chiffre800: true });
   }
   /* prix corrigé par Jean-Luc (2026-11-22) : le brouillon avait repris le prix de « Entrées + plat » (21,90 €). Une fois. */
   const RSc = await store.get('site/reglages');

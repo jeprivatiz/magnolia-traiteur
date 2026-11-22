@@ -212,8 +212,7 @@ function home(c) {
 </section>
 <div class="marquee band-vert" aria-label="Nos spécialités du monde"><div class="marquee-t">${[0, 1].map(k => (A.bandeau || []).map(t => lienMot(c, t)).map(({ t, href }) => `<span${k ? ' aria-hidden="true"' : ''}><a href="${esc(href)}"${k ? ' tabindex="-1"' : ''}>${esc(t)}</a><i>✳</i></span>`).join('')).join('')}</div></div>
 <section class="chiffres wrap">${(A.chiffres || []).map(x => {
-  const nb = c.produits.filter(p => p.statut !== 'masque').length;
-  const v = /prestation/i.test(x.label || '') && /^\s*\d+\s*$/.test(x.valeur || '') ? String(nb) : x.valeur;
+  const v = x.valeur; // chiffres fixes, saisis dans Photos & textes (Jean-Luc, 2026-11-22)
   return `<div><b>${esc(v)}</b>${/\/\s*5\s*$/.test(v || '') ? '<i class="etoiles" aria-hidden="true">★★★★★</i>' : ''}<span>${esc(x.label === 'prestations en ligne, prix TTC' ? 'prestations en ligne' : x.label)}</span></div>`;
 }).join('')}</section>
 ${bandeLogos(c, { lien: true, titre: 'Particuliers et entreprises : ils nous font confiance' })}
