@@ -409,6 +409,23 @@ async function initSousRubriques(store, { log = console } = {}) {
     const sousTitre = R.accueil?.sousTitre === 'Traiteur, animations et lieux de réception, à Paris et en Île-de-France.' ? 'Traiteur, animations et lieux de réception pour tous vos événements.' : net(R.accueil?.sousTitre);
     await store.set('site/reglages', { ...R, bandeaux, accueil: { ...(R.accueil || {}), sousTitre }, sansIdf: true });
   }
+  // une fois (2026-11-22, demande de Jean-Luc) : allergènes probables cochés sur chaque fiche qui n'en a pas encore,
+  // d'après le nom et la composition (dans le doute, on coche). Affichés tout de suite ; à faire relire (tableau Excel).
+  const RA2 = await store.get('site/reglages');
+  if (RA2 && !RA2.allergenesInit) {
+    const { allergenesProbables } = require('./allergenes');
+    let na = 0;
+    for (const d of await store.list('produits')) {
+      const x = d.data;
+      if (!x || (x.allergenes || []).length) continue;
+      const a = allergenesProbables(x);
+      if (!a.length) continue;
+      await store.set('produits/' + d.id, { ...x, allergenes: a, allergenesAuto: true });
+      na++;
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), allergenesInit: true });
+    if (na) log.log?.(`[demarrage] allergènes proposés sur ${na} fiches`);
+  }
   // une fois (2026-11-22, demande de Jean-Luc) : « Boissons & petits-déjeuners » devient deux univers.
   // « Boissons » reste à sa place ; « Petits-déjeuners » est créé tout à la fin de Nos univers, avec les formules café et petit-déjeuner.
   const RBo = await store.get('rubriques/boissons');
