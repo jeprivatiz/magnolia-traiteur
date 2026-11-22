@@ -9,3 +9,5 @@ Licence Pexels : usage commercial gratuit, sans obligation de citer l'auteur (ht
 | Buffet libanais (bandeau, à la place de la vidéo de l'huile) | https://www.pexels.com/photo/lebanese-mezze-table-with-various-dishes-39018407/ | 22/11/2026 (demande directe) |
 | Lassi (buffet indien), sans texte incrusté | https://www.pexels.com/photo/cold-drink-in-a-glass-18142603/ | 22/11/2026 (demande directe) |
 | Air hockey (fiche sans photo) | https://www.pexels.com/photo/5780929/ | 22/11/2026 (demande directe) |
+| Samoussa légumes (à l'unité), vraie photo à la place de la photo « IA » | https://www.pexels.com/photo/crunchy-samosa-over-a-ceramic-plate-9027521/ | 22/11/2026 (demande directe) |
+| Samoussas légumes (4 pièces), vraie photo à la place de la photo « IA » | https://www.pexels.com/photo/samosas-in-wicker-basket-on-dinner-table-4449068/ | 22/11/2026 (demande directe) |
