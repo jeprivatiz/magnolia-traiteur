@@ -618,3 +618,22 @@ a.qs-back { display: inline-flex; align-items: center; text-decoration: none; }
 .alp { grid-template-columns: 1fr 1fr 1.3fr auto; align-items: end; }
 .alp .lnk { margin-bottom: 14px; }
 @media (max-width: 700px) { .alp { grid-template-columns: 1fr; } }
+
+/* =====================================================================
+   Lisibilité (Jean-Luc, 2026-11-22) : fond crème plus marqué, titres de cartes en vert avec filet or,
+   cases de saisie sur fond crème avec bordure nette, sous-blocs (modèles…) sur panneau teinté.
+   ===================================================================== */
+@media (prefers-color-scheme: light), (prefers-color-scheme: no-preference) {
+  :root { --bo-bg: #ebe5d8; --fond: #ebe5d8; --champ: #faf7f0; --champ-bord: #d3c8b2; }
+  .box > h2:first-child { color: var(--bo-green); font-size: 1.05rem; padding-bottom: 10px; margin-bottom: 14px; border-bottom: 2px solid var(--bo-gold); }
+  label { color: #3f4a44; font-weight: 600; }
+  input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]), select, textarea {
+    background: var(--champ); border: 1.5px solid var(--champ-bord); box-shadow: inset 0 1px 2px #1f3d360f; }
+  input:hover:not([type=checkbox]):not([type=radio]), select:hover, textarea:hover { border-color: var(--bo-gold); }
+  input:focus, select:focus, textarea:focus { background: #fff; outline: 2px solid var(--bo-gold); outline-offset: 0; border-color: var(--bo-gold); }
+  .box form.mod, .box .alp { background: #f4efe3; border: 1px solid #e2d8c4; border-left: 4px solid var(--bo-green); border-radius: 12px; padding: 14px 14px 4px; margin-bottom: 12px; }
+  .box form.mod input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]), .box form.mod select, .box form.mod textarea, .box .alp input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]) { background: #fff; }
+  .box form.mod .btn.ghost { background: var(--bo-green); color: #fff; border-color: var(--bo-green); }
+  .box hr { border-top: 1px solid var(--bo-line); }
+  .muted, .muted.sm, p.sm { color: #59625c; }
+}
