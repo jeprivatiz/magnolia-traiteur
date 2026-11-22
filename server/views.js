@@ -426,8 +426,9 @@ ${proches.length ? `<section class="wrap"><div class="sec-h"><h2>Dans la même r
 
 function lieux(c) {
   const L = c.lieux.filter(l => l.statut !== 'masque');
+  const RL = c.rubriques.find(r => r.slug === 'lieux') || {};
   const body = `${bandeau(c, 'lieux')}
-  <section class="wrap" id="lieux"><div class="cards grid">${L.map(l => `<a class="card" href="/lieux/${esc(l.slug)}"><div class="card-img">${img(l.photos?.[0], l.nom)}${l.capacite ? `<span class="tag">Jusqu’à ${l.capacite} pers.</span>` : ''}</div><div class="card-b"><h3>${esc(l.nom)}</h3><p>${esc(l.ville || '')}</p><p>${esc(trunc(l.description, 110))}</p><div class="card-f"><span class="prix">${esc(l.prixTexte || 'Sur devis')}</span><span class="more">Découvrir ${icon.arrow}</span></div></div></a>`).join('')}</div></section>`;
+  <section class="wrap" id="lieux">${introHtml(RL.introTitre, RL.introTexte)}<div class="cards grid">${L.map(l => `<a class="card" href="/lieux/${esc(l.slug)}"><div class="card-img">${img(l.photos?.[0], l.nom)}${l.capacite ? `<span class="tag">Jusqu’à ${l.capacite} pers.</span>` : ''}</div><div class="card-b"><h3>${esc(l.nom)}</h3><p>${esc(l.ville || '')}</p><p>${esc(trunc(l.description, 110))}</p><div class="card-f"><span class="prix">${esc(l.prixTexte || 'Sur devis')}</span><span class="more">Découvrir ${icon.arrow}</span></div></div></a>`).join('')}</div></section>`;
   const B = bandeauDe(c, 'lieux');
   return layout(c, { title: B.titre, description: B.chapo, body, path: '/lieux', image: B.photo });
 }
