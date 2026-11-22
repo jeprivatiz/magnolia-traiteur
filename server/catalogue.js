@@ -54,7 +54,7 @@ function createCatalogue(store) {
 /* prix affiché sur une carte : « 24,90 € / personne » ou « Sur devis » */
 function prixCourt(p, euros) {
   if (p.prixCents == null) return { prix: 'Sur devis', unite: '' };
-  return { prix: euros(p.prixCents), unite: p.unite ? '/ ' + p.unite : '' };
+  return { prix: euros(p.prixCents), unite: p.unite ? '/ ' + p.unite + (p.contenuPortion ? ` (${p.contenuPortion})` : '') : '' };
 }
 
 module.exports = { createCatalogue, prixCourt };
