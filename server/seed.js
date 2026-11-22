@@ -929,6 +929,19 @@ const DOUBLONS = [
 /* [titre, photo, texte alternatif] ; sources dans data/credits-photos-univers.md */
 /* [fiche, version, [[photo, description]…]] */
 const VRAIES_PHOTOS = [
+  /* Jeux et animations sans photo (Jean-Luc, 2026-11-22) : Pexels et Unsplash, licences libres ; sources dans data/credits-photos-univers.md */
+  ['puissance-4-geant', 'v1', [['https://images.pexels.com/photos/3009788/pexels-photo-3009788.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Puissance 4 géant bleu joué en soirée']]],
+  ['taureau-mecanique', 'v1', [['https://images.unsplash.com/photo-1539070519374-cd87b6cf7624?auto=format&fit=crop&w=1600&q=80', 'Taureau mécanique sur son matelas gonflable']]],
+  ['baby-foot-bonzini-b90', 'v1', [['https://images.pexels.com/photos/10827142/pexels-photo-10827142.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Baby-foot en bois de style café, barres rouges']]],
+  ['billard', 'v1', [['https://images.pexels.com/photos/37063421/pexels-photo-37063421.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Billard avec triangle de boules et queues']]],
+  ['table-de-ping-pong', 'v1', [['https://images.pexels.com/photos/40213156/pexels-photo-40213156.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Table de ping-pong avec raquettes et balle']]],
+  ['cible-de-flechettes-electronique', 'v1', [['https://images.pexels.com/photos/242494/pexels-photo-242494.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Cible de fléchettes électronique']]],
+  ['chateau-gonflable-crocodile-petit-format', 'v1', [['https://images.unsplash.com/photo-1740033135773-bf7c886ae45a?auto=format&fit=crop&w=1600&q=80', 'Enfants qui sautent dans un château gonflable']]],
+  ['chateau-gonflable-crocodile-grand-format', 'v1', [['https://images.unsplash.com/photo-1765947389722-2e96d8c0aad9?auto=format&fit=crop&w=1600&q=80', 'Grand château gonflable avec obstacles et toboggan sur une pelouse']]],
+  ['videobooth-a-360', 'v1', [['https://images.unsplash.com/photo-1765947390055-c5187b491ba0?auto=format&fit=crop&w=1600&q=80', 'Plateau tournant de vidéobooth 360° lors d’un événement']]],
+  ['livre-d-or-audio-telephone-a-messages', 'v1', [['https://images.pexels.com/photos/37276787/pexels-photo-37276787.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Téléphone rétro pour livre d’or audio, voile de mariée']]],
+  ['photobooth-borne-photo-avec-impressions', 'v1', [['https://images.pexels.com/photos/9342943/pexels-photo-9342943.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Invités qui posent dans le photobooth']]],
+  ['hermine-animatrice-pour-les-enfants-de-3-a-8-ans', 'v1', [['https://images.pexels.com/photos/8385028/pexels-photo-8385028.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Maquillage d’enfant pendant une animation']]],
   /* La carte Magnolia, « Menus et service à table » (Jean-Luc, 2026-11-22) : Pexels 36630854 et 25809274, licence Pexels */
   ['menu-enfant-3-a-12-ans', 'v1', [['https://images.pexels.com/photos/36630854/pexels-photo-36630854.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Mini-burgers et cornet de frites']]],
   ['repas-servi-a-table-elabore-par-le-chef', 'v1', [['https://images.pexels.com/photos/25809274/pexels-photo-25809274.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Serveur apportant les assiettes aux convives à table']]],
