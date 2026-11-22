@@ -1,0 +1,651 @@
+'use strict';
+/*
+ * Serveur Magnolia Traiteur : site vitrine + boutique + espace client + back-office.
+ * Même pile que JEPRIVATIZ : Node.js/Express, MySQL chez Hostinger (fichier JSON en local), Brevo.
+ */
+const fs = require('fs');
+const path = require('path');
+const express = require('express');
+const multer = require('multer');
+const bcrypt = require('bcryptjs');
+const { createStore } = require('./store');
+const { createBrevo, isEmail } = require('./brevo');
+const { createCatalogue } = require('./catalogue');
+const { seed } = require('./seed');
+const views = require('./views');
+const { totaux, controleMarge, prochainNumero, lignesDepuisDemande, estimerLigne } = require('./devis');
+const { rid, sha, esc, euros, limiter, dateFr, slugify } = require('./util');
+
+const ROOT = path.join(__dirname, '..');
+const PUBLIC = path.join(ROOT, 'public');
+
+function loadDotEnv(file = path.join(ROOT, '.env')) {
+  try {
+    for (const line of fs.readFileSync(file, 'utf8').split(/\r?\n/)) {
+      const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
+      if (m && process.env[m[1]] === undefined) process.env[m[1]] = m[2].replace(/^(['"])(.*)\1$/, '$2');
+    }
+  } catch { /* variables fournies par l'hébergeur */ }
+}
+
+const COLLECTIONS = ['produits', 'rubriques', 'lieux', 'avis', 'demandes', 'clients', 'devis', 'factures', 'rdv', 'modeles', 'pages'];
+const PIPELINE = ['demande', 'devis_envoye', 'relance', 'accord', 'reserve', 'refuse', 'termine'];
+
+async function createApp(opts = {}) {
+  loadDotEnv();
+  const env = { ...process.env, ...(opts.env || {}) };
+  const log = opts.log || console;
+  const store = opts.store || createStore(env);
+  await store.init();
+  await seed(store, { log });
+  const cat = createCatalogue(store);
+  const brevo = opts.brevo || createBrevo({ env, store, log });
+  const prod = env.NODE_ENV === 'production';
+  const SITE = (env.SITE_URL || 'http://localhost:' + (env.PORT || 3000)).replace(/\/$/, '');
+  const uploadDir = path.resolve(env.UPLOAD_DIR || path.join(ROOT, 'var', 'uploads'));
+  fs.mkdirSync(uploadDir, { recursive: true });
+
+  /* ---------- comptes de l'équipe ---------- */
+  async function findUserByEmail(email) {
+    const idx = await store.get('_useremail/' + sha(String(email).trim().toLowerCase()));
+    return idx ? { id: idx.id, ...(await store.get('_users/' + idx.id)) } : null;
+  }
+  async function createUser({ email, name, role, password }) {
+    email = String(email || '').trim().toLowerCase();
+    if (!isEmail(email)) throw Object.assign(new Error('E-mail invalide.'), { status: 400 });
+    if (await findUserByEmail(email)) throw Object.assign(new Error('Ce compte existe déjà.'), { status: 409 });
+    if (String(password || '').length < 10) throw Object.assign(new Error('Mot de passe : 10 caractères minimum.'), { status: 400 });
+    const id = 'u_' + rid(9);
+    await store.set('_users/' + id, { email, name: String(name || '').trim(), role: role === 'manager' ? 'manager' : 'collab', passHash: await bcrypt.hash(password, 11), createdAt: new Date().toISOString(), disabled: false });
+    await store.set('_useremail/' + sha(email), { id });
+    return id;
+  }
+  if (env.ADMIN_EMAIL && env.ADMIN_PASSWORD && !(await store.list('_users')).length) {
+    await createUser({ email: env.ADMIN_EMAIL, name: env.ADMIN_NAME || 'Manager', role: 'manager', password: env.ADMIN_PASSWORD });
+    log.log?.('[comptes] compte Manager créé pour ' + env.ADMIN_EMAIL);
+  }
+
+  /* ---------- journal d'activité chaîné (toute modification se voit) ---------- */
+  let auditQueue = Promise.resolve();
+  function audit(ctx, op, p, resume = '') {
+    auditQueue = auditQueue.then(async () => {
+      const meta = (await store.get('_auditmeta/last')) || { hash: '0'.repeat(64), n: 0 };
+      const n = meta.n + 1;
+      const row = { n, at: new Date().toISOString(), uid: ctx.uid, who: ctx.name || ctx.email || '', op, path: p, resume, prev: meta.hash };
+      row.hash = sha(JSON.stringify(row));
+      await store.set('_audit/' + String(n).padStart(10, '0'), row);
+      await store.set('_auditmeta/last', { hash: row.hash, n });
+    }).catch(e => log.error?.('[journal]', e.message));
+    return auditQueue;
+  }
+
+  const app = express();
+  app.disable('x-powered-by');
+  app.set('trust proxy', 1);
+  app.use((req, res, next) => {
+    res.set('X-Content-Type-Options', 'nosniff');
+    res.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.set('X-Frame-Options', 'SAMEORIGIN');
+    req.cookies = Object.fromEntries(String(req.headers.cookie || '').split(';').map(c => c.trim().split('=')).filter(x => x[0]).map(([k, ...v]) => { try { return [k, decodeURIComponent(v.join('='))]; } catch { return [k, '']; } }));
+    next();
+  });
+  const setCookie = (res, name, val, maxAgeSec) => res.append('Set-Cookie', `${name}=${encodeURIComponent(val)}; Path=/; Max-Age=${maxAgeSec}; HttpOnly; SameSite=Lax${prod ? '; Secure' : ''}`);
+
+  app.use(async (req, res, next) => {
+    try {
+      req.ctx = { role: 'visitor' };
+      const tok = req.cookies.mg_s;
+      if (tok) {
+        const s = await store.get('_sessions/' + sha(tok));
+        if (s && s.expires > Date.now()) {
+          const u = await store.get('_users/' + s.userId);
+          if (u && !u.disabled) req.ctx = { uid: s.userId, role: u.role, email: u.email, name: u.name, session: sha(tok) };
+        }
+      }
+      const ct = req.cookies.mg_c;
+      if (ct) { const s = await store.get('_csessions/' + sha(ct)); if (s && s.expires > Date.now()) req.client = { id: s.clientId, session: sha(ct) }; }
+      next();
+    } catch (e) { next(e); }
+  });
+
+  const json = express.json({ limit: '2mb' });
+  const sameSite = (req, res, next) => (req.get('x-mg') === '1' ? next() : res.status(403).json({ error: 'Requête refusée.' }));
+  const isTeam = req => req.ctx.role === 'manager' || req.ctx.role === 'collab';
+  const team = (req, res, next) => (isTeam(req) ? next() : res.status(401).json({ error: 'Connexion requise.' }));
+  const manager = (req, res, next) => (req.ctx.role === 'manager' ? next() : res.status(403).json({ error: 'Réservé au Manager.' }));
+  const wrap = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
+  const publicWrites = limiter(+(env.PUBLIC_WRITE_LIMIT || 20), 10 * 60e3);
+  const loginTries = limiter(10, 15 * 60e3);
+
+  /* ---------- fichiers statiques ---------- */
+  app.get('/sante', wrap(async (req, res) => {
+    const c = await cat.get();
+    res.set('Cache-Control', 'no-store').json({ ok: true, base: env.DB_HOST ? 'MySQL' : 'fichier local', brevo: brevo.live ? 'actif' : 'mode test', prestations: c.produits.length, rubriques: c.rubriques.length, lieux: c.lieux.length });
+  }));
+  app.use(express.static(PUBLIC, { maxAge: prod ? '7d' : 0, index: false, setHeaders: (res, p) => { if (/\.(webp|jpe?g|png|svg|mp4|woff2?)$/.test(p)) res.set('Cache-Control', 'public, max-age=2592000'); } }));
+  app.use('/media', express.static(uploadDir, { maxAge: '30d' }));
+  app.get('/robots.txt', (req, res) => res.type('text/plain').send(`User-agent: *\nDisallow: /admin\nDisallow: /devis/\nDisallow: /facture/\nDisallow: /espace-client\nSitemap: ${SITE}/sitemap.xml\n`));
+  app.get('/sitemap.xml', wrap(async (req, res) => {
+    const c = await cat.get();
+    const urls = ['/', '/boutique', '/lieux', '/maison', '/livraison', '/comment-commander', '/temoignages', '/contact',
+      ...c.rubriques.filter(r => r.statut !== 'masque').map(r => '/' + r.slug),
+      ...c.produits.filter(p => p.statut !== 'masque').map(p => `/${p.rubrique}/${p.slug}`),
+      ...c.lieux.filter(l => l.statut !== 'masque').map(l => '/lieux/' + l.slug)];
+    res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.map(u => `<url><loc>${esc(SITE + u)}</loc></url>`).join('')}</urlset>`);
+  }));
+
+  /* ---------- API publique ---------- */
+  app.get('/api/recherche', wrap(async (req, res) => {
+    const c = await cat.get();
+    const q = String(req.query.q || '').slice(0, 80);
+    const r = cat.search(c, q, 8).map(p => ({ titre: p.titre, href: `/${p.rubrique}/${p.slug}`, photo: p.photos?.[0]?.src || '', prix: p.prixCents == null ? 'Sur devis' : euros(p.prixCents) + (p.unite ? ' / ' + p.unite : ''), rubrique: c.rubriques.find(x => x.slug === p.rubrique)?.nom || '' }));
+    res.set('Cache-Control', 'public, max-age=60').json({ q, resultats: r });
+  }));
+
+  async function upsertClient({ nom, email, tel, societe }) {
+    email = String(email).trim().toLowerCase();
+    const idx = await store.get('_clientemail/' + sha(email));
+    const now = new Date().toISOString();
+    if (idx) {
+      const cl = await store.get('clients/' + idx.id);
+      /* client connu : un formulaire public ne remplace jamais ses coordonnées (seulement les cases vides) */
+      if (cl) { await store.set('clients/' + idx.id, { ...cl, nom: cl.nom || nom, tel: cl.tel || tel, societe: cl.societe || societe, derniereActivite: now }); return { id: idx.id, nouveau: false }; }
+    }
+    const id = 'c_' + rid(8);
+    await store.set('clients/' + id, { id, nom, email, tel, societe, notes: '', creeLe: now, derniereActivite: now, source: 'site' });
+    await store.set('_clientemail/' + sha(email), { id });
+    return { id, nouveau: true };
+  }
+
+  async function lienEspace(clientId, jours = 30) {
+    const tok = rid(24);
+    await store.set('_clinks/' + sha(tok), { clientId, expires: Date.now() + jours * 86400e3 });
+    return SITE + '/espace-client?t=' + tok;
+  }
+
+  async function alerterEquipe(sujet, html, sms) {
+    const R = (await cat.get()).reglages;
+    const mails = String(R.alertes?.emails || env.ALERT_EMAILS || '').split(/[,;\s]+/).filter(isEmail);
+    for (const m of mails) await brevo.sendEmail({ to: m, subject: sujet, html, text: html.replace(/<[^>]+>/g, ' ') });
+    for (const t of String(R.alertes?.sms || '').split(/[,;]+/).map(s => s.trim()).filter(Boolean)) await brevo.sendSms({ to: t, content: sms || sujet });
+  }
+
+  const s = (v, n = 200) => String(v ?? '').trim().slice(0, n);
+  app.post('/api/demandes', sameSite, json, wrap(async (req, res) => {
+    if (!publicWrites(req.ip)) return res.status(429).json({ error: 'Trop d’envois. Réessayez dans quelques minutes ou appelez-nous.' });
+    const b = req.body || {};
+    const c = await cat.get();
+    const T = c.reglages.tarifs || {};
+    const contact = { nom: s(b.nom, 120), email: s(b.email, 160).toLowerCase(), tel: s(b.tel, 30), societe: s(b.societe, 120) };
+    if (!contact.nom || !isEmail(contact.email)) return res.status(400).json({ error: 'Merci d’indiquer votre nom et un e-mail valide.' });
+    const lignesIn = Array.isArray(b.lignes) ? b.lignes.slice(0, 80) : [];
+    if (!lignesIn.length && b.type !== 'contact') return res.status(400).json({ error: 'Votre sélection est vide.' });
+    const lignes = lignesIn.map(l => {
+      const p = c.bySlug.get(s(l.slug, 120));
+      const est = estimerLigne(l, p, T);
+      const choix = {};
+      for (const g of p?.groupes || []) { const ids = (l.choix?.[g.id] || []).filter(id => (g.options || []).some(o => o.id === id)).slice(0, 30); if (ids.length) choix[g.id] = ids; }
+      return {
+        slug: p ? p.slug : s(l.slug, 120), titre: p ? p.titre : s(l.titre, 160), rubrique: p?.rubrique || s(l.rubrique, 60), unite: p?.unite || s(l.unite, 40),
+        qte: est.qte, prixCents: p?.prixCents ?? null, supCents: est.supCents, totalCents: est.totalCents, surDevis: est.surDevis,
+        variante: (p?.variantes || []).includes(l.variante) ? l.variante : '', choix, resume: s(l.resume, 400), note: s(l.note, 500),
+        personnel: l.personnel?.nb ? { nb: Math.min(50, Math.max(1, +l.personnel.nb | 0)), heures: Math.min(24, Math.max(T.personnel?.minHeures || 4, +l.personnel.heures | 0)) } : null,
+        pack: l.pack?.id && (T.packs || []).some(x => x.id === l.pack.id) ? { id: l.pack.id, nb: Math.max(1, +l.pack.nb | 0) } : null,
+      };
+    });
+    const km = Math.min(2000, Math.max(0, Math.round(+b.km || 0)));
+    const sousTotal = lignes.reduce((t, l) => t + l.totalCents, 0);
+    const { id: clientId, nouveau } = await upsertClient(contact);
+    const id = 'd_' + rid(8);
+    const ref = await prochainNumero(store, 'demande');
+    const demande = {
+      id, ref, type: b.type === 'contact' ? 'contact' : 'devis', clientId, contact,
+      evenement: { type: s(b.evenement, 40), date: /^\d{4}-\d{2}-\d{2}$/.test(b.date) ? b.date : '', invites: Math.min(10000, Math.max(0, +b.invites | 0)), cp: s(b.cp, 5), ville: s(b.ville, 80), horaire: s(b.horaire, 60) },
+      livraison: km ? { km, cents: km * (T.kmCents || 100) } : null,
+      lignes, sousTotalCents: sousTotal, totalEstimeCents: sousTotal + (km ? km * (T.kmCents || 100) : 0),
+      message: s(b.message, 3000), sujet: s(b.sujet, 80), statut: 'demande', historique: [{ at: new Date().toISOString(), statut: 'demande', par: 'site' }],
+      createdAt: new Date().toISOString(), ip: req.ip,
+    };
+    await store.set('demandes/' + id, demande);
+    const lien = await lienEspace(clientId);
+    const R = c.reglages;
+    const recap = lignes.map(l => `<li>${esc(l.titre)}${l.variante ? ' · ' + esc(l.variante) : ''} — ${l.qte} ${esc(l.unite || '')}${l.surDevis ? ' (sur devis)' : ' · ' + euros(l.totalCents)}</li>`).join('');
+    brevo.sendEmail({ to: contact.email, name: contact.nom, subject: `Magnolia Traiteur : votre demande ${ref} est bien reçue`, replyTo: R.email,
+      html: `<p>Bonjour ${esc(contact.nom.split(' ')[0])},</p><p>Merci pour votre demande${demande.evenement.date ? ' pour le ' + esc(dateFr(demande.evenement.date)) : ''}. Notre équipe vérifie les disponibilités et revient vers vous rapidement avec votre devis.</p>${recap ? `<ul>${recap}</ul><p>Total estimé : <b>${euros(demande.totalEstimeCents)} TTC</b> (à confirmer).</p>` : ''}<p>Suivez votre demande dans votre espace : <a href="${lien}">Mon espace Magnolia</a></p><p>À très vite,<br>L’équipe Magnolia Traiteur<br>${esc(R.telephone)}</p>`,
+      text: `Merci pour votre demande ${ref}. Votre espace : ${lien}` }).catch(() => {});
+    alerterEquipe(`Nouvelle ${demande.type === 'contact' ? 'question' : 'demande de devis'} ${ref} : ${contact.nom}`, `<p><b>${esc(contact.nom)}</b> ${esc(contact.societe)} · ${esc(contact.email)} · ${esc(contact.tel)}</p><p>${esc(demande.evenement.type)} · ${esc(dateFr(demande.evenement.date))} · ${demande.evenement.invites} invités · ${esc(demande.evenement.ville)}</p><ul>${recap}</ul><p>${esc(demande.message)}</p><p><a href="${SITE}/admin#/demandes/${id}">Ouvrir dans le back-office</a></p>`, `Magnolia : nouvelle demande ${ref} de ${contact.nom}, ${demande.evenement.invites} pers. le ${demande.evenement.date}`).catch(() => {});
+    /* le lien direct vers l'espace n'est rendu qu'à un nouveau client ; un client connu le reçoit par e-mail */
+    res.json({ ok: true, ref, espace: nouveau ? lien.replace(SITE, '') : '/espace-client' });
+  }));
+
+  /* ---------- espace client (lien magique par e-mail) ---------- */
+  const lienTries = limiter(5, 60 * 60e3);
+  app.post('/api/client/lien', sameSite, json, wrap(async (req, res) => {
+    const email = s(req.body?.email, 160).toLowerCase();
+    if (!lienTries(req.ip) || !lienTries('m|' + email)) return res.status(429).json({ error: 'Trop de demandes. Réessayez plus tard.' });
+    const idx = isEmail(email) ? await store.get('_clientemail/' + sha(email)) : null;
+    if (idx) {
+      const lien = await lienEspace(idx.id, 1);
+      await brevo.sendEmail({ to: email, subject: 'Votre lien de connexion Magnolia', html: `<p>Bonjour,</p><p>Voici votre lien pour ouvrir votre espace Magnolia (valable 24 heures) :</p><p><a href="${lien}">Ouvrir mon espace</a></p>`, text: lien });
+    }
+    res.json({ ok: true });
+  }));
+  app.get('/espace-client', wrap(async (req, res) => {
+    const c = await cat.get();
+    if (req.query.t) {
+      const l = await store.get('_clinks/' + sha(String(req.query.t)));
+      if (!l || l.expires < Date.now()) return res.send(views.espaceConnexion(c, 'Ce lien a expiré : demandez-en un nouveau ci-dessous.'));
+      const tok = rid(32);
+      await store.set('_csessions/' + sha(tok), { clientId: l.clientId, expires: Date.now() + 90 * 86400e3 });
+      setCookie(res, 'mg_c', tok, 90 * 86400);
+      return res.redirect('/espace-client');
+    }
+    if (!req.client) return res.send(views.espaceConnexion(c));
+    const client = await store.get('clients/' + req.client.id);
+    if (!client) return res.send(views.espaceConnexion(c));
+    const demandes = (await store.list('demandes')).map(d => d.data).filter(d => d.clientId === req.client.id && d.type !== 'contact').sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    const devis = (await store.list('devis')).map(d => d.data).filter(d => d.clientId === req.client.id && d.statut !== 'brouillon');
+    const factures = (await store.list('factures')).map(d => d.data).filter(f => f.clientId === req.client.id);
+    res.set('Cache-Control', 'no-store').send(views.espace(c, { client, demandes, devis, factures }));
+  }));
+  app.post('/espace-client/deconnexion', wrap(async (req, res) => {
+    if (req.client) await store.delete('_csessions/' + req.client.session);
+    setCookie(res, 'mg_c', '', 0);
+    res.redirect('/espace-client');
+  }));
+
+  /* ---------- devis et factures en ligne (lien privé) ---------- */
+  async function devisParToken(token) {
+    const idx = await store.get('_devistoken/' + sha(token));
+    return idx ? store.get('devis/' + idx.id) : null;
+  }
+  app.get('/devis/:token', wrap(async (req, res, next) => {
+    const d = await devisParToken(req.params.token);
+    if (!d || d.statut === 'brouillon') return next();
+    const c = await cat.get();
+    if (!d.vuLe) { await store.set('devis/' + d.id, { ...d, vuLe: new Date().toISOString() }); }
+    res.set('Cache-Control', 'no-store').send(views.devisPage(c, d, totaux(d), { client: await store.get('clients/' + d.clientId), demande: d.demandeId ? await store.get('demandes/' + d.demandeId) : null }));
+  }));
+  app.post('/api/devis/:token/:action(accepter|refuser)', sameSite, json, wrap(async (req, res) => {
+    const d = await devisParToken(req.params.token);
+    if (!d || d.statut !== 'envoye') return res.status(400).json({ error: 'Ce devis ne peut plus être modifié en ligne.' });
+    const now = new Date().toISOString();
+    const accepte = req.params.action === 'accepter';
+    const nom = s(req.body?.nom, 120);
+    if (accepte && nom.length < 3) return res.status(400).json({ error: 'Merci d’indiquer votre nom.' });
+    const next = { ...d, statut: accepte ? 'accepte' : 'refuse', ...(accepte ? { signature: { nom, at: now, ip: req.ip, ua: s(req.get('user-agent'), 200) } } : { refuseLe: now }) };
+    await store.set('devis/' + d.id, next);
+    if (d.demandeId) await changerStatut(d.demandeId, accepte ? 'accord' : 'refuse', 'client (en ligne)');
+    const t = totaux(d);
+    alerterEquipe(`Devis ${d.numero} ${accepte ? 'SIGNÉ' : 'refusé'} par le client`, `<p>Le devis ${esc(d.numero)} (${euros(t.ttcCents)} TTC) a été ${accepte ? 'signé en ligne par <b>' + esc(nom) + '</b>' : 'refusé'}.</p><p><a href="${SITE}/admin#/devis/${d.id}">Ouvrir</a></p>`, `Magnolia : devis ${d.numero} ${accepte ? 'signé' : 'refusé'}`).catch(() => {});
+    res.json({ ok: true });
+  }));
+  app.get('/facture/:token', wrap(async (req, res, next) => {
+    const idx = await store.get('_facturetoken/' + sha(req.params.token));
+    const f = idx ? await store.get('factures/' + idx.id) : null;
+    if (!f) return next();
+    res.set('Cache-Control', 'no-store').send(views.facturePage(await cat.get(), f, totaux(f)));
+  }));
+
+  async function changerStatut(demandeId, statut, par) {
+    const d = await store.get('demandes/' + demandeId);
+    if (!d || d.statut === statut) return;
+    await store.set('demandes/' + demandeId, { ...d, statut, historique: [...(d.historique || []), { at: new Date().toISOString(), statut, par }] });
+  }
+
+  /* ---------- connexion de l'équipe ---------- */
+  app.post('/api/auth/login', sameSite, json, wrap(async (req, res) => {
+    const email = s(req.body?.email, 160).toLowerCase();
+    if (!loginTries(req.ip + '|' + email)) return res.status(429).json({ error: 'Trop d’essais. Réessayez dans 15 minutes.' });
+    const u = await findUserByEmail(email);
+    const ok = u && !u.disabled && await bcrypt.compare(String(req.body?.password || ''), u.passHash);
+    if (!ok) return res.status(401).json({ error: 'E-mail ou mot de passe incorrect.' });
+    const tok = rid(32);
+    await store.set('_sessions/' + sha(tok), { userId: u.id, expires: Date.now() + 30 * 86400e3, at: new Date().toISOString() });
+    setCookie(res, 'mg_s', tok, 30 * 86400);
+    audit({ uid: u.id, name: u.name }, 'connexion', '');
+    res.json({ ok: true });
+  }));
+  app.post('/api/auth/logout', sameSite, wrap(async (req, res) => {
+    if (req.ctx.session) await store.delete('_sessions/' + req.ctx.session);
+    setCookie(res, 'mg_s', '', 0);
+    res.json({ ok: true });
+  }));
+  app.get('/api/session', (req, res) => res.set('Cache-Control', 'no-store').json({ connecte: isTeam(req), role: req.ctx.role, nom: req.ctx.name || '', email: req.ctx.email || '' }));
+  app.post('/api/auth/password', sameSite, json, team, wrap(async (req, res) => {
+    const u = await store.get('_users/' + req.ctx.uid);
+    if (!u || !(await bcrypt.compare(String(req.body?.current || ''), u.passHash))) return res.status(401).json({ error: 'Mot de passe actuel incorrect.' });
+    if (String(req.body?.password || '').length < 10) return res.status(400).json({ error: 'Mot de passe : 10 caractères minimum.' });
+    await store.set('_users/' + req.ctx.uid, { ...u, passHash: await bcrypt.hash(String(req.body.password), 11) });
+    audit(req.ctx, 'mot de passe changé', '');
+    res.json({ ok: true });
+  }));
+
+  /* ---------- back-office : API ---------- */
+  const A = express.Router();
+  A.use(team);
+  A.get('/stats', wrap(async (req, res) => {
+    const [dem, dv, fa] = await Promise.all([store.list('demandes'), store.list('devis'), store.list('factures')]);
+    const demandes = dem.map(d => d.data), devis = dv.map(d => d.data), factures = fa.map(d => d.data);
+    const mois = new Date().toISOString().slice(0, 7);
+    const aujourdHui = new Date().toISOString().slice(0, 10);
+    const parStatut = Object.fromEntries(PIPELINE.map(k => [k, demandes.filter(d => d.statut === k && d.type !== 'contact').length]));
+    const signes = devis.filter(d => d.statut === 'accepte');
+    res.json({
+      nouvelles: demandes.filter(d => d.statut === 'demande').length,
+      parStatut,
+      caSigneMoisCents: signes.filter(d => (d.signature?.at || '').startsWith(mois)).reduce((t, d) => t + totaux(d).ttcCents, 0),
+      caSigneCents: signes.reduce((t, d) => t + totaux(d).ttcCents, 0),
+      devisEnAttenteCents: devis.filter(d => d.statut === 'envoye').reduce((t, d) => t + totaux(d).ttcCents, 0),
+      facturesImpayeesCents: factures.filter(f => !f.payee).reduce((t, f) => t + totaux(f).ttcCents - (f.dejaRegleCents || 0), 0),
+      tauxSignature: devis.filter(d => ['accepte', 'refuse'].includes(d.statut)).length ? Math.round(100 * signes.length / devis.filter(d => ['accepte', 'refuse'].includes(d.statut)).length) : null,
+      prochains: demandes.filter(d => d.evenement?.date >= aujourdHui && ['accord', 'reserve'].includes(d.statut)).sort((a, b) => a.evenement.date.localeCompare(b.evenement.date)).slice(0, 6).map(d => ({ id: d.id, date: d.evenement.date, nom: d.contact?.nom, invites: d.evenement.invites, statut: d.statut })),
+      aRelancer: devis.filter(d => d.statut === 'envoye' && d.envoyeLe && Date.now() - Date.parse(d.derniereRelance || d.envoyeLe) > 3 * 86400e3).map(d => ({ id: d.id, numero: d.numero, client: d.clientNom, envoyeLe: d.envoyeLe })),
+    });
+  }));
+
+  A.get('/site', wrap(async (req, res) => res.json((await store.get('site/reglages')) || {})));
+  A.put('/site', sameSite, json, wrap(async (req, res) => {
+    const before = (await store.get('site/reglages')) || {};
+    await store.set('site/reglages', { ...before, ...req.body, updatedAt: new Date().toISOString() });
+    cat.invalidate(); audit(req.ctx, 'réglages du site modifiés', 'site/reglages');
+    res.json({ ok: true });
+  }));
+
+  A.get('/:coll', wrap(async (req, res, next) => {
+    if (!COLLECTIONS.includes(req.params.coll)) return next();
+    const docs = (await store.list(req.params.coll)).map(d => ({ id: d.id, ...d.data, _maj: d.updatedAt }));
+    res.set('Cache-Control', 'no-store').json(docs);
+  }));
+  A.get('/:coll/:id', wrap(async (req, res, next) => {
+    if (!COLLECTIONS.includes(req.params.coll)) return next();
+    const d = await store.get(req.params.coll + '/' + req.params.id);
+    if (!d) return res.status(404).json({ error: 'Introuvable.' });
+    res.set('Cache-Control', 'no-store').json({ id: req.params.id, ...d });
+  }));
+  A.put('/:coll/:id', sameSite, json, wrap(async (req, res, next) => {
+    const { coll, id } = req.params;
+    if (!COLLECTIONS.includes(coll) || !/^[A-Za-z0-9_-]{1,120}$/.test(id)) return next();
+    const before = await store.get(coll + '/' + id);
+    let data = { ...(req.body || {}) };
+    delete data._maj;
+    if (coll === 'devis') {
+      if (before && before.statut === 'accepte' && req.ctx.role !== 'manager') return res.status(403).json({ error: 'Un devis signé ne peut être modifié que par le Manager.' });
+      const err = controleMarge(data);
+      if (err.length) return res.status(400).json({ error: 'Marge négative bloquée : ' + err.join(' ') });
+      data.token = before?.token || data.token;
+    }
+    if (coll === 'demandes' && before && data.statut && data.statut !== before.statut) data.historique = [...(before.historique || []), { at: new Date().toISOString(), statut: data.statut, par: req.ctx.name || req.ctx.email }];
+    if (coll === 'produits' && !data.slug) data.slug = id;
+    data.updatedAt = new Date().toISOString();
+    await store.set(coll + '/' + id, data);
+    if (['produits', 'rubriques', 'lieux', 'avis', 'pages'].includes(coll)) cat.invalidate();
+    audit(req.ctx, before ? 'modification' : 'création', coll + '/' + id, data.titre || data.nom || data.numero || data.ref || '');
+    res.json({ ok: true, id });
+  }));
+  A.post('/:coll', sameSite, json, wrap(async (req, res, next) => {
+    const { coll } = req.params;
+    if (!COLLECTIONS.includes(coll) || ['devis', 'factures', 'demandes'].includes(coll)) return next();
+    let id = coll === 'produits' || coll === 'lieux' ? slugify(req.body?.titre || req.body?.nom) : coll === 'rubriques' ? slugify(req.body?.nom) : coll.slice(0, 1) + '_' + rid(7);
+    if (await store.get(coll + '/' + id)) id = id + '-' + rid(3).toLowerCase().replace(/[^a-z0-9]/g, 'x');
+    const data = { ...(req.body || {}), createdAt: new Date().toISOString() };
+    if (coll === 'produits') Object.assign(data, { id, slug: id, statut: data.statut || 'masque', maison: true, photos: data.photos || [], description: data.description || [], sections: data.sections || [], groupes: [], variantes: [], details: [], regles: data.regles || { packs: true, personnel: 'service' }, ordre: -1 });
+    if (coll === 'lieux') Object.assign(data, { slug: id, statut: data.statut || 'masque', photos: data.photos || [], equipements: data.equipements || [] });
+    if (coll === 'rubriques') Object.assign(data, { slug: id, statut: data.statut || 'visible', ordre: data.ordre ?? 99, tva: data.tva || 10 });
+    await store.set(coll + '/' + id, data);
+    cat.invalidate();
+    audit(req.ctx, 'création', coll + '/' + id, data.titre || data.nom || '');
+    res.json({ ok: true, id });
+  }));
+  A.delete('/:coll/:id', sameSite, wrap(async (req, res, next) => {
+    const { coll, id } = req.params;
+    if (!COLLECTIONS.includes(coll)) return next();
+    if (['produits', 'lieux', 'rubriques'].includes(coll)) return res.status(400).json({ error: 'Pour le catalogue, on masque au lieu de supprimer.' });
+    if (['devis', 'factures'].includes(coll) && req.ctx.role !== 'manager') return res.status(403).json({ error: 'Réservé au Manager.' });
+    if (coll === 'factures') return res.status(400).json({ error: 'Une facture ne se supprime pas : créez un avoir.' });
+    const before = await store.get(coll + '/' + id);
+    if (before) await store.set('_corbeille/' + coll + '-' + id + '-' + Date.now(), { path: coll + '/' + id, data: before, par: req.ctx.name, at: new Date().toISOString() });
+    await store.delete(coll + '/' + id);
+    cat.invalidate();
+    audit(req.ctx, 'suppression (corbeille)', coll + '/' + id);
+    res.json({ ok: true });
+  }));
+
+  /* devis à partir d'une demande */
+  A.post('/actions/devis-depuis-demande/:id', sameSite, wrap(async (req, res) => {
+    const d = await store.get('demandes/' + req.params.id);
+    if (!d) return res.status(404).json({ error: 'Demande introuvable.' });
+    const c = await cat.get();
+    const T = c.reglages.tarifs || {};
+    const id = 'v_' + rid(8), token = rid(18);
+    const numero = await prochainNumero(store, 'devis');
+    const validite = new Date(Date.now() + (T.validiteDevisJours || 15) * 86400e3).toISOString().slice(0, 10);
+    const devis = {
+      id, numero, token, demandeId: d.id, clientId: d.clientId, clientNom: d.contact?.nom || '', statut: 'brouillon',
+      evenement: { type: d.evenement?.type, date: d.evenement?.date, invites: d.evenement?.invites, lieu: [d.evenement?.cp, d.evenement?.ville].filter(Boolean).join(' ') },
+      intro: `Madame, Monsieur, suite à votre demande, voici notre proposition pour votre ${String(d.evenement?.type || 'événement').toLowerCase()}.`,
+      lignes: lignesDepuisDemande(d, c, T), remiseCents: 0, acomptePct: T.acomptePct ?? 30, validiteJusquau: validite,
+      conditions: 'Prix TTC. Acompte à la signature, solde au plus tard 7 jours avant l’événement. Nombre définitif d’invités à confirmer 7 jours avant.',
+      lienPaiement: '', createdAt: new Date().toISOString(), creePar: req.ctx.name,
+    };
+    await store.set('devis/' + id, devis);
+    await store.set('_devistoken/' + sha(token), { id });
+    audit(req.ctx, 'devis créé', 'devis/' + id, numero);
+    res.json({ ok: true, id });
+  }));
+  A.post('/actions/devis-vierge', sameSite, json, wrap(async (req, res) => {
+    const T = (await cat.get()).reglages.tarifs || {};
+    const clientId = req.body?.clientId || null;
+    const cl = clientId ? await store.get('clients/' + clientId) : null;
+    const id = 'v_' + rid(8), token = rid(18);
+    const numero = await prochainNumero(store, 'devis');
+    await store.set('devis/' + id, { id, numero, token, clientId, clientNom: cl?.nom || '', statut: 'brouillon', evenement: {}, lignes: [], remiseCents: 0, acomptePct: T.acomptePct ?? 30, validiteJusquau: new Date(Date.now() + (T.validiteDevisJours || 15) * 86400e3).toISOString().slice(0, 10), createdAt: new Date().toISOString(), creePar: req.ctx.name });
+    await store.set('_devistoken/' + sha(token), { id });
+    audit(req.ctx, 'devis créé', 'devis/' + id, numero);
+    res.json({ ok: true, id });
+  }));
+
+  function remplir(modele, vars) { return String(modele || '').replace(/\{(\w+)\}/g, (m, k) => vars[k] ?? ''); }
+
+  A.post('/actions/envoyer-devis/:id', sameSite, json, wrap(async (req, res) => {
+    const d = await store.get('devis/' + req.params.id);
+    if (!d) return res.status(404).json({ error: 'Devis introuvable.' });
+    const err = controleMarge(d);
+    if (err.length) return res.status(400).json({ error: 'Marge négative bloquée : ' + err.join(' ') });
+    if (!(d.lignes || []).length) return res.status(400).json({ error: 'Le devis est vide.' });
+    const cl = await store.get('clients/' + d.clientId);
+    if (!cl?.email) return res.status(400).json({ error: 'Ce devis n’a pas de client avec un e-mail.' });
+    const c = await cat.get(); const R = c.reglages;
+    const lien = `${SITE}/devis/${d.token}`;
+    const t = totaux(d);
+    const now = new Date().toISOString();
+    const canaux = req.body?.canaux || ['email'];
+    const msg = s(req.body?.message, 2000);
+    if (canaux.includes('email')) await brevo.sendEmail({ to: cl.email, name: cl.nom, replyTo: R.email, subject: `Votre devis Magnolia Traiteur ${d.numero}`,
+      html: `<p>Bonjour ${esc((cl.nom || '').split(' ')[0])},</p>${msg ? `<p>${esc(msg).replace(/\n/g, '<br>')}</p>` : `<p>Voici votre devis pour votre ${esc(String(d.evenement?.type || 'événement').toLowerCase())}${d.evenement?.date ? ' du ' + esc(dateFr(d.evenement.date)) : ''} : <b>${euros(t.ttcCents)} TTC</b>.</p>`}<p><a href="${lien}" style="background:#1d3b2f;color:#fff;padding:12px 20px;text-decoration:none;border-radius:4px;display:inline-block">Consulter et signer mon devis</a></p><p>Il est valable jusqu’au ${esc(dateFr(d.validiteJusquau))}.</p><p>L’équipe Magnolia Traiteur<br>${esc(R.telephone)}</p>`,
+      text: `Votre devis ${d.numero} : ${lien}` });
+    if (canaux.includes('sms') && cl.tel) await brevo.sendSms({ to: cl.tel, content: `Magnolia Traiteur : votre devis ${d.numero} (${euros(t.ttcCents)} TTC) est prêt. Consultez-le et signez en ligne : ${lien}` });
+    await store.set('devis/' + d.id, { ...d, statut: d.statut === 'accepte' ? 'accepte' : 'envoye', envoyeLe: d.envoyeLe || now, envois: [...(d.envois || []), { at: now, canaux, par: req.ctx.name }] });
+    if (d.demandeId) await changerStatut(d.demandeId, 'devis_envoye', req.ctx.name);
+    audit(req.ctx, 'devis envoyé', 'devis/' + d.id, d.numero);
+    res.json({ ok: true, lien, test: !brevo.live });
+  }));
+
+  A.post('/actions/relancer/:id', sameSite, json, wrap(async (req, res) => {
+    const d = await store.get('devis/' + req.params.id);
+    const m = await store.get('modeles/' + s(req.body?.modele, 60));
+    if (!d || !m) return res.status(404).json({ error: 'Devis ou modèle introuvable.' });
+    const cl = await store.get('clients/' + d.clientId);
+    const vars = { prenom: (cl?.nom || '').split(' ')[0], nom: cl?.nom || '', numero: d.numero, evenement: String(d.evenement?.type || 'événement').toLowerCase(), date: dateFr(d.evenement?.date), lien: `${SITE}/devis/${d.token}`, montant: euros(totaux(d).ttcCents) };
+    if (m.canal === 'sms') await brevo.sendSms({ to: cl?.tel, content: remplir(m.texte, vars) });
+    else await brevo.sendEmail({ to: cl?.email, name: cl?.nom, subject: remplir(m.sujet, vars), html: esc(remplir(m.texte, vars)).replace(/\n/g, '<br>'), text: remplir(m.texte, vars) });
+    const now = new Date().toISOString();
+    await store.set('devis/' + d.id, { ...d, derniereRelance: now, relances: [...(d.relances || []), { at: now, modele: m.nom, par: req.ctx.name }] });
+    if (d.demandeId) await changerStatut(d.demandeId, 'relance', req.ctx.name);
+    audit(req.ctx, 'relance envoyée', 'devis/' + d.id, m.nom);
+    res.json({ ok: true });
+  }));
+
+  A.post('/actions/facture-depuis-devis/:id', sameSite, json, wrap(async (req, res) => {
+    const d = await store.get('devis/' + req.params.id);
+    if (!d) return res.status(404).json({ error: 'Devis introuvable.' });
+    if (d.statut !== 'accepte') return res.status(400).json({ error: 'Le devis doit d’abord être accepté.' });
+    const type = ['acompte', 'solde', 'totale'].includes(req.body?.type) ? req.body.type : 'totale';
+    const cl = await store.get('clients/' + d.clientId);
+    const t = totaux(d);
+    const autres = (await store.list('factures')).map(x => x.data).filter(f => f.devisId === d.id);
+    const acompteFacture = autres.filter(f => f.type === 'acompte').reduce((s2, f) => s2 + totaux(f).ttcCents, 0);
+    let lignes = d.lignes, remiseCents = d.remiseCents || 0, dejaRegleCents = 0;
+    if (type === 'acompte') {
+      const montant = Math.round(t.ttcCents * (d.acomptePct ?? 30) / 100);
+      /* acompte réparti au prorata des taux de TVA du devis */
+      lignes = Object.entries(t.tva).map(([taux, tv]) => { const ttc = tv + Math.round(tv / (taux / 100)); return { designation: `Acompte ${d.acomptePct ?? 30} % sur devis ${d.numero} (TVA ${taux} %)`, qte: 1, unite: '', puCents: Math.round(montant * ttc / t.ttcCents), tva: +taux }; });
+      if (lignes.length) lignes[lignes.length - 1].puCents += montant - lignes.reduce((s2, l) => s2 + l.puCents, 0); /* le centime d'arrondi va sur la dernière ligne */
+      remiseCents = 0;
+    } else if (type === 'solde') dejaRegleCents = acompteFacture;
+    const id = 'f_' + rid(8), token = rid(18);
+    const numero = await prochainNumero(store, 'facture');
+    const f = { id, numero, token, type, devisId: d.id, devisNumero: d.numero, clientId: d.clientId, client: { nom: cl?.nom, societe: cl?.societe, email: cl?.email, adresse: cl?.adresse || '' }, objet: `${d.evenement?.type || 'Événement'} du ${dateFr(d.evenement?.date)}`, date: new Date().toISOString().slice(0, 10), lignes, remiseCents, dejaRegleCents, payee: false, createdAt: new Date().toISOString() };
+    f.totalCents = totaux(f).ttcCents - dejaRegleCents;
+    await store.set('factures/' + id, f);
+    await store.set('_facturetoken/' + sha(token), { id });
+    audit(req.ctx, 'facture créée', 'factures/' + id, numero);
+    res.json({ ok: true, id });
+  }));
+  A.post('/actions/facture-payee/:id', sameSite, json, wrap(async (req, res) => {
+    const f = await store.get('factures/' + req.params.id);
+    if (!f) return res.status(404).json({ error: 'Facture introuvable.' });
+    await store.set('factures/' + f.id, { ...f, payee: !!req.body?.payee, payeeLe: req.body?.payee ? new Date().toISOString() : null, moyen: s(req.body?.moyen, 40) });
+    const d = await store.get('devis/' + f.devisId);
+    if (req.body?.payee && d?.demandeId) await changerStatut(d.demandeId, 'reserve', req.ctx.name);
+    audit(req.ctx, req.body?.payee ? 'facture payée' : 'facture non payée', 'factures/' + f.id, f.numero);
+    res.json({ ok: true });
+  }));
+  A.post('/actions/envoyer-facture/:id', sameSite, wrap(async (req, res) => {
+    const f = await store.get('factures/' + req.params.id);
+    if (!f?.client?.email) return res.status(400).json({ error: 'Pas d’e-mail client.' });
+    const lien = `${SITE}/facture/${f.token}`;
+    await brevo.sendEmail({ to: f.client.email, name: f.client.nom, subject: `Votre facture Magnolia Traiteur ${f.numero}`, html: `<p>Bonjour,</p><p>Votre facture ${esc(f.numero)} (${euros(f.totalCents)} TTC) est disponible : <a href="${lien}">voir la facture</a>.</p><p>Merci pour votre confiance,<br>L’équipe Magnolia Traiteur</p>`, text: lien });
+    await store.set('factures/' + f.id, { ...f, envoyeeLe: new Date().toISOString() });
+    audit(req.ctx, 'facture envoyée', 'factures/' + f.id, f.numero);
+    res.json({ ok: true, lien });
+  }));
+
+  A.get('/actions/agenda', wrap(async (req, res) => {
+    const [dem, rdv] = await Promise.all([store.list('demandes'), store.list('rdv')]);
+    const items = [
+      ...dem.map(d => d.data).filter(d => d.evenement?.date && d.type !== 'contact' && d.statut !== 'refuse').map(d => ({ id: d.id, type: 'evenement', date: d.evenement.date, titre: `${d.contact?.nom || ''} · ${d.evenement.type || ''}`, detail: `${d.evenement.invites || ''} pers. · ${d.evenement.ville || ''} · ${d.evenement.horaire || ''}`, statut: d.statut, lien: '#/demandes/' + d.id })),
+      ...rdv.map(r => ({ id: r.id, type: 'rdv', ...r.data, lien: '#/agenda' })),
+    ];
+    res.json(items.sort((a, b) => String(a.date).localeCompare(String(b.date))));
+  }));
+
+  /* équipe */
+  A.get('/actions/equipe', wrap(async (req, res) => res.json((await store.list('_users')).map(d => ({ id: d.id, email: d.data.email, nom: d.data.name, role: d.data.role, desactive: !!d.data.disabled, creeLe: d.data.createdAt })))));
+  A.post('/actions/equipe', sameSite, json, manager, wrap(async (req, res) => {
+    try { const id = await createUser({ email: req.body?.email, name: req.body?.nom, role: req.body?.role, password: req.body?.password }); audit(req.ctx, 'compte créé', '_users/' + id, req.body?.email); res.json({ ok: true, id }); }
+    catch (e) { res.status(e.status || 500).json({ error: e.message }); }
+  }));
+  A.patch('/actions/equipe/:id', sameSite, json, manager, wrap(async (req, res) => {
+    const u = await store.get('_users/' + req.params.id); if (!u) return res.status(404).json({ error: 'Compte introuvable.' });
+    if (req.params.id === req.ctx.uid && (req.body.desactive || req.body.role === 'collab')) return res.status(400).json({ error: 'Vous ne pouvez pas retirer vos propres droits.' });
+    const next = { ...u };
+    if (typeof req.body.desactive === 'boolean') next.disabled = req.body.desactive;
+    if (['manager', 'collab'].includes(req.body.role)) next.role = req.body.role;
+    if (req.body.password) { if (String(req.body.password).length < 10) return res.status(400).json({ error: 'Mot de passe : 10 caractères minimum.' }); next.passHash = await bcrypt.hash(String(req.body.password), 11); }
+    await store.set('_users/' + req.params.id, next);
+    audit(req.ctx, 'compte modifié', '_users/' + req.params.id, u.email);
+    res.json({ ok: true });
+  }));
+  A.get('/actions/journal', wrap(async (req, res) => {
+    const rows = (await store.list('_audit')).map(d => d.data).sort((a, b) => a.n - b.n);
+    let prev = '0'.repeat(64), intact = true;
+    for (const r of rows) { const { hash, ...rest } = r; if (r.prev !== prev || sha(JSON.stringify(rest)) !== hash) { intact = false; break; } prev = hash; }
+    res.json({ intact, total: rows.length, lignes: rows.slice(-300).reverse() });
+  }));
+  A.get('/actions/envois', wrap(async (req, res) => res.json({ live: brevo.live, envois: (await store.list('_outbox')).map(d => d.data).sort((a, b) => b.at.localeCompare(a.at)).slice(0, 100) })));
+
+  /* photos et vidéos : envoyées depuis le back-office, rangées hors du dossier de l'application */
+  const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 60 * 1024 * 1024 } });
+  const EXT = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'image/svg+xml': 'svg', 'video/mp4': 'mp4', 'application/pdf': 'pdf' };
+  A.post('/actions/upload', sameSite, (req, res, next) => upload.single('fichier')(req, res, err => err ? res.status(400).json({ error: err.code === 'LIMIT_FILE_SIZE' ? 'Fichier trop lourd (60 Mo maximum).' : 'Envoi impossible.' }) : next()), wrap(async (req, res) => {
+    const f = req.file; if (!f) return res.status(400).json({ error: 'Aucun fichier.' });
+    const ext = EXT[f.mimetype]; if (!ext) return res.status(415).json({ error: 'Format non pris en charge (JPG, PNG, WebP, MP4, PDF).' });
+    const nom = slugify(path.parse(f.originalname || 'photo').name).slice(0, 40) + '-' + rid(5).toLowerCase().replace(/[^a-z0-9]/g, '') + '.' + ext;
+    fs.writeFileSync(path.join(uploadDir, nom), f.buffer);
+    await store.set('_assets/' + nom.replace(/\./g, '_'), { nom, type: f.mimetype, octets: f.size, at: new Date().toISOString(), par: req.ctx.name });
+    audit(req.ctx, 'fichier envoyé', '/media/' + nom);
+    res.json({ ok: true, url: '/media/' + nom });
+  }));
+  A.get('/actions/medias', wrap(async (req, res) => {
+    const envoyes = (await store.list('_assets')).map(d => ({ url: '/media/' + d.data.nom, type: d.data.type, at: d.data.at }));
+    const site = [];
+    const walk = (dir, base) => { try { for (const e of fs.readdirSync(dir, { withFileTypes: true })) { const p = path.join(dir, e.name); if (e.isDirectory()) walk(p, base + '/' + e.name); else if (/\.(webp|jpe?g|png|mp4)$/i.test(e.name)) site.push({ url: base + '/' + e.name, type: /mp4$/i.test(e.name) ? 'video/mp4' : 'image' }); } } catch { /* */ } };
+    walk(path.join(PUBLIC, 'site'), '/site');
+    res.json({ envoyes: envoyes.sort((a, b) => b.at.localeCompare(a.at)), site });
+  }));
+  A.post('/actions/reimporter', sameSite, manager, wrap(async (req, res) => {
+    const r = await seed(store, { force: true, log });
+    cat.invalidate(); audit(req.ctx, 'catalogue réimporté depuis le brouillon', '');
+    res.json({ ok: true, ...r });
+  }));
+  app.use('/api/admin', A);
+
+  /* back-office (application d'une seule page) */
+  const adminHtml = () => fs.readFileSync(path.join(PUBLIC, 'admin', 'index.html'), 'utf8').replace(/__V__/g, views.V);
+  app.get(['/admin', '/connexion'], (req, res) => res.set('Cache-Control', 'no-store').type('html').send(adminHtml()));
+
+  /* ---------- pages du site ---------- */
+  const page = fn => wrap(async (req, res, next) => { const c = await cat.get(); const html = await fn(c, req, res, next); if (html) res.send(html); });
+  app.get('/', page(c => views.home(c)));
+  app.get('/boutique', page((c, req) => views.boutique(c, { q: s(req.query.q, 80), titre: req.query.q ? 'Recherche' : 'La boutique' })));
+  app.get('/lieux', page(c => views.lieux(c)));
+  app.get('/lieux/:slug', page((c, req, res, next) => { const l = c.lieux.find(x => x.slug === req.params.slug && x.statut !== 'masque'); return l ? views.lieu(c, l) : next(); }));
+  app.get('/ma-selection', page(c => views.selection(c)));
+  app.get('/maison', page(c => views.maison(c)));
+  app.get('/livraison', page(c => views.livraison(c)));
+  app.get('/comment-commander', page(c => views.commander(c)));
+  app.get('/temoignages', page(c => views.temoignages(c)));
+  app.get('/contact', page(c => views.contact(c)));
+  for (const [u, t] of [['/cgv', 'Conditions générales de vente'], ['/mentions-legales', 'Mentions légales'], ['/confidentialite', 'Confidentialité'], ['/allergenes', 'Allergènes'], ['/conseils', 'Nos conseils'], ['/references', 'Nos références']]) app.get(u, page(c => views.legal(c, u, t)));
+  /* pages spécialités du brouillon : gardées pour le référencement */
+  const SPECIALITES = { '/buffet-antillais': ['Buffet antillais', 'antillais'], '/buffet-chinois': ['Buffet chinois', 'chinois'], '/buffet-indien': ['Buffet indien', 'indien'], '/paella': ['Paëlla', 'paella'], '/traiteur-vegetarien-vegan': ['Traiteur végétarien et vegan', 'vegetarien vegan'], '/art-de-surprendre': ['L’art de surprendre', 'magicien'] };
+  app.get(Object.keys(SPECIALITES), page((c, req) => {
+    const [titre, q] = SPECIALITES[req.path];
+    const r = c.rubriques.find(x => x.slug === req.path.slice(1));
+    const liste = r ? c.byRub.get(r.slug) : q.split(" ").flatMap(w => cat.search(c, w, 200)).filter((p, i, a) => a.indexOf(p) === i);
+    return views.boutique(c, { titre, liste, path: req.path, photo: liste[0]?.photos?.[0]?.src, chapo: r?.chapo || '' });
+  }));
+  app.get('/:rub', page((c, req, res, next) => {
+    const r = c.rubriques.find(x => x.slug === req.params.rub && x.statut !== 'masque');
+    if (!r) return next();
+    return views.boutique(c, { rub: r.slug, titre: r.nom, chapo: r.chapo || r.accroche, photo: r.photoAccueil || r.photo, path: '/' + r.slug, liste: c.byRub.get(r.slug) });
+  }));
+  app.get('/:rub/:slug', page((c, req, res, next) => {
+    const p = c.bySlug.get(req.params.slug);
+    if (!p || p.statut === 'masque') return next();
+    if (p.rubrique !== req.params.rub && !(p.autresRubriques || []).includes(req.params.rub)) { res.redirect(301, `/${p.rubrique}/${p.slug}`); return; }
+    return views.produit(c, p);
+  }));
+
+  app.use('/api', (req, res) => res.status(404).json({ error: 'Introuvable.' }));
+  app.use(wrap(async (req, res) => res.status(404).send(views.erreur(await cat.get()))));
+  app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
+    log.error?.('[erreur]', err);
+    if (req.path.startsWith('/api')) return res.status(500).json({ error: 'Erreur du serveur. Réessayez.' });
+    res.status(500).send('<p style="font-family:sans-serif;padding:2em">Une erreur est survenue. Réessayez dans un instant, ou appelez le 07 63 66 98 92.</p>');
+  });
+
+  app.locals.store = store;
+  app.locals.catalogue = cat;
+  return app;
+}
+
+if (require.main === module) {
+  createApp().then(app => {
+    const port = +(process.env.PORT || 3000);
+    app.listen(port, () => console.log(`Magnolia Traiteur : http://localhost:${port}`));
+  }).catch(e => { console.error(e); process.exit(1); });
+}
+
+module.exports = { createApp };

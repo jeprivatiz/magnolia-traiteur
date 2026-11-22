@@ -1,0 +1,628 @@
+/* Back-office Magnolia Traiteur (application d'une seule page, sans dépendance). */
+(() => {
+  'use strict';
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const app = $('#app');
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const euros = c => c == null || c === '' ? '—' : (Math.round(c) / 100).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).replace(/ /g, ' ') + ' €';
+  const toCents = v => { const n = parseFloat(String(v ?? '').replace(/\s|€/g, '').replace(',', '.')); return isNaN(n) ? null : Math.round(n * 100); };
+  const fromCents = c => c == null ? '' : (c / 100).toFixed(2).replace('.', ',');
+  const dateFr = (d, o = { day: 'numeric', month: 'short', year: 'numeric' }) => { if (!d) return '—'; const x = new Date(String(d).length === 10 ? d + 'T12:00' : d); return isNaN(x) ? '—' : x.toLocaleDateString('fr-FR', o); };
+  const dateH = d => d ? new Date(d).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—';
+  const toast = (m, bad) => { const t = $('#toast'); t.textContent = m; t.className = 'toast on' + (bad ? ' bad' : ''); clearTimeout(t._t); t._t = setTimeout(() => { t.className = 'toast'; }, 3800); };
+  async function api(url, { method = 'GET', body, form } = {}) {
+    const r = await fetch(url, { method, headers: form ? { 'x-mg': '1' } : { 'content-type': 'application/json', 'x-mg': '1' }, body: form || (body !== undefined ? JSON.stringify(body) : undefined) });
+    const j = await r.json().catch(() => ({}));
+    if (r.status === 401) { session = null; render(); throw new Error('Connexion requise.'); }
+    if (!r.ok) throw new Error(j.error || 'Erreur ' + r.status);
+    return j;
+  }
+  const A = '/api/admin';
+  const STATUTS = { demande: 'Demande', devis_envoye: 'Devis envoyé', relance: 'Relance', accord: 'Accord', reserve: 'Réservé', refuse: 'Refusé', termine: 'Terminé' };
+  const DSTAT = { brouillon: 'Brouillon', envoye: 'Envoyé', accepte: 'Signé', refuse: 'Refusé' };
+  const UNITES = ['personne', 'pièce', 'portion', 'plateau', 'coffret', 'corbeille', 'gâteau', 'forfait', 'prestation', 'heure', 'location', 'bouteille', 'lot de 6', 'conditionnement', 'litre', 'table', 'chaise', 'km', 'unité'];
+  const ALLERGENES = ['Gluten', 'Crustacés', 'Œufs', 'Poissons', 'Arachides', 'Soja', 'Lait', 'Fruits à coque', 'Céleri', 'Moutarde', 'Sésame', 'Sulfites', 'Lupin', 'Mollusques'];
+  let session = null, cache = {};
+
+  /* ---------- structure ---------- */
+  const MENU = [
+    ['', 'Tableau de bord', '◎'],
+    ['demandes', 'Demandes de devis', '✉'],
+    ['suivi', 'Suivi client', '▦'],
+    ['devis', 'Devis', '✎'],
+    ['factures', 'Factures', '€'],
+    ['agenda', 'Agenda', '▣'],
+    ['clients', 'Clients', '☺'],
+    ['-'],
+    ['catalogue', 'Catalogue', '✿'],
+    ['lieux', 'Lieux', '⌂'],
+    ['site', 'Photos & textes du site', '◐'],
+    ['avis', 'Avis clients', '★'],
+    ['medias', 'Médiathèque', '▤'],
+    ['-'],
+    ['equipe', 'Équipe & activité', '♟'],
+    ['outils', 'Outils', '⚙'],
+  ];
+  function shell(inner, cur) {
+    return `<div class="bo">
+      <aside class="side" id="side"><a class="logo" href="#/"><img src="/brand/monogramme.svg" alt=""><span>Magnolia<small>Back-office</small></span></a>
+      <nav>${MENU.map(m => m[0] === '-' ? '<hr>' : `<a href="#/${m[0]}" class="${cur === m[0] ? 'on' : ''}"><i>${m[2]}</i>${m[1]}${m[0] === 'demandes' && cache.nouvelles ? `<b class="bdg">${cache.nouvelles}</b>` : ''}</a>`).join('')}</nav>
+      <div class="me"><span>${esc(session.nom || session.email)}<small>${session.role === 'manager' ? 'Manager' : 'Collaborateur'}</small></span><a href="/" target="_blank">Voir le site ↗</a><button class="lnk" data-logout>Déconnexion</button></div></aside>
+      <div class="main"><header class="mtop"><button class="burger" data-burger aria-label="Menu">☰</button><span class="mtitle">${esc((MENU.find(m => m[0] === cur) || [, ''])[1])}</span></header><div class="content">${inner}</div></div></div>`;
+  }
+  const page = (titre, actions, body) => `<div class="ph"><h1>${titre}</h1><div class="pa">${actions || ''}</div></div>${body}`;
+
+  /* ---------- routeur ---------- */
+  async function render() {
+    if (!session) {
+      try { const s = await fetch('/api/session').then(r => r.json()); if (s.connecte) session = s; } catch { /* */ }
+    }
+    if (!session) return login();
+    const [route, id, sub] = location.hash.replace(/^#\/?/, '').split('?')[0].split('/');
+    const views = { '': dashboard, demandes, suivi, devis, factures, agenda, clients, catalogue, produit, lieux, lieu, site, avis, medias, equipe, outils };
+    const fn = route === 'catalogue' && id ? produit : route === 'lieux' && id ? lieu : views[route] || dashboard;
+    app.innerHTML = shell('<p class="muted">Chargement…</p>', route === 'produit' ? 'catalogue' : route);
+    bindShell();
+    try {
+      const html = await fn(id, sub);
+      $('.content').innerHTML = html;
+      fn.after && fn.after(id, sub);
+    } catch (e) { $('.content').innerHTML = `<p class="err">${esc(e.message)}</p>`; }
+    scrollTo(0, 0);
+  }
+  addEventListener('hashchange', render);
+  function bindShell() {
+    $('[data-logout]')?.addEventListener('click', async () => { await api('/api/auth/logout', { method: 'POST' }); session = null; render(); });
+    $('[data-burger]')?.addEventListener('click', () => $('#side').classList.toggle('open'));
+    $$('#side nav a').forEach(a => a.addEventListener('click', () => $('#side').classList.remove('open')));
+  }
+
+  function login() {
+    app.innerHTML = `<div class="login"><form id="lf"><img src="/brand/monogramme.svg" alt=""><h1>Magnolia<small>Back-office</small></h1>
+      <label>E-mail<input type="email" name="email" required autocomplete="username"></label>
+      <label>Mot de passe<input type="password" name="password" required autocomplete="current-password"></label>
+      <button class="btn">Se connecter</button><p class="err" id="lerr"></p></form></div>`;
+    $('#lf').addEventListener('submit', async e => {
+      e.preventDefault();
+      try { await api('/api/auth/login', { method: 'POST', body: Object.fromEntries(new FormData(e.target)) }); session = null; render(); }
+      catch (err) { $('#lerr').textContent = err.message; }
+    });
+  }
+
+  /* ---------- tableau de bord ---------- */
+  async function dashboard() {
+    const s = await api(A + '/stats');
+    cache.nouvelles = s.nouvelles;
+    const kpi = (v, l, href) => `<a class="kpi" href="${href || '#/'}"><b>${v}</b><span>${l}</span></a>`;
+    return page(`Bonjour ${esc((session.nom || '').split(' ')[0])}`, `<a class="btn" href="#/devis/nouveau">+ Nouveau devis</a>`, `
+      <div class="kpis">${kpi(s.nouvelles, 'nouvelles demandes', '#/demandes')}${kpi(euros(s.caSigneMoisCents), 'signé ce mois-ci', '#/devis')}${kpi(euros(s.devisEnAttenteCents), 'devis en attente de signature', '#/suivi')}${kpi(euros(s.facturesImpayeesCents), 'factures à encaisser', '#/factures')}${kpi(s.tauxSignature == null ? '—' : s.tauxSignature + ' %', 'taux de signature', '#/suivi')}</div>
+      <div class="cols">
+        <section class="box"><h2>Suivi client</h2><div class="pipe">${Object.entries(STATUTS).filter(([k]) => k !== 'termine').map(([k, l]) => `<a href="#/suivi" class="pipe-i st-${k}"><b>${s.parStatut[k] || 0}</b><span>${l}</span></a>`).join('')}</div></section>
+        <section class="box"><h2>Prochains événements</h2>${s.prochains.length ? `<ul class="list">${s.prochains.map(p => `<li><a href="#/demandes/${p.id}"><b>${dateFr(p.date, { weekday: 'short', day: 'numeric', month: 'short' })}</b> ${esc(p.nom)} · ${p.invites} pers.</a><span class="pill st-${p.statut}">${STATUTS[p.statut]}</span></li>`).join('')}</ul>` : '<p class="muted">Aucun événement confirmé à venir.</p>'}</section>
+        <section class="box"><h2>Devis à relancer</h2>${s.aRelancer.length ? `<ul class="list">${s.aRelancer.map(d => `<li><a href="#/devis/${d.id}"><b>${esc(d.numero)}</b> ${esc(d.client)}</a><span class="muted">envoyé le ${dateFr(d.envoyeLe)}</span></li>`).join('')}</ul>` : '<p class="muted">Rien à relancer : bravo.</p>'}</section>
+      </div>`);
+  }
+
+  /* ---------- demandes ---------- */
+  async function demandes(id) {
+    if (id) return demande(id);
+    const list = (await api(A + '/demandes')).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    cache.nouvelles = list.filter(d => d.statut === 'demande').length;
+    return page('Demandes de devis', `<select data-filtre><option value="">Toutes</option>${Object.entries(STATUTS).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}<option value="contact">Messages (contact)</option></select>`,
+      list.length ? `<div class="table"><table><thead><tr><th>Réf.</th><th>Reçue</th><th>Client</th><th>Événement</th><th>Date</th><th class="n">Invités</th><th class="n">Estimé TTC</th><th>Statut</th></tr></thead><tbody>
+      ${list.map(d => `<tr data-href="#/demandes/${d.id}" data-st="${d.type === 'contact' ? 'contact' : d.statut}" class="${d.statut === 'demande' ? 'new' : ''}"><td>${esc(d.ref)}</td><td>${dateH(d.createdAt)}</td><td><b>${esc(d.contact?.nom)}</b><small>${esc(d.contact?.societe || d.contact?.email)}</small></td><td>${d.type === 'contact' ? 'Message : ' + esc(d.sujet) : esc(d.evenement?.type)}</td><td>${dateFr(d.evenement?.date)}</td><td class="n">${d.evenement?.invites || ''}</td><td class="n">${d.type === 'contact' ? '' : euros(d.totalEstimeCents)}</td><td><span class="pill st-${d.statut}">${STATUTS[d.statut] || d.statut}</span></td></tr>`).join('')}</tbody></table></div>`
+        : `<div class="vide"><p>Aucune demande pour le moment.</p><p class="muted">Les demandes envoyées depuis « Ma sélection » sur le site arrivent ici, avec une alerte par e-mail.</p></div>`);
+  }
+  demandes.after = id => {
+    if (id) return demande.after(id);
+    $$('tr[data-href]').forEach(tr => tr.addEventListener('click', () => { location.hash = tr.dataset.href; }));
+    $('[data-filtre]')?.addEventListener('change', e => $$('tr[data-st]').forEach(tr => { tr.hidden = e.target.value && tr.dataset.st !== e.target.value; }));
+  };
+  async function demande(id) {
+    const d = await api(A + '/demandes/' + id);
+    const dv = (await api(A + '/devis')).filter(x => x.demandeId === id);
+    cache.demande = d;
+    return page(`${esc(d.ref)} · ${esc(d.contact?.nom)}`, `<a class="btn ghost" href="#/demandes">← Demandes</a>${d.type !== 'contact' ? `<button class="btn" data-mkdevis>${dv.length ? 'Nouveau devis' : 'Créer le devis'}</button>` : ''}`, `
+      <div class="cols">
+        <section class="box"><h2>Client</h2><p><b>${esc(d.contact?.nom)}</b>${d.contact?.societe ? '<br>' + esc(d.contact.societe) : ''}<br><a href="mailto:${esc(d.contact?.email)}">${esc(d.contact?.email)}</a><br><a href="tel:${esc(d.contact?.tel)}">${esc(d.contact?.tel)}</a></p><p><a class="lnk" href="#/clients/${d.clientId}">Fiche client →</a></p></section>
+        <section class="box"><h2>Événement</h2><p><b>${esc(d.evenement?.type)}</b> · ${dateFr(d.evenement?.date, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}<br>${d.evenement?.invites || '?'} invités · ${esc(d.evenement?.cp)} ${esc(d.evenement?.ville)}<br>${esc(d.evenement?.horaire)}${d.livraison ? `<br>Livraison estimée : ${d.livraison.km} km A/R · ${euros(d.livraison.cents)}` : ''}</p></section>
+        <section class="box"><h2>Suivi</h2><label>Statut<select data-statut>${Object.entries(STATUTS).map(([k, l]) => `<option value="${k}"${d.statut === k ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
+          <ul class="histo">${(d.historique || []).map(h => `<li>${dateH(h.at)} · ${STATUTS[h.statut] || h.statut} <small>${esc(h.par || '')}</small></li>`).join('')}</ul></section>
+      </div>
+      ${d.message ? `<section class="box"><h2>Message du client</h2><p class="pre">${esc(d.message)}</p></section>` : ''}
+      ${(d.lignes || []).length ? `<section class="box"><h2>Sélection du client</h2><div class="table"><table><thead><tr><th>Prestation</th><th>Choix</th><th class="n">Qté</th><th class="n">Estimé</th></tr></thead><tbody>${d.lignes.map(l => `<tr><td><b>${esc(l.titre)}</b>${l.variante ? `<small>${esc(l.variante)}</small>` : ''}</td><td>${esc(l.resume)}${l.personnel ? `<small>+ personnel ${l.personnel.nb} × ${l.personnel.heures} h</small>` : ''}${l.pack ? `<small>+ pack ${esc(l.pack.id)}</small>` : ''}${l.note ? `<small>Note : ${esc(l.note)}</small>` : ''}</td><td class="n">${l.qte} ${esc(l.unite)}</td><td class="n">${l.surDevis ? 'sur devis' : euros(l.totalCents)}</td></tr>`).join('')}<tr class="tot"><td colspan="3">Total estimé (livraison comprise)</td><td class="n">${euros(d.totalEstimeCents)}</td></tr></tbody></table></div></section>` : ''}
+      <section class="box"><h2>Devis liés</h2>${dv.length ? `<ul class="list">${dv.map(x => `<li><a href="#/devis/${x.id}"><b>${esc(x.numero)}</b></a><span class="pill d-${x.statut}">${DSTAT[x.statut]}</span></li>`).join('')}</ul>` : '<p class="muted">Pas encore de devis : « Créer le devis » reprend toutes les lignes de la sélection, avec le personnel, les packs et la livraison.</p>'}</section>
+      <section class="box"><h2>Notes internes</h2><textarea rows="3" data-notes placeholder="Visible seulement par l’équipe">${esc(d.notes || '')}</textarea><button class="btn ghost sm" data-savenotes>Enregistrer la note</button></section>`);
+  }
+  demande.after = id => {
+    $('[data-statut]')?.addEventListener('change', async e => { await api(`${A}/demandes/${id}`, { method: 'PUT', body: { ...cache.demande, statut: e.target.value } }); toast('Statut mis à jour.'); render(); });
+    $('[data-savenotes]')?.addEventListener('click', async () => { await api(`${A}/demandes/${id}`, { method: 'PUT', body: { ...cache.demande, notes: $('[data-notes]').value } }); toast('Note enregistrée.'); });
+    $('[data-mkdevis]')?.addEventListener('click', async () => { const r = await api(`${A}/actions/devis-depuis-demande/${id}`, { method: 'POST' }); location.hash = '#/devis/' + r.id; });
+  };
+
+  /* ---------- suivi client (tableau par étape) ---------- */
+  async function suivi() {
+    const list = (await api(A + '/demandes')).filter(d => d.type !== 'contact');
+    const cols = ['demande', 'devis_envoye', 'relance', 'accord', 'reserve', 'refuse'];
+    return page('Suivi client', '<span class="muted">Glissez une carte pour changer son étape.</span>', `<div class="kanban">${cols.map(k => `<div class="kcol" data-col="${k}"><h3><span class="dot st-${k}"></span>${STATUTS[k]} <small>${list.filter(d => d.statut === k).length}</small></h3>
+      ${list.filter(d => d.statut === k).sort((a, b) => String(a.evenement?.date).localeCompare(String(b.evenement?.date))).map(d => `<a class="kcard" draggable="true" data-id="${d.id}" href="#/demandes/${d.id}"><b>${esc(d.contact?.nom)}</b><span>${esc(d.evenement?.type)} · ${dateFr(d.evenement?.date)}</span><span>${d.evenement?.invites || ''} pers. · ${euros(d.totalEstimeCents)}</span></a>`).join('')}</div>`).join('')}</div>`);
+  }
+  suivi.after = () => {
+    let drag = null;
+    $$('.kcard').forEach(c => c.addEventListener('dragstart', () => { drag = c.dataset.id; }));
+    $$('.kcol').forEach(col => {
+      col.addEventListener('dragover', e => { e.preventDefault(); col.classList.add('over'); });
+      col.addEventListener('dragleave', () => col.classList.remove('over'));
+      col.addEventListener('drop', async e => {
+        e.preventDefault(); col.classList.remove('over'); if (!drag) return;
+        const d = await api(`${A}/demandes/${drag}`);
+        await api(`${A}/demandes/${drag}`, { method: 'PUT', body: { ...d, statut: col.dataset.col } });
+        toast('Étape : ' + STATUTS[col.dataset.col]); render();
+      });
+    });
+  };
+
+  /* ---------- devis ---------- */
+  async function devis(id) {
+    if (id === 'nouveau') { const r = await api(A + '/actions/devis-vierge', { method: 'POST', body: {} }); location.replace('#/devis/' + r.id); return ''; }
+    if (id) return devisEdit(id);
+    const list = (await api(A + '/devis')).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return page('Devis', '<a class="btn" href="#/devis/nouveau">+ Nouveau devis</a>', list.length ? `<div class="table"><table><thead><tr><th>N°</th><th>Client</th><th>Événement</th><th class="n">Total TTC</th><th>Statut</th><th>Vu par le client</th></tr></thead><tbody>
+      ${list.map(d => `<tr data-href="#/devis/${d.id}"><td><b>${esc(d.numero)}</b></td><td>${esc(d.clientNom)}</td><td>${esc(d.evenement?.type || '')} ${dateFr(d.evenement?.date)}</td><td class="n">${euros(tot(d).ttc)}</td><td><span class="pill d-${d.statut}">${DSTAT[d.statut]}</span></td><td>${d.vuLe ? dateH(d.vuLe) : '—'}</td></tr>`).join('')}</tbody></table></div>` : '<div class="vide"><p>Aucun devis.</p><p class="muted">Créez un devis depuis une demande (les lignes sont reprises) ou partez d’un devis vierge.</p></div>');
+  }
+  devis.after = id => { if (id && id !== 'nouveau') return devisEdit.after(id); $$('tr[data-href]').forEach(tr => tr.addEventListener('click', () => { location.hash = tr.dataset.href; })); };
+
+  function tot(d) {
+    const L = (d.lignes || []).filter(l => l.type !== 'titre');
+    const brut = L.reduce((s, l) => s + Math.round((l.puCents || 0) * (+l.qte || 0)), 0);
+    const remise = Math.min(brut, d.remiseCents || 0);
+    const cout = L.reduce((s, l) => s + Math.round((l.coutCents || 0) * (+l.qte || 0)), 0);
+    const ratio = brut ? (brut - remise) / brut : 1;
+    let ht = 0; const tva = {};
+    for (const l of L) { const t = Math.round((l.puCents || 0) * (+l.qte || 0) * ratio); const h = Math.round(t / (1 + (l.tva ?? 10) / 100)); ht += h; tva[l.tva ?? 10] = (tva[l.tva ?? 10] || 0) + t - h; }
+    return { brut, remise, ttc: brut - remise, ht, tva, cout, marge: brut - remise - cout, coutConnu: L.some(l => l.coutCents) };
+  }
+
+  async function devisEdit(id) {
+    const [d, clientsL, cat] = await Promise.all([api(A + '/devis/' + id), api(A + '/clients'), cache.produits ? cache.produits : api(A + '/produits')]);
+    cache.produits = cat; cache.devis = d; cache.clients = clientsL;
+    const modeles = await api(A + '/modeles');
+    const signe = d.statut === 'accepte';
+    const lock = signe && session.role !== 'manager';
+    return page(`Devis ${esc(d.numero)} <span class="pill d-${d.statut}">${DSTAT[d.statut]}</span>`, `<a class="btn ghost" href="#/devis">← Devis</a>${d.statut !== 'brouillon' ? `<a class="btn ghost" href="/devis/${d.token}" target="_blank">Voir comme le client ↗</a>` : ''}`, `
+      ${signe ? `<p class="okbox">✓ Signé en ligne par <b>${esc(d.signature?.nom)}</b> le ${dateH(d.signature?.at)}.${lock ? ' Seul le Manager peut le modifier.' : ''}</p>` : ''}
+      <form id="dv" class="${lock ? 'lock' : ''}">
+      <div class="cols">
+        <section class="box"><h2>Client</h2><label>Client<select name="clientId"><option value="">— Choisir —</option>${clientsL.sort((a, b) => (a.nom || '').localeCompare(b.nom || '')).map(c => `<option value="${c.id}"${c.id === d.clientId ? ' selected' : ''}>${esc(c.nom)} · ${esc(c.email)}</option>`).join('')}</select></label><p class="muted sm"><a href="#/clients/nouveau">+ Nouveau client</a></p></section>
+        <section class="box"><h2>Événement</h2><div class="g2"><label>Type<select name="ev_type">${['Anniversaire', 'Fête de famille', 'Entreprise', 'Mariage', 'Baptême', 'Cocktail', 'Autre'].map(e => `<option${d.evenement?.type === e ? ' selected' : ''}>${e}</option>`).join('')}</select></label><label>Date<input type="date" name="ev_date" value="${esc(d.evenement?.date || '')}"></label><label>Invités<input type="number" name="ev_invites" value="${esc(d.evenement?.invites || '')}"></label><label>Lieu<input name="ev_lieu" value="${esc(d.evenement?.lieu || '')}"></label></div></section>
+        <section class="box"><h2>Conditions</h2><div class="g2"><label>Valable jusqu’au<input type="date" name="validiteJusquau" value="${esc(d.validiteJusquau || '')}"></label><label>Acompte<select name="acomptePct">${[0, 20, 30, 40, 50, 100].map(p => `<option value="${p}"${(d.acomptePct ?? 30) === p ? ' selected' : ''}>${p} %</option>`).join('')}</select></label></div>
+          <label>Lien de paiement de l’acompte <small>(SumUp, Stripe, banque…)</small><input name="lienPaiement" value="${esc(d.lienPaiement || '')}" placeholder="https://"></label></section>
+      </div>
+      <section class="box"><label>Texte d’introduction<textarea name="intro" rows="2">${esc(d.intro || '')}</textarea></label></section>
+      <section class="box"><div class="bh"><h2>Lignes du devis</h2><div class="row"><select data-addprod class="wide"><option value="">+ Ajouter une prestation du catalogue…</option>${cat.filter(p => p.statut !== 'masque').sort((a, b) => a.titre.localeCompare(b.titre)).map(p => `<option value="${esc(p.slug)}">${esc(p.titre)} · ${p.prixCents == null ? 'sur devis' : euros(p.prixCents)}</option>`).join('')}</select><button type="button" class="btn ghost sm" data-addline>+ Ligne libre</button><button type="button" class="btn ghost sm" data-addtitle>+ Titre</button></div></div>
+        <div class="table"><table class="lines"><thead><tr><th></th><th>Désignation</th><th class="n">Qté</th><th>Unité</th><th class="n">PU TTC</th><th class="n">Coût TTC</th><th>TVA</th><th class="n">Total TTC</th><th></th></tr></thead><tbody id="lines"></tbody></table></div>
+        <div class="totbox"><div class="g2"><label>Remise TTC (€)<input name="remise" value="${fromCents(d.remiseCents || 0)}" inputmode="decimal"></label></div><dl id="totaux"></dl></div></section>
+      <section class="box"><label>Conditions particulières<textarea name="conditions" rows="2">${esc(d.conditions || '')}</textarea></label></section>
+      <div class="actions sticky"><button class="btn" type="submit">Enregistrer</button><span class="muted" id="dirty"></span></div>
+      </form>
+      <div class="cols">
+        <section class="box"><h2>Envoyer au client</h2><label>Message (facultatif)<textarea rows="3" id="msg" placeholder="Bonjour, voici votre devis…"></textarea></label><div class="row"><label class="chk"><input type="checkbox" id="c-mail" checked> E-mail</label><label class="chk"><input type="checkbox" id="c-sms"> SMS</label></div><button class="btn" data-send>${d.statut === 'brouillon' ? 'Envoyer le devis' : 'Renvoyer le devis'}</button>
+          ${(d.envois || []).length ? `<ul class="histo">${d.envois.map(e => `<li>${dateH(e.at)} · ${e.canaux.join(' + ')} <small>${esc(e.par)}</small></li>`).join('')}</ul>` : ''}</section>
+        <section class="box"><h2>Relancer</h2><select id="mod">${modeles.map(m => `<option value="${m.id}">${esc(m.nom)}</option>`).join('')}</select><button class="btn ghost" data-relance ${d.statut !== 'envoye' ? 'disabled' : ''}>Envoyer la relance</button>${(d.relances || []).length ? `<ul class="histo">${d.relances.map(r => `<li>${dateH(r.at)} · ${esc(r.modele)}</li>`).join('')}</ul>` : ''}</section>
+        <section class="box"><h2>Facturer</h2>${signe ? `<div class="row"><button class="btn ghost" data-fac="acompte">Facture d’acompte</button><button class="btn ghost" data-fac="solde">Facture de solde</button><button class="btn ghost" data-fac="totale">Facture totale</button></div>` : '<p class="muted">Possible dès que le client a signé.</p>'}</section>
+      </div>`);
+  }
+  devisEdit.after = id => {
+    const d = cache.devis, form = $('#dv');
+    let lignes = (d.lignes || []).map(l => ({ ...l }));
+    const body = $('#lines');
+    const draw = () => {
+      body.innerHTML = lignes.map((l, i) => l.type === 'titre'
+        ? `<tr class="t" data-i="${i}"><td class="h">⋮⋮</td><td colspan="7"><input data-f="designation" value="${esc(l.designation)}" placeholder="Titre de section"></td><td><button type="button" class="x" data-del>×</button></td></tr>`
+        : `<tr data-i="${i}" class="${l.coutCents && l.puCents < l.coutCents ? 'neg' : ''}"><td class="h" title="Déplacer">⋮⋮</td><td><input data-f="designation" value="${esc(l.designation)}"><input data-f="detail" class="sub" value="${esc(l.detail || '')}" placeholder="Détail (facultatif)"></td>
+           <td><input data-f="qte" class="num" value="${esc(l.qte)}" inputmode="decimal"></td><td><select data-f="unite">${[...new Set([l.unite, ...UNITES])].map(u => `<option${u === l.unite ? ' selected' : ''}>${esc(u || '')}</option>`).join('')}</select></td>
+           <td><input data-f="puCents" class="num" value="${fromCents(l.puCents)}" inputmode="decimal"></td><td><input data-f="coutCents" class="num" value="${fromCents(l.coutCents)}" inputmode="decimal" placeholder="—"></td>
+           <td><select data-f="tva">${[5.5, 10, 20].map(t => `<option value="${t}"${+l.tva === t ? ' selected' : ''}>${String(t).replace('.', ',')} %</option>`).join('')}</select></td><td class="n">${euros(Math.round((l.puCents || 0) * (+l.qte || 0)))}</td><td><button type="button" class="x" data-del aria-label="Supprimer">×</button></td></tr>`).join('') || '<tr><td colspan="9" class="muted">Aucune ligne : ajoutez une prestation du catalogue ou une ligne libre.</td></tr>';
+      const t = tot({ lignes, remiseCents: toCents(form.remise.value) || 0 });
+      $('#totaux').innerHTML = `${t.remise ? `<div><dt>Sous-total</dt><dd>${euros(t.brut)}</dd></div><div><dt>Remise</dt><dd>− ${euros(t.remise)}</dd></div>` : ''}${Object.entries(t.tva).map(([k, v]) => `<div class="sm"><dt>dont TVA ${String(k).replace('.', ',')} %</dt><dd>${euros(v)}</dd></div>`).join('')}<div class="sm"><dt>Total HT</dt><dd>${euros(t.ht)}</dd></div><div class="big"><dt>Total TTC</dt><dd>${euros(t.ttc)}</dd></div>${t.coutConnu ? `<div class="${t.marge < 0 ? 'neg' : 'pos'}"><dt>Marge</dt><dd>${euros(t.marge)} ${t.ttc ? '(' + Math.round(100 * t.marge / t.ttc) + ' %)' : ''}</dd></div>` : ''}<div class="sm"><dt>Acompte ${form.acomptePct.value} %</dt><dd>${euros(Math.round(t.ttc * form.acomptePct.value / 100))}</dd></div>`;
+    };
+    draw();
+    const dirty = () => { $('#dirty').textContent = 'Modifications non enregistrées'; };
+    body.addEventListener('input', e => {
+      const tr = e.target.closest('[data-i]'); const l = lignes[+tr.dataset.i]; const f = e.target.dataset.f;
+      if (!f) return;
+      l[f] = ['puCents', 'coutCents'].includes(f) ? toCents(e.target.value) : f === 'tva' ? +e.target.value : f === 'qte' ? parseFloat(String(e.target.value).replace(',', '.')) || 0 : e.target.value;
+      const cell = tr.children[7]; if (cell && l.type !== 'titre') cell.textContent = euros(Math.round((l.puCents || 0) * (+l.qte || 0)));
+      tr.classList.toggle('neg', !!(l.coutCents && l.puCents < l.coutCents));
+      const t = tot({ lignes, remiseCents: toCents(form.remise.value) || 0 }); draw.totOnly ? 0 : 0; $('#totaux').innerHTML = ''; draw(); dirty();
+      const again = $(`[data-i="${tr.dataset.i}"] [data-f="${f}"]`); if (again && again.tagName === 'INPUT') { again.focus(); again.setSelectionRange(again.value.length, again.value.length); }
+      void t;
+    });
+    body.addEventListener('change', e => { if (e.target.tagName === 'SELECT') body.dispatchEvent(new Event('input', { bubbles: true })) ; });
+    body.addEventListener('click', e => { if (e.target.closest('[data-del]')) { lignes.splice(+e.target.closest('[data-i]').dataset.i, 1); draw(); dirty(); } });
+    /* déplacer une ligne en la glissant */
+    let from = null;
+    body.addEventListener('pointerdown', e => { if (e.target.classList.contains('h')) { from = +e.target.closest('[data-i]').dataset.i; e.target.closest('tr').classList.add('drag'); } });
+    addEventListener('pointerup', e => {
+      if (from == null) return;
+      const tr = document.elementFromPoint(e.clientX, e.clientY)?.closest('#lines [data-i]');
+      if (tr) { const to = +tr.dataset.i; const [m] = lignes.splice(from, 1); lignes.splice(to, 0, m); dirty(); }
+      from = null; draw();
+    });
+    form.remise.addEventListener('input', () => { draw(); dirty(); });
+    form.acomptePct.addEventListener('change', draw);
+    $('[data-addline]').addEventListener('click', () => { lignes.push({ designation: 'Nouvelle ligne', qte: 1, unite: 'forfait', puCents: 0, coutCents: null, tva: 10 }); draw(); dirty(); });
+    $('[data-addtitle]').addEventListener('click', () => { lignes.push({ type: 'titre', designation: 'Section' }); draw(); dirty(); });
+    $('[data-addprod]').addEventListener('change', e => {
+      const p = cache.produits.find(x => x.slug === e.target.value); if (!p) return;
+      const inv = +form.ev_invites.value || p.min || 1;
+      lignes.push({ designation: p.titre, detail: '', qte: /personne/.test(p.unite || '') ? Math.max(inv, p.min || 1) : (p.min || 1), unite: p.unite || 'unité', puCents: p.prixCents || 0, coutCents: p.coutCents ?? null, tva: p.tva ?? 10, produit: p.slug });
+      e.target.value = ''; draw(); dirty();
+    });
+    form.addEventListener('input', e => { if (!e.target.closest('#lines')) dirty(); });
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+      const f = Object.fromEntries(new FormData(form));
+      const cl = cache.clients.find(c => c.id === f.clientId);
+      const next = { ...d, clientId: f.clientId || null, clientNom: cl?.nom || '', evenement: { type: f.ev_type, date: f.ev_date, invites: +f.ev_invites || null, lieu: f.ev_lieu }, validiteJusquau: f.validiteJusquau, acomptePct: +f.acomptePct, lienPaiement: f.lienPaiement, intro: f.intro, conditions: f.conditions, remiseCents: toCents(f.remise) || 0, lignes };
+      try { await api(`${A}/devis/${id}`, { method: 'PUT', body: next }); cache.devis = next; $('#dirty').textContent = ''; toast('Devis enregistré.'); }
+      catch (err) { toast(err.message, true); }
+    });
+    $('[data-send]')?.addEventListener('click', async () => {
+      if ($('#dirty').textContent) { toast('Enregistrez d’abord vos modifications.', true); return; }
+      const canaux = [$('#c-mail').checked && 'email', $('#c-sms').checked && 'sms'].filter(Boolean);
+      if (!canaux.length) return toast('Choisissez e-mail et/ou SMS.', true);
+      if (!confirm('Envoyer le devis au client maintenant ?')) return;
+      try { const r = await api(`${A}/actions/envoyer-devis/${id}`, { method: 'POST', body: { canaux, message: $('#msg').value } }); toast(r.test ? 'Devis prêt (mode test : aucun e-mail réel tant que Brevo n’est pas branché).' : 'Devis envoyé.'); render(); }
+      catch (err) { toast(err.message, true); }
+    });
+    $('[data-relance]')?.addEventListener('click', async () => { try { await api(`${A}/actions/relancer/${id}`, { method: 'POST', body: { modele: $('#mod').value } }); toast('Relance envoyée.'); render(); } catch (err) { toast(err.message, true); } });
+    $$('[data-fac]').forEach(b => b.addEventListener('click', async () => { try { const r = await api(`${A}/actions/facture-depuis-devis/${id}`, { method: 'POST', body: { type: b.dataset.fac } }); toast('Facture créée.'); location.hash = '#/factures/' + r.id; } catch (err) { toast(err.message, true); } }));
+  };
+
+  /* ---------- factures ---------- */
+  async function factures(id) {
+    const list = (await api(A + '/factures')).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    const f = id && list.find(x => x.id === id);
+    const totalF = x => x.totalCents ?? 0;
+    return page('Factures', '', `${f ? `<section class="box hl"><h2>Facture ${esc(f.numero)} <span class="pill ${f.payee ? 'd-accepte' : 'd-envoye'}">${f.payee ? 'Payée' : 'À encaisser'}</span></h2><p>${esc(f.client?.nom)} · ${esc(f.objet)} · <b>${euros(totalF(f))}</b></p><div class="row"><a class="btn ghost" href="/facture/${f.token}" target="_blank">Voir / imprimer ↗</a><button class="btn ghost" data-sendf="${f.id}">Envoyer par e-mail</button>${f.payee ? `<button class="btn ghost" data-pay="${f.id}" data-v="0">Marquer non payée</button>` : `<select id="moyen"><option>Virement</option><option>Carte bancaire</option><option>Lien de paiement</option><option>Chèque</option><option>Espèces</option></select><button class="btn" data-pay="${f.id}" data-v="1">Marquer payée</button>`}</div></section>` : ''}
+      ${list.length ? `<div class="table"><table><thead><tr><th>N°</th><th>Date</th><th>Client</th><th>Type</th><th class="n">Montant TTC</th><th>Statut</th></tr></thead><tbody>${list.map(x => `<tr data-href="#/factures/${x.id}"><td><b>${esc(x.numero)}</b></td><td>${dateFr(x.date)}</td><td>${esc(x.client?.nom)}</td><td>${{ acompte: 'Acompte', solde: 'Solde', totale: 'Totale' }[x.type] || ''}</td><td class="n">${euros(totalF(x))}</td><td><span class="pill ${x.payee ? 'd-accepte' : 'd-envoye'}">${x.payee ? 'Payée' : 'À encaisser'}</span></td></tr>`).join('')}</tbody></table></div>` : '<div class="vide"><p>Aucune facture.</p><p class="muted">Les factures se créent depuis un devis signé (acompte, solde ou totale), avec une numérotation continue.</p></div>'}`);
+  }
+  factures.after = () => {
+    $$('tr[data-href]').forEach(tr => tr.addEventListener('click', () => { location.hash = tr.dataset.href; }));
+    $$('[data-pay]').forEach(b => b.addEventListener('click', async () => { await api(`${A}/actions/facture-payee/${b.dataset.pay}`, { method: 'POST', body: { payee: b.dataset.v === '1', moyen: $('#moyen')?.value } }); toast('Facture mise à jour.'); render(); }));
+    $$('[data-sendf]').forEach(b => b.addEventListener('click', async () => { try { await api(`${A}/actions/envoyer-facture/${b.dataset.sendf}`, { method: 'POST' }); toast('Facture envoyée.'); } catch (e) { toast(e.message, true); } }));
+  };
+
+  /* ---------- agenda ---------- */
+  async function agenda(id) {
+    const items = await api(A + '/actions/agenda');
+    const base = id ? new Date(id + '-01T12:00') : new Date();
+    const y = base.getFullYear(), m = base.getMonth();
+    const first = new Date(y, m, 1), start = new Date(first); start.setDate(1 - ((first.getDay() + 6) % 7));
+    const key = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const ym = (yy, mm) => { const d = new Date(yy, mm, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; };
+    const today = key(new Date());
+    let cells = '';
+    for (let i = 0; i < 42; i++) {
+      const d = new Date(start); d.setDate(start.getDate() + i); const k = key(d);
+      const ev = items.filter(x => x.date === k);
+      cells += `<div class="cal-d${d.getMonth() !== m ? ' out' : ''}${k === today ? ' today' : ''}"><span>${d.getDate()}</span>${ev.map(x => `<a href="${x.lien}" class="cal-e st-${x.statut || 'rdv'}" title="${esc(x.detail || '')}">${esc(x.titre)}</a>`).join('')}</div>`;
+    }
+    const aVenir = items.filter(x => x.date >= today).slice(0, 20);
+    return page('Agenda', `<a class="btn ghost" href="#/agenda/${ym(y, m - 1)}">←</a><span class="mois">${first.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}</span><a class="btn ghost" href="#/agenda/${ym(y, m + 1)}">→</a>`, `
+      <div class="cal"><div class="cal-h">${['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map(j => `<span>${j}</span>`).join('')}</div><div class="cal-g">${cells}</div></div>
+      <div class="cols"><section class="box"><h2>À venir</h2>${aVenir.length ? `<ul class="list">${aVenir.map(x => `<li><a href="${x.lien}"><b>${dateFr(x.date, { weekday: 'short', day: 'numeric', month: 'short' })}</b> ${esc(x.titre)}</a><small class="muted">${esc(x.detail || '')}</small></li>`).join('')}</ul>` : '<p class="muted">Rien de prévu.</p>'}</section>
+      <section class="box"><h2>Ajouter un rendez-vous</h2><form id="rdv"><div class="g2"><label>Date<input type="date" name="date" required></label><label>Heure<input type="time" name="heure"></label></div><label>Objet<input name="titre" required placeholder="Dégustation, visite de lieu…"></label><label>Détail<input name="detail"></label><button class="btn">Ajouter</button></form></section></div>`);
+  }
+  agenda.after = () => {
+    $('#rdv')?.addEventListener('submit', async e => { e.preventDefault(); const f = Object.fromEntries(new FormData(e.target)); await api(A + '/rdv', { method: 'POST', body: { ...f, titre: (f.heure ? f.heure + ' · ' : '') + f.titre, statut: 'rdv' } }); toast('Rendez-vous ajouté.'); render(); });
+  };
+
+  /* ---------- clients ---------- */
+  async function clients(id) {
+    if (id) return client(id);
+    const [list, dem] = await Promise.all([api(A + '/clients'), api(A + '/demandes')]);
+    return page('Clients', '<a class="btn" href="#/clients/nouveau">+ Nouveau client</a><input type="search" placeholder="Rechercher…" data-q>', `<div class="table"><table><thead><tr><th>Nom</th><th>Société</th><th>Contact</th><th class="n">Demandes</th><th>Dernière activité</th></tr></thead><tbody>
+      ${list.sort((a, b) => String(b.derniereActivite).localeCompare(String(a.derniereActivite))).map(c => `<tr data-href="#/clients/${c.id}"><td><b>${esc(c.nom)}</b></td><td>${esc(c.societe || '')}</td><td>${esc(c.email)}<small>${esc(c.tel || '')}</small></td><td class="n">${dem.filter(d => d.clientId === c.id).length}</td><td>${dateFr(c.derniereActivite)}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">Aucun client pour le moment.</td></tr>'}</tbody></table></div>`);
+  }
+  clients.after = id => {
+    if (id) return client.after(id);
+    $$('tr[data-href]').forEach(tr => tr.addEventListener('click', () => { location.hash = tr.dataset.href; }));
+    $('[data-q]')?.addEventListener('input', e => { const q = e.target.value.toLowerCase(); $$('tr[data-href]').forEach(tr => { tr.hidden = !tr.textContent.toLowerCase().includes(q); }); });
+  };
+  async function client(id) {
+    const c = id === 'nouveau' ? { nom: '', email: '', tel: '', societe: '', adresse: '', notes: '' } : await api(A + '/clients/' + id);
+    cache.client = c;
+    const [dem, dv] = id === 'nouveau' ? [[], []] : await Promise.all([api(A + '/demandes'), api(A + '/devis')]);
+    return page(id === 'nouveau' ? 'Nouveau client' : esc(c.nom), '<a class="btn ghost" href="#/clients">← Clients</a>', `<div class="cols"><section class="box"><form id="cf"><label>Nom et prénom<input name="nom" value="${esc(c.nom)}" required></label><label>Société<input name="societe" value="${esc(c.societe || '')}"></label><div class="g2"><label>E-mail<input type="email" name="email" value="${esc(c.email)}" required></label><label>Téléphone<input name="tel" value="${esc(c.tel || '')}"></label></div><label>Adresse de facturation<textarea name="adresse" rows="2">${esc(c.adresse || '')}</textarea></label><label>Notes internes<textarea name="notes" rows="3">${esc(c.notes || '')}</textarea></label><button class="btn">Enregistrer</button></form></section>
+      <section class="box"><h2>Historique</h2><ul class="list">${dem.filter(d => d.clientId === id).map(d => `<li><a href="#/demandes/${d.id}">${esc(d.ref)} · ${esc(d.evenement?.type || d.sujet || '')} ${dateFr(d.evenement?.date)}</a><span class="pill st-${d.statut}">${STATUTS[d.statut]}</span></li>`).join('')}${dv.filter(x => x.clientId === id).map(x => `<li><a href="#/devis/${x.id}">Devis ${esc(x.numero)} · ${euros(tot(x).ttc)}</a><span class="pill d-${x.statut}">${DSTAT[x.statut]}</span></li>`).join('') || '<li class="muted">Rien pour le moment.</li>'}</ul>${id !== 'nouveau' ? `<button class="btn ghost" data-newdv>+ Devis pour ce client</button>` : ''}</section></div>`);
+  }
+  client.after = id => {
+    $('#cf').addEventListener('submit', async e => {
+      e.preventDefault(); const f = Object.fromEntries(new FormData(e.target));
+      try {
+        if (id === 'nouveau') { const r = await api(A + '/clients', { method: 'POST', body: { ...f, source: 'back-office', creeLe: new Date().toISOString(), derniereActivite: new Date().toISOString() } }); location.hash = '#/clients/' + r.id; }
+        else { await api(`${A}/clients/${id}`, { method: 'PUT', body: { ...cache.client, ...f } }); toast('Client enregistré.'); }
+      } catch (err) { toast(err.message, true); }
+    });
+    $('[data-newdv]')?.addEventListener('click', async () => { const r = await api(A + '/actions/devis-vierge', { method: 'POST', body: { clientId: id } }); location.hash = '#/devis/' + r.id; });
+  };
+
+  /* ---------- catalogue ---------- */
+  async function catalogue() {
+    const [rubs, prods] = await Promise.all([api(A + '/rubriques'), api(A + '/produits')]);
+    cache.rubriques = rubs.sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0)); cache.produits = prods;
+    const r = new URLSearchParams(location.hash.split('?')[1] || '').get('r') || cache.catR || rubs[0]?.slug;
+    cache.catR = r;
+    const liste = prods.filter(p => p.rubrique === r).sort((a, b) => (b.maison ? 1 : 0) - (a.maison ? 1 : 0) || (a.ordre ?? 0) - (b.ordre ?? 0));
+    const rub = rubs.find(x => x.slug === r) || {};
+    return page('Catalogue', `<input type="search" placeholder="Rechercher dans tout le catalogue…" data-q>`, `
+      <div class="catg"><nav class="rubs">${rubs.map(x => `<a href="#/catalogue?r=${x.slug}" class="${x.slug === r ? 'on' : ''}${x.statut === 'masque' ? ' hid' : ''}">${esc(x.nom)}<small>${prods.filter(p => p.rubrique === x.slug).length}</small></a>`).join('')}<button class="lnk" data-newrub>+ Nouvelle rubrique</button></nav>
+      <div><section class="box rubbox"><div class="bh"><h2>${esc(rub.nom || '')}</h2><button class="btn" data-new="${esc(r)}">+ Créer dans « ${esc(rub.nom || '')} »</button></div>
+        <form id="rf" class="g3"><label>Nom<input name="nom" value="${esc(rub.nom || '')}"></label><label>Accroche (sur la vignette)<input name="accroche" value="${esc(rub.accroche || '')}" placeholder="ex. Le monde entier à votre table"></label><label>Statut<select name="statut"><option value="visible">Visible</option><option value="masque"${rub.statut === 'masque' ? ' selected' : ''}>Masquée</option></select></label>
+        <label class="span3">Texte d’introduction<textarea name="chapo" rows="2">${esc(rub.chapo || '')}</textarea></label>
+        <div class="span3 phrow">${photoField('photoAccueil', rub.photoAccueil || rub.photo, 'Photo de la vignette')}<div class="row"><label>Ordre<input type="number" name="ordre" value="${rub.ordre ?? 0}" class="num"></label><label>TVA par défaut<select name="tva">${[5.5, 10, 20].map(t => `<option value="${t}"${+(rub.tva || 10) === t ? ' selected' : ''}>${t} %</option>`).join('')}</select></label><button class="btn ghost">Enregistrer la rubrique</button></div></div></form></section>
+      <div class="plist" id="plist">${liste.map(prow).join('') || '<p class="muted">Aucune prestation dans cette rubrique.</p>'}</div></div></div>`);
+  }
+  const prow = p => `<a class="prow${p.statut === 'masque' ? ' hid' : ''}" href="#/catalogue/${p.id || p.slug}">${p.photos?.[0]?.src ? `<img src="${esc(p.photos[0].src)}" alt="" loading="lazy">` : '<span class="ph0"></span>'}<span><b>${esc(p.titre)}</b><small>${p.prixCents == null ? 'Sur devis' : euros(p.prixCents) + (p.unite ? ' / ' + esc(p.unite) : '')}${p.min > 1 ? ' · min. ' + p.min : ''}</small></span><span class="pill ${p.statut === 'masque' ? 'd-refuse' : 'd-accepte'}">${p.statut === 'masque' ? 'Masqué' : 'Visible'}</span>${p.maison ? '<span class="pill">Maison</span>' : ''}</a>`;
+  catalogue.after = () => {
+    $('[data-q]').addEventListener('input', e => {
+      const q = e.target.value.toLowerCase().trim();
+      $('#plist').innerHTML = (q ? cache.produits.filter(p => (p.titre + ' ' + (p.extrait || '')).toLowerCase().includes(q)) : cache.produits.filter(p => p.rubrique === cache.catR)).map(prow).join('') || '<p class="muted">Aucun résultat.</p>';
+    });
+    $('[data-new]').addEventListener('click', async e => {
+      const titre = prompt('Nom de la nouvelle prestation ?'); if (!titre) return;
+      const r = await api(A + '/produits', { method: 'POST', body: { titre, rubrique: e.target.dataset.new, prixCents: null, unite: 'personne', min: 1, statut: 'masque', tva: (cache.rubriques.find(x => x.slug === e.target.dataset.new) || {}).tva || 10 } });
+      toast('Créée (masquée tant que vous ne la rendez pas visible).'); location.hash = '#/catalogue/' + r.id;
+    });
+    $('[data-newrub]').addEventListener('click', async () => { const nom = prompt('Nom de la nouvelle rubrique ?'); if (!nom) return; const r = await api(A + '/rubriques', { method: 'POST', body: { nom } }); location.hash = '#/catalogue?r=' + r.id; });
+    bindPhotos($('#rf'));
+    $('#rf').addEventListener('submit', async e => {
+      e.preventDefault(); const f = Object.fromEntries(new FormData(e.target)); const rub = cache.rubriques.find(x => x.slug === cache.catR);
+      await api(`${A}/rubriques/${cache.catR}`, { method: 'PUT', body: { ...rub, ...f, ordre: +f.ordre, tva: +f.tva } }); toast('Rubrique enregistrée.');
+    });
+  };
+
+  /* champ photo : aperçu, envoi depuis l'ordinateur ou le téléphone, ou choix dans la médiathèque */
+  function photoField(name, val, label) {
+    return `<div class="pf" data-pf><span class="lab">${esc(label)}</span><div class="pf-img">${val ? (/\.mp4$/.test(val) ? `<video src="${esc(val)}" muted></video>` : `<img src="${esc(val)}" alt="">`) : '<span>Aucune</span>'}</div><input type="hidden" name="${name}" value="${esc(val || '')}"><div class="row"><label class="btn ghost sm up">Envoyer…<input type="file" accept="image/*,video/mp4" hidden></label><button type="button" class="btn ghost sm" data-pick>Médiathèque</button></div></div>`;
+  }
+  async function uploadFile(file) {
+    const fd = new FormData(); fd.append('fichier', await compress(file));
+    const r = await api(A + '/actions/upload', { method: 'POST', form: fd });
+    return r.url;
+  }
+  /* photos réduites à 2000 px avant l'envoi (téléphones : 12 Mo → 500 Ko) */
+  async function compress(file) {
+    if (!/^image\/(jpeg|png|webp)$/.test(file.type) || file.size < 600e3) return file;
+    try {
+      const bmp = await createImageBitmap(file);
+      const k = Math.min(1, 2000 / Math.max(bmp.width, bmp.height));
+      const cv = document.createElement('canvas'); cv.width = Math.round(bmp.width * k); cv.height = Math.round(bmp.height * k);
+      cv.getContext('2d').drawImage(bmp, 0, 0, cv.width, cv.height);
+      const blob = await new Promise(r => cv.toBlob(r, 'image/webp', 0.85));
+      return blob ? new File([blob], file.name.replace(/\.\w+$/, '') + '.webp', { type: 'image/webp' }) : file;
+    } catch { return file; }
+  }
+  async function pickMedia() {
+    const m = await api(A + '/actions/medias');
+    return new Promise(resolve => {
+      const dlg = document.createElement('div'); dlg.className = 'modal';
+      const all = [...m.envoyes, ...m.site];
+      dlg.innerHTML = `<div class="modal-in"><div class="bh"><h2>Médiathèque</h2><input type="search" placeholder="Filtrer…" data-mq><button class="x" data-close>×</button></div><div class="mgrid">${all.map(x => `<button type="button" data-u="${esc(x.url)}" title="${esc(x.url)}">${/mp4$/.test(x.url) ? `<video src="${esc(x.url)}" muted preload="none"></video><i>▶</i>` : `<img src="${esc(x.url)}" loading="lazy" alt="">`}</button>`).join('')}</div></div>`;
+      document.body.appendChild(dlg);
+      const close = v => { dlg.remove(); resolve(v); };
+      dlg.addEventListener('click', e => { const b = e.target.closest('[data-u]'); if (b) close(b.dataset.u); if (e.target.matches('[data-close], .modal')) close(null); });
+      $('[data-mq]', dlg).addEventListener('input', e => $$('[data-u]', dlg).forEach(b => { b.hidden = !b.dataset.u.toLowerCase().includes(e.target.value.toLowerCase()); }));
+    });
+  }
+  function bindPhotos(root) {
+    $$('[data-pf]', root).forEach(pf => {
+      const input = $('input[type=hidden]', pf), prev = $('.pf-img', pf);
+      const set = u => { input.value = u; prev.innerHTML = /\.mp4$/.test(u) ? `<video src="${esc(u)}" muted></video>` : `<img src="${esc(u)}" alt="">`; input.dispatchEvent(new Event('input', { bubbles: true })); };
+      $('input[type=file]', pf).addEventListener('change', async e => { const f = e.target.files[0]; if (!f) return; toast('Envoi…'); try { set(await uploadFile(f)); toast('Photo envoyée.'); } catch (err) { toast(err.message, true); } });
+      $('[data-pick]', pf).addEventListener('click', async () => { const u = await pickMedia(); if (u) set(u); });
+    });
+  }
+
+  async function produit(id) {
+    const [p, rubs] = await Promise.all([api(A + '/produits/' + id), cache.rubriques || api(A + '/rubriques')]);
+    cache.rubriques = rubs; cache.p = p;
+    const sec = s => `${s.titre || ''}\n${(s.items || []).join('\n')}${(s.paragraphes || []).length ? '\n' + s.paragraphes.map(x => '> ' + x).join('\n') : ''}${s.note ? '\n# ' + s.note : ''}${s.apres ? '\n## ' + s.apres : ''}`;
+    return page(esc(p.titre), `<a class="btn ghost" href="#/catalogue?r=${esc(p.rubrique)}">← Catalogue</a><a class="btn ghost" href="/${esc(p.rubrique)}/${esc(p.slug)}" target="_blank">Voir sur le site ↗</a>`, `
+      <form id="pf">
+      <div class="cols c21">
+        <section class="box"><h2>Informations</h2>
+          <label>Nom<input name="titre" value="${esc(p.titre)}" required></label>
+          <div class="g3"><label>Rubrique<select name="rubrique">${rubs.map(r => `<option value="${r.slug}"${r.slug === p.rubrique ? ' selected' : ''}>${esc(r.nom)}</option>`).join('')}</select></label>
+          <label>Statut<select name="statut"><option value="visible">Visible sur le site</option><option value="masque"${p.statut === 'masque' ? ' selected' : ''}>Masqué</option></select></label>
+          <label>Mise en avant<select name="maison"><option value="1">Produit maison (en premier)</option><option value=""${!p.maison ? ' selected' : ''}>Partenaire</option></select></label></div>
+          <label>Accroche (cartes et Google)<textarea name="extrait" rows="2">${esc(p.extrait || '')}</textarea></label>
+          <label>Description (un paragraphe par ligne)<textarea name="description" rows="4">${esc((p.description || []).join('\n'))}</textarea></label>
+        </section>
+        <section class="box"><h2>Prix et quantités</h2>
+          <label>Prix TTC (€) <small>vide = « Sur devis »</small><input name="prix" value="${fromCents(p.prixCents)}" inputmode="decimal"></label>
+          <div class="g2"><label>Par<select name="unite">${[...new Set([p.unite || '', ...UNITES])].map(u => `<option${u === (p.unite || '') ? ' selected' : ''}>${esc(u)}</option>`).join('')}</select></label>
+          <label>Minimum<select name="min">${[...new Set([1, 2, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30, 40, 50, p.min || 1])].sort((a, b) => a - b).map(n => `<option${n === (p.min || 1) ? ' selected' : ''}>${n}</option>`).join('')}</select></label></div>
+          <div class="g2"><label>Coût de revient TTC (€) <small>pour la marge</small><input name="cout" value="${fromCents(p.coutCents)}" inputmode="decimal"></label>
+          <label>TVA<select name="tva">${[5.5, 10, 20].map(t => `<option value="${t}"${+(p.tva ?? 10) === t ? ' selected' : ''}>${String(t).replace('.', ',')} %</option>`).join('')}</select></label></div>
+          <label class="chk"><input type="checkbox" name="r_personnel" ${p.regles?.personnel ? 'checked' : ''}> Proposer le personnel de service</label>
+          <label class="chk"><input type="checkbox" name="r_packs" ${p.regles?.packs ? 'checked' : ''}> Proposer les packs traiteur</label>
+          <label>Variantes (une par ligne, ex. « Entrée & plat »)<textarea name="variantes" rows="2">${esc((p.variantes || []).join('\n'))}</textarea></label>
+        </section>
+      </div>
+      <section class="box"><div class="bh"><h2>Photos et vidéo</h2><div class="row"><label class="btn ghost sm up">+ Envoyer des photos<input type="file" accept="image/*" multiple hidden data-multi></label><button type="button" class="btn ghost sm" data-pickp>+ Médiathèque</button></div></div>
+        <p class="muted sm">La première photo est la photo principale. Glissez pour changer l’ordre.</p>
+        <div class="photos" id="photos"></div>
+        <div class="g2">${photoField('video', p.video?.src || '', 'Vidéo (boucle muette, MP4)')}${photoField('poster', p.video?.poster || '', 'Image d’attente de la vidéo')}</div>
+      </section>
+      <section class="box"><h2>Composition</h2><p class="muted sm">Un bloc par section, séparés par une ligne vide. Première ligne = titre, puis un élément par ligne. « # » = note avant la liste, « ## » = note après, « > » = paragraphe.</p><textarea name="sections" rows="10" class="mono">${esc((p.sections || []).map(sec).join('\n\n'))}</textarea>
+        <label>Informations pratiques (une par ligne)<textarea name="details" rows="3">${esc((p.details || []).join('\n'))}</textarea></label></section>
+      <section class="box"><h2>Choix proposés au client</h2><p class="muted sm">Un groupe par bloc : première ligne « Titre du groupe | nombre de choix max | exact ou max », puis une option par ligne « Nom | supplément TTC en € ».</p>
+        <textarea name="groupes" rows="8" class="mono">${esc((p.groupes || []).map(g => `${g.titre || ''} | ${g.max || ''} | ${g.exact ? 'exact' : 'max'}${g.facultatif ? ' | facultatif' : ''}\n${(g.options || []).map(o => `${o.label}${o.supCents ? ' | ' + fromCents(o.supCents) : ''}`).join('\n')}`).join('\n\n'))}</textarea></section>
+      <section class="box"><h2>Allergènes</h2><div class="allerg">${ALLERGENES.map(a => `<label class="chk"><input type="checkbox" name="al" value="${a}" ${(p.allergenes || []).includes(a) ? 'checked' : ''}> ${a}</label>`).join('')}</div></section>
+      <div class="actions sticky"><button class="btn">Enregistrer</button><span class="muted" id="dirty"></span></div>
+      </form>`);
+  }
+  produit.after = id => {
+    const p = cache.p, form = $('#pf');
+    let photos = (p.photos || []).map(x => ({ ...x }));
+    const draw = () => {
+      $('#photos').innerHTML = photos.map((ph, i) => `<figure draggable="true" data-i="${i}"><img src="${esc(ph.src)}" alt=""><input value="${esc(ph.alt || '')}" placeholder="Description (Google, accessibilité)" data-alt><button type="button" class="x" data-rm aria-label="Retirer">×</button>${i === 0 ? '<span class="main">Principale</span>' : ''}</figure>`).join('') || '<p class="muted">Aucune photo.</p>';
+    };
+    draw();
+    const dirty = () => { $('#dirty').textContent = 'Modifications non enregistrées'; };
+    form.addEventListener('input', dirty);
+    bindPhotos(form);
+    $('#photos').addEventListener('input', e => { if (e.target.matches('[data-alt]')) photos[+e.target.closest('[data-i]').dataset.i].alt = e.target.value; });
+    $('#photos').addEventListener('click', e => { if (e.target.closest('[data-rm]')) { photos.splice(+e.target.closest('[data-i]').dataset.i, 1); draw(); dirty(); } });
+    let dragI = null;
+    $('#photos').addEventListener('dragstart', e => { dragI = +e.target.closest('[data-i]').dataset.i; });
+    $('#photos').addEventListener('dragover', e => e.preventDefault());
+    $('#photos').addEventListener('drop', e => { e.preventDefault(); const t = e.target.closest('[data-i]'); if (t == null || dragI == null) return; const [m] = photos.splice(dragI, 1); photos.splice(+t.dataset.i, 0, m); draw(); dirty(); });
+    $('[data-multi]').addEventListener('change', async e => { for (const f of e.target.files) { toast('Envoi de ' + f.name + '…'); try { photos.push({ src: await uploadFile(f), alt: form.titre.value }); draw(); dirty(); } catch (err) { toast(err.message, true); } } toast('Photos ajoutées.'); });
+    $('[data-pickp]').addEventListener('click', async () => { const u = await pickMedia(); if (u) { photos.push({ src: u, alt: form.titre.value }); draw(); dirty(); } });
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+      const f = new FormData(form);
+      const sections = String(f.get('sections') || '').split(/\n\s*\n/).map(b => b.split('\n').map(x => x.trim()).filter(Boolean)).filter(b => b.length).map(b => ({ titre: b[0], items: b.slice(1).filter(x => !/^(#|>)/.test(x)), paragraphes: b.slice(1).filter(x => x.startsWith('>')).map(x => x.replace(/^>\s*/, '')), note: (b.find(x => /^#\s/.test(x)) || '').replace(/^#\s*/, '') || null, apres: (b.find(x => /^##\s/.test(x)) || '').replace(/^##\s*/, '') || null }));
+      const oldG = p.groupes || [];
+      const groupes = String(f.get('groupes') || '').split(/\n\s*\n/).map(b => b.split('\n').map(x => x.trim()).filter(Boolean)).filter(b => b.length).map((b, gi) => {
+        const [titre, max, mode, fac] = b[0].split('|').map(x => x.trim());
+        const old = oldG.find(g => g.titre === titre) || oldG[gi] || {};
+        return { ...old, id: old.id || 'g' + gi, titre, max: +max || null, exact: mode === 'exact', facultatif: fac === 'facultatif', options: b.slice(1).map((o, oi) => { const [label, sup] = o.split('|').map(x => x.trim()); const oo = (old.options || []).find(x => x.label === label) || {}; return { ...oo, id: oo.id || 'o' + oi + '-' + label.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-').slice(0, 30), label, supCents: toCents(sup) || 0 }; }) };
+      });
+      const next = { ...p, titre: f.get('titre'), rubrique: f.get('rubrique'), statut: f.get('statut'), maison: !!f.get('maison'), extrait: f.get('extrait'), description: String(f.get('description')).split('\n').map(x => x.trim()).filter(Boolean),
+        prixCents: toCents(f.get('prix')), unite: f.get('unite'), min: +f.get('min') || 1, minimumTexte: '', prixTexte: '', coutCents: toCents(f.get('cout')), tva: +f.get('tva'),
+        regles: { ...(p.regles || {}), personnel: f.get('r_personnel') ? (p.regles?.personnel || 'service') : null, packs: !!f.get('r_packs') },
+        variantes: String(f.get('variantes')).split('\n').map(x => x.trim()).filter(Boolean), photos, video: f.get('video') ? { src: f.get('video'), poster: f.get('poster') || '' } : null,
+        sections, details: String(f.get('details')).split('\n').map(x => x.trim()).filter(Boolean), groupes, allergenes: f.getAll('al') };
+      try { await api(`${A}/produits/${id}`, { method: 'PUT', body: next }); cache.p = next; cache.produits = null; $('#dirty').textContent = ''; toast('Enregistré : visible sur le site immédiatement.'); }
+      catch (err) { toast(err.message, true); }
+    });
+  };
+
+  /* ---------- lieux ---------- */
+  async function lieux() {
+    const list = (await api(A + '/lieux')).sort((a, b) => (b.maison ? 1 : 0) - (a.maison ? 1 : 0) || (a.ordre ?? 0) - (b.ordre ?? 0));
+    return page('Lieux de réception', '<button class="btn" data-newl>+ Nouveau lieu</button>', `<div class="plist">${list.map(l => `<a class="prow${l.statut === 'masque' ? ' hid' : ''}" href="#/lieux/${l.slug}">${l.photos?.[0] ? `<img src="${esc(l.photos[0])}" alt="" loading="lazy">` : '<span class="ph0"></span>'}<span><b>${esc(l.nom)}</b><small>${esc(l.ville || '')} · ${l.capacite ? l.capacite + ' pers.' : ''} · ${esc(l.prixTexte || '')}</small></span><span class="pill ${l.statut === 'masque' ? 'd-refuse' : 'd-accepte'}">${l.statut === 'masque' ? 'Masqué' : 'Visible'}</span>${l.maison ? '<span class="pill">Maison</span>' : ''}</a>`).join('')}</div>`);
+  }
+  lieux.after = () => $('[data-newl]')?.addEventListener('click', async () => { const nom = prompt('Nom du lieu ?'); if (!nom) return; const r = await api(A + '/lieux', { method: 'POST', body: { nom } }); location.hash = '#/lieux/' + r.id; });
+  async function lieu(id) {
+    const l = await api(A + '/lieux/' + id); cache.l = l;
+    return page(esc(l.nom), `<a class="btn ghost" href="#/lieux">← Lieux</a><a class="btn ghost" href="/lieux/${esc(l.slug)}" target="_blank">Voir ↗</a>`, `<form id="lf2"><div class="cols c21"><section class="box"><label>Nom<input name="nom" value="${esc(l.nom)}"></label><label>Description<textarea name="description" rows="5">${esc(l.description || '')}</textarea></label><div class="g2"><label>Adresse<input name="adresse" value="${esc(l.adresse || '')}"></label><label>Ville<input name="ville" value="${esc(l.ville || '')}"></label></div><label>Équipements (un par ligne)<textarea name="equipements" rows="5">${esc((l.equipements || []).join('\n'))}</textarea></label></section>
+      <section class="box"><div class="g2"><label>Statut<select name="statut"><option value="visible">Visible</option><option value="masque"${l.statut === 'masque' ? ' selected' : ''}>Masqué</option></select></label><label>Mise en avant<select name="maison"><option value="">Partenaire</option><option value="1"${l.maison ? ' selected' : ''}>Lieu maison (en premier)</option></select></label></div><label>Capacité max<input type="number" name="capacite" value="${esc(l.capacite || '')}"></label><label>Prix affiché<input name="prixTexte" value="${esc(l.prixTexte || '')}" placeholder="Sur devis"></label></section></div>
+      <section class="box"><div class="bh"><h2>Photos</h2><div class="row"><label class="btn ghost sm up">+ Envoyer<input type="file" accept="image/*" multiple hidden data-multi></label><button type="button" class="btn ghost sm" data-pickp>+ Médiathèque</button></div></div><div class="photos" id="photos"></div></section>
+      <div class="actions sticky"><button class="btn">Enregistrer</button></div></form>`);
+  }
+  lieu.after = id => {
+    const l = cache.l; let photos = [...(l.photos || [])];
+    const draw = () => { $('#photos').innerHTML = photos.map((s, i) => `<figure data-i="${i}" draggable="true"><img src="${esc(s)}" alt=""><button type="button" class="x" data-rm>×</button>${i ? '' : '<span class="main">Principale</span>'}</figure>`).join(''); };
+    draw();
+    $('#photos').addEventListener('click', e => { if (e.target.closest('[data-rm]')) { photos.splice(+e.target.closest('[data-i]').dataset.i, 1); draw(); } });
+    let dragI = null;
+    $('#photos').addEventListener('dragstart', e => { dragI = +e.target.closest('[data-i]').dataset.i; });
+    $('#photos').addEventListener('dragover', e => e.preventDefault());
+    $('#photos').addEventListener('drop', e => { e.preventDefault(); const t = e.target.closest('[data-i]'); if (!t) return; const [m] = photos.splice(dragI, 1); photos.splice(+t.dataset.i, 0, m); draw(); });
+    $('[data-multi]').addEventListener('change', async e => { for (const f of e.target.files) { try { photos.push(await uploadFile(f)); draw(); } catch (err) { toast(err.message, true); } } });
+    $('[data-pickp]').addEventListener('click', async () => { const u = await pickMedia(); if (u) { photos.push(u); draw(); } });
+    $('#lf2').addEventListener('submit', async e => { e.preventDefault(); const f = Object.fromEntries(new FormData(e.target)); await api(`${A}/lieux/${id}`, { method: 'PUT', body: { ...l, ...f, maison: !!f.maison, capacite: +f.capacite || null, equipements: f.equipements.split('\n').map(x => x.trim()).filter(Boolean), photos } }); toast('Lieu enregistré.'); });
+  };
+
+  /* ---------- photos et textes du site ---------- */
+  async function site() {
+    const [R, prods] = await Promise.all([api(A + '/site'), cache.produits || api(A + '/produits')]);
+    cache.R = R; cache.produits = prods;
+    const Ac = R.accueil || {};
+    const T = R.tarifs || {};
+    return page('Photos & textes du site', '<a class="btn ghost" href="/" target="_blank">Voir l’accueil ↗</a>', `<form id="sf">
+      <section class="box"><h2>Les trois vidéos de l’accueil</h2><p class="muted sm">Elles défilent en grand sur ordinateur (trois panneaux) et l’une après l’autre sur téléphone. Format conseillé : MP4 muet de 10 à 20 secondes, moins de 3 Mo.</p>
+        <div class="g3">${[0, 1, 2].map(i => { const v = (Ac.videos || [])[i] || {}; return `<div class="vcard"><h3>${['Gauche', 'Centre', 'Droite'][i]}</h3>${photoField(`v${i}_src`, v.src, 'Vidéo')}${photoField(`v${i}_poster`, v.poster, 'Image d’attente')}<label>Titre<input name="v${i}_titre" value="${esc(v.titre || '')}"></label><label>Lien au clic<input name="v${i}_lien" value="${esc(v.lien || '')}" placeholder="/buffet-antillais"></label></div>`; }).join('')}</div></section>
+      <section class="box"><h2>Textes de l’accueil</h2><label>Petit titre<input name="surtitre" value="${esc(Ac.surtitre || '')}"></label><label>Grand titre<input name="titre" value="${esc(Ac.titre || '')}"></label><label>Sous-titre<input name="sousTitre" value="${esc(Ac.sousTitre || '')}"></label>
+        <label>Bandeau défilant (un mot par ligne)<textarea name="bandeau" rows="4">${esc((Ac.bandeau || []).join('\n'))}</textarea></label>
+        <label>Suggestions de recherche (une par ligne)<textarea name="suggestions" rows="4">${esc((Ac.suggestions || []).join('\n'))}</textarea></label>
+        <h3>Chiffres clés</h3><div class="g4">${[0, 1, 2, 3].map(i => `<div><input name="ch${i}_v" value="${esc(Ac.chiffres?.[i]?.valeur || '')}" placeholder="4,9/5"><input name="ch${i}_l" value="${esc(Ac.chiffres?.[i]?.label || '')}" placeholder="sur Google"></div>`).join('')}</div></section>
+      <section class="box"><h2>Les incontournables</h2><p class="muted sm">Les prestations mises en avant sur l’accueil, dans l’ordre.</p><div class="incs">${[0, 1, 2, 3, 4, 5, 6, 7].map(i => `<select name="inc${i}"><option value="">—</option>${prods.filter(p => p.statut !== 'masque').sort((a, b) => a.titre.localeCompare(b.titre)).map(p => `<option value="${esc(p.slug)}"${(Ac.incontournables || [])[i] === p.slug ? ' selected' : ''}>${esc(p.titre)}</option>`).join('')}</select>`).join('')}</div></section>
+      <section class="box"><h2>Photos des blocs</h2><div class="g2">${photoField('photoMaison', Ac.photoMaison, 'Bloc « La maison Magnolia »')}${photoField('photoCommande', Ac.photoCommande, 'Bloc « Comment commander »')}</div></section>
+      <section class="box"><h2>Coordonnées</h2><div class="g2"><label>Téléphone<input name="telephone" value="${esc(R.telephone || '')}"></label><label>E-mail<input name="email" value="${esc(R.email || '')}"></label><label>Adresse<input name="adresse" value="${esc(R.adresse || '')}"></label><label>Horaires<input name="horaires" value="${esc(R.horaires || '')}"></label><label>Slogan<input name="slogan" value="${esc(R.slogan || '')}"></label><label>Instagram<input name="instagram" value="${esc(R.instagram || '')}"></label><label>Note Google<input name="g_note" value="${esc(R.avisGoogle?.note || '')}"></label><label>Nombre d’avis Google<input name="g_nombre" value="${esc(R.avisGoogle?.nombre || '')}"></label></div><label>Mention en bas de page<input name="mentionPied" value="${esc(R.mentionPied || '')}"></label></section>
+      <section class="box"><h2>Tarifs communs (TTC)</h2><div class="g3"><label>Livraison (€ / km aller-retour)<input name="km" value="${fromCents(T.kmCents)}"></label><label>Personnel (€ / heure)<input name="ph" value="${fromCents(T.personnel?.heureCents)}"></label><label>Heures minimum<select name="pmin">${[2, 3, 4, 5, 6].map(n => `<option${(T.personnel?.minHeures || 4) === n ? ' selected' : ''}>${n}</option>`).join('')}</select></label><label>Petit pack (€ / pers.)<input name="pk0" value="${fromCents(T.packs?.[0]?.prixCents)}"></label><label>Grand pack (€ / pers.)<input name="pk1" value="${fromCents(T.packs?.[1]?.prixCents)}"></label><label>Acompte par défaut<select name="acompte">${[20, 30, 40, 50].map(n => `<option value="${n}"${(T.acomptePct ?? 30) === n ? ' selected' : ''}>${n} %</option>`).join('')}</select></label></div></section>
+      <section class="box"><h2>Alertes de l’équipe</h2><div class="g2"><label>E-mails prévenus à chaque demande (séparés par des virgules)<input name="al_emails" value="${esc(R.alertes?.emails || '')}"></label><label>Portables prévenus par SMS<input name="al_sms" value="${esc(R.alertes?.sms || '')}" placeholder="06 12 34 56 78"></label></div></section>
+      <div class="actions sticky"><button class="btn">Enregistrer</button><span class="muted" id="dirty"></span></div></form>`);
+  }
+  site.after = () => {
+    const form = $('#sf'); bindPhotos(form);
+    form.addEventListener('input', () => { $('#dirty').textContent = 'Modifications non enregistrées'; });
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+      const f = Object.fromEntries(new FormData(form)); const R = cache.R; const T = R.tarifs || {};
+      const lines = s => String(s || '').split('\n').map(x => x.trim()).filter(Boolean);
+      const next = { ...R,
+        accueil: { ...(R.accueil || {}), surtitre: f.surtitre, titre: f.titre, sousTitre: f.sousTitre, bandeau: lines(f.bandeau), suggestions: lines(f.suggestions),
+          videos: [0, 1, 2].map(i => ({ src: f[`v${i}_src`], poster: f[`v${i}_poster`], titre: f[`v${i}_titre`], lien: f[`v${i}_lien`] })).filter(v => v.src),
+          chiffres: [0, 1, 2, 3].map(i => ({ valeur: f[`ch${i}_v`], label: f[`ch${i}_l`] })).filter(c => c.valeur),
+          incontournables: [0, 1, 2, 3, 4, 5, 6, 7].map(i => f['inc' + i]).filter(Boolean), photoMaison: f.photoMaison, photoCommande: f.photoCommande },
+        telephone: f.telephone, email: f.email, adresse: f.adresse, horaires: f.horaires, slogan: f.slogan, instagram: f.instagram, mentionPied: f.mentionPied,
+        avisGoogle: { ...(R.avisGoogle || {}), note: f.g_note, nombre: f.g_nombre },
+        tarifs: { ...T, kmCents: toCents(f.km), acomptePct: +f.acompte, personnel: { ...(T.personnel || {}), heureCents: toCents(f.ph), minHeures: +f.pmin }, packs: (T.packs || []).map((pk, i) => ({ ...pk, prixCents: toCents(f['pk' + i]) ?? pk.prixCents })) },
+        alertes: { emails: f.al_emails, sms: f.al_sms } };
+      await api(A + '/site', { method: 'PUT', body: next }); cache.R = next; $('#dirty').textContent = ''; toast('Enregistré : en ligne immédiatement.');
+    });
+  };
+
+  /* ---------- avis ---------- */
+  async function avis() {
+    const list = (await api(A + '/avis')).sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
+    return page('Avis clients', '<button class="btn" data-newa>+ Ajouter un avis</button>', `<p class="muted">Les 3 avis « En vedette » apparaissent sur l’accueil ; tous les avis visibles sont sur la page Témoignages.</p><div class="avl">${list.map(a => `<div class="box av" data-id="${a.id}"><textarea rows="3" data-t>${esc(a.texte)}</textarea><div class="row"><input data-a value="${esc(a.auteur || '')}" placeholder="Auteur, ville · date"><select data-s><option value="visible">Visible</option><option value="vedette"${a.statut === 'vedette' ? ' selected' : ''}>En vedette</option><option value="masque"${a.statut === 'masque' ? ' selected' : ''}>Masqué</option></select><button class="btn ghost sm" data-save>Enregistrer</button></div></div>`).join('')}</div>`);
+  }
+  avis.after = () => {
+    $$('.av').forEach(b => $('[data-save]', b).addEventListener('click', async () => { await api(`${A}/avis/${b.dataset.id}`, { method: 'PUT', body: { texte: $('[data-t]', b).value, auteur: $('[data-a]', b).value, statut: $('[data-s]', b).value, note: 5 } }); toast('Avis enregistré.'); }));
+    $('[data-newa]').addEventListener('click', async () => { await api(A + '/avis', { method: 'POST', body: { texte: 'Nouvel avis…', auteur: '', statut: 'masque', ordre: -1, note: 5 } }); render(); });
+  };
+
+  /* ---------- médiathèque ---------- */
+  async function medias() {
+    const m = await api(A + '/actions/medias');
+    return page('Médiathèque', '<label class="btn up">+ Envoyer des photos ou vidéos<input type="file" accept="image/*,video/mp4" multiple hidden data-up></label>', `<p class="muted">${m.envoyes.length} fichiers envoyés depuis le back-office · ${m.site.length} photos et vidéos reprises du brouillon. Les photos de téléphone sont réduites automatiquement avant l’envoi.</p>
+      <input type="search" placeholder="Filtrer par nom…" data-mq><div class="mgrid big">${[...m.envoyes, ...m.site].map(x => `<a href="${esc(x.url)}" target="_blank" title="${esc(x.url)}">${/mp4$/.test(x.url) ? `<video src="${esc(x.url)}" muted preload="none"></video><i>▶</i>` : `<img src="${esc(x.url)}" loading="lazy" alt="">`}<small>${esc(x.url.split('/').pop())}</small></a>`).join('')}</div>`);
+  }
+  medias.after = () => {
+    $('[data-up]').addEventListener('change', async e => { let n = 0; for (const f of e.target.files) { try { await uploadFile(f); n++; } catch (err) { toast(err.message, true); } } toast(n + ' fichier(s) envoyé(s).'); render(); });
+    $('[data-mq]').addEventListener('input', e => $$('.mgrid a').forEach(a => { a.hidden = !a.title.toLowerCase().includes(e.target.value.toLowerCase()); }));
+  };
+
+  /* ---------- équipe et activité ---------- */
+  async function equipe() {
+    const [users, j, env] = await Promise.all([api(A + '/actions/equipe'), api(A + '/actions/journal'), api(A + '/actions/envois')]);
+    const mgr = session.role === 'manager';
+    return page('Équipe & activité', '', `<div class="cols">
+      <section class="box"><h2>Comptes</h2><ul class="list">${users.map(u => `<li><span><b>${esc(u.nom || u.email)}</b><small>${esc(u.email)}</small></span><span>${mgr ? `<select data-role="${u.id}"><option value="collab">Collaborateur</option><option value="manager"${u.role === 'manager' ? ' selected' : ''}>Manager</option></select> <button class="lnk" data-dis="${u.id}" data-v="${u.desactive ? 0 : 1}">${u.desactive ? 'Réactiver' : 'Désactiver'}</button>` : `<span class="pill">${u.role === 'manager' ? 'Manager' : 'Collaborateur'}</span>`}</span></li>`).join('')}</ul>
+        ${mgr ? `<form id="nu"><h3>Ajouter un membre</h3><div class="g2"><label>Nom<input name="nom" required></label><label>E-mail<input type="email" name="email" required></label><label>Mot de passe provisoire<input name="password" minlength="10" required></label><label>Rôle<select name="role"><option value="collab">Collaborateur</option><option value="manager">Manager</option></select></label></div><button class="btn">Créer le compte</button></form>` : ''}
+        <form id="pw"><h3>Mon mot de passe</h3><div class="g2"><label>Actuel<input type="password" name="current" required></label><label>Nouveau (10 caractères min.)<input type="password" name="password" minlength="10" required></label></div><button class="btn ghost">Changer</button></form></section>
+      <section class="box"><h2>Journal d’activité <span class="pill ${j.intact ? 'd-accepte' : 'd-refuse'}">${j.intact ? 'intact' : 'ALTÉRÉ'}</span></h2><p class="muted sm">Chaque action est enregistrée et chaînée : une modification du journal se verrait.</p><ul class="journal">${j.lignes.map(l => `<li><time>${dateH(l.at)}</time> <b>${esc(l.who)}</b> ${esc(l.op)} <small>${esc(l.resume || l.path)}</small></li>`).join('')}</ul></section></div>
+      <section class="box"><h2>E-mails et SMS envoyés ${env.live ? '' : '<span class="pill d-envoye">mode test : Brevo non branché</span>'}</h2><ul class="journal">${env.envois.map(e => `<li><time>${dateH(e.at)}</time> ${e.kind === 'sms' ? 'SMS' : 'E-mail'} → <b>${esc(e.kind === 'sms' ? e.payload.recipient : e.payload.to?.[0]?.email)}</b> <small>${esc(e.kind === 'sms' ? e.payload.content : e.payload.subject)}</small></li>`).join('') || '<li class="muted">Aucun envoi.</li>'}</ul></section>`);
+  }
+  equipe.after = () => {
+    $('#nu')?.addEventListener('submit', async e => { e.preventDefault(); try { await api(A + '/actions/equipe', { method: 'POST', body: Object.fromEntries(new FormData(e.target)) }); toast('Compte créé.'); render(); } catch (err) { toast(err.message, true); } });
+    $('#pw').addEventListener('submit', async e => { e.preventDefault(); try { await api('/api/auth/password', { method: 'POST', body: Object.fromEntries(new FormData(e.target)) }); toast('Mot de passe changé.'); e.target.reset(); } catch (err) { toast(err.message, true); } });
+    $$('[data-role]').forEach(s => s.addEventListener('change', async () => { try { await api(`${A}/actions/equipe/${s.dataset.role}`, { method: 'PATCH', body: { role: s.value } }); toast('Rôle modifié.'); } catch (err) { toast(err.message, true); render(); } }));
+    $$('[data-dis]').forEach(b => b.addEventListener('click', async () => { try { await api(`${A}/actions/equipe/${b.dataset.dis}`, { method: 'PATCH', body: { desactive: b.dataset.v === '1' } }); render(); } catch (err) { toast(err.message, true); } }));
+  };
+
+  /* ---------- outils ---------- */
+  async function outils() {
+    const [mods, pages] = await Promise.all([api(A + '/modeles'), api(A + '/pages')]);
+    return page('Outils', '', `<section class="box"><h2>Modèles de relance</h2><p class="muted sm">Variables : {prenom} {nom} {numero} {evenement} {date} {lien} {montant}</p>${mods.map(m => `<form class="mod" data-id="${m.id}"><div class="g3"><label>Nom<input name="nom" value="${esc(m.nom)}"></label><label>Canal<select name="canal"><option value="email">E-mail</option><option value="sms"${m.canal === 'sms' ? ' selected' : ''}>SMS</option></select></label><label>Sujet<input name="sujet" value="${esc(m.sujet || '')}"></label></div><textarea name="texte" rows="5">${esc(m.texte)}</textarea><button class="btn ghost sm">Enregistrer</button></form>`).join('')}<button class="btn ghost" data-newm>+ Nouveau modèle</button></section>
+      <section class="box"><h2>Pages administratives</h2><p class="muted sm">CGV, mentions légales, confidentialité, allergènes… Une ligne courte devient un intertitre.</p>${pages.map(p => `<details><summary>${esc(p.titre)} <small class="muted">${esc(p.url)}</small></summary><form class="pg" data-id="${p.id}"><label>Titre<input name="titre" value="${esc(p.titre)}"></label><textarea name="texte" rows="14">${esc(p.texte)}</textarea><button class="btn ghost sm">Enregistrer</button></form></details>`).join('')}</section>
+      ${session.role === 'manager' ? `<section class="box"><h2>Reprendre le catalogue du brouillon</h2><p class="muted sm">Remplace les prestations, rubriques et lieux par ceux du brouillon (data/brouillon.json). Les demandes, devis, factures et clients ne sont pas touchés. À n’utiliser qu’avant l’ouverture.</p><button class="btn ghost" data-reimp>Réimporter le brouillon</button></section>` : ''}`);
+  }
+  outils.after = () => {
+    $$('form.mod').forEach(f => f.addEventListener('submit', async e => { e.preventDefault(); await api(`${A}/modeles/${f.dataset.id}`, { method: 'PUT', body: Object.fromEntries(new FormData(f)) }); toast('Modèle enregistré.'); }));
+    $$('form.pg').forEach(f => f.addEventListener('submit', async e => { e.preventDefault(); const p = await api(`${A}/pages/${f.dataset.id}`); await api(`${A}/pages/${f.dataset.id}`, { method: 'PUT', body: { ...p, ...Object.fromEntries(new FormData(f)) } }); toast('Page enregistrée.'); }));
+    $('[data-newm]').addEventListener('click', async () => { await api(A + '/modeles', { method: 'POST', body: { nom: 'Nouveau modèle', canal: 'email', sujet: '', texte: 'Bonjour {prenom},\n\n' } }); render(); });
+    $('[data-reimp]')?.addEventListener('click', async () => { if (!confirm('Remplacer tout le catalogue par celui du brouillon ?')) return; const r = await api(A + '/actions/reimporter', { method: 'POST' }); toast(`Réimporté : ${r.produits} prestations.`); });
+  };
+
+  render();
+})();
