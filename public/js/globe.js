@@ -19,7 +19,7 @@
   let fondVisible = 0;
   function majTete(x) {
     $('[data-sm-titre]').textContent = x.pays || x.nom;
-    const voir = $('[data-sm-voir]'); voir.href = x.href;
+    const ph = $('[data-sm-phrase]'); if (ph) ph.textContent = x.phrase || '';
     const t = $('[data-sm-tete]'); t.classList.remove('entre'); void t.offsetWidth; t.classList.add('entre');
     if (x.photo && fonds.length === 2) {
       const suivant = fonds[1 - fondVisible];
@@ -98,7 +98,7 @@
     const el = document.createElement('div'); el.className = 'sm-point'; el.innerHTML = '<i></i><i></i><b></b>';
     marque = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat(c).addTo(map);
     const box = document.createElement('a'); box.className = 'sm-case'; box.href = x.href;
-    box.innerHTML = `<small>${esc(x.pays || '')}</small><b>${esc(x.nom)}</b><span>Voir nos propositions →</span>`;
+    box.innerHTML = `${x.vignette ? `<img src="${esc(x.vignette)}" alt="">` : ''}<span><b>${esc(x.nom)}</b><small>Voir nos propositions →</small></span>`;
     carteVoir = new maplibregl.Marker({ element: box, anchor: mobile() ? 'top' : 'bottom-left', offset: mobile() ? [0, 18] : [14, -14] }).setLngLat(c).addTo(map);
     /* la Terre tourne vers le pays */
     if (voler) map.flyTo({ center: [c[0] - (mobile() ? 0 : 6), Math.max(-35, Math.min(45, c[1] - 4))], zoom: zoomBase() + .35, duration: calme ? 0 : 2200, essential: true, curve: 1.2 });
@@ -117,7 +117,7 @@
   majTete(items[0] || {});
 
   /* ---------- globe ---------- */
-  function zoomBase() { const b = map.getContainer(); const w = b.clientWidth - (mobile() ? 0 : 380), h = b.clientHeight - (mobile() ? 0 : 200); return Math.log2(Math.max(260, Math.min(w, h)) / 512) + (mobile() ? .95 : 1.3); }
+  function zoomBase() { const b = map.getContainer(); const w = b.clientWidth - (mobile() ? 0 : 380), h = b.clientHeight - (mobile() ? 0 : 270); return Math.log2(Math.max(260, Math.min(w, h)) / 512) + (mobile() ? .95 : 1.3); }
   let tour = !calme, tourId = 0;
   function arreterTour() { tour = false; clearTimeout(tourId); $('[data-sm-act="tour"]')?.setAttribute('aria-pressed', 'false'); }
   function demarrer() {
@@ -128,7 +128,7 @@
       map = new ml.Map({
         container: box, attributionControl: false, center: [15, 30], zoom: 1.4, minZoom: .6, maxZoom: 5, renderWorldCopies: false,
         style: { version: 8, projection: { type: 'globe' }, sources: {}, layers: [{ id: 'mer', type: 'background', paint: { 'background-color': '#10261c' } }],
-          sky: { 'atmosphere-blend': ['interpolate', ['linear'], ['zoom'], 0, .9, 4, .3], 'sky-color': '#1d3b2f', 'horizon-color': '#c9a46a', 'fog-color': '#1d3b2f', 'sky-horizon-blend': .6, 'horizon-fog-blend': .8, 'fog-ground-blend': 1 } },
+          sky: { 'atmosphere-blend': ['interpolate', ['linear'], ['zoom'], 0, .9, 4, .3], 'sky-color': '#ffffff', 'horizon-color': '#e2c495', 'fog-color': '#ffffff', 'sky-horizon-blend': .6, 'horizon-fog-blend': .8, 'fog-ground-blend': 1 } },
         cooperativeGestures: false, dragRotate: false, pitchWithRotate: false, touchPitch: false,
       });
     } catch (e) { return; }
@@ -153,7 +153,7 @@
       /* Paris, notre point de départ */
       const pa = document.createElement('div'); pa.className = 'sm-paris'; pa.innerHTML = '<i></i><span>Paris</span>';
       new ml.Marker({ element: pa, anchor: 'left', offset: [-5, 0] }).setLngLat(PARIS).addTo(map);
-      const pad = () => map.setPadding(mobile() ? { left: 0, top: 0, right: 0, bottom: 40 } : { left: Math.min(380, box.clientWidth * .3), top: 170, right: 0, bottom: 40 });
+      const pad = () => map.setPadding(mobile() ? { left: 0, top: 0, right: 0, bottom: 40 } : { left: Math.min(380, box.clientWidth * .3), top: 250, right: 0, bottom: 30 });
       pad(); addEventListener('resize', pad);
       map.setZoom(zoomBase());
 
@@ -163,10 +163,11 @@
       const speDe = id => items.findIndex(x => x.ids.includes(id));
       map.on('mousemove', 'terres', e => {
         const f = e.features[0]; if (!f) return;
-        if (survol !== f.id) { if (survol != null) map.setFeatureState({ source: 'pays', id: survol }, { survol: false }); survol = f.id; map.setFeatureState({ source: 'pays', id: survol }, { survol: true }); }
         const k = speDe(f.id);
-        map.getCanvas().style.cursor = k >= 0 ? 'pointer' : '';
-        tip.innerHTML = k >= 0 ? `<b>${esc(items[k].nom)}</b><span>${esc(f.properties.nom)} · touchez pour voir</span>` : `<b>${esc(f.properties.nom)}</b><span>Une envie d’ailleurs ? Appelez-nous</span>`;
+        if (k < 0) { if (survol != null) map.setFeatureState({ source: 'pays', id: survol }, { survol: false }); survol = null; tip.hidden = true; map.getCanvas().style.cursor = ''; return; }
+        if (survol !== f.id) { if (survol != null) map.setFeatureState({ source: 'pays', id: survol }, { survol: false }); survol = f.id; map.setFeatureState({ source: 'pays', id: survol }, { survol: true }); }
+        map.getCanvas().style.cursor = 'pointer';
+        tip.innerHTML = `<b>${esc(items[k].nom)}</b><span>${esc(items[k].pays || f.properties.nom)} · touchez pour voir</span>`;
         tip.style.transform = `translate(${e.point.x + 14}px, ${e.point.y + 14}px)`; tip.hidden = false;
       });
       map.on('mouseleave', 'terres', () => { if (survol != null) map.setFeatureState({ source: 'pays', id: survol }, { survol: false }); survol = null; tip.hidden = true; map.getCanvas().style.cursor = ''; });

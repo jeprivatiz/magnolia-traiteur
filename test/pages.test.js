@@ -39,6 +39,6 @@ test('pages publiques principales en 200', async () => {
     const nSpe = (sm.match(/class="sm-pave[ "]/g) || []).length;
     assert.ok(nSpe >= 3, 'chaque spécialité a son pavé à gauche du globe');
     assert.match(sm, /data-sm-act="3d"[\s\S]*data-sm-act="tour"[\s\S]*data-sm-act="reset"/, 'boutons Vue 3D, Rotation, Recentrer');
-    assert.match(sm, /Voir nos propositions/, 'bouton Voir nos propositions');
+    assert.match(sm, /class="sm-phrase"/, 'phrase de présentation de la cuisine sous le nom du pays');
   } finally { srv.close(); }
 });
