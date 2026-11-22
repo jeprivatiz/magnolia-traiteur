@@ -13,5 +13,5 @@ Licence Pexels : usage commercial gratuit, sans obligation de citer l'auteur (ht
 | Samoussas légumes (4 pièces), vraie photo à la place de la photo « IA » | https://www.pexels.com/photo/samosas-in-wicker-basket-on-dinner-table-4449068/ | 22/11/2026 (demande directe) |
 | Vignette Cocktails & buffets (plateaux de petits fours, sans verres) | https://www.pexels.com/photo/elegant-display-of-assorted-finger-foods-at-event-34279947/ | 22/11/2026 (demande directe : vraie photo) |
 | Vignette Saveurs du monde | https://www.pexels.com/photo/a-table-with-plates-of-food-and-drinks-27294729/ | 22/11/2026 (vraie photo à la place de l'image « IA ») |
-| Vignette Boissons | https://www.pexels.com/photo/a-decorated-bar-at-a-reception-18853331/ | 22/11/2026 (vraie photo à la place de l'image « IA ») |
+| Vignette Boissons (barman qui sert un cocktail) | https://www.pexels.com/photo/5531479/ | 22/11/2026 (demande directe de Jean-Luc) |
 | La maison, à côté de « Une seule maison, une seule demande » (soirée corporate) | https://unsplash.com/fr/photos/des-gens-en-tenue-formelle-discutant-lors-dun-evenement-G8hi_NbguRc (licence Unsplash : usage commercial gratuit) | 22/11/2026 (demande directe) |

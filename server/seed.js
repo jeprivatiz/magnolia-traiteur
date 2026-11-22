@@ -691,6 +691,14 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('site/reglages', { ...RSm, accueil: { ...(RSm.accueil || {}), photoMaisonIntro: PHOTO_MAISON_INTRO }, photoMaisonCorporate: true });
   }
 
+  /* vignette Boissons : barman qui sert un cocktail à la place de la photo du bar (Jean-Luc, 2026-11-22). Une fois. */
+  const RSv = await store.get('site/reglages');
+  if (RSv && !RSv.vignetteBoissonsBarman) {
+    const b = await store.get('rubriques/boissons');
+    if (b && (!b.photoAccueil || String(b.photoAccueil).includes('18853331') || (RSv.vignettesFaites || []).includes('boissons'))) await store.set('rubriques/boissons', { ...b, photoAccueil: VIGNETTES_UNIVERS.boissons });
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), vignetteBoissonsBarman: true });
+  }
+
   /* photos des vignettes « Nos univers » choisies par Jean-Luc (2026-11-22, sources dans data/credits-photos.md).
      Appliquées une fois par univers : modifiables ensuite dans le back-office. */
   const RV = await store.get('site/reglages');
@@ -787,7 +795,7 @@ const VIGNETTES_UNIVERS = {
   // vraies photos à la place des images qui font « IA » (Jean-Luc, 2026-11-22)
   'cocktails-buffets': pexels(34279947), // plateaux de petits fours, sans verres
   'saveurs-du-monde': pexels(27294729),
-  'boissons': pexels(18853331),
+  'boissons': pexels(5531479), // barman qui sert un cocktail (Jean-Luc ne voulait pas d'un bar)
 };
 
 module.exports = { RANGEMENTS, rangementDe, SPE_TEXTES, initSousRubriques, classerSous, SOUS_DEFAUT, importerAvisAncienSite, dateIso, seed, REGLAGES_DEFAUT, MODELES_DEFAUT, extraireAvis };
