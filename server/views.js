@@ -123,8 +123,8 @@ function card(p, c, { rubNom = true } = {}) {
   const r = c.rubriques.find(x => x.slug === p.rubrique);
   const { prix, unite } = prixCourt(p, euros);
   const ph = p.photos?.[0];
-  return `<a class="card" href="${prodHref(p)}" data-card data-rub="${esc([p.rubrique, ...(p.autresRubriques || [])].join(' '))}" data-prix="${p.prixCents ?? ''}" data-ordre="${p.ordre ?? 0}">
-    <div class="card-img">${img(ph?.src, ph?.alt || p.titre)}${rubNom && r ? `<span class="tag">${esc(r.nom)}</span>` : ''}${p.video ? '<span class="tag tag-video">Vidéo</span>' : ''}</div>
+  return `<a class="card" href="${prodHref(p)}" data-card data-rub="${esc([p.rubrique, ...(p.autresRubriques || [])].join(' '))}" data-prix="${p.prixCents ?? ''}" data-ordre="${p.ordre ?? 0}" data-titre="${esc(p.titre || '')}">
+    <div class="card-img">${img(ph?.src, ph?.alt || p.titre)}${rubNom && r ? `<span class="tag">${esc(r.nom)}</span>` : ''}</div>
     <div class="card-b"><h3>${esc(p.titre)}</h3><p>${esc(trunc(p.extrait, 110))}</p>
     <div class="card-f"><span class="prix">${esc(prix)} <small>${esc(unite)}</small></span><span class="more">Découvrir ${icon.arrow}</span></div></div>
   </a>`;
@@ -225,7 +225,8 @@ ${avisBloc(c)}
 /* Grand bandeau photo en haut des pages d'arrivée (publicité Google Ads) : photo ou vidéo, titre, texte, boutons, ligne de confiance.
    Tout se change dans le back-office › Photos & textes du site › Bandeaux des pages. */
 const BANDEAUX_DEFAUT = {
-  boutique: { photo: '/site/c/cocktail10-client-20261104.jpg.webp', video: '', titre: 'La boutique Magnolia', chapo: 'Buffets, cocktails, spécialités du monde, boissons, personnel et animations : plus de 350 prestations, livrées 7 jours sur 7.', bouton: 'Voir les prestations', ancre: '#prestations' },
+  boutique: { photo: '/site/c/cocktail10-client-20261104.jpg.webp', video: '', titre: 'La boutique Magnolia', chapo: 'Buffets, cocktails, spécialités du monde, boissons, personnel et animations : plus de 350 prestations, livrées 7 jours sur 7.', bouton: 'Voir les prestations', ancre: '#prestations',
+    introTitre: 'Toutes nos idées pour votre événement', introTexte: 'Sur cette page, vous retrouvez tous les produits de Magnolia : buffets, cocktails, spécialités du monde, plateaux, boissons, personnel et animations. C’est une source d’idées pour composer la partie traiteur de votre événement. Classez-les par ordre alphabétique ou par prix, choisissez un univers ou cherchez un plat, puis ajoutez vos choix à votre sélection pour recevoir votre devis.' },
   lieux: { photo: '/site/v/lieux-ambiances.jpg', video: '', titre: 'Lieux de réception', chapo: 'Lofts, péniches, demeures et salons à privatiser. Associez votre lieu et votre traiteur dans une seule demande.', bouton: 'Voir les lieux', ancre: '#lieux' },
   temoignages: { photo: '/site/v/temoignages-table.jpg', video: '/site/v/temoignages-table.mp4', titre: 'Avis clients', chapo: 'Mariages, anniversaires, séminaires, fêtes de famille : ils nous ont confié leur événement et le racontent.', bouton: 'Lire les avis', ancre: '#avis' },
   maison: { photo: '', video: '', titre: 'La maison Magnolia', chapo: 'Votre événement commence ici.', bouton: 'Découvrir nos propositions', ancre: '/boutique' },
@@ -333,11 +334,12 @@ function boutique(c, { q = '', rub = '', titre, chapo, photo, path = '/boutique'
 ${hero || (path === '/boutique' && !q ? bandeau(c, 'boutique') : photo ? bandeauHtml(c, { photo: r?.bandeauPhoto || photo, video: r?.bandeauVideo || '', titre: r?.titrePage || titre, chapo, bouton: 'Voir les prestations', ancre: '#prestations' }, fil || (r ? [['La boutique', '/boutique'], [r.nom]] : [[titre]]))
     : `<section class="wrap page-h">${crumbs([[titre]])}<h1>${esc(titre)}</h1><p class="lead">${esc(chapo || 'Toute la brochure, avec ses prix. Ajoutez vos choix à votre sélection, puis demandez votre devis.')}</p></section>`)}
 <section class="wrap shop" id="prestations" data-shop>
+  ${path === '/boutique' && !q ? (B => B.introTitre || B.introTexte ? `<div class="shop-intro">${B.introTitre ? `<h2>${esc(B.introTitre)}</h2>` : ''}${B.introTexte ? `<p>${esc(B.introTexte)}</p>` : ''}</div>` : '')(bandeauDe(c, 'boutique')) : ''}
   <div class="shop-bar">
     ${chips}<div class="chips scroll-x" role="tablist"${chips ? ' hidden' : ''}>${liste ? '' : `<a class="chip${!rub ? ' on' : ''}" href="/boutique" data-filter="">Tout <small>${c.produits.filter(p => p.statut !== 'masque').length}</small></a>`}${liste ? '' : rubs.map(x => `<a class="chip${x.slug === rub ? ' on' : ''}" href="/${x.slug}" data-filter="${x.slug}">${esc(x.nom)} <small>${c.byRub.get(x.slug)?.length || 0}</small></a>`).join('')}</div>
     <div class="shop-tools">
       <form class="shop-q" action="/boutique" role="search">${icon.search}<input type="search" name="q" value="${esc(q)}" placeholder="Paëlla, DJ, huîtres…" aria-label="Rechercher dans la boutique" data-shop-q></form>
-      <label class="tri"><span class="sr">Trier</span><select data-sort><option value="ordre">Ordre de la brochure</option><option value="asc">Prix croissant</option><option value="desc">Prix décroissant</option></select></label>
+      <label class="tri"><span class="sr">Trier</span><select data-sort><option value="ordre">Ordre de la brochure</option><option value="az">Ordre alphabétique (A à Z)</option><option value="asc">Prix croissant</option><option value="desc">Prix décroissant</option></select></label>
     </div>
   </div>
   <p class="count"><span data-count>${prods.length}</span> prestations · tarifs TTC${q ? ` pour « ${esc(q)} »` : ''}</p>
