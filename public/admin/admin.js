@@ -837,7 +837,6 @@
       <section class="box"><h2>Paiement de l’acompte</h2><p class="muted sm">Affiché au client dès qu’il a signé son devis. Un lien propre à un devis (dans le devis) passe avant le lien général.</p><div class="g2"><label>Lien de paiement par carte (SumUp, Stripe…)<input name="pay_lien" value="${esc(R.paiement?.lien || '')}" placeholder="https://"></label><label>Titulaire du compte<input name="pay_tit" value="${esc(R.paiement?.titulaire || '')}"></label><label>IBAN (virement)<input name="pay_iban" value="${esc(R.paiement?.iban || '')}"></label><label>BIC<input name="pay_bic" value="${esc(R.paiement?.bic || '')}"></label></div></section>
       <section class="box"><h2>Publicité Google Ads</h2><p class="muted sm">Renseignez l’identifiant du compte (AW-…) et les libellés de conversion donnés par Google Ads. Chaque demande de devis envoyée est alors comptée, avec son montant estimé. Rien n’est mesuré sans l’accord du visiteur.</p><div class="g3"><label>Identifiant du compte<input name="ads_id" value="${esc(R.suivi?.googleAdsId || '')}" placeholder="AW-123456789"></label><label>Libellé « demande de devis »<input name="ads_dem" value="${esc(R.suivi?.conversionDemande || '')}"></label><label>Libellé « message de contact »<input name="ads_con" value="${esc(R.suivi?.conversionContact || '')}"></label></div></section>
       <section class="box"><h2>Redirections (bascule de l’ancien site)</h2><p class="muted sm">Une ligne par ancienne adresse : « /ancienne-page /nouvelle-page ». Une ancienne adresse finissant par * couvre toutes les pages qui commencent pareil. Google transfère alors le référencement (redirection 301).</p><textarea name="redirections" rows="5" class="mono" placeholder="/nos-buffets /saveurs-du-monde&#10;/blog/* /conseils">${esc(R.redirections || '')}</textarea></section>
-      <section class="box"><h2>Alertes de l’équipe</h2><div class="g2"><label>E-mails prévenus à chaque demande (séparés par des virgules)<input name="al_emails" value="${esc(R.alertes?.emails || '')}"></label><label>Portables prévenus par SMS<input name="al_sms" value="${esc(R.alertes?.sms || '')}" placeholder="06 12 34 56 78"></label></div></section>
       <div class="actions sticky"><button class="btn">Enregistrer</button><span class="muted" id="dirty"></span></div></form>`);
   }
   site.after = async () => {
@@ -873,7 +872,6 @@
         telephone: f.telephone, email: f.email, adresse: f.adresse, horaires: f.horaires, slogan: f.slogan, instagram: f.instagram, mentionPied: f.mentionPied,
         avisGoogle: { ...(R.avisGoogle || {}), note: f.g_note, nombre: f.g_nombre },
         tarifs: { ...T, kmCents: toCents(f.km), acomptePct: +f.acompte, personnel: { ...(T.personnel || {}), heureCents: toCents(f.ph), minHeures: +f.pmin }, packs: (T.packs || []).map((pk, i) => ({ ...pk, prixCents: toCents(f['pk' + i]) ?? pk.prixCents })) },
-        alertes: { emails: f.al_emails, sms: f.al_sms },
         suivi: { googleAdsId: String(f.ads_id || '').trim().toUpperCase(), conversionDemande: String(f.ads_dem || '').trim(), conversionContact: String(f.ads_con || '').trim() },
         paiement: { lien: String(f.pay_lien || '').trim(), titulaire: f.pay_tit || '', iban: String(f.pay_iban || '').toUpperCase().replace(/\s+/g, ' ').trim(), bic: String(f.pay_bic || '').toUpperCase().trim() },
         redirections: f.redirections || '',
@@ -908,13 +906,17 @@
 
   /* ---------- équipe et activité ---------- */
   async function equipe() {
-    const [users, j, env] = await Promise.all([api(A + '/actions/equipe'), api(A + '/actions/journal'), api(A + '/actions/envois')]);
+    const [users, j, env, R] = await Promise.all([api(A + '/actions/equipe'), api(A + '/actions/journal'), api(A + '/actions/envois'), api(A + '/site')]);
+    const al = R.alertes || {};
+    alertePers = Array.isArray(al.personnes) ? al.personnes.map(x => ({ ...x }))
+      : (() => { const m = String(al.emails || '').split(/[,;\s]+/).filter(Boolean), t = String(al.sms || '').split(/[,;]+/).map(x => x.trim()).filter(Boolean); return Array.from({ length: Math.max(m.length, t.length) }, (_, i) => ({ nom: '', tel: t[i] || '', email: m[i] || '' })); })();
     const mgr = session.role === 'manager';
     return page('Équipe & activité', '', `<div class="cols">
       <section class="box"><h2>Comptes</h2><ul class="list">${users.map(u => `<li><span><b>${esc(u.nom || u.email)}</b><small>${esc(u.email)}</small></span><span>${mgr ? `<select data-role="${u.id}"><option value="collab">Collaborateur</option><option value="manager"${u.role === 'manager' ? ' selected' : ''}>Manager</option></select> <button class="lnk" data-dis="${u.id}" data-v="${u.desactive ? 0 : 1}">${u.desactive ? 'Réactiver' : 'Désactiver'}</button>` : `<span class="pill">${u.role === 'manager' ? 'Manager' : 'Collaborateur'}</span>`}</span></li>`).join('')}</ul>
         ${mgr ? `<form id="nu"><h3>Ajouter un membre</h3><div class="g2"><label>Nom<input name="nom" required></label><label>E-mail<input type="email" name="email" required></label><label>Mot de passe provisoire<input name="password" minlength="10" required></label><label>Rôle<select name="role"><option value="collab">Collaborateur</option><option value="manager">Manager</option></select></label></div><button class="btn">Créer le compte</button></form>` : ''}
         <form id="pw"><h3>Mon mot de passe</h3><div class="g2"><label>Actuel<input type="password" name="current" required></label><label>Nouveau (10 caractères min.)<input type="password" name="password" minlength="10" required></label></div><button class="btn ghost">Changer</button></form></section>
       <section class="box"><h2>Journal d’activité <span class="pill ${j.intact ? 'd-accepte' : 'd-refuse'}">${j.intact ? 'intact' : 'ALTÉRÉ'}</span></h2><p class="muted sm">Chaque action est enregistrée et chaînée : une modification du journal se verrait.</p><ul class="journal">${j.lignes.map(l => `<li><time>${dateH(l.at)}</time> <b>${esc(l.who)}</b> ${esc(l.op)} <small>${esc(l.resume || l.path)}</small></li>`).join('')}</ul></section></div>
+      <section class="box"><h2>Alertes de l’équipe</h2><p class="muted sm">Ces personnes sont prévenues à chaque nouvelle demande (e-mail et SMS) et reçoivent le récapitulatif des dossiers sans action depuis 24 h.</p><div id="alp"></div><div class="row"><button type="button" class="btn ghost sm" data-addal>+ Ajouter une personne</button><button type="button" class="btn sm" data-saveal>Enregistrer les alertes</button></div></section>
       <section class="box"><h2>E-mails et SMS envoyés ${env.live ? '' : '<span class="pill d-envoye">mode test : Brevo non branché</span>'}</h2><div class="row"><input type="tel" data-testtel placeholder="Portable pour un SMS d’essai (sinon : ceux des alertes)" style="max-width:320px"><button class="btn ghost sm" data-test>Envoyer un essai</button></div><ul class="journal">${env.envois.map(e => `<li><time>${dateH(e.at)}</time> ${e.kind === 'sms' ? 'SMS' : 'E-mail'} → <b>${esc(e.kind === 'sms' ? e.payload.recipient : e.payload.to?.[0]?.email)}</b> <small>${esc(e.kind === 'sms' ? e.payload.content : e.payload.subject)}</small>${e.result?.error ? ` <span class="pill d-refuse">refusé : ${esc(e.result.error)}</span>` : e.live && e.result && e.result !== 'test' ? ' <span class="pill d-accepte">accepté par Brevo</span>' : ''}</li>`).join('') || '<li class="muted">Aucun envoi.</li>'}</ul></section>`);
   }
   const essaiEnvoi = async () => { try {
@@ -927,7 +929,18 @@
       else toast(`E-mail d’essai envoyé à ${r.email}` + (okSms ? ` et ${okSms} SMS accepté${okSms > 1 ? 's' : ''} par Brevo.` : '. Aucun SMS : saisissez un portable ou renseignez les « Alertes de l’équipe ».'));
     }
     render(); } catch (e) { toast(e.message, true); } };
+  let alertePers = [];
+  const drawAl = () => { $('#alp').innerHTML = alertePers.map((x, i) => `<div class="g3 alp" data-i="${i}"><label>Nom<input data-k="nom" value="${esc(x.nom || '')}" placeholder="Prénom Nom"></label><label>Portable (SMS)<input type="tel" data-k="tel" value="${esc(x.tel || '')}" placeholder="06 12 34 56 78"></label><label>E-mail<input type="email" data-k="email" value="${esc(x.email || '')}"></label><button type="button" class="lnk" data-delal="${i}">Retirer</button></div>`).join('') || '<p class="muted sm">Personne n’est prévenu pour l’instant.</p>'; };
+  const lireAl = () => { $$('#alp .alp').forEach(row => { const x = alertePers[+row.dataset.i]; row.querySelectorAll('[data-k]').forEach(inp => { x[inp.dataset.k] = inp.value.trim(); }); }); return alertePers; };
   equipe.after = () => {
+    drawAl();
+    $('[data-addal]')?.addEventListener('click', () => { lireAl(); alertePers.push({ nom: '', tel: '', email: '' }); drawAl(); $$('#alp [data-k="nom"]').pop()?.focus(); });
+    $('#alp')?.addEventListener('click', e => { const b = e.target.closest('[data-delal]'); if (!b) return; lireAl(); alertePers.splice(+b.dataset.delal, 1); drawAl(); });
+    $('[data-saveal]')?.addEventListener('click', async () => {
+      const L = lireAl().filter(x => x.nom || x.tel || x.email);
+      try { await api(A + '/site', { method: 'PUT', body: { alertes: { personnes: L, emails: L.map(x => x.email).filter(Boolean).join(', '), sms: L.map(x => x.tel).filter(Boolean).join(', ') } } }); if (cache.R) cache.R.alertes = { personnes: L, emails: L.map(x => x.email).filter(Boolean).join(', '), sms: L.map(x => x.tel).filter(Boolean).join(', ') }; toast('Alertes enregistrées.'); }
+      catch (err) { toast(err.message, true); }
+    });
     $('[data-test]')?.addEventListener('click', essaiEnvoi);
     $('#nu')?.addEventListener('submit', async e => { e.preventDefault(); try { await api(A + '/actions/equipe', { method: 'POST', body: Object.fromEntries(new FormData(e.target)) }); toast('Compte créé.'); render(); } catch (err) { toast(err.message, true); } });
     $('#pw').addEventListener('submit', async e => { e.preventDefault(); try { await api('/api/auth/password', { method: 'POST', body: Object.fromEntries(new FormData(e.target)) }); toast('Mot de passe changé.'); e.target.reset(); } catch (err) { toast(err.message, true); } });
