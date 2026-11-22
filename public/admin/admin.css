@@ -343,6 +343,10 @@ details[open] summary { margin-bottom: 12px; }
 .prow { flex-wrap: wrap; }
 .prow > span:not(.pill) { flex: 1 1 140px; }
 
+/* idées de recherche */
+.sgrow { display: grid; grid-template-columns: 1fr 1.3fr auto auto auto; gap: 6px; align-items: center; margin-bottom: 6px; }
+.sgrow input, .sgrow select { margin: 0; }
+@media (max-width: 640px) { .sgrow { grid-template-columns: 1fr auto auto auto; } .sgrow select { grid-column: 1 / -1; grid-row: 2; } }
 /* spécialités d'une rubrique */
 .sousbox { border-top: 1px solid var(--ligne); margin-top: 8px; padding-top: 14px; }
 .sousbox h3 { margin: 0 0 4px; font-size: 1rem; }
@@ -366,3 +370,7 @@ details[open] summary { margin-bottom: 12px; }
 .sousfiltre { align-items: flex-end; gap: 12px; flex-wrap: wrap; }
 .sousfiltre .pq { flex: 1 1 280px; display: flex; flex-direction: column; gap: 4px; }
 .sousfiltre .pq input { width: 100%; }
+
+.stylev { max-width: 360px; margin: 6px 0 12px; }
+.sousf { grid-template-columns: 1fr 1fr 1fr 140px; }
+@media (max-width: 760px) { .sousf { grid-template-columns: 1fr; } }
