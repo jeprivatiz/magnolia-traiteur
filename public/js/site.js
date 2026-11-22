@@ -89,6 +89,9 @@
       };
       if ('IntersectionObserver' in window) new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) start(); else vids.forEach(v => v.pause()); }), { threshold: 0.15 }).observe(hero);
       else start();
+      /* l'accueil s'ouvre sur les vidéos : on les lance tout de suite, sans attendre l'observateur */
+      if (hero.getBoundingClientRect().top < innerHeight) start();
+      document.addEventListener('visibilitychange', () => { if (!document.hidden && hero.getBoundingClientRect().bottom > 0) start(); });
       addEventListener('resize', () => { clearTimeout(hero._r); hero._r = setTimeout(start, 200); });
     }
     let x0 = null;
