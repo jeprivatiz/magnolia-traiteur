@@ -374,3 +374,10 @@ details[open] summary { margin-bottom: 12px; }
 .stylev { max-width: 360px; margin: 6px 0 12px; }
 .sousf { grid-template-columns: 1fr 1fr 1fr 140px; }
 @media (max-width: 760px) { .sousf { grid-template-columns: 1fr; } }
+
+/* groupes selon la formule */
+.fg-t { margin: 18px 0 4px; font-size: 1rem; }
+.fg-wrap { overflow-x: auto; }
+.fg { border-collapse: collapse; min-width: 360px; }
+.fg th, .fg td { padding: 8px 12px; border-bottom: 1px solid rgba(0,0,0,.08); text-align: center; }
+.fg th:first-child, .fg td:first-child { text-align: left; }
