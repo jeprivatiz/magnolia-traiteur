@@ -55,7 +55,7 @@ ${image ? `<meta property="og:image" content="${esc(site + image)}">` : ''}
 <link rel="icon" href="/brand/monogramme.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/apple-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600&family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/site.css?v=${V}">
 ${process.env.SITE_NOINDEX === '1' ? '<meta name="robots" content="noindex, nofollow">' : ''}
 ${adsTag(R)}
