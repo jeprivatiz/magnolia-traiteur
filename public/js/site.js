@@ -134,7 +134,7 @@
     const count = $('[data-count]', shop);
     const pour = new URLSearchParams(location.search).get('pour');
     const evt = store.get('mg_evt', {});
-    if (pour && evt.invites) toast(`${pour} · ${evt.invites} invités${evt.date ? ' · ' + new Date(evt.date + 'T12:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' }) : ''} : choisissez vos prestations, les quantités sont déjà réglées.`);
+    if (pour && evt.invites) toast(`${pour} · ${evt.invites} invités${evt.date ? ' · ' + new Date(evt.date + 'T12:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' }) : ''} : choisissez vos prestations.`);
     const apply = () => {
       const q = ($('[data-shop-q]', shop)?.value || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
       const words = q.split(/\s+/).filter(Boolean);
@@ -189,9 +189,8 @@
   $$('[data-conf]').forEach(form => {
     const P = JSON.parse(form.dataset.conf);
     const body = $('[data-conf-body]', form);
-    const evt = store.get('mg_evt', {});
     const perPers = /personne/.test(P.unite || '');
-    const qte0 = Math.max(P.min || 1, perPers && evt.invites ? evt.invites : (P.min || 1));
+    const qte0 = P.min || 1; /* règle de Jean-Luc : la quantité de départ est toujours le minimum de la prestation */
     const R = P.regles || {};
     const plur = (u, n) => (n > 1 && u && !/[sx]$/.test(u) && !/ de /.test(u) ? u + 's' : u);
     let html = '';
