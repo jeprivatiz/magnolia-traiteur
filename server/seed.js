@@ -192,15 +192,15 @@ async function importerAvisAncienSite(store, { log = console, fichier = path.joi
    Créées une seule fois au démarrage, avec un premier classement des prestations ; tout se règle ensuite dans le back-office. */
 /* textes des pages d'atterrissage des spécialités (modifiables dans le back-office) : [titre de la page, texte du bandeau] */
 const SPE_TEXTES = {
-  'paella-party': ['Paëlla party', 'La paëlla géante cuisinée devant vos invités ou livrée prête à servir : royale, poulet chorizo, fruits de mer ou végétarienne. Prix TTC par personne, devis gratuit.'],
-  'buffet-libanais': ['Buffet libanais', 'Mezzés froids et chauds, grillades et douceurs orientales, préparés dans notre laboratoire et livrés 7 jours sur 7. Prix TTC, devis gratuit.'],
-  'buffet-chinois': ['Buffet chinois', 'Bouchées vapeur, nems, plats sautés et desserts asiatiques pour vos réceptions, livrés prêts à servir. Prix TTC, devis gratuit.'],
-  'buffet-africain': ['Buffet africain', 'Mafé, yassa, poulet braisé, alloco et accras : les saveurs d’Afrique pour vos fêtes et mariages. Prix TTC, devis gratuit.'],
-  'couscous-party': ['Couscous party', 'Couscous royal, tajines et pâtisseries orientales, servis à volonté pour vos grandes tablées. Prix TTC par personne, devis gratuit.'],
-  'buffet-italien': ['Buffet italien', 'Antipasti, pâtes fraîches, pizzas, burrata et tiramisu : l’Italie généreuse pour vos événements. Prix TTC, devis gratuit.'],
-  'buffet-antillais': ['Buffet antillais', 'Accras, boudins créoles, colombo, rougail et punchs : la cuisine des îles par Le Traiteur Antillais. Prix TTC, devis gratuit.'],
-  'buffet-indien': ['Buffet indien', 'Samoussas, currys, biryani, naans et lassis : un buffet parfumé pour vos réceptions. Prix TTC, devis gratuit.'],
-  'specialites-japonaises': ['Sushis et buffet japonais', 'Plateaux de sushis, makis, california et brochettes yakitori, livrés frais pour vos cocktails. Prix TTC, devis gratuit.'],
+  'paella-party': ['Paëlla party', 'La paëlla géante cuisinée devant vos invités ou livrée prête à servir : royale, poulet chorizo, fruits de mer ou végétarienne.'],
+  'buffet-libanais': ['Buffet libanais', 'Mezzés froids et chauds, grillades et douceurs orientales, préparés dans notre laboratoire et livrés 7 jours sur 7.'],
+  'buffet-chinois': ['Buffet chinois', 'Bouchées vapeur, nems, plats sautés et desserts asiatiques pour vos réceptions, livrés prêts à servir.'],
+  'buffet-africain': ['Buffet africain', 'Mafé, yassa, poulet braisé, alloco et accras : les saveurs d’Afrique pour vos fêtes et mariages.'],
+  'couscous-party': ['Couscous party', 'Couscous royal, tajines et pâtisseries orientales, servis à volonté pour vos grandes tablées.'],
+  'buffet-italien': ['Buffet italien', 'Antipasti, pâtes fraîches, pizzas, burrata et tiramisu : l’Italie généreuse pour vos événements.'],
+  'buffet-antillais': ['Buffet antillais', 'Accras, boudins créoles, colombo, rougail et punchs : la cuisine des îles par Le Traiteur Antillais.'],
+  'buffet-indien': ['Buffet indien', 'Samoussas, currys, biryani, naans et lassis : un buffet parfumé pour vos réceptions.'],
+  'specialites-japonaises': ['Sushis et buffet japonais', 'Plateaux de sushis, makis, california et brochettes yakitori, livrés frais pour vos cocktails.'],
 };
 const SOUS_DEFAUT = {
   'saveurs-du-monde': [
@@ -228,7 +228,23 @@ function classerSous(produits, sous) {
   }
   return res;
 }
-const RANGEMENTS = [['buffets', 'Nos buffets'], ['entrees', 'Nos entrées à l’unité'], ['plats', 'Nos plats à l’unité'], ['desserts', 'Nos desserts à l’unité'], ['divers', 'Produits divers à l’unité']];
+/* prix d'achat TTC (en centimes) des plats indiens, par nom de plat (sans accents, en minuscules) */
+const PRIX_INDIEN = [
+  [/^oignon bhaji/, 650], [/^begnan pakora/, 650], [/^mix pakora/, 750], [/^samossas legumes/, 650],
+  [/^chicken tandoori/, 750], [/^agneau tikka$/, 950], [/^prawn salade/, 750], [/^kinkiri/, 650],
+  [/^chicken tikka massala/, 1300], [/^chicken shahi korma/, 1300], [/^fish tikka malai/, 950], [/^prawn madras/, 1400],
+  [/^agneau shahi korma/, 1500], [/^agneau madras/, 1500], [/^crevettes massala/, 1500],
+  [/^riz au safran/, 350], [/^riz (cachemiri|kashmiri)/, 500],
+  [/^(hot )?gulab jamun/, 550],
+];
+const BANDEAUX_SPE = {
+  'specialites-japonaises': '/site/c/paysages/japon.webp',
+};
+const RANGEMENTS = [['buffets', 'Nos buffets'], ['entrees', 'Nos entrées à l’unité'], ['plats', 'Nos plats à l’unité'], ['accompagnements', 'Nos accompagnements à l’unité'], ['desserts', 'Nos desserts à l’unité'], ['divers', 'Produits divers à l’unité']];
+/* « Riz oriental : + 1,50 € HT/personne. » → « Riz oriental » (supplément d'un menu, pas un nom de plat) */
+const SUPPL = /\s*:\s*\+\s*[\d.,]+\s*€.*$/;
+/* accompagnements (riz, gratins, alloco…) : demande de Jean-Luc du 2026-11-22 */
+const ACCOMP = /^(riz|boulgh?our|nouilles|gratin|haricots|mini-brochettes? de banane|alloco|attieke|foutou|placali|ablo|semoule|frites|naan|pommes de terre|bananes? plantain|legumes|pates|polenta)/;
 /* section automatique d'une prestation (modifiable dans sa fiche) */
 function rangementDe(p) {
   if (RANGEMENTS.some(([k]) => k === p.rangement)) return p.rangement;
@@ -236,6 +252,7 @@ function rangementDe(p) {
   if ((p.groupes || []).length || /^(buffet|paella|couscous|plateau japonais)/.test(t)) return 'buffets';
   if (/pack|animation|piment|wrap|club sandwich|coffret (antillais|chinois|libanais|italien)/.test(t)) return 'divers';
   if (/fruit|gateau|flan|sorbet|blanc manger|puff puff|patisserie|mochi|perles coco|litchi|dessert|tiramisu|baklava|corbeille|mahalabia|maamoul|gulab|halwa|kheer|panna cotta/.test(t)) return 'desserts';
+  if (ACCOMP.test(t)) return 'accompagnements';
   if (/acras|samoussa|boudin|bokit|pate antillais|pastel|toast|avocat|salade|chiquetaille|achard|feroce|crabe farci|assortiment d.entrees|nems|bouchee|ravioli|hacao|brochette|houmous|taboule|falafel|moutabal|fattouch|kebbe|feuille|rakakat|sambousek|pakora|bhaji|onion|entree/.test(t)) return 'entrees';
   if (/riz|alloco|attieke|foutou|ablo|placali|thiebou|mijote|soupe|ndole|yassa|saka|tripes|kedjenou|mafe|curry|poulet|niebe|gratin|assiette|plat|canard|porc|crevettes|boulettes|nouilles|agneau|boeuf|kefta|chich|tikka|massala|biryani|naan|dal|legumes/.test(t)) return 'plats';
   return 'divers';
@@ -248,7 +265,7 @@ async function initUniteSpecialites(store, log) {
   const r = await store.get('rubriques/saveurs-du-monde');
   if (!r || r.uniteInit || !(r.sous || []).length) return;
   const prods = (await store.list('produits')).map(d => ({ id: d.id, ...d.data }));
-  const RANG = { entrees: 'entrees', mezzes: 'entrees', brochettes: 'entrees', salades: 'entrees', plats: 'plats', accompagnements: 'plats', desserts: 'desserts' };
+  const RANG = { entrees: 'entrees', mezzes: 'entrees', brochettes: 'entrees', salades: 'entrees', plats: 'plats', accompagnements: 'accompagnements', desserts: 'desserts' };
   const UNITE = { entrees: ['pièce', 20], mezzes: ['portion', 10], brochettes: ['brochette', 10], salades: ['portion', 10], plats: ['portion', 10], accompagnements: ['portion', 10], desserts: ['pièce', 10] };
   const vus = new Set(prods.map(p => p.slug)); let ordre = Math.max(0, ...prods.map(p => p.ordre || 0)) + 1, n = 0;
   for (const x of r.sous) {
@@ -263,7 +280,8 @@ async function initUniteSpecialites(store, log) {
       if (unites.filter(p => rangementDe(p) === RANG[g0]).length >= 3) continue; // cette section a déjà ses produits à l'unité
       for (const b of buffets) for (const g of b.groupes || []) if (g.id === g0) for (const o of g.options || []) if (!opts.has(o.label)) opts.set(o.label, o);
       for (const o of opts.values()) {
-        const titre = g0 === 'brochettes' && !/^brochette/i.test(o.label) ? 'Brochettes ' + o.label.charAt(0).toLowerCase() + o.label.slice(1) : o.label;
+        const lab = o.label.replace(SUPPL, '');
+        const titre = g0 === 'brochettes' && !/^brochette/i.test(lab) ? 'Brochettes ' + lab.charAt(0).toLowerCase() + lab.slice(1) : lab;
         const slug = slugify(titre + ' ' + mot);
         if (vus.has(slug) || deja.has(slugify(titre))) continue; vus.add(slug);
         const [unite, min] = UNITE[g0];
@@ -291,6 +309,62 @@ async function initSousRubriques(store, { log = console } = {}) {
   }
   if (n) log.log?.(`[demarrage] ${n} prestations classées en spécialités`);
   await initUniteSpecialites(store, log);
+  // une fois (2026-11-22, décision de Jean-Luc) : prix du Buffet indien = prix d'achat + 30 % (arrondi aux 10 centimes supérieurs).
+  // Le prix d'achat est rangé dans « coût de revient » (jamais affiché au client). Les doublons de plats sont retirés.
+  const RI = await store.get('rubriques/saveurs-du-monde');
+  if (RI && !RI.indienPrix) {
+    const net = t => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    const vus = new Set(); let ni = 0;
+    for (const d of (await store.list('produits')).sort((x, y) => (x.data?.ordre ?? 0) - (y.data?.ordre ?? 0))) {
+      const p = d.data;
+      if (!p || p.sous !== 'buffet-indien' || !p.aCompleter) continue;
+      const nom = net(p.titre).split(':')[0].trim();
+      if (vus.has(nom)) { await store.delete('produits/' + d.id); continue; }
+      vus.add(nom);
+      const ligne = PRIX_INDIEN.find(([re]) => re.test(nom));
+      if (!ligne) continue;
+      const cout = ligne[1];
+      await store.set('produits/' + d.id, { ...p, prixCents: Math.ceil(cout * 1.3 / 10) * 10, coutCents: cout, unite: 'portion', min: 10, aCompleter: false });
+      ni++;
+    }
+    await store.set('rubriques/saveurs-du-monde', { ...(await store.get('rubriques/saveurs-du-monde')), indienPrix: true });
+    if (ni) log.log?.(`[demarrage] ${ni} prix du Buffet indien posés (achat + 30 %)`);
+  }
+  // bandeaux photo des spécialités choisis par Jean-Luc (2026-11-22) : appliqués une fois par spécialité, modifiables ensuite dans le back-office
+  const RS = await store.get('rubriques/saveurs-du-monde');
+  if (RS) {
+    const faits = new Set(RS.bandeauxSpeFaits || []);
+    const a_faire = Object.keys(BANDEAUX_SPE).filter(k => !faits.has(k));
+    if (a_faire.length) {
+      const sous = (RS.sous || []).map(x => a_faire.includes(x.slug) ? { ...x, bandeauPhoto: BANDEAUX_SPE[x.slug], bandeauVideo: '' } : x);
+      await store.set('rubriques/saveurs-du-monde', { ...RS, sous, bandeauxSpeFaits: [...faits, ...a_faire] });
+    }
+  }
+  // une fois (2026-11-22, demande de Jean-Luc) : section « Nos accompagnements à l'unité » ; riz, gratins, alloco… y passent
+  const RA = await store.get('rubriques/saveurs-du-monde');
+  if (RA && !RA.accompInit) {
+    let na = 0;
+    const tous = await store.list('produits');
+    const titres = new Set(tous.map(d => d.data && (d.data.sous + '|' + d.data.titre)));
+    for (const d of tous) {
+      const p = d.data;
+      // doublons « … : + 1,50 € HT/personne. » créés par erreur à partir des suppléments d'un menu
+      if (p?.aCompleter && SUPPL.test(p.titre || '')) {
+        const net = p.titre.replace(SUPPL, '');
+        if (titres.has(p.sous + '|' + net)) { await store.delete('produits/' + d.id); continue; }
+        p.titre = net; p.extrait = `${net} : préparé par notre chef et livré prêt à servir.`; p.photos = (p.photos || []).map(f => ({ ...f, alt: net }));
+        await store.set('produits/' + d.id, p);
+      }
+      if (!p || p.rubrique !== 'saveurs-du-monde' || (p.groupes || []).length) continue;
+      const t = String(p.titre || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      if (!ACCOMP.test(t) || !['plats', 'divers', 'accompagnements', '', undefined, null].includes(p.rangement)) continue;
+      const next = { ...p, rangement: 'accompagnements' };
+      if (p.sous === 'buffet-indien' && /^riz kashmiri$/i.test(p.titre)) { next.titre = 'Riz cachemiri'; next.extrait = 'Riz cachemiri : préparé par notre chef et livré prêt à servir.'; }
+      await store.set('produits/' + d.id, next); na++;
+    }
+    await store.set('rubriques/saveurs-du-monde', { ...RA, accompInit: true });
+    if (na) log.log?.(`[demarrage] ${na} accompagnements rangés dans « Nos accompagnements à l'unité »`);
+  }
   // une fois : textes des pages d'atterrissage, pour qu'ils apparaissent (et se modifient) dans le back-office
   for (const d of await store.list('rubriques')) {
     const r = d.data;
@@ -313,6 +387,19 @@ async function initSousRubriques(store, { log = console } = {}) {
     if (!bx.boutique?.photo || bx.boutique.photo === '/site/c/cocktail10-client-20261104.jpg.webp') bx.boutique = { ...(bx.boutique || {}), photo: '/site/c/accueil/website-home-cocktail-20261110.webp' };
     if (!bx.maison?.photo || bx.maison.photo === RB.accueil?.photoMaison) bx.maison = { ...(bx.maison || {}), photo: '/site/c/personnel80-client-20261102.webp.webp' };
     await store.set('site/reglages', { ...RB, bandeaux: bx, bandeaux2: true });
+  }
+  // une fois (2026-11-22, demande de Jean-Luc) : plus de « Prix TTC, devis gratuit » dans les bandeaux (déjà dit plus bas)
+  const DEVIS = /\s*Prix TTC( par personne)?,? devis gratuit\.?/gi;
+  const sd = t => typeof t === 'string' ? t.replace(DEVIS, '').replace(/,? prix TTC,/g, ',').trim() : t;
+  for (const d of await store.list('rubriques')) {
+    const r = d.data; if (!r || r.sansDevis) continue;
+    const sous = (r.sous || []).map(x => ({ ...x, chapo: sd(x.chapo), seoDescription: sd(x.seoDescription) }));
+    await store.set('rubriques/' + d.id, { ...r, chapo: sd(r.chapo), sous, sansDevis: true });
+  }
+  const R0 = await store.get('site/reglages');
+  if (R0 && !R0.sansDevis) {
+    const bandeaux = Object.fromEntries(Object.entries(R0.bandeaux || {}).map(([k, b]) => [k, { ...b, chapo: sd(b.chapo) }]));
+    await store.set('site/reglages', { ...R0, bandeaux, sansDevis: true });
   }
   const R = await store.get('site/reglages');
   if (R && !R.sansIdf) {

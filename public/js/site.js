@@ -201,7 +201,7 @@
     for (const g of P.groupes || []) {
       const opts = g.options || [];
       const max = g.max || opts.length;
-      html += `<fieldset class="conf-g" data-g="${esc(g.id)}" data-max="${max}" data-exact="${g.exact ? 1 : 0}"><legend>${esc(g.titre || 'Vos choix')} <small>${g.exact ? `${max} au choix` : max < opts.length ? `jusqu’à ${max} au choix` : 'au choix'}${g.facultatif ? ' · facultatif' : ''}</small></legend>
+      html += `<fieldset class="conf-g" data-g="${esc(g.id)}"${(g.variantes || []).length && (P.variantes || []).length ? ` data-var="${esc(JSON.stringify(g.variantes))}"` : ''} data-max="${max}" data-exact="${g.exact ? 1 : 0}"><legend>${esc(g.titre || 'Vos choix')} <small>${g.exact ? `${max} au choix` : max < opts.length ? `jusqu’à ${max} au choix` : 'au choix'}${g.facultatif ? ' · facultatif' : ''}</small></legend>
         ${g.aide ? `<p class="small">${esc(g.aide)}</p>` : ''}
         <div class="opts">${opts.map(o => `<label class="opt"><input type="checkbox" value="${esc(o.id)}" data-sup="${o.supCents || 0}">${o.photos?.[0] ? `<img src="${esc(o.photos[0])}" alt="" loading="lazy">` : ''}<span>${esc(o.label)}${o.supCents ? `<small>+ ${euros(o.supCents)}</small>` : ''}${o.supDevis ? '<small>sur devis</small>' : ''}</span></label>`).join('')}</div></fieldset>`;
     }
@@ -214,7 +214,7 @@
     const read = () => {
       const qte = q ? Math.max(P.min || 1, +q.value || 0) : 1;
       let sup = 0; const choix = {}, labels = [];
-      $$('[data-g]', form).forEach(fs => { const ids = $$('input:checked', fs).map(i => { sup += +i.dataset.sup; labels.push(i.parentElement.querySelector('span').firstChild.textContent); return i.value; }); if (ids.length) choix[fs.dataset.g] = ids; });
+      $$('[data-g]', form).forEach(fs => { if (fs.hidden) return; const ids = $$('input:checked', fs).map(i => { sup += +i.dataset.sup; labels.push(i.parentElement.querySelector('span').firstChild.textContent); return i.value; }); if (ids.length) choix[fs.dataset.g] = ids; });
       const persNb = +(form.pers_nb?.value || 0), persH = +(form.pers_h?.value || 4);
       const pack = form.querySelector('[name=pack]:checked')?.value || '';
       let total = P.prixCents == null ? null : (P.prixCents + sup) * qte;
@@ -223,7 +223,13 @@
       if (total != null && pk) total += pk.prixCents * qte;
       return { qte, sup, choix, labels, persNb, persH, pack, total, variante: form.variante?.value || '', note: form.note?.value.trim() || '' };
     };
+    /* formule choisie : seuls les groupes compris dans la formule restent visibles ; les choix des autres sont décochés */
+    const formule = () => {
+      const v = form.variante?.value || '';
+      $$('[data-var]', form).forEach(fs => { const ok = JSON.parse(fs.dataset.var).includes(v); fs.hidden = !ok; if (!ok) $$('input:checked', fs).forEach(i => { i.checked = false; }); });
+    };
     const refresh = () => {
+      formule();
       const r = read();
       const t = $('[data-conf-total]', form);
       if (t) t.textContent = r.total == null ? 'Sur devis' : euros(r.total);
@@ -242,6 +248,7 @@
       e.preventDefault();
       const r = read();
       for (const fs of $$('[data-g]', form)) {
+        if (fs.hidden) continue;
         const g = (P.groupes || []).find(x => x.id === fs.dataset.g) || {};
         const n = $$('input:checked', fs).length;
         if (!g.facultatif && n === 0) { toast('Choisissez au moins une option : ' + (g.titre || '')); fs.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }

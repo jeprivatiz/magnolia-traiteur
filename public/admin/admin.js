@@ -422,7 +422,7 @@
         <details class="landbox"><summary>Présentation des prestations</summary>
           <label>Présentation<select data-ps><option value="">Une seule liste (recherche et tri)</option><option value="1"${x.parSections ? ' selected' : ''}>En sections : Nos buffets, puis entrées, plats, desserts et divers à l’unité</option></select></label>
           <p class="muted sm">La section de chaque prestation se choisit dans sa fiche (liste « Section »). Une section vide ne s’affiche pas. Titres des sections :</p>
-          <div class="g3">${[['buffets', 'Nos buffets'], ['entrees', 'Nos entrées à l’unité'], ['plats', 'Nos plats à l’unité'], ['desserts', 'Nos desserts à l’unité'], ['divers', 'Produits divers à l’unité']].map(([k, t]) => `<input data-ts="${k}" value="${esc((x.titresSections || {})[k] || '')}" placeholder="${t}" aria-label="${t}">`).join('')}</div></details><div class="row"><button type="button" class="btn ghost sm" data-up ${i ? '' : 'disabled'}>↑ Monter</button><button type="button" class="btn ghost sm" data-down ${i < sous.length - 1 ? '' : 'disabled'}>↓ Descendre</button><button type="button" class="btn ghost sm ph-del" data-delsous>🗑 Supprimer</button></div></div></div>`).join('') || '<p class="muted sm">Aucune spécialité pour cette rubrique.</p>';
+          <div class="g3">${[['buffets', 'Nos buffets'], ['entrees', 'Nos entrées à l’unité'], ['plats', 'Nos plats à l’unité'], ['accompagnements', 'Nos accompagnements à l’unité'], ['desserts', 'Nos desserts à l’unité'], ['divers', 'Produits divers à l’unité']].map(([k, t]) => `<input data-ts="${k}" value="${esc((x.titresSections || {})[k] || '')}" placeholder="${t}" aria-label="${t}">`).join('')}</div></details><div class="row"><button type="button" class="btn ghost sm" data-up ${i ? '' : 'disabled'}>↑ Monter</button><button type="button" class="btn ghost sm" data-down ${i < sous.length - 1 ? '' : 'disabled'}>↓ Descendre</button><button type="button" class="btn ghost sm ph-del" data-delsous>🗑 Supprimer</button></div></div></div>`).join('') || '<p class="muted sm">Aucune spécialité pour cette rubrique.</p>';
       bindPhotos($('#sous'));
     };
     drawSous();
@@ -453,8 +453,12 @@
   };
 
   /* champ photo : aperçu, envoi depuis l'ordinateur ou le téléphone, ou choix dans la médiathèque */
+  /* vignette de galerie (fiche, lieu) : photo, badge « Principale », boutons visibles */
+  const vigGalerie = (src, i, alt) => `<figure class="ph${i === 0 ? ' main' : ''}" draggable="true" data-i="${i}"><div class="ph-img"><img src="${esc(src)}" alt="">${i === 0 ? '<span class="ph-badge">★ Photo principale</span>' : ''}</div>
+    <div class="ph-act">${i ? '<button type="button" data-main title="Mettre en photo principale">★ Principale</button>' : ''}<button type="button" class="ph-del" data-rm title="Supprimer de la galerie">🗑 Supprimer</button></div>${alt === undefined ? '' : `<input value="${esc(alt || '')}" placeholder="Description (Google)" data-alt>`}</figure>`;
+  const confirmerRetrait = () => confirm('Supprimer cette photo de la galerie ?\n\nElle reste dans la médiathèque. Pensez à enregistrer.');
   function photoField(name, val, label) {
-    const quoi = /vid[ée]o/i.test(label) ? 'la vidéo' : 'la photo';
+    const quoi = /attente/i.test(label) ? 'l’image' : /vid[ée]o/i.test(label) ? 'la vidéo' : 'la photo';
     const apercu = v => v ? (/\.mp4$/i.test(v) ? `<video src="${esc(v)}" muted></video>` : `<img src="${esc(v)}" alt="">`) : `<span>Aucune · cliquez pour choisir</span>`;
     return `<div class="pf" data-pf data-quoi="${quoi}"><span class="lab">${esc(label)}</span><button type="button" class="pf-img" data-pf-open title="Modifier ${quoi}">${apercu(val)}<span class="pf-over">✎ Modifier ${quoi}</span></button><input type="hidden" name="${name}" value="${esc(val || '')}">
       <div class="pf-act"><button type="button" class="btn sm" data-pf-open>✎ Modifier ${quoi}</button><div class="pf-menu" hidden><label class="pf-opt">💻 Depuis mon ordinateur<input type="file" accept="image/*,video/mp4" hidden></label><button type="button" class="pf-opt" data-pick>🖼 Depuis la médiathèque</button><button type="button" class="pf-opt pf-del" data-clear>✕ Retirer ${quoi}</button></div></div><p class="pf-note" hidden>${quoi === 'la vidéo' ? 'Vidéo changée' : 'Photo changée'} : pensez à <b>enregistrer</b>.</p></div>`;
@@ -532,7 +536,7 @@
           <label>Statut<select name="statut"><option value="visible">Visible sur le site</option><option value="masque"${p.statut === 'masque' ? ' selected' : ''}>Masqué</option></select></label>
           <label>Mise en avant<select name="maison"><option value="1">Produit maison (en premier)</option><option value=""${!p.maison ? ' selected' : ''}>Partenaire</option></select></label></div>
           ${(rubs.find(r => r.slug === p.rubrique)?.sous || []).length ? `<label>Spécialité (dans « ${esc(rubs.find(r => r.slug === p.rubrique).nom)} »)<select name="sous"><option value="">Aucune (seulement dans « Tout »)</option>${[...rubs.find(r => r.slug === p.rubrique).sous].sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0)).map(x => `<option value="${esc(x.slug)}"${x.slug === p.sous ? ' selected' : ''}>${esc(x.nom)}</option>`).join('')}</select></label>` : ''}
-          <label>Section sur la page de la spécialité<select name="rangement"><option value="">Automatique (d’après le nom)</option>${[['buffets', 'Nos buffets'], ['entrees', 'Nos entrées à l’unité'], ['plats', 'Nos plats à l’unité'], ['desserts', 'Nos desserts à l’unité'], ['divers', 'Produits divers à l’unité']].map(([k, t]) => `<option value="${k}"${p.rangement === k ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
+          <label>Section sur la page de la spécialité<select name="rangement"><option value="">Automatique (d’après le nom)</option>${[['buffets', 'Nos buffets'], ['entrees', 'Nos entrées à l’unité'], ['plats', 'Nos plats à l’unité'], ['accompagnements', 'Nos accompagnements à l’unité'], ['desserts', 'Nos desserts à l’unité'], ['divers', 'Produits divers à l’unité']].map(([k, t]) => `<option value="${k}"${p.rangement === k ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
           <label>Accroche (cartes et Google)<textarea name="extrait" rows="2">${esc(p.extrait || '')}</textarea></label>
           <label>Description (un paragraphe par ligne)<textarea name="description" rows="4">${esc((p.description || []).join('\n'))}</textarea></label>
         </section>
@@ -548,14 +552,16 @@
         </section>
       </div>
       <section class="box"><div class="bh"><h2>Photos et vidéo</h2><div class="row"><label class="btn ghost sm up">+ Ajouter depuis mon ordinateur<input type="file" accept="image/*" multiple hidden data-multi></label><button type="button" class="btn ghost sm" data-pickp>+ Ajouter depuis la médiathèque</button></div></div>
-        <p class="muted sm">La première photo est la photo principale. Glissez pour changer l’ordre.</p>
+        <p class="muted sm">La photo principale s’affiche sur la vignette de la boutique. Glissez les photos pour changer l’ordre, ou cliquez sur « ★ Principale ».</p>
         <div class="photos" id="photos"></div>
-        <div class="g2">${photoField('video', p.video?.src || '', 'Vidéo (boucle muette, MP4)')}${photoField('poster', p.video?.poster || '', 'Image d’attente de la vidéo')}</div>
+        <h3 class="sub">Vidéo de la fiche <small class="muted">facultatif</small></h3><p class="muted sm">Sur la fiche, la vidéo passe en premier dans la galerie, avant les photos : elle tourne en boucle, sans le son. L’image d’attente s’affiche pendant son chargement (prenez une photo de la galerie). Format : fichier MP4 court (10 à 20 secondes).</p><div class="g2 vfiche">${photoField('video', p.video?.src || '', 'Vidéo (fichier MP4)')}${photoField('poster', p.video?.poster || '', 'Image d’attente')}</div>
       </section>
       <section class="box"><h2>Composition</h2><p class="muted sm">Un bloc par section, séparés par une ligne vide. Première ligne = titre, puis un élément par ligne. « # » = note avant la liste, « ## » = note après, « > » = paragraphe.</p><textarea name="sections" rows="10" class="mono">${esc((p.sections || []).map(sec).join('\n\n'))}</textarea>
         <label>Informations pratiques (une par ligne)<textarea name="details" rows="3">${esc((p.details || []).join('\n'))}</textarea></label></section>
       <section class="box"><h2>Choix proposés au client</h2><p class="muted sm">Un groupe par bloc : première ligne « Titre du groupe | nombre de choix max | exact ou max », puis une option par ligne « Nom | supplément TTC en € ».</p>
-        <textarea name="groupes" rows="8" class="mono">${esc((p.groupes || []).map(g => `${g.titre || ''} | ${g.max || ''} | ${g.exact ? 'exact' : 'max'}${g.facultatif ? ' | facultatif' : ''}\n${(g.options || []).map(o => `${o.label}${o.supCents ? ' | ' + fromCents(o.supCents) : ''}`).join('\n')}`).join('\n\n'))}</textarea></section>
+        <textarea name="groupes" rows="8" class="mono">${esc((p.groupes || []).map(g => `${g.titre || ''} | ${g.max || ''} | ${g.exact ? 'exact' : 'max'}${g.facultatif ? ' | facultatif' : ''}\n${(g.options || []).map(o => `${o.label}${o.supCents ? ' | ' + fromCents(o.supCents) : ''}`).join('\n')}`).join('\n\n'))}</textarea>
+        ${(p.variantes || []).length && (p.groupes || []).length ? `<h3 class="fg-t">Groupes proposés selon la formule</h3><p class="muted sm">Quand le client choisit une formule, seuls les groupes cochés pour cette formule restent affichés ; les autres disparaissent et leurs choix sont retirés. (Après avoir ajouté un groupe ou une formule, enregistrez pour le voir ici.)</p>
+        <div class="fg-wrap"><table class="fg"><thead><tr><th>Groupe</th>${p.variantes.map(v => `<th>${esc(v)}</th>`).join('')}</tr></thead><tbody>${p.groupes.map(g => `<tr><td>${esc(g.titre || '')}</td>${p.variantes.map(v => `<td><input type="checkbox" name="fg" value="${esc(JSON.stringify([g.titre || '', v]))}" ${!(g.variantes || []).length || g.variantes.includes(v) ? 'checked' : ''} aria-label="${esc((g.titre || '') + ' : ' + v)}"></td>`).join('')}</tr>`).join('')}</tbody></table></div>` : ''}</section>
       <section class="box"><h2>Allergènes</h2><div class="allerg">${ALLERGENES.map(a => `<label class="chk"><input type="checkbox" name="al" value="${a}" ${(p.allergenes || []).includes(a) ? 'checked' : ''}> ${a}</label>`).join('')}</div></section>
       <div class="actions sticky"><button class="btn">Enregistrer</button><span class="muted" id="dirty"></span></div>
       </form>`);
@@ -564,14 +570,14 @@
     const p = cache.p, form = $('#pf');
     let photos = (p.photos || []).map(x => ({ ...x }));
     const draw = () => {
-      $('#photos').innerHTML = photos.map((ph, i) => `<figure draggable="true" data-i="${i}"><img src="${esc(ph.src)}" alt=""><input value="${esc(ph.alt || '')}" placeholder="Description (Google, accessibilité)" data-alt><button type="button" class="x" data-rm aria-label="Retirer">×</button>${i === 0 ? '<span class="main">Principale</span>' : ''}</figure>`).join('') || '<p class="muted">Aucune photo.</p>';
+      $('#photos').innerHTML = photos.map((ph, i) => vigGalerie(ph.src, i, ph.alt)).join('') || '<p class="muted">Aucune photo.</p>';
     };
     draw();
     const dirty = () => { $('#dirty').textContent = 'Modifications non enregistrées'; };
     form.addEventListener('input', dirty);
     bindPhotos(form);
     $('#photos').addEventListener('input', e => { if (e.target.matches('[data-alt]')) photos[+e.target.closest('[data-i]').dataset.i].alt = e.target.value; });
-    $('#photos').addEventListener('click', e => { if (e.target.closest('[data-rm]')) { photos.splice(+e.target.closest('[data-i]').dataset.i, 1); draw(); dirty(); } });
+    $('#photos').addEventListener('click', e => { const f = e.target.closest('[data-i]'); if (!f) return; const i = +f.dataset.i; if (e.target.closest('[data-rm]') && confirmerRetrait()) { photos.splice(i, 1); draw(); dirty(); } if (e.target.closest('[data-main]')) { photos.unshift(...photos.splice(i, 1)); draw(); dirty(); } });
     let dragI = null;
     $('#photos').addEventListener('dragstart', e => { dragI = +e.target.closest('[data-i]').dataset.i; });
     $('#photos').addEventListener('dragover', e => e.preventDefault());
@@ -586,7 +592,10 @@
       const groupes = String(f.get('groupes') || '').split(/\n\s*\n/).map(b => b.split('\n').map(x => x.trim()).filter(Boolean)).filter(b => b.length).map((b, gi) => {
         const [titre, max, mode, fac] = b[0].split('|').map(x => x.trim());
         const old = oldG.find(g => g.titre === titre) || oldG[gi] || {};
-        return { ...old, id: old.id || 'g' + gi, titre, max: +max || null, exact: mode === 'exact', facultatif: fac === 'facultatif', options: b.slice(1).map((o, oi) => { const [label, sup] = o.split('|').map(x => x.trim()); const oo = (old.options || []).find(x => x.label === label) || {}; return { ...oo, id: oo.id || 'o' + oi + '-' + label.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-').slice(0, 30), label, supCents: toCents(sup) || 0 }; }) };
+        const vars = String(f.get('variantes')).split('\n').map(x => x.trim()).filter(Boolean);
+        const fg = $$('[name=fg]', form).map(i => [...JSON.parse(i.value), i.checked]).filter(x => x[0] === titre);
+        const gv = !vars.length ? null : fg.length ? vars.filter(v => !fg.some(x => x[1] === v && !x[2])) : (old.variantes || null);
+        return { ...old, variantes: gv && gv.length && gv.length < vars.length ? gv : null, id: old.id || 'g' + gi, titre, max: +max || null, exact: mode === 'exact', facultatif: fac === 'facultatif', options: b.slice(1).map((o, oi) => { const [label, sup] = o.split('|').map(x => x.trim()); const oo = (old.options || []).find(x => x.label === label) || {}; return { ...oo, id: oo.id || 'o' + oi + '-' + label.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-').slice(0, 30), label, supCents: toCents(sup) || 0 }; }) };
       });
       const next = { ...p, titre: f.get('titre'), rubrique: f.get('rubrique'), sous: f.get('rubrique') === p.rubrique ? (f.get('sous') ?? p.sous ?? '') : '', rangement: f.get('rangement') ?? p.rangement ?? '', statut: f.get('statut'), maison: !!f.get('maison'), extrait: f.get('extrait'), description: String(f.get('description')).split('\n').map(x => x.trim()).filter(Boolean),
         prixCents: toCents(f.get('prix')), unite: f.get('unite'), min: +f.get('min') || 1, minimumTexte: '', prixTexte: '', coutCents: toCents(f.get('cout')), tva: +f.get('tva'),
@@ -613,9 +622,9 @@
   }
   lieu.after = id => {
     const l = cache.l; let photos = [...(l.photos || [])];
-    const draw = () => { $('#photos').innerHTML = photos.map((s, i) => `<figure data-i="${i}" draggable="true"><img src="${esc(s)}" alt=""><button type="button" class="x" data-rm>×</button>${i ? '' : '<span class="main">Principale</span>'}</figure>`).join(''); };
+    const draw = () => { $('#photos').innerHTML = photos.map((s, i) => vigGalerie(s, i)).join('') || '<p class="muted">Aucune photo.</p>'; };
     draw();
-    $('#photos').addEventListener('click', e => { if (e.target.closest('[data-rm]')) { photos.splice(+e.target.closest('[data-i]').dataset.i, 1); draw(); } });
+    $('#photos').addEventListener('click', e => { const f = e.target.closest('[data-i]'); if (!f) return; const i = +f.dataset.i; if (e.target.closest('[data-rm]') && confirmerRetrait()) { photos.splice(i, 1); draw(); } if (e.target.closest('[data-main]')) { photos.unshift(...photos.splice(i, 1)); draw(); } });
     let dragI = null;
     $('#photos').addEventListener('dragstart', e => { dragI = +e.target.closest('[data-i]').dataset.i; });
     $('#photos').addEventListener('dragover', e => e.preventDefault());
