@@ -298,7 +298,7 @@ function lienMot(c, t) {
 
 /* ---------- univers à spécialités (ex. Saveurs du monde → Paëlla, Libanais, Chinois…) ---------- */
 const sousVisibles = r => (r?.sous || []).filter(x => x.statut !== 'masque').sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
-const prodsDeSous = (c, r, sl) => (c.byRub.get(r.slug) || []).filter(p => p.sous === sl);
+const prodsDeSous = (c, r, sl) => (c.byRub.get(r.slug) || []).filter(p => p.sous === sl || (p.autresSous || []).includes(sl));
 function pageSpecialites(c, r) {
   const S = sousVisibles(r);
   const tous = c.byRub.get(r.slug) || [];

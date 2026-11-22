@@ -559,6 +559,38 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('rubriques/saveurs-du-monde', { ...RLb, sous, libanaisCourt: true });
   }
 
+  /* doublons antillais / africain fusionnés (Jean-Luc, 2026-11-22) : on garde la fiche africaine, rattachée aussi à l'antillais ;
+     l'autre est masquée et son adresse renvoie vers la fiche gardée. Une fois. */
+  const RF = await store.get('site/reglages');
+  if (RF && !RF.doublonsFusionnes) {
+    let nf = 0;
+    for (const [garde, ...autres] of DOUBLONS) {
+      const g = await store.get('produits/' + garde);
+      if (!g) continue;
+      const sous2 = new Set(g.autresSous || []), rubs2 = new Set(g.autresRubriques || []);
+      for (const a of autres) {
+        const x = await store.get('produits/' + a);
+        if (!x || x.fusionneDans) continue;
+        if (x.sous && x.sous !== g.sous) sous2.add(x.sous);
+        if (x.rubrique !== g.rubrique) rubs2.add(x.rubrique);
+        await store.set('produits/' + a, { ...x, statut: 'masque', fusionneDans: garde });
+        nf++;
+      }
+      await store.set('produits/' + garde, { ...g, autresSous: [...sous2], autresRubriques: [...rubs2] });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), doublonsFusionnes: true });
+    if (nf) log.log?.(`[demarrage] ${nf} doublons fusionnés`);
+  }
+
+  /* photos ajoutées aux fiches qui n'en avaient pas (Jean-Luc, 2026-11-22). Une fois par fiche, si elle est toujours sans photo. */
+  for (const [re, src, alt] of PHOTOS_FICHES) {
+    for (const d of await store.list('produits')) {
+      const x = d.data;
+      if (!x || !re.test(x.titre || '') || (x.photos || []).length || x.photoAjoutee) continue;
+      await store.set('produits/' + d.id, { ...x, photos: [{ src, alt }], photoAjoutee: true });
+    }
+  }
+
   /* photos des vignettes « Nos univers » choisies par Jean-Luc (2026-11-22, sources dans data/credits-photos.md).
      Appliquées une fois par univers : modifiables ensuite dans le back-office. */
   const RV = await store.get('site/reglages');
@@ -575,6 +607,29 @@ async function initSousRubriques(store, { log = console } = {}) {
   }
 }
 
+/* [fiche gardée, doublons…] : mêmes produit, prix et minimum */
+const DOUBLONS = [
+  ['acras-de-morue', 'acras-de-morue-antilles'], ['acras-de-legumes', 'acras-de-legumes-antilles'], ['puff-puff', 'puff-puff-antilles'],
+  ['samoussa-legumes', 'samoussa-legumes-antilles'], ['samoussas-legumes', 'samoussas-legumes-antilles'],
+  ['samoussas-au-boeuf', 'samoussas-au-boeuf-antilles'], ['samoussas-au-poulet', 'samoussas-au-poulet-antilles'],
+  ['toasts-a-l-avocat-et-aux-crevettes', 'toasts-a-l-avocat-et-aux-crevettes-antilles'], ['salade-composee-200-g', 'salade-composee-200-g-antilles'],
+  ['avocat-aux-crevettes-200-g', 'avocat-aux-crevettes-200-g-antilles'], ['riz-aux-legumes', 'riz-aux-legumes-antillais'],
+  ['salade-de-fruits-exotiques-africain', 'salade-de-fruits-exotiques-antilles'], ['salade-de-4-fruits-de-saison-250-g', 'salade-de-4-fruits-de-saison-250-g-antilles'],
+  ['curry-d-agneau-300-g', 'curry-d-agneau-antillais'],
+  ['gateau-a-l-ananas-fait-maison-gateau-de-10-parts', 'gateau-a-l-ananas-fait-maison-gateau-de-10-parts-antilles'],
+  ['flan-coco-fait-maison-gateau-de-10-parts', 'flan-coco-fait-maison-gateau-de-10-parts-antilles'],
+  ['coffret-de-fruits-frais-pour-8-10-pers', 'coffret-de-fruits-frais-pour-8-10-pers-antilles'],
+  ['plateau-de-80-mini-club-sandwichs', 'plateau-de-80-mini-club-sandwichs-antilles'],
+  ['brochettes-de-fruits-frais-plateau-de-20-brochettes', 'brochettes-de-fruits-frais-plateau-de-20-brochettes-antilles'],
+  ['plateau-de-48-mini-wraps-africain', 'plateau-de-48-mini-wraps-antilles'],
+  ['corbeille-exotique-3-kg-africain', 'corbeille-exotique-3-kg-antilles'], ['corbeille-exotique-5-kg', 'corbeille-exotique-5-kg-antilles', 'corbeille-exotique-5-kg-2'],
+  ['corbeille-exotique-7-kg', 'corbeille-exotique-7-kg-antilles', 'corbeille-exotique-7-kg-2'], ['corbeille-exotique-9-kg', 'corbeille-exotique-9-kg-antilles', 'corbeille-exotique-9-kg-2'],
+  ['corbeille-de-fruits-de-saison-9-kg', 'corbeille-de-fruits-de-saison-9-kg-antilles'],
+];
+/* [titre, photo, texte alternatif] ; sources dans data/credits-photos-univers.md */
+const PHOTOS_FICHES = [
+  [/^air hockey/i, 'https://images.pexels.com/photos/5780929/pexels-photo-5780929.jpeg?auto=compress&cs=tinysrgb&w=1200', 'Table d’air hockey lumineuse'],
+];
 const INTROS_SPE = {
   'paella-party': ['La paëlla, la fête à partager',
     'Une grande poêle dorée au milieu des invités, et la fête commence. Notre paëlla royale marie poulet, chorizo, crevettes, calamars et moules sur un riz parfumé au safran ; la paëlla de la mer garde le meilleur de l’océan.\nCuisinée devant vos invités ou livrée prête à servir, elle régale aussi bien un anniversaire au jardin qu’un repas d’entreprise.'],
