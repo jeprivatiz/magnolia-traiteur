@@ -933,3 +933,5 @@ textarea:focus, input:focus, select:focus { outline: 2px solid color-mix(in srgb
   .sm-case { min-width: 150px; padding: 8px 12px; }
   .sm-case b { font-size: 1rem; }
 }
+/* fiche : proposition « Mettre N personnes (vos invités) » sous la quantité minimale */
+.lnk-inv { background: none; border: 0; padding: 0; color: var(--or, #b8862f); text-decoration: underline; cursor: pointer; font: inherit; }
