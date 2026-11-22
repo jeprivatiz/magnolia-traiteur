@@ -343,7 +343,7 @@ function pageGlobe(c, r) {
     <h2 data-sm-titre>${esc(premier.pays || premier.nom || '')}</h2>
     <p class="sm-phrase" data-sm-phrase>${esc(premier.phrase || '')}</p>
   </div>
-  <ul class="sm-paves" data-sm-paves>${items.map((x, i) => `<li><a class="sm-pave${i === 0 ? ' on' : ''}" href="${esc(x.href)}" data-sm-i="${i}">${img(x.vignette, '')}<span><i>${esc(x.pays)}</i><b>${esc(x.nom)}</b><small>${x.n} prestation${x.n > 1 ? 's' : ''}</small></span></a></li>`).join('')}</ul>
+  <ul class="sm-paves" data-sm-paves>${items.map((x, i) => `<li><a class="sm-pave${i === 0 ? ' on' : ''}" href="${esc(x.href)}" data-sm-i="${i}"><span><i>${esc(x.pays)}</i><b>${esc(x.nom)}</b><small>${x.n} prestation${x.n > 1 ? 's' : ''}</small></span></a></li>`).join('')}</ul>
   <div class="zl-ctrl sm-ctrl" data-sm-ctrl hidden><button type="button" data-sm-act="3d" aria-pressed="true">Vue 3D</button><button type="button" data-sm-act="tour" aria-pressed="true">Rotation</button><button type="button" data-sm-act="reset">Recentrer</button></div>
   <p class="sm-aide" aria-hidden="true">Faites tourner le globe et touchez un pays</p>
   <script type="application/json" data-sm-data>${JSON.stringify(items).replace(/</g, '\\u003c')}</script>
