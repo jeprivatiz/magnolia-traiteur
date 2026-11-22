@@ -150,11 +150,31 @@ async function createApp(opts = {}) {
   }));
 
   /* ---------- API publique ---------- */
+  /* pages du site trouvées par la recherche (ex. « zone de livraison » sur téléphone → la page, pas la boutique) */
+  const norm = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(' ').map(w => w.length > 3 ? w.replace(/s$/, '') : w).join(' '); /* « livraisons » = « livraison » */
+  const PAGES_RECHERCHE = [
+    { titre: 'Zone de livraison', href: '/zone-de-livraison', info: 'Carte, frais de livraison, livraison offerte dès 700 € TTC', mots: ['zone de livraison', 'zones de livraison', 'livraison', 'livrer', 'livrez', 'frais de livraison', 'tarif livraison', 'prix livraison', 'zone', 'livraison offerte', 'livraison gratuite', 'flotte', 'camion', 'vehicule'] },
+    { titre: 'Avis clients', href: '/temoignages', info: 'Ce que disent nos clients', mots: ['avis', 'avis clients', 'temoignages', 'temoignage', 'note google'] },
+    { titre: 'La maison', href: '/maison', info: 'Qui sommes-nous', mots: ['la maison', 'maison', 'qui sommes nous'] },
+    { titre: 'Comment commander', href: '/comment-commander', info: 'Les étapes de votre demande', mots: ['comment commander', 'commander', 'commande', 'devis'] },
+    { titre: 'Contact', href: '/contact', info: 'Téléphone, e-mail, formulaire', mots: ['contact', 'contacter', 'telephone', 'adresse', 'email'] },
+    { titre: 'Mon espace client', href: '/espace-client', info: 'Vos devis et factures', mots: ['espace client', 'mon espace', 'mon compte', 'compte', 'facture', 'factures'] },
+  ];
+  /* page visée : tous les mots tapés appartiennent à un des mots-clés (ex. « zone livraison », « livraison ») */
+  function pageRecherchee(q) {
+    const n = norm(q); if (n.length < 3) return null;
+    return PAGES_RECHERCHE.find(p => p.mots.map(norm).some(m => m === n || (n.length >= 4 && m.split(' ').length > 1 && n.split(' ').every(w => w.length < 3 || m.split(' ').includes(w))))) || null;
+  }
+  function pagesTrouvees(q) {
+    const n = norm(q); if (n.length < 3) return [];
+    return PAGES_RECHERCHE.filter(p => p.mots.map(norm).some(m => m.startsWith(n) || n.includes(m) && m.length >= 4));
+  }
   app.get('/api/recherche', wrap(async (req, res) => {
     const c = await cat.get();
     const q = String(req.query.q || '').slice(0, 80);
-    const r = cat.search(c, q, 8).map(p => ({ titre: p.titre, href: `/${p.rubrique}/${p.slug}`, photo: p.photos?.[0]?.src || '', prix: p.prixCents == null ? 'Sur devis' : euros(p.prixCents) + (p.unite ? ' / ' + p.unite : ''), rubrique: c.rubriques.find(x => x.slug === p.rubrique)?.nom || '' }));
-    res.set('Cache-Control', 'public, max-age=60').json({ q, resultats: r });
+    const pages = pagesTrouvees(q).map(p => ({ titre: p.titre, href: p.href, photo: '', prix: p.info, rubrique: 'Page du site', page: true }));
+    const r = pages.concat(cat.search(c, q, 8).map(p => ({ titre: p.titre, href: `/${p.rubrique}/${p.slug}`, photo: p.photos?.[0]?.src || '', prix: p.prixCents == null ? 'Sur devis' : euros(p.prixCents) + (p.unite ? ' / ' + p.unite : ''), rubrique: c.rubriques.find(x => x.slug === p.rubrique)?.nom || '' })));
+    res.set('Cache-Control', 'public, max-age=60').json({ q, resultats: r.slice(0, 10) });
   }));
 
   async function upsertClient({ nom, email, tel, societe }) {
@@ -727,7 +747,7 @@ async function createApp(opts = {}) {
   /* ---------- pages du site ---------- */
   const page = fn => wrap(async (req, res, next) => { const c = await cat.get(); const html = await fn(c, req, res, next); if (html) res.send(html); });
   app.get('/', page(c => views.home(c)));
-  app.get('/boutique', page((c, req) => {
+  app.get('/boutique', page((c, req, res) => {
     /* plusieurs univers choisis dans le pavé de recherche de l'accueil : /boutique?u=carte-magnolia,douceurs */
     const choix = String(req.query.u || '').split(',').map(x => x.trim()).filter(Boolean);
     const us = views.universListe(c).filter(u => choix.includes(u.slug));
@@ -736,6 +756,8 @@ async function createApp(opts = {}) {
       const chips = `<div class="chips scroll-x">${us.map(u => `<a class="chip on" href="${u.href}">${esc(u.nom)}${u.prods ? ` <small>${u.prods.length}</small>` : ''}</a>`).join('')}</div>`;
       return views.boutique(c, { titre: 'Vos univers', chapo: us.map(u => u.nom).join(', '), liste, chips, path: '/boutique?u=' + us.map(u => u.slug).join(','), photo: us[0].photo });
     }
+    const pg = req.query.q && pageRecherchee(req.query.q);
+    if (pg) return res.redirect(302, pg.href); /* « zone de livraison » tapé dans la recherche → la page */
     return views.boutique(c, { q: s(req.query.q, 80), titre: req.query.q ? 'Recherche' : 'La boutique' });
   }));
   app.get('/lieux', page(c => views.lieux(c)));

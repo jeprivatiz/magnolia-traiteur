@@ -1,0 +1,42 @@
+name: Récupérer les photos des pays
+
+# Télécharge les photos Pexels (licence libre) des pays de Saveurs du monde dans public/site/pays.
+# Le serveur de travail ne joint pas Pexels : c'est GitHub qui les télécharge.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/recuperer-pays.yml
+
+permissions:
+  contents: write
+
+jobs:
+  recuperer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Téléchargement et réduction (2000 px)
+        run: |
+          mkdir -p public/site/pays/source
+          cd public/site/pays/source
+          dl() { curl -fsSL -A "Mozilla/5.0 (magnolia-recuperation)" -o "$1.jpg" "https://images.pexels.com/photos/$2/pexels-photo-$2.jpeg?auto=compress&cs=tinysrgb&w=2000" || echo "échec $1 $2"; }
+          dl espagne-a 16487643; dl espagne-b 33934458
+          dl liban-a 12259278;   dl liban-b 5054948
+          dl chine-a 2412603;    dl chine-b 28910661
+          dl afrique-a 6480227
+          dl maghreb-a 22717147; dl maghreb-b 25070502; dl maghreb-c 31356131
+          dl italie-a 30855265;  dl italie-b 28821761
+          dl antilles-a 20342203; dl antilles-b 29811045
+          dl inde-a 18722577;    dl inde-b 30638768
+          dl japon-a 4336279;    dl japon-b 31418358
+          ls -la
+      - name: Enregistrer dans le dépôt
+        run: |
+          git config user.name "magnolia-bot"
+          git config user.email "magnolia-bot@users.noreply.github.com"
+          git add public/site/pays
+          if git diff --cached --quiet; then echo "Rien de nouveau."; exit 0; fi
+          git commit -m "Photos des pays (Pexels) pour Saveurs du monde"
+          git push

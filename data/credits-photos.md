@@ -13,3 +13,18 @@ Photos de la flotte reprises des sites de Magnolia (public/site/flotte, récupé
 - camion-traiteur-antillais.jpg : letraiteurantillais.fr/wp-content/uploads/2025/11/sac-de-20-kg-de-glacons-2.png
 - fourgon-magnolia.jpg : magnoliatraiteur.fr/wp-content/uploads/2023/01/adobestock-421036772-1.jpg (recadrée sans le logo incrusté)
 Carte : contours des départements (public/data/idf.json), bibliothèque MapLibre GL 4.7.1 (licence BSD, public/vendor/maplibre).
+
+## Saveurs du monde : photos d'ambiance des pays (fond du globe, `public/site/pays/`)
+Toutes issues de Pexels (licence Pexels : usage commercial gratuit, sans attribution obligatoire), récupérées le 2026-11-22 par l'Action « Récupérer les photos des pays ».
+
+| Fichier | Sujet | Source |
+|---|---|---|
+| afrique.jpg | Acacia au coucher du soleil, savane | https://www.pexels.com/photo/tree-on-grass-field-during-sunset-6480227/ |
+| antilles.jpg | Plage et cocotiers | https://www.pexels.com/photo/serene-tropical-beach-with-swaying-palm-trees-29811045/ |
+| chine.jpg | Grande Muraille dans les montagnes | https://www.pexels.com/photo/great-wall-of-china-against-mountainous-landscape-28910661/ |
+| espagne.jpg | Plaza de España, Séville | https://www.pexels.com/photo/pavilion-buildings-on-plaza-de-espana-16487643/ |
+| inde.jpg | Taj Mahal | https://www.pexels.com/photo/taj-mahal-in-india-18722577/ |
+| italie.jpg | Collines de Toscane et cyprès | https://www.pexels.com/photo/idyllic-tuscan-countryside-with-cypress-trees-30855265/ |
+| japon.jpg | Pagode Chureito et mont Fuji | https://www.pexels.com/photo/pagoda-and-mount-fuji-in-spring-4336279/ |
+| liban.jpg | Rochers de la Grotte aux Pigeons, Beyrouth | https://www.pexels.com/photo/drone-shot-of-pigeon-rocks-in-lebanon-12259278/ |
+| maghreb.jpg | Chefchaouen, Maroc | https://www.pexels.com/photo/chafchaoune-from-above-22717147/ |

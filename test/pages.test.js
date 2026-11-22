@@ -25,8 +25,20 @@ test('pages publiques principales en 200', async () => {
       const r = await fetch(base + u, { redirect: 'manual' });
       assert.ok(r.status === 200 || r.status === 301, `${u} → ${r.status}`);
     }
-    /* le sur-titre « Un voyage à votre table » ne doit pas être collé au bandeau photo */
+    /* « zone de livraison » tapé dans la recherche (téléphone ou ordinateur) mène à la page */
+    for (const q of ['zone de livraison', 'Zones de livraison', 'livraison']) {
+      const r = await fetch(base + '/boutique?q=' + encodeURIComponent(q), { redirect: 'manual' });
+      assert.equal(r.status, 302, q); assert.equal(r.headers.get('location'), '/zone-de-livraison', q);
+    }
+    assert.equal((await fetch(base + '/livraison', { redirect: 'manual' })).headers.get('location'), '/zone-de-livraison');
+    const api = await (await fetch(base + '/api/recherche?q=zone%20de%20liv')).json();
+    assert.equal(api.resultats[0].href, '/zone-de-livraison');
+        /* le sur-titre « Un voyage à votre table » ne doit pas être collé au bandeau photo */
     const sm = await (await fetch(base + '/saveurs-du-monde')).text();
-    if (sm.includes('id="specialites"')) assert.match(sm, /class="[^"]*apres-bandeau[^"]*" id="specialites"/, 'espace sous le bandeau de Saveurs du monde');
+    assert.match(sm, /class="sm-globe" id="specialites"/, 'globe 3D sous le bandeau de Saveurs du monde');
+    const nSpe = (sm.match(/class="sm-pave[ "]/g) || []).length;
+    assert.ok(nSpe >= 3, 'chaque spécialité a son pavé à gauche du globe');
+    assert.match(sm, /data-sm-act="3d"[\s\S]*data-sm-act="tour"[\s\S]*data-sm-act="reset"/, 'boutons Vue 3D, Rotation, Recentrer');
+    assert.match(sm, /Voir nos propositions/, 'bouton Voir nos propositions');
   } finally { srv.close(); }
 });
