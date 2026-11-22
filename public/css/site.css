@@ -544,3 +544,17 @@ textarea:focus, input:focus, select:focus { outline: 2px solid color-mix(in srgb
 /* accueil : même respiration entre toutes les sections (la classe .wrap remettait les marges verticales à zéro) */
 .home section.wrap:not(.chiffres) { margin-top: clamp(56px, 7vw, 96px); }
 .home section.wrap.recherche { margin-top: clamp(48px, 5vw, 72px); }
+
+/* univers à spécialités (Saveurs du monde) */
+.tiles.specialites { grid-template-columns: repeat(3, 1fr); margin-top: 22px; }
+.tile.spe { aspect-ratio: 4 / 3; }
+.tile.spe video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: -2; opacity: 0; transition: opacity .4s; }
+.tile.spe.joue video { opacity: 1; }
+.tile-t .pays { display: block; font-style: normal; font-size: .7rem; letter-spacing: .18em; text-transform: uppercase; color: var(--or-2); margin-bottom: 4px; }
+.tile-t .voir { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; font-size: .78rem; letter-spacing: .1em; text-transform: uppercase; border-bottom: 1px solid rgba(255, 255, 255, .5); padding-bottom: 2px; }
+.tile-t .voir svg { width: 14px; height: 14px; }
+.tile.spe.autres { background: linear-gradient(135deg, #1d3b2f, #2b5242); }
+.tout-voir { margin-top: 26px; }
+.spe-chips { margin-bottom: 4px; }
+@media (max-width: 980px) { .tiles.specialites { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 640px) { .tile.spe { aspect-ratio: 4 / 5; } .tile-t .voir { display: none; } }
