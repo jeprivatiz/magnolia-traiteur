@@ -15,19 +15,26 @@
   let actif = 0, map = null, geo = null, marque = null, carteVoir = null;
 
   /* ---------- en-tête et image de fond ---------- */
-  const fonds = $$('[data-sm-fond]');
-  let fondVisible = 0;
+  /* photo du bandeau en haut de page : elle prend l'ambiance du pays choisi (Jean-Luc, 2026-11-22) */
+  const hero = document.querySelector('.phero');
+  let heroImgs = null, heroVisible = 0;
+  function majBandeau(x) {
+    if (!hero || !x.photo) return;
+    if (!heroImgs) {
+      heroImgs = [0, 1].map(() => { const im = document.createElement('img'); im.className = 'phero-pays'; im.alt = ''; im.decoding = 'async'; hero.insertBefore(im, hero.querySelector('.phero-c')); return im; });
+    }
+    const cur = heroImgs[heroVisible], next = heroImgs[1 - heroVisible];
+    if (cur.classList.contains('on') && cur.getAttribute('src') === x.photo) return;
+    const go = () => { next.classList.add('on'); cur.classList.remove('on'); hero.classList.add('pays-on'); heroVisible = 1 - heroVisible; };
+    if (next.getAttribute('src') === x.photo && next.complete) go();
+    else { next.onload = go; next.src = x.photo; }
+  }
+  /* préchargement discret des photos des pays */
+  addEventListener('load', () => setTimeout(() => items.forEach(x => { if (x.photo) { const i = new Image(); i.src = x.photo; } }), 1500));
   function majTete(x) {
     $('[data-sm-titre]').textContent = x.pays || x.nom;
     const ph = $('[data-sm-phrase]'); if (ph) ph.textContent = x.phrase || '';
     const t = $('[data-sm-tete]'); t.classList.remove('entre'); void t.offsetWidth; t.classList.add('entre');
-    if (x.photo && fonds.length === 2) {
-      const suivant = fonds[1 - fondVisible];
-      const go = () => { suivant.classList.add('on'); fonds[fondVisible].classList.remove('on'); fondVisible = 1 - fondVisible; };
-      if (suivant.getAttribute('src') === x.photo) go();
-      else { suivant.onload = go; suivant.src = x.photo; }
-      if (suivant.tagName !== 'IMG') go();
-    }
   }
 
   /* ---------- géométrie ---------- */
@@ -83,11 +90,12 @@
 
   /* ---------- choix d'une spécialité ---------- */
   let arcAnim = 0;
-  function choisir(i, { voler = true } = {}) {
+  function choisir(i, { voler = true, bandeau = true } = {}) {
     actif = i;
     paves.forEach((p, k) => p.classList.toggle('on', k === i));
     const x = items[i]; if (!x) return;
     majTete(x);
+    if (bandeau) majBandeau(x);
     if (mobile()) paves[i]?.scrollIntoView({ behavior: calme ? 'auto' : 'smooth', inline: 'center', block: 'nearest' });
     if (!map || !geo) return;
     arreterTour();
@@ -192,7 +200,7 @@
       });
 
       /* au départ : la Terre tourne, puis se pose sur la première spécialité */
-      choisir(0, { voler: false });
+      choisir(0, { voler: false, bandeau: false });
       const c0 = centreDe(items[0] || {});
       map.jumpTo({ center: [c0[0] - 70, 20] });
       map.flyTo({ center: [c0[0] - (mobile() ? 0 : 6), Math.max(-35, Math.min(45, c0[1] - 4))], zoom: zoomBase() + .35, duration: calme ? 0 : 3200, essential: true });
