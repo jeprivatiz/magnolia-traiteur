@@ -21,3 +21,4 @@ Licence Pexels : usage commercial gratuit, sans obligation de citer l'auteur (ht
 | Accueil, bloc « La maison » (serveur avec un plateau de bouchées) | https://www.pexels.com/photo/34321369/ | 22/11/2026 (lot 1) |
 | Vignette Boissons (barman qui sert un cocktail) | https://www.pexels.com/photo/5531479/ | 22/11/2026 (demande directe de Jean-Luc) |
 | La maison, à côté de « Une seule maison, une seule demande » (soirée corporate) | https://unsplash.com/fr/photos/des-gens-en-tenue-formelle-discutant-lors-dun-evenement-G8hi_NbguRc (licence Unsplash : usage commercial gratuit) | 22/11/2026 (demande directe) |
+| Fiche « Buffet africain · Entrée + plat ou plat + dessert » (buffet de riz jollof servi par des cuisiniers, à la place de la photo antillaise) | https://www.pexels.com/photo/28736731/ | 22/11/2026 (demande directe) |

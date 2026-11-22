@@ -715,6 +715,10 @@ async function initSousRubriques(store, { log = console } = {}) {
       } else if (x.bandeau) {
         const R = await store.get('site/reglages'); const b = R.bandeaux?.[x.bandeau] || {};
         if (!b.photo || b.photo === x.avant) await store.set('site/reglages', { ...R, bandeaux: { ...(R.bandeaux || {}), [x.bandeau]: { ...b, photo: x.photo } } });
+      } else if (x.produit) {
+        /* photo principale d'une fiche : remplacée seulement si c'est encore l'ancienne */
+        const pr = await store.get('produits/' + x.produit);
+        if (pr && (!pr.photos?.length || pr.photos[0].src === x.avant)) await store.set('produits/' + x.produit, { ...pr, photos: [{ src: x.photo, alt: x.alt || pr.titre }, ...(pr.photos || []).filter(ph => ph.src !== x.avant)] });
       } else if (x.accueil) {
         const R = await store.get('site/reglages');
         if (!R.accueil?.[x.accueil] || R.accueil[x.accueil] === x.avant) await store.set('site/reglages', { ...R, accueil: { ...(R.accueil || {}), [x.accueil]: x.photo } });
@@ -821,6 +825,7 @@ const VRAIES_PHOTOS_SITE = [
   { id: 'buffet-antillais-1', sous: 'buffet-antillais', avant: '/site/c/paysages/antilles.webp', photo: pexels(2120356) },
   { id: 'japonais-1', sous: 'specialites-japonaises', avant: '/site/c/paysages/japon.webp', photo: pexels(33368124) },
   { id: 'accueil-maison-1', accueil: 'photoMaison', avant: '/site/c/antilles-menus/buffet-equipe-colombo-20261103-sans-logo-20261106.webp.webp', photo: pexels(34321369) },
+  { id: 'buffet-africain-1', produit: 'buffet-africain-entree-plat-ou-plat-dessert', avant: '/site/c/africain-produits/accras-de-morue.webp.webp', photo: pexels(28736731), alt: 'Buffet africain servi par nos cuisiniers' },
 ];
 const VIGNETTES_UNIVERS = {
   'traiteur-vegetarien-vegan': pexels(41063196),
