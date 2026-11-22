@@ -760,7 +760,7 @@ async function createApp(opts = {}) {
     const r = c.rubriques.find(x => x.slug === req.params.rub && x.statut !== 'masque');
     if (!r) return next();
     if (views.sousVisibles(r).length) return views.pageSpecialites(c, r);
-    return views.boutique(c, { rub: r.slug, titre: r.nom, chapo: r.chapo || r.accroche, photo: r.photoAccueil || r.photo, path: '/' + r.slug, liste: c.byRub.get(r.slug) });
+    return views.boutique(c, { intro: { titre: r.introTitre, texte: r.introTexte }, rub: r.slug, titre: r.nom, chapo: r.chapo || r.accroche, photo: r.photoAccueil || r.photo, path: '/' + r.slug, liste: c.byRub.get(r.slug) });
   }));
   app.get('/:rub/:slug', page((c, req, res, next) => {
     const ru = c.rubriques.find(x => x.slug === req.params.rub && x.statut !== 'masque');
