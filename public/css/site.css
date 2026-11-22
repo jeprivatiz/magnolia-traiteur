@@ -580,3 +580,7 @@ textarea:focus, input:focus, select:focus { outline: 2px solid color-mix(in srgb
 .spe-bloc .count { margin-top: 0; }
 /* pages de texte (La maison…) : de l'air entre le texte et les blocs suivants */
 .prose ~ section:not(:empty) { margin-top: clamp(56px, 7vw, 96px); }
+
+/* phrase d'aide sous la recherche */
+.aide-rech { max-width: 820px; margin: 10px auto 0; font-size: .9rem; color: var(--gris); }
+.aide-rech.center { text-align: center; margin-top: 12px; }
