@@ -45,6 +45,7 @@
       timer = setTimeout(async () => {
         const q = input.value.trim();
         if (q === last) return; last = q;
+        const sugg = form.parentElement.querySelector('[data-sugg]'); if (sugg) sugg.hidden = q.length >= 2;
         if (q.length < 2) { out.innerHTML = ''; return; }
         const r = await fetch('/api/recherche?q=' + encodeURIComponent(q)).then(x => x.json()).catch(() => ({ resultats: [] }));
         out.innerHTML = r.resultats.length ? r.resultats.map(x => `<a class="live-i" href="${x.href}">${x.photo ? `<img src="${esc(x.photo)}" alt="">` : '<span></span>'}<span><b>${esc(x.titre)}</b><small>${esc(x.rubrique)} · ${esc(x.prix)}</small></span></a>`).join('') + `<a class="live-all" href="/boutique?q=${encodeURIComponent(q)}">Voir tous les résultats pour « ${esc(q)} »</a>`

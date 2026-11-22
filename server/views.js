@@ -96,6 +96,8 @@ ${schema ? `<script type="application/ld+json">${JSON.stringify(schema).replace(
       <button type="button" class="mic" data-dictee aria-label="Dicter ma recherche">${icon.mic}</button>
       <button type="button" class="x" data-close-search aria-label="Fermer">×</button>
     </form>
+    ${aideRech(R)}
+    <div class="sugg-lay" data-sugg><p class="eyebrow">Idées de recherche</p>${suggChips(R)}</div>
     <div class="live" data-live-results></div>
   </div>
 </div>
@@ -202,8 +204,9 @@ ${bandeLogos(c, { lien: true, titre: 'Particuliers et entreprises : ils nous fon
 <section class="recherche wrap">
   <h2 class="center">Que recherchez-vous ?</h2><p class="eyebrow center sous-titre">Entrez ou dictez votre envie</p>
   <form class="bigsearch inline" action="/boutique" role="search" data-live-search>${icon.search}<input type="search" name="q" placeholder="Paëlla, DJ, huîtres, personnel…" aria-label="Que recherchez-vous ?" autocomplete="off"><button type="button" class="mic" data-dictee aria-label="Dicter ma recherche">${icon.mic}<span>Dicter</span></button></form>
+  ${aideRech(R, 'center')}
   <div class="live" data-live-results></div>
-  <div class="chips center">${(A.suggestions || []).map(s => `<a class="chip" href="/boutique?q=${encodeURIComponent(s)}">${esc(s)}</a>`).join('')}</div>
+  ${suggChips(R, 'center')}
 </section>
 <section class="wrap"><div class="sec-h"><div><p class="eyebrow">Tout pour le plaisir de recevoir</p><h2>Nos univers</h2></div><p>Cocktails, buffets du monde, animations, personnel et lieux : toute la brochure, avec ses prix.</p></div>
   <div class="tiles">${univers(c)}</div></section>
@@ -250,6 +253,12 @@ function bandeauHtml(c, B, fil) {
   <p class="confiance"><span><span class="etoiles" aria-hidden="true">★★★★★</span> <b>${esc(G.note || '4,9')}/5</b> sur Google${G.nombre ? `, ${esc(G.nombre)} avis` : ''}</span><span>Livraison 7 j/7</span><span>Devis gratuit</span></p></div></section>`;
 }
 
+/* suggestions de recherche (petits rectangles) : texte simple ou { label, lien } ; sans lien = recherche du mot */
+const suggestions = R => (R.accueil?.suggestions || []).map(x => typeof x === 'string' ? { label: x, lien: '' } : x).filter(x => x && x.label)
+  .map(x => ({ label: x.label, href: x.lien || '/boutique?q=' + encodeURIComponent(x.label) }));
+const AIDE_RECH = 'Dites un mot ou deux pour trouver ce que vous voulez. Exemples : paëlla, couscous, libanais.';
+const aideRech = (R, cls = '') => { const t = R.accueil?.aideRecherche ?? AIDE_RECH; return t ? `<p class="aide-rech ${cls}">${esc(t)}</p>` : ''; };
+const suggChips = (R, cls = '') => `<div class="chips sugg ${cls}">${suggestions(R).map(x => `<a class="chip" href="${esc(x.href)}">${esc(x.label)}</a>`).join('')}</div>`;
 /* ---------- pages d'atterrissage des spécialités (publicité Google Ads) ---------- */
 const { SPE_TEXTES, RANGEMENTS, rangementDe } = require('./seed');
 const { carteSvg } = require('./cartes');
