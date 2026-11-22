@@ -637,3 +637,11 @@ a.qs-back { display: inline-flex; align-items: center; text-decoration: none; }
   .box hr { border-top: 1px solid var(--bo-line); }
   .muted, .muted.sm, p.sm { color: #59625c; }
 }
+
+/* blocs repliables du catalogue */
+.pliable .plihead { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.pliable .plihead h2, .pliable .plihead h3 { cursor: pointer; margin-bottom: 0; }
+.pliable .plibtn { flex: none; white-space: nowrap; }
+.pliable .plibody { margin-top: 10px; }
+.pliable.ferme .plibody { display: none; }
+.prodbox { margin-top: 14px; }

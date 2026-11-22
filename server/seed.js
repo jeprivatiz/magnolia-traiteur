@@ -259,6 +259,20 @@ const PRIX_INDIEN = [
   [/^riz au safran/, 350], [/^riz (cachemiri|kashmiri)/, 500],
   [/^(hot )?gulab jamun/, 550],
 ];
+/* Buffet libanais à l'unité (Jean-Luc, 2026-11-22) : prix d'achat de référence TTC (en centimes) relevés sur la carte en ligne
+   d'un restaurant libanais de l'Essonne ; prix de vente = + 30 %, arrondi aux 10 centimes supérieurs.
+   La source et les équivalences (plat le plus proche quand il n'y a pas le même) sont dans tarifs/prix-buffet-libanais.xlsx
+   (dossier du projet), jamais sur le site. Baklawa : prix de 3 pièces ramené à la pièce. */
+const PRIX_LIBANAIS = [
+  [/^houmous/, 700], [/^feuilles de vigne/, 750], [/^salade de boulgh?our/, 750], [/^salade fattouche/, 800],
+  [/^roulade de fromage/, 400], [/^roulade de zaatar/, 400], [/^moutabal/, 750], [/^taboule/, 750], [/^caviar d.aubergine/, 750],
+  [/^roulade de soujouk/, 400], [/^kebbe/, 400], [/^fatayer/, 400], [/^sanbousek/, 400], [/^falafel/, 400],
+  [/^manakish/, 400], [/^rikakat/, 400],
+  [/^moussake/, 750], [/^(morceaux de )?chich taouk/, 1000], [/^shawarma poulet/, 1000], [/^kefta/, 1000],
+  [/^aubergine fondante/, 1000], [/^daoud bacha/, 1000],
+  [/^(boulgh?our|riz)/, 500],
+  [/^baklawa/, 133], [/^(mohallabiech|meghli|halawet el jibn|osmaliyeh)/, 600],
+];
 const BANDEAUX_SPE = {
   'specialites-japonaises': '/site/c/paysages/japon.webp',
   /* table de mezzés (Pexels 39018407, licence Pexels) à la place de la vidéo de l'huile versée : Jean-Luc, 2026-11-22 */
@@ -292,7 +306,7 @@ const CARTE_INDIEN = [
   ['desserts', 'Salade de fruits de Goa', 650], ['desserts', 'Pista kulfi', 650], ['desserts', 'Mango kulfi', 650], ['desserts', 'Halwa maison', 450], ['desserts', 'Kheer (riz au lait indien)', 450],
 ];
 const AMBIANCE_INDIEN = ['menu-client-1', 'menu-client-2', 'menu-client-3', 'menu-client-4', 'plat-seul-client-1', 'plat-seul-client-2', 'plat-seul-client-3'].map(n => N + n + '.webp.webp');
-const RANGEMENTS = [['buffets', 'Nos buffets'], ['entrees', 'Nos entrées à l’unité'], ['plats', 'Nos plats à l’unité'], ['accompagnements', 'Nos accompagnements à l’unité'], ['desserts', 'Nos desserts à l’unité'], ['divers', 'Produits divers à l’unité']];
+const RANGEMENTS = [['buffets', 'Nos buffets'], ['entrees', 'Nos entrées à l’unité'], ['plats', 'Nos plats à l’unité'], ['accompagnements', 'Nos accompagnements à l’unité'], ['fromages', 'Nos fromages'], ['desserts', 'Nos desserts à l’unité'], ['divers', 'Produits divers à l’unité']];
 /* « Riz oriental : + 1,50 € HT/personne. » → « Riz oriental » (supplément d'un menu, pas un nom de plat) */
 const SUPPL = /\s*:\s*\+\s*[\d.,]+\s*€.*$/;
 /* accompagnements (riz, gratins, alloco…) : demande de Jean-Luc du 2026-11-22 */
@@ -303,6 +317,7 @@ function rangementDe(p) {
   const t = String(p.titre || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
   if ((p.groupes || []).length || /^(buffet|paella|couscous|plateau japonais)/.test(t)) return 'buffets';
   if (/pack|animation|piment|wrap|club sandwich|coffret (antillais|chinois|libanais|italien)/.test(t)) return 'divers';
+  if (/^(le )?(plateau de fromages?|trio affine)/.test(t)) return 'fromages';
   if (/fruit|gateau|flan|sorbet|blanc manger|puff puff|patisserie|mochi|perles coco|litchi|dessert|tiramisu|baklava|corbeille|mahalabia|maamoul|gulab|halwa|kheer|panna cotta/.test(t)) return 'desserts';
   if (ACCOMP.test(t)) return 'accompagnements';
   if (/acras|samoussa|boudin|bokit|pate antillais|pastel|toast|avocat|salade|chiquetaille|achard|feroce|crabe farci|assortiment d.entrees|nems|bouchee|ravioli|hacao|brochette|houmous|taboule|falafel|moutabal|fattouch|kebbe|feuille|rakakat|sambousek|pakora|bhaji|onion|entree/.test(t)) return 'entrees';
@@ -403,6 +418,24 @@ async function initSousRubriques(store, { log = console } = {}) {
     }
     await store.set('rubriques/saveurs-du-monde', { ...(await store.get('rubriques/saveurs-du-monde')), indienCarte: true });
     if (nc) log.log?.(`[demarrage] ${nc} plats indiens ajoutés (carte complète)`);
+  }
+  // une fois (2026-11-22, demande de Jean-Luc) : prix des plats libanais à l'unité = prix de référence + 30 %, plus aucun « Sur devis ».
+  // Le prix de référence est rangé dans « coût de revient » (jamais affiché). Un prix déjà saisi dans le back-office n'est pas touché.
+  const RLp = await store.get('rubriques/saveurs-du-monde');
+  if (RLp && !RLp.libanaisPrix) {
+    const net = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    let nl = 0;
+    for (const d of await store.list('produits')) {
+      const p = d.data;
+      if (!p || p.sous !== 'buffet-libanais' || (p.groupes || []).length || p.prixCents) continue;
+      const ligne = PRIX_LIBANAIS.find(([re]) => re.test(net(p.titre).trim()));
+      if (!ligne) continue;
+      const cout = ligne[1];
+      await store.set('produits/' + d.id, { ...p, prixCents: Math.ceil(Math.round(cout * 1.3) / 10) * 10, coutCents: cout, aCompleter: false });
+      nl++;
+    }
+    await store.set('rubriques/saveurs-du-monde', { ...(await store.get('rubriques/saveurs-du-monde')), libanaisPrix: true });
+    if (nl) log.log?.(`[demarrage] ${nl} prix du Buffet libanais posés (référence + 30 %)`);
   }
   // bandeaux photo des spécialités choisis par Jean-Luc (2026-11-22) : appliqués une fois par spécialité, modifiables ensuite dans le back-office
   const RS = await store.get('rubriques/saveurs-du-monde');
@@ -738,6 +771,23 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('site/reglages', { ...(await store.get('site/reglages')), cocktailsFrancais: true });
   }
 
+  /* La carte Magnolia en sections : Entrées, Plats, Plateau de fromages, Desserts (Jean-Luc, 2026-11-22).
+     Pas d'accompagnements : les plats sont déjà accompagnés. Une fois ; chaque fiche reste modifiable (liste « Section »). */
+  const RCm = await store.get('site/reglages');
+  if (RCm && !RCm.carteSections) {
+    const cm = await store.get('rubriques/carte-magnolia');
+    if (cm) await store.set('rubriques/carte-magnolia', { ...cm, parSections: true, titresSections: { entrees: 'Les entrées', plats: 'Les plats', fromages: 'Plateau de fromages', desserts: 'Les desserts', divers: 'Menus et service à table', ...(cm.titresSections || {}) } });
+    const sans = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    for (const { id, data: p } of await store.list('produits')) {
+      if (p.rubrique !== 'carte-magnolia' || p.rangement) continue;
+      const t = sans(p.titre);
+      const k = /fromage|trio affine/.test(t) ? 'fromages' : /carpaccio|tartare|foie gras|salade|veloute|terrine|entree/.test(t) ? 'entrees'
+        : /paris-brest|millefeuille|opera|entremets|douceur|tarte|dessert|fondant|mousse|gateau/.test(t) ? 'desserts' : /menu|repas|service/.test(t) ? 'divers' : 'plats';
+      await store.set('produits/' + id, { ...p, rangement: k });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), carteSections: true });
+  }
+
   /* paragraphe de présentation de chaque rubrique et de la page Lieux (Jean-Luc, 2026-11-22). Posé une fois, seulement si vide. */
   const RIr = await store.get('site/reglages');
   if (RIr && !RIr.introsRubriques) {
@@ -961,6 +1011,8 @@ const VRAIES_PHOTOS_SITE = [
   { id: 'buffet-africain-1', produit: 'buffet-africain-entree-plat-ou-plat-dessert', avant: '/site/c/africain-produits/accras-de-morue.webp.webp', photo: pexels(28736731), alt: 'Buffet africain servi par nos cuisiniers' },
   { id: 'escape-game-2', produit: 'escape-game', avant: pexels(5427434), photo: pexels(29483111), alt: 'Énigme à résoudre contre la montre' },
   { id: 'blind-test-2', produit: 'blind-test', avant: pexels(8763175), photo: pexels(15880877), alt: 'Équipe qui célèbre une bonne réponse' },
+  { id: 'fromages-1', produit: 'le-trio-affine', avant: '/site/c/plateaux35-fromages.jpg.webp', photo: pexels(2992308), alt: 'Plateau de fromages affinés, noix et fruits' },
+  { id: 'fromages-2', produit: 'plateau-de-fromages', avant: '/site/c/cocktail7-photos/mini-clubs.webp.webp', photo: pexels(2992308), alt: 'Plateau de fromages, noix et fruits' },
 ];
 const VIGNETTES_UNIVERS = {
   'traiteur-vegetarien-vegan': pexels(41063196),
