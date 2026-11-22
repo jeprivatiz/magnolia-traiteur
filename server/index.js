@@ -625,11 +625,17 @@ async function createApp(opts = {}) {
   A.post('/actions/envoi-test', sameSite, json, wrap(async (req, res) => {
     const u = await store.get('_users/' + req.ctx.uid);
     if (!u?.email) return res.status(400).json({ error: 'Compte sans e-mail.' });
-    await brevo.sendEmail({ to: u.email, name: u.name, subject: 'Magnolia : e-mail d’essai', html: '<p>Bonjour,</p><p>Ceci est un e-mail d’essai envoyé depuis le back-office Magnolia. S’il est arrivé, les e-mails partent bien.</p>', text: 'E-mail d’essai du back-office Magnolia.' });
-    const tel = s(req.body?.tel, 30);
-    if (tel) await brevo.sendSms({ to: tel, content: 'Magnolia : SMS d’essai envoyé depuis le back-office.' });
-    audit(req.ctx, 'envoi d’essai', '', tel ? 'e-mail + SMS' : 'e-mail');
-    res.json({ ok: true, live: brevo.live, email: u.email });
+    const rMail = await brevo.sendEmail({ to: u.email, name: u.name, subject: 'Magnolia : e-mail d’essai', html: '<p>Bonjour,</p><p>Ceci est un e-mail d’essai envoyé depuis le back-office Magnolia. S’il est arrivé, les e-mails partent bien.</p>', text: 'E-mail d’essai du back-office Magnolia.' });
+    /* SMS : au numéro saisi, sinon aux portables des « Alertes de l’équipe » */
+    const R = (await cat.get()).reglages;
+    const tels = (s(req.body?.tel, 30) ? [s(req.body.tel, 30)] : String(R.alertes?.sms || '').split(/[,;]+/).map(x => x.trim()).filter(Boolean)).slice(0, 5);
+    const sms = [];
+    for (const tel of tels) {
+      const r = await brevo.sendSms({ to: tel, content: 'Magnolia : SMS d’essai envoyé depuis le back-office.' });
+      sms.push({ tel, erreur: r?.error || r?.skipped || '' });
+    }
+    audit(req.ctx, 'envoi d’essai', '', tels.length ? 'e-mail + SMS' : 'e-mail');
+    res.json({ ok: true, live: brevo.live, email: u.email, erreurMail: rMail?.error || '', sms });
   }));
   /* ---------- Excel : export (CSV « ; » lisible par Excel en français) et mise à jour des prix ---------- */
   const csv = (rows) => '\ufeff' + rows.map(r => r.map(v => { const x = v == null ? '' : String(v); return /[;"\n\r]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; }).join(';')).join('\r\n');
