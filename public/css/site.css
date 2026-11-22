@@ -298,9 +298,9 @@ section { margin: clamp(56px, 8vw, 110px) auto; }
 .quote figcaption { font-size: .85rem; color: var(--gris); }
 .logos { margin-top: 50px; }
 .logos .marquee-t { gap: 0; }
-.logos img { height: 34px; width: auto; margin: 0 34px; opacity: .65; filter: grayscale(1); }
+.logos img { height: 34px; width: auto; margin: 0 34px; }
 .logos .marquee-t .logo-nom { font-family: var(--sans); font-style: normal; font-weight: 500; font-size: 1.05rem; letter-spacing: .14em; text-transform: uppercase; color: var(--gris); padding: 0 34px; gap: 0; }
-@media (prefers-color-scheme: dark) { .logos img { filter: grayscale(1) invert(1); } }
+@media (prefers-color-scheme: dark) { .logos img { background: #fff; padding: 6px 12px; border-radius: 8px; box-sizing: content-box; } }
 @media (max-width: 860px) { .avis-in, .avis-l { grid-template-columns: 1fr; } .quote.big { grid-row: auto; } }
 .cta { text-align: center; }
 .cta .row { justify-content: center; }
@@ -632,7 +632,8 @@ textarea:focus, input:focus, select:focus { outline: 2px solid color-mix(in srgb
 /* boutique : présentation au-dessus des filtres */
 .shop-intro { max-width: 760px; margin: 0 auto 26px; text-align: center; }
 .shop-intro h2 { margin: 0 0 10px; }
-.shop-intro p { margin: 0; color: var(--gris); font-size: 1.05rem; line-height: 1.7; }
+.shop-intro p { margin: 0 0 8px; color: var(--gris); font-size: 1.05rem; line-height: 1.7; }
+.shop-intro p:last-child { margin-bottom: 0; }
 .shop-intro::after { content: ""; display: block; width: 56px; height: 2px; background: var(--or); margin: 18px auto 0; }
 
 /* fiche produit : allergènes en pastilles */

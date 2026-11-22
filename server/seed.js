@@ -699,6 +699,24 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('site/reglages', { ...(await store.get('site/reglages')), vignetteBoissonsBarman: true });
   }
 
+  /* « Cocktails & buffets français » + paragraphe de présentation (Jean-Luc, 2026-11-22). Une fois : modifiable ensuite dans le back-office. */
+  const RCb = await store.get('site/reglages');
+  if (RCb && !RCb.cocktailsFrancais) {
+    const cb = await store.get('rubriques/cocktails-buffets');
+    if (cb) await store.set('rubriques/cocktails-buffets', { ...cb,
+      nom: !cb.nom || cb.nom === 'Cocktails & buffets' ? 'Cocktails & buffets français' : cb.nom,
+      introTitre: cb.introTitre || INTRO_COCKTAILS[0], introTexte: cb.introTexte || INTRO_COCKTAILS[1] });
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), cocktailsFrancais: true });
+  }
+
+  /* paragraphe de présentation de Saveurs du monde (Jean-Luc, 2026-11-22). Une fois : modifiable ensuite dans le back-office. */
+  const RSdm = await store.get('site/reglages');
+  if (RSdm && !RSdm.introSaveursDuMonde) {
+    const sdm = await store.get('rubriques/saveurs-du-monde');
+    if (sdm && !sdm.introTexte) await store.set('rubriques/saveurs-du-monde', { ...sdm, introTitre: INTRO_SAVEURS[0], introTexte: INTRO_SAVEURS[1] });
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), introSaveursDuMonde: true });
+  }
+
   /* vraies photos à la place des images qui font « IA » (règle de Jean-Luc, 2026-11-22 : 95 % de vraies photos).
      Chaque remplacement est fait une fois, et seulement si la photo n'a pas déjà été changée dans le back-office. */
   const RP = await store.get('site/reglages');
@@ -794,6 +812,10 @@ const PLATEAUX_SUSHIS = [
     photo: '/site/sushis/plateau-de-luxe-42.webp',
     compo: ['7 sushis saumon laqué sésame', '7 sushis thon laqué sésame', '4 levana tartare de saumon, topping avocat', '4 dragons saumon oignons frits', '4 cristal saumon', '8 californias thon cuit mayonnaise oignons frits', '4 makis concombre', '4 makis saumon'] },
 ];
+const INTRO_SAVEURS = ['Toutes les cuisines du monde, sur un seul site',
+  'Magnolia est le seul site d’Île-de-France sur lequel vous pouvez commander, pour un même événement, un buffet libanais, un buffet chinois et des cocktails français. Libanais, chinois, japonais, antillais, africain, indien, italien, espagnol ou oriental : chaque cuisine est préparée par un traiteur spécialiste de sa tradition.\nCes traiteurs, nous les avons choisis et testés ces dernières années sur des centaines de prestations. Vous gardez un seul interlocuteur et un seul devis, et vos invités goûtent le meilleur de chaque cuisine.'];
+const INTRO_COCKTAILS = ['Cocktails et buffets à la française',
+  'Pièces cocktail salées et sucrées, verrines, mini-burgers, plateaux de fromages et de charcuteries, grands buffets froids ou chauds : nos formules sont préparées dans notre laboratoire de Villebon-sur-Yvette, avec des produits frais et de saison.\nSéminaire, afterwork, inauguration, mariage ou anniversaire : choisissez la formule qui vous ressemble, ajustez les quantités au nombre d’invités, puis ajoutez si besoin le personnel de service, la vaisselle et les boissons. Tout arrive prêt à servir, 7 jours sur 7.'];
 const INTROS_SPE = {
   'paella-party': ['La paëlla, la fête à partager',
     'Une grande poêle dorée au milieu des invités, et la fête commence. Notre paëlla royale marie poulet, chorizo, crevettes, calamars et moules sur un riz parfumé au safran ; la paëlla de la mer garde le meilleur de l’océan.\nCuisinée devant vos invités ou livrée prête à servir, elle régale aussi bien un anniversaire au jardin qu’un repas d’entreprise.'],
