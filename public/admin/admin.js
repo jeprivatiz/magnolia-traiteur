@@ -276,8 +276,7 @@
     $('[data-addtitle]').addEventListener('click', () => { lignes.push({ type: 'titre', designation: 'Section' }); draw(); dirty(); });
     $('[data-addprod]').addEventListener('change', e => {
       const p = cache.produits.find(x => x.slug === e.target.value); if (!p) return;
-      const inv = +form.ev_invites.value || p.min || 1;
-      lignes.push({ designation: p.titre, detail: '', qte: /personne/.test(p.unite || '') ? Math.max(inv, p.min || 1) : (p.min || 1), unite: p.unite || 'unité', puCents: p.prixCents || 0, coutCents: p.coutCents ?? null, tva: p.tva ?? 10, produit: p.slug });
+      lignes.push({ designation: p.titre, detail: '', qte: p.min || 1, unite: p.unite || 'unité', puCents: p.prixCents || 0, coutCents: p.coutCents ?? null, tva: p.tva ?? 10, produit: p.slug });
       e.target.value = ''; draw(); dirty();
     });
     form.addEventListener('input', e => { if (!e.target.closest('#lines')) dirty(); });
