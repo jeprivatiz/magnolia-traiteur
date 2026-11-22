@@ -225,11 +225,11 @@ ${avisBloc(c)}
 /* Grand bandeau photo en haut des pages d'arrivée (publicité Google Ads) : photo ou vidéo, titre, texte, boutons, ligne de confiance.
    Tout se change dans le back-office › Photos & textes du site › Bandeaux des pages. */
 const BANDEAUX_DEFAUT = {
-  boutique: { photo: '/site/c/cocktail10-client-20261104.jpg.webp', video: '', titre: 'La boutique Magnolia', chapo: 'Buffets, cocktails, spécialités du monde, boissons, personnel et animations : plus de 350 prestations, livrées 7 jours sur 7.', bouton: 'Voir les prestations', ancre: '#prestations',
+  boutique: { photo: '/site/c/accueil/website-home-cocktail-20261110.webp', video: '', titre: 'La boutique Magnolia', chapo: 'Buffets, cocktails, spécialités du monde, boissons, personnel et animations : plus de 350 prestations, livrées 7 jours sur 7.', bouton: 'Voir les prestations', ancre: '#prestations',
     introTitre: 'Toutes nos idées pour votre événement', introTexte: 'Sur cette page, vous retrouvez tous les produits de Magnolia : buffets, cocktails, spécialités du monde, plateaux, boissons, personnel et animations. C’est une source d’idées pour composer la partie traiteur de votre événement. Classez-les par ordre alphabétique ou par prix, choisissez un univers ou cherchez un plat, puis ajoutez vos choix à votre sélection pour recevoir votre devis.' },
   lieux: { photo: '/site/v/lieux-ambiances.jpg', video: '', titre: 'Lieux de réception', chapo: 'Lofts, péniches, demeures et salons à privatiser. Associez votre lieu et votre traiteur dans une seule demande.', bouton: 'Voir les lieux', ancre: '#lieux' },
   temoignages: { photo: '/site/v/temoignages-table.jpg', video: '/site/v/temoignages-table.mp4', titre: 'Avis clients', chapo: 'Mariages, anniversaires, séminaires, fêtes de famille : ils nous ont confié leur événement et le racontent.', bouton: 'Lire les avis', ancre: '#avis' },
-  maison: { photo: '', video: '', titre: 'La maison Magnolia', chapo: 'Votre événement commence ici.', bouton: 'Découvrir nos propositions', ancre: '/boutique' },
+  maison: { photo: '/site/c/personnel80-client-20261102.webp.webp', video: '', titre: 'La maison Magnolia', chapo: 'Votre événement commence ici.', bouton: 'Découvrir nos propositions', ancre: '/boutique' },
 };
 function bandeauDe(c, cle) {
   const R = c.reglages, d = BANDEAUX_DEFAUT[cle] || {}, b = R.bandeaux?.[cle] || {};
