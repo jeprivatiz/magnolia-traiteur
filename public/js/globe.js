@@ -129,7 +129,7 @@
   function zoomBase() { const b = map.getContainer(); const w = b.clientWidth - (mobile() ? 0 : 380), h = b.clientHeight - (mobile() ? 0 : 270); return Math.log2(Math.max(260, Math.min(w, h)) / 512) + (mobile() ? .95 : 1.3); }
   /* rotation permanente (Jean-Luc, 2026-11-22) : la Terre tourne tout doucement d'ouest en est ;
      quand le pays choisi passe derrière, elle accélère pour le faire revenir vite de l'autre côté. */
-  let tour = !calme, pause = 0, vitesse = 0, tPrec = 0;
+  let tour = true, pause = 0, vitesse = 0, tPrec = 0;
   const LENT = 5, VITE = 75; // degrés par seconde
   const ecart = lon => { const d = ((lon - map.getCenter().lng) % 360 + 540) % 360 - 180; return d; }; // -180..180, négatif = à gauche
   function arreterTour() { tour = false; vitesse = 0; $('[data-sm-act="tour"]')?.setAttribute('aria-pressed', 'false'); }
