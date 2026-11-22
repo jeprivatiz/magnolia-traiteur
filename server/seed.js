@@ -797,6 +797,28 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('site/reglages', { ...(await store.get('site/reglages')), cocktailsFrancais: true });
   }
 
+  /* Buffets : chaque entrée, plat ou dessert choisi se commande en portions, 5 minimum, total = nombre de personnes
+     (Jean-Luc, 2026-11-22). Une fois. Pas les accompagnements, ni les choix uniques ou « exactement N » (mezzés), ni les groupes facultatifs. */
+  const RPo = await store.get('site/reglages');
+  if (RPo && !RPo.buffetsPortions) {
+    const sans = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    for (const { id, data: p } of await store.list('produits')) {
+      if (!/personne/.test(p.unite || '') || !(p.groupes || []).length || rangementDe(p) !== 'buffets') continue;
+      let chg = false;
+      const groupes = p.groupes.map(g => {
+        const t = sans(g.titre);
+        if (g.mode || g.exact || g.facultatif || g.max === 1 || (g.options || []).length < 2) return g;
+        if (/accompagn|sauce|boisson|salade|pain|riz|mezz/.test(t) || /pieces/.test(sans(p.titre))) return g; /* mezzés et assortiments de pièces : on choisit des variétés, pas des portions */
+        const sg = /dessert/.test(t) ? 'dessert' : /entree/.test(t) ? 'entrée' : /plat/.test(t) ? 'plat' : null;
+        if (!sg) return g;
+        chg = true;
+        return { ...g, mode: 'quantites', minParVariete: 5, singulier: sg };
+      });
+      if (chg) await store.set('produits/' + id, { ...p, groupes });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), buffetsPortions: true });
+  }
+
   /* La carte Magnolia en sections : Entrées, Plats, Plateau de fromages, Desserts (Jean-Luc, 2026-11-22).
      Pas d'accompagnements : les plats sont déjà accompagnés. Une fois ; chaque fiche reste modifiable (liste « Section »). */
   const RCm = await store.get('site/reglages');
