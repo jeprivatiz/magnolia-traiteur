@@ -70,3 +70,5 @@ Licence Pexels : usage commercial gratuit, sans obligation de citer l'auteur (ht
 | Fiche « Blind test » (équipe qui célèbre une bonne réponse, meilleure photo) | https://www.pexels.com/photo/15880877/ | 22/11/2026 (demande directe) |
 | Fiches « Le trio affiné » et « Plateau de fromages » (plateau de fromages, noix et fruits, à la place d’une photo avec filigrane) | https://www.pexels.com/photo/2992308/ | 22/11/2026 (sans filigrane) |
 | Buffet italien · Entrée + plat + dessert, photo principale (grand buffet d'antipasti) à la place des tomates confites | https://www.pexels.com/photo/buffet-with-finger-food-23388862/ | 22/11/2026 (demande directe) |
+| Carte Magnolia, « Menu enfant (3 à 12 ans) » (mini-burgers et frites) | https://www.pexels.com/photo/gourmet-mini-burgers-with-fries-on-wooden-platter-36630854/ | 22/11/2026 (demande directe) |
+| Carte Magnolia, « Repas servi à table » (serveur et assiettes) | https://www.pexels.com/photo/a-waiter-holding-plates-with-salad-25809274/ | 22/11/2026 (demande directe) |

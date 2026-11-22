@@ -437,6 +437,16 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('rubriques/saveurs-du-monde', { ...(await store.get('rubriques/saveurs-du-monde')), libanaisPrix: true });
     if (nl) log.log?.(`[demarrage] ${nl} prix du Buffet libanais posés (référence + 30 %)`);
   }
+  // une fois (Jean-Luc, 2026-11-22) : plus de « Sur devis » sur la carte Magnolia. Menu enfant 14,90 € TTC par enfant ;
+  // repas servi à table 49,90 € TTC par personne (entrée + plat + dessert de la carte, fromage, softs et café), personnel de service en plus.
+  const RCp = await store.get('site/reglages');
+  if (RCp && !RCp.carteSansDevis) {
+    const me = await store.get('produits/menu-enfant-3-a-12-ans');
+    if (me && me.prixCents == null) await store.set('produits/menu-enfant-3-a-12-ans', { ...me, prixCents: 1490, prixTexte: null, unite: 'enfant', aCompleter: false });
+    const rt = await store.get('produits/repas-servi-a-table-elabore-par-le-chef');
+    if (rt && rt.prixCents == null) await store.set('produits/repas-servi-a-table-elabore-par-le-chef', { ...rt, prixCents: 4990, prixTexte: null, unite: 'personne', regles: { ...(rt.regles || {}), personnel: 'service' }, aCompleter: false });
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), carteSansDevis: true });
+  }
   // une fois (Jean-Luc, 2026-11-22) : « Brochettes de Chich Taouk », 1 portion = 4 brochettes ; beignets libanais, 1 portion = 2 pièces
   const RLq = await store.get('rubriques/saveurs-du-monde');
   if (RLq && !RLq.libanaisPortions) {
@@ -897,6 +907,9 @@ const DOUBLONS = [
 /* [titre, photo, texte alternatif] ; sources dans data/credits-photos-univers.md */
 /* [fiche, version, [[photo, description]…]] */
 const VRAIES_PHOTOS = [
+  /* La carte Magnolia, « Menus et service à table » (Jean-Luc, 2026-11-22) : Pexels 36630854 et 25809274, licence Pexels */
+  ['menu-enfant-3-a-12-ans', 'v1', [['https://images.pexels.com/photos/36630854/pexels-photo-36630854.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Mini-burgers et cornet de frites']]],
+  ['repas-servi-a-table-elabore-par-le-chef', 'v1', [['https://images.pexels.com/photos/25809274/pexels-photo-25809274.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Serveur apportant les assiettes aux convives à table']]],
   /* Buffet italien : grand buffet d'antipasti à la place des tomates confites (Jean-Luc, 2026-11-22) ; Pexels 23388862, licence Pexels */
   ['buffet-italien-entree-plat-dessert', 'v1', [['https://images.pexels.com/photos/23388862/pexels-photo-23388862.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Grand buffet italien : bruschettas, charcuteries, fromages, pains et antipasti'],
     ['/site/c/italien22-produits/buffet-menu.webp.webp', 'Buffet italien généreux de charcuteries, antipasti et spécialités à partager'], ['/site/c/italien22-produits/charcuterie-sans-logo-20261106.webp.webp', 'Planche de charcuteries et fromages italiens'],
