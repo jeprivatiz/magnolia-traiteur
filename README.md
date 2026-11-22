@@ -44,6 +44,12 @@ Tests : `npm test`.
 3. `UPLOAD_DIR` doit pointer vers un dossier qui ne s'efface pas aux mises à jour (photos envoyées depuis le back-office).
 4. Chaque poussée sur `main` met le site à jour.
 
+## Période d'essai à côté de l'ancien site, puis bascule
+
+- Pendant l'essai, le nouveau site tourne sur une adresse provisoire avec `SITE_NOINDEX=1` : Google ne l'indexe pas (pas de contenu en double avec l'ancien site), mais les publicités Google Ads peuvent y envoyer des visiteurs.
+- Back-office → Photos & textes du site → « Publicité Google Ads » : chaque demande de devis envoyée compte comme conversion, avec son montant estimé (après accord du visiteur).
+- Le jour de la bascule : retirer `SITE_NOINDEX`, faire pointer le domaine, et lister les anciennes adresses dans « Redirections » pour garder le référencement (301).
+
 ## Le contenu du brouillon
 
 `scripts/recuperer-brouillon.js` lit le brouillon (textes, prix, options, lieux) et copie toutes les photos et vidéos dans `public/site/`.

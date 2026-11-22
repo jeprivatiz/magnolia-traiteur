@@ -24,6 +24,22 @@ const rubHref = r => '/' + r.slug;
 const prodHref = p => '/' + p.rubrique + '/' + p.slug;
 const img = (src, alt = '', cls = '', attrs = '') => src ? `<img src="${esc(src)}" alt="${esc(alt)}" loading="lazy" decoding="async"${cls ? ` class="${cls}"` : ''} ${attrs}>` : `<div class="noimg ${cls}" aria-hidden="true">${MONO}</div>`;
 
+/* Google Ads : balise chargée seulement si le compte est renseigné, et en mode consentement (rien n'est mesuré avant l'accord du visiteur) */
+const ADS_RE = /^AW-\d{6,14}$/, LAB_RE = /^[A-Za-z0-9_-]{4,64}$/;
+function adsTag(R) {
+  const id = R.suivi?.googleAdsId;
+  if (!ADS_RE.test(id || '')) return '';
+  return `<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('consent','default',{ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied',analytics_storage:'denied'});try{if(localStorage.getItem('mg_consent')==='oui')gtag('consent','update',{ad_storage:'granted',ad_user_data:'granted',ad_personalization:'granted',analytics_storage:'granted'})}catch(e){}gtag('js',new Date());gtag('config','${id}');</script>
+<script async src="https://www.googletagmanager.com/gtag/js?id=${id}"></script>`;
+}
+function adsConv(R) {
+  const S = R.suivi || {}, id = S.googleAdsId;
+  if (!ADS_RE.test(id || '')) return '';
+  const d = LAB_RE.test(S.conversionDemande || '') ? ` data-conv-demande="${id}/${S.conversionDemande}"` : '';
+  const k = LAB_RE.test(S.conversionContact || '') ? ` data-conv-contact="${id}/${S.conversionContact}"` : '';
+  return ' data-ads="1"' + d + k;
+}
+
 function layout(c, { title, description = '', body, path = '/', schema = null, bodyClass = '', image = '' }) {
   const R = c.reglages;
   const fullTitle = title ? `${title} · ${R.nom || 'Magnolia Traiteur'}` : `${R.nom || 'Magnolia Traiteur'} · Traiteur événementiel à Paris et en Île-de-France`;
@@ -46,9 +62,11 @@ ${image ? `<meta property="og:image" content="${esc(site + image)}">` : ''}
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600&family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/site.css?v=${V}">
+${process.env.SITE_NOINDEX === '1' ? '<meta name="robots" content="noindex, nofollow">' : ''}
+${adsTag(R)}
 ${schema ? `<script type="application/ld+json">${JSON.stringify(schema).replace(/</g, '\\u003c')}</script>` : ''}
 </head>
-<body class="${bodyClass}">
+<body class="${bodyClass}"${adsConv(R)}>
 <a class="skip" href="#contenu">Aller au contenu</a>
 <header class="top" data-top>
   <div class="top-in">

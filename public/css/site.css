@@ -485,3 +485,8 @@ textarea:focus, input:focus, select:focus { outline: 2px solid color-mix(in srgb
 .toast.on { transform: translate(-50%, 0); opacity: 1; visibility: visible; }
 .toast a { color: var(--or-2); margin-left: 8px; }
 .p-fiche .toast { bottom: 84px; }
+/* bandeau d'accord pour la mesure publicitaire */
+.consent { position: fixed; left: 16px; right: 16px; bottom: 16px; z-index: 95; max-width: 560px; margin: 0 auto; background: var(--carte, #fff); color: inherit; border: 1px solid rgba(0, 0, 0, .1); border-radius: 14px; padding: 16px 18px; box-shadow: 0 16px 40px rgba(0, 0, 0, .25); display: flex; gap: 14px; align-items: center; flex-wrap: wrap; font-size: .92rem; }
+.consent p { margin: 0; flex: 1 1 240px; }
+.consent div { display: flex; gap: 8px; }
+.p-fiche .consent { bottom: 84px; }

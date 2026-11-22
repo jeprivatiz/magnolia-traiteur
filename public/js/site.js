@@ -355,6 +355,7 @@
       try {
         const r = await post('/api/demandes', { ...f, km, lignes: items });
         sel.save([]);
+        conversion('demande', r.ref, r.totalEstimeCents);
         selPage.hidden = true;
         const done = $('[data-done]');
         done.hidden = false;
@@ -370,7 +371,7 @@
     e.preventDefault();
     if (!contactForm.checkValidity()) { contactForm.reportValidity(); return; }
     const f = Object.fromEntries(new FormData(contactForm));
-    try { const r = await post('/api/demandes', { ...f, type: 'contact', lignes: [] }); contactForm.innerHTML = `<p class="ok">Merci, votre message est bien envoyé (référence ${esc(r.ref)}). Nous vous répondons vite.</p>`; }
+    try { const r = await post('/api/demandes', { ...f, type: 'contact', lignes: [] }); conversion('contact', r.ref); contactForm.innerHTML = `<p class="ok">Merci, votre message est bien envoyé (référence ${esc(r.ref)}). Nous vous répondons vite.</p>`; }
     catch (err) { toast(err.message); }
   });
   const lien = $('[data-lien]');
@@ -393,4 +394,26 @@
       try { await post(`/api/devis/${token}/refuser`, {}); location.reload(); } catch (err) { $('[data-accept-msg]').textContent = err.message; }
     });
   }
+})();
+
+/* ---------- Google Ads : conversions et accord du visiteur (seulement si le compte est réglé) ---------- */
+function conversion(type, ref, cents) {
+  const to = document.body.dataset['conv' + type[0].toUpperCase() + type.slice(1)];
+  if (!to || typeof window.gtag !== 'function') return;
+  window.gtag('event', 'conversion', { send_to: to, transaction_id: ref, ...(cents ? { value: cents / 100, currency: 'EUR' } : {}) });
+}
+(function consentement() {
+  if (!document.body.dataset.ads) return;
+  let v = null; try { v = localStorage.getItem('mg_consent'); } catch { /* */ }
+  if (v) return;
+  const b = document.createElement('div');
+  b.className = 'consent';
+  b.innerHTML = '<p>Nous utilisons des cookies pour mesurer l’efficacité de nos publicités. Vous pouvez refuser.</p><div><button type="button" class="btn btn-ghost" data-c="non">Refuser</button><button type="button" class="btn btn-vert" data-c="oui">Accepter</button></div>';
+  document.body.appendChild(b);
+  b.addEventListener('click', e => {
+    const c = e.target.closest('[data-c]'); if (!c) return;
+    try { localStorage.setItem('mg_consent', c.dataset.c); } catch { /* */ }
+    if (c.dataset.c === 'oui' && typeof window.gtag === 'function') window.gtag('consent', 'update', { ad_storage: 'granted', ad_user_data: 'granted', ad_personalization: 'granted', analytics_storage: 'granted' });
+    b.remove();
+  });
 })();

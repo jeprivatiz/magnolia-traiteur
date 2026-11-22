@@ -31,6 +31,18 @@ function loadDotEnv(file = path.join(ROOT, '.env')) {
 const COLLECTIONS = ['produits', 'rubriques', 'lieux', 'avis', 'demandes', 'clients', 'devis', 'factures', 'rdv', 'modeles', 'pages'];
 const PIPELINE = ['demande', 'devis_envoye', 'relance', 'accord', 'reserve', 'refuse', 'termine'];
 
+/* « /ancienne-page /nouvelle-page » par ligne ; une ancienne adresse finissant par * couvre tout ce qui commence pareil */
+function redirectionPour(texte, chemin) {
+  const p = decodeURIComponent(chemin).replace(/\/+$/, '') || '/';
+  for (const ligne of String(texte || '').split('\n')) {
+    const [de, vers] = ligne.trim().split(/\s+/);
+    if (!de || !vers || !de.startsWith('/') || !/^(\/(?!\/)|https:\/\/)/.test(vers)) continue;
+    const src = de.replace(/\/+$/, '') || '/';
+    if (src.endsWith('*') ? p.startsWith(src.slice(0, -1)) : p === src) return vers;
+  }
+  return null;
+}
+
 async function createApp(opts = {}) {
   loadDotEnv();
   const env = { ...process.env, ...(opts.env || {}) };
@@ -124,7 +136,7 @@ async function createApp(opts = {}) {
   }));
   app.use(express.static(PUBLIC, { maxAge: prod ? '7d' : 0, index: false, setHeaders: (res, p) => { if (/\.(webp|jpe?g|png|svg|mp4|woff2?)$/.test(p)) res.set('Cache-Control', 'public, max-age=2592000'); } }));
   app.use('/media', express.static(uploadDir, { maxAge: '30d' }));
-  app.get('/robots.txt', (req, res) => res.type('text/plain').send(`User-agent: *\nDisallow: /admin\nDisallow: /devis/\nDisallow: /facture/\nDisallow: /espace-client\nSitemap: ${SITE}/sitemap.xml\n`));
+  app.get('/robots.txt', (req, res) => env.SITE_NOINDEX === '1' ? res.type('text/plain').send('User-agent: *\nDisallow: /\n') : res.type('text/plain').send(`User-agent: *\nDisallow: /admin\nDisallow: /devis/\nDisallow: /facture/\nDisallow: /espace-client\nSitemap: ${SITE}/sitemap.xml\n`));
   app.get('/sitemap.xml', wrap(async (req, res) => {
     const c = await cat.get();
     const urls = ['/', '/boutique', '/lieux', '/maison', '/livraison', '/comment-commander', '/temoignages', '/contact',
@@ -215,7 +227,7 @@ async function createApp(opts = {}) {
       text: `Merci pour votre demande ${ref}. Votre espace : ${lien}` }).catch(() => {});
     alerterEquipe(`Nouvelle ${demande.type === 'contact' ? 'question' : 'demande de devis'} ${ref} : ${contact.nom}`, `<p><b>${esc(contact.nom)}</b> ${esc(contact.societe)} · ${esc(contact.email)} · ${esc(contact.tel)}</p><p>${esc(demande.evenement.type)} · ${esc(dateFr(demande.evenement.date))} · ${demande.evenement.invites} invités · ${esc(demande.evenement.ville)}</p><ul>${recap}</ul><p>${esc(demande.message)}</p><p><a href="${SITE}/admin#/demandes/${id}">Ouvrir dans le back-office</a></p>`, `Magnolia : nouvelle demande ${ref} de ${contact.nom}, ${demande.evenement.invites} pers. le ${demande.evenement.date}`).catch(() => {});
     /* le lien direct vers l'espace n'est rendu qu'à un nouveau client ; un client connu le reçoit par e-mail */
-    res.json({ ok: true, ref, espace: nouveau ? lien.replace(SITE, '') : '/espace-client' });
+    res.json({ ok: true, ref, totalEstimeCents: demande.totalEstimeCents, espace: nouveau ? lien.replace(SITE, '') : '/espace-client' });
   }));
 
   /* ---------- espace client (lien magique par e-mail) ---------- */
@@ -629,6 +641,13 @@ async function createApp(opts = {}) {
   }));
 
   app.use('/api', (req, res) => res.status(404).json({ error: 'Introuvable.' }));
+  /* redirections 301 réglées dans le back-office (bascule de l'ancien site) */
+  app.use(wrap(async (req, res, next) => {
+    if (req.method !== 'GET') return next();
+    const c = await cat.get();
+    const cible = redirectionPour(c.reglages.redirections, req.path);
+    return cible ? res.redirect(301, cible) : next();
+  }));
   app.use(wrap(async (req, res) => res.status(404).send(views.erreur(await cat.get()))));
   app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
     log.error?.('[erreur]', err);
@@ -648,4 +667,4 @@ if (require.main === module) {
   }).catch(e => { console.error(e); process.exit(1); });
 }
 
-module.exports = { createApp };
+module.exports = { createApp, redirectionPour };
