@@ -467,3 +467,13 @@ function bandeauCookies() {
   };
   window.addEventListener('hashchange', cible); cible();
 })();
+
+/* spécialités : la vidéo de la vignette se lance au survol (ordinateur) */
+(() => {
+  if (!window.matchMedia('(hover: hover)').matches || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  document.querySelectorAll('.tile.spe').forEach(t => {
+    const v = t.querySelector('video[data-survol]'); if (!v) return;
+    t.addEventListener('mouseenter', () => { const p = v.play(); if (p) p.then(() => t.classList.add('joue')).catch(() => {}); });
+    t.addEventListener('mouseleave', () => { t.classList.remove('joue'); v.pause(); });
+  });
+})();
