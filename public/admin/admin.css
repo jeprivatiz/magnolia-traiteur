@@ -319,3 +319,4 @@ details[open] summary { margin-bottom: 12px; }
 .ph h1 .pill { font-family: var(--sans); font-size: .8rem; vertical-align: middle; margin-left: 6px; }
 .kcol[data-col=demande] { --c: var(--or); } .kcol[data-col=devis_envoye] { --c: var(--bleu); } .kcol[data-col=relance] { --c: var(--orange); }
 .kcol[data-col=accord] { --c: var(--violet); } .kcol[data-col=reserve] { --c: var(--vert-ok); } .kcol[data-col=refuse] { --c: var(--rouge); }
+.login .lnk { margin-top: 14px; font-size: .88rem; } .login p.muted { font-size: .9rem; }
