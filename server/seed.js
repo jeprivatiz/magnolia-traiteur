@@ -638,6 +638,7 @@ const DOUBLONS = [
 /* [fiche, version, [[photo, description]…]] */
 const VRAIES_PHOTOS = [
   ['samoussa-legumes', 'v1', [['https://images.pexels.com/photos/9027521/pexels-photo-9027521.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Samoussas aux légumes croustillants, chutneys vert et tamarin']]],
+  ['toasts-a-l-avocat-et-aux-crevettes', 'v1', [['https://images.pexels.com/photos/13220311/pexels-photo-13220311.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Toasts à l’avocat garnis de crevettes, sur assiette blanche']]],
   ['samoussas-legumes', 'v1', [['https://images.pexels.com/photos/4449068/pexels-photo-4449068.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Samoussas aux légumes dorés dans une corbeille, sauces à côté']]],
 ];
 const PHOTOS_FICHES = [

@@ -11,3 +11,4 @@ Licence Pexels : usage commercial gratuit, sans obligation de citer l'auteur (ht
 | Air hockey (fiche sans photo) | https://www.pexels.com/photo/5780929/ | 22/11/2026 (demande directe) |
 | Samoussa légumes (à l'unité), vraie photo à la place de la photo « IA » | https://www.pexels.com/photo/crunchy-samosa-over-a-ceramic-plate-9027521/ | 22/11/2026 (demande directe) |
 | Samoussas légumes (4 pièces), vraie photo à la place de la photo « IA » | https://www.pexels.com/photo/samosas-in-wicker-basket-on-dinner-table-4449068/ | 22/11/2026 (demande directe) |
+| Toasts à l'avocat et aux crevettes, vraie photo à la place de la photo « IA » | https://www.pexels.com/photo/cooked-food-on-white-ceramic-plate-13220311/ | 22/11/2026 (demande directe) |
