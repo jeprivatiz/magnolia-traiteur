@@ -64,7 +64,7 @@ const REGLAGES_DEFAUT = {
   evenements: ['Anniversaire', 'Fête de famille', 'Entreprise', 'Mariage', 'Baptême', 'Cocktail', 'Autre'],
   equipe: [
     { nom: 'Romain Goujon', role: 'Directeur commercial', photo: '/site/equipe/romain-goujon.webp', citation: '« Merci Romain de m’avoir guidée dans l’organisation de la soirée d’anniversaire de mes 50 ans, avec 75 invités on a besoin des conseils d’un vrai professionnel ! »', auteur: 'Marie Line Ricard, septembre 2025' },
-    { nom: 'Hermine', role: 'Responsable opérationnelle', photo: '/site/c/equipe/hermine.webp', citation: '« Le jour J, Hermine et son équipe ont été aux petits soins : du buffet aux boissons, en passant par le personnel et l’animation musicale, tout était impeccable. »', auteur: 'Julie Triolet-Bigueur, juin 2025' },
+    { nom: 'Hermine', role: 'Responsable opérationnelle', photo: '/site/equipe/hermine-nb.webp', citation: '« Le jour J, Hermine et son équipe ont été aux petits soins : du buffet aux boissons, en passant par le personnel et l’animation musicale, tout était impeccable. »', auteur: 'Julie Triolet-Bigueur, juin 2025' },
   ],
   alertes: { emails: 'infos@magnoliatraiteur.fr', sms: '' },
 };
@@ -550,6 +550,16 @@ async function initSousRubriques(store, { log = console } = {}) {
   if (REq && !REq.photoRomain) {
     const equipe = (REq.equipe || []).map(e => /romain/i.test(e.nom || '') && !e.photo ? { ...e, photo: '/site/equipe/romain-goujon.webp' } : e);
     await store.set('site/reglages', { ...REq, equipe, photoRomain: true });
+  }
+
+  /* Hermine en noir et blanc sur fond blanc, à droite de Romain (Jean-Luc, 2026-11-22). Une fois. */
+  const RHe = await store.get('site/reglages');
+  if (RHe && !RHe.photoHermine) {
+    let equipe = (RHe.equipe || []).map(e => /hermine/i.test(e.nom || '') && (!e.photo || e.photo === '/site/c/equipe/hermine.webp') ? { ...e, photo: '/site/equipe/hermine-nb.webp' } : e);
+    const h = equipe.find(e => /hermine/i.test(e.nom || '')) || REGLAGES_DEFAUT.equipe.find(e => /hermine/i.test(e.nom));
+    const autres = equipe.filter(e => e !== h), iR = autres.findIndex(e => /romain/i.test(e.nom || ''));
+    if (h && iR >= 0) equipe = [...autres.slice(0, iR + 1), h, ...autres.slice(iR + 1)];
+    await store.set('site/reglages', { ...RHe, equipe, photoHermine: true });
   }
 
   /* « Buffet libanais · 8 mezzés » devient « Buffet libanais » (Jean-Luc, 2026-11-22). Une fois. */
