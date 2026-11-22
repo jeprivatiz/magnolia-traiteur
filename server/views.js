@@ -308,6 +308,18 @@ function introHtml(titre, texte) {
 /* centre des lieux dont les pays sont trop petits ou trop nombreux pour un calcul automatique [lon, lat] */
 /* photo d'ambiance du pays derrière le globe (Pexels, licence libre, voir data/credits-photos.md) */
 const PHOTOS_PAYS = { afrique: 1, antilles: 1, chine: 1, espagne: 1, inde: 1, italie: 1, japon: 1, liban: 1, maghreb: 1 };
+/* phrase de présentation de chaque cuisine, sous le nom du pays (modifiable par spécialité : champ phraseGlobe) */
+const PHRASES_GLOBE = {
+  espagne: 'Le soleil de l’Espagne à votre table : paëlla mijotée devant vos invités, safran, fruits de mer et chorizo.',
+  liban: 'La générosité libanaise : mezzés colorés, houmous, taboulé, grillades parfumées et douceurs à la fleur d’oranger.',
+  chine: 'Les saveurs de la Chine : bouchées vapeur, nems croustillants, wok parfumé et sauces aigres-douces.',
+  afrique: 'Une cuisine africaine chaleureuse et épicée : mafé, yassa, poulet braisé, alloco et plats mijotés.',
+  maghreb: 'L’hospitalité du Maghreb : couscous, tajines, pastillas et pâtisseries au miel et aux amandes.',
+  italie: 'L’Italie gourmande : antipasti, pâtes fraîches, charcuteries fines, mozzarella et tiramisu.',
+  antilles: 'Le goût des Antilles : accras, colombo, boudin créole, poulet boucané et douceurs coco.',
+  inde: 'Les mille épices de l’Inde : currys, tandoori, biryanis, naans et samoussas.',
+  japon: 'L’élégance japonaise : sushis, makis, sashimis et bouchées délicates, préparés avec précision.',
+};
 const CENTRES_GLOBE = { antilles: [-61.3, 15.4], afrique: [17, 4], maghreb: [2, 31.5], reunion: [55.5, -21.1], polynesie: [-149.4, -17.6] };
 /* Saveurs du monde : globe 3D interactif (Jean-Luc, 2026-11-22) — pavés des spécialités à gauche, flèche vers le pays, image du pays en fond */
 function pageGlobe(c, r) {
@@ -319,28 +331,23 @@ function pageGlobe(c, r) {
     const vedette = L.find(p => rangementDe(p) === 'buffets' && p.prixCents != null) || L.find(p => p.prixCents != null) || L[0];
     const lieu = lieuDe(x);
     return { slug: x.slug, nom: x.nom, pays: x.pays || (lieu ? lieu[1] : ''), n: L.length, href: `/${r.slug}/${x.slug}`, photo: x.photoGlobe || (lieu && PHOTOS_PAYS[lieu[0]] ? `/site/pays/${lieu[0]}.jpg` : x.bandeauPhoto || x.photo || ''), vignette: vedette?.photos?.[0]?.src || x.photo || '',
-      ids: lieu ? lieu[2].map(Number) : [], centre: lieu ? CENTRES_GLOBE[lieu[0]] || null : null };
+      phrase: x.phraseGlobe || (lieu && PHRASES_GLOBE[lieu[0]]) || speChapo(x), ids: lieu ? lieu[2].map(Number) : [], centre: lieu ? CENTRES_GLOBE[lieu[0]] || null : null };
   });
   const premier = items[0] || {};
-  const grandLarge = c.rubriques.find(z => z.slug === 'grand-large' && z.statut !== 'masque');
-  const autres = tous.filter(p => !S.some(x => x.slug === p.sous));
   const body = `${bandeauHtml(c, { photo: r.bandeauPhoto || r.photoAccueil || r.photo, video: r.bandeauVideo || '', titre: r.titrePage || r.nom, chapo: r.chapo || r.accroche || 'Choisissez votre spécialité : chaque cuisine a ses buffets, ses plats et ses douceurs.', bouton: 'Choisir ma spécialité', ancre: '#specialites' }, [['La boutique', '/boutique'], [r.nom]])}
 <section class="sm-globe" id="specialites" data-sm data-sm-paris="[2.35,48.86]">
-  <div class="sm-fonds" aria-hidden="true">${img(premier.photo, '', 'sm-fond on', 'data-sm-fond')}<img class="sm-fond" alt="" decoding="async" data-sm-fond></div>
-  <div class="sm-voile" aria-hidden="true"></div>
   <div class="sm-map" data-sm-map aria-label="Globe des saveurs du monde : faites-le tourner, touchez un pays"></div>
   <svg class="sm-fleche" data-sm-fleche aria-hidden="true"><defs><marker id="sm-pointe" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="#e2c495"/></marker><linearGradient id="sm-grad" x1="0" x2="1"><stop offset="0" stop-color="#e2c495" stop-opacity=".25"/><stop offset="1" stop-color="#e2c495"/></linearGradient></defs><path data-sm-trait d="" fill="none" stroke="url(#sm-grad)" stroke-width="2.2" stroke-linecap="round" marker-end="url(#sm-pointe)"/></svg>
   <div class="sm-tete" data-sm-tete>
     <p class="eyebrow">Un voyage à votre table</p>
     <h2 data-sm-titre>${esc(premier.pays || premier.nom || '')}</h2>
-    <a class="btn btn-or sm-voir" href="${esc(premier.href || '#')}" data-sm-voir>Voir nos propositions ${icon.arrow}</a>
+    <p class="sm-phrase" data-sm-phrase>${esc(premier.phrase || '')}</p>
   </div>
   <ul class="sm-paves" data-sm-paves>${items.map((x, i) => `<li><a class="sm-pave${i === 0 ? ' on' : ''}" href="${esc(x.href)}" data-sm-i="${i}">${img(x.vignette, '')}<span><i>${esc(x.pays)}</i><b>${esc(x.nom)}</b><small>${x.n} prestation${x.n > 1 ? 's' : ''}</small></span></a></li>`).join('')}</ul>
   <div class="zl-ctrl sm-ctrl" data-sm-ctrl hidden><button type="button" data-sm-act="3d" aria-pressed="true">Vue 3D</button><button type="button" data-sm-act="tour" aria-pressed="true">Rotation</button><button type="button" data-sm-act="reset">Recentrer</button></div>
   <p class="sm-aide" aria-hidden="true">Faites tourner le globe et touchez un pays</p>
   <script type="application/json" data-sm-data>${JSON.stringify(items).replace(/</g, '\\u003c')}</script>
-</section>
-<section class="wrap sm-bas"><p class="row center">${grandLarge ? `<a class="btn btn-line" href="/${esc(grandLarge.slug)}">${esc(grandLarge.nom)}</a>` : ''}${autres.length ? `<a class="btn btn-line" href="/${esc(r.slug)}/tout">Autres saveurs</a>` : ''}<a class="btn btn-vert" href="/${esc(r.slug)}/tout">Voir les ${tous.length} prestations</a></p><p class="small center">Photos non contractuelles. Tarifs TTC.</p></section>`;
+</section>`;
   return layout(c, { title: r.seoTitre || r.titrePage || r.nom, description: r.seoDescription || r.chapo || '', body, path: '/' + r.slug, image: r.bandeauPhoto || r.photoAccueil || r.photo, bodyClass: 'sm-page',
     head: '<link rel="stylesheet" href="/vendor/maplibre5/maplibre-gl.css">', scripts: `<script src="/vendor/maplibre5/maplibre-gl.js" defer></script><script src="/js/globe.js?v=${V}" defer></script>` });
 }
