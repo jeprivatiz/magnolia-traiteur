@@ -30,7 +30,7 @@ const REGLAGES_DEFAUT = {
   mentionPied: 'Paris & Île-de-France · Le Traiteur Antillais est un département de Magnolia Traiteur',
   accueil: {
     surtitre: 'L’art de recevoir, signé Magnolia',
-    titre: 'Vos plus beaux moments ont du goût',
+    titre: 'Vos plus beaux moments\nont du goût',
     sousTitre: 'Traiteur, animations et lieux de réception, à Paris et en Île-de-France.',
     videos: [
       { src: '/site/v/italien-boucle.mp4', poster: '/site/v/italien-boucle.jpg', titre: 'Buffet italien', lien: '/saveurs-du-monde/buffet-italien-entree-plat-dessert' },
@@ -39,7 +39,7 @@ const REGLAGES_DEFAUT = {
     ],
     chiffres: [
       { valeur: '4,9/5', label: 'sur Google, plus de 800 avis' },
-      { valeur: '377', label: 'prestations en ligne, prix TTC' },
+      { valeur: '377', label: 'prestations en ligne' },
       { valeur: '7 j/7', label: 'livraison en Île-de-France' },
       { valeur: '1 seule', label: 'demande pour tout votre événement' },
     ],
@@ -190,6 +190,18 @@ async function importerAvisAncienSite(store, { log = console, fichier = path.joi
 
 /* Sous-rubriques (« spécialités ») d'un univers : Saveurs du monde → Paëlla, Libanais, Chinois…
    Créées une seule fois au démarrage, avec un premier classement des prestations ; tout se règle ensuite dans le back-office. */
+/* textes des pages d'atterrissage des spécialités (modifiables dans le back-office) : [titre de la page, texte du bandeau] */
+const SPE_TEXTES = {
+  'paella-party': ['Paëlla party à Paris et en Île-de-France', 'La paëlla géante cuisinée devant vos invités ou livrée prête à servir : royale, poulet chorizo, fruits de mer ou végétarienne. Prix TTC par personne, devis gratuit.'],
+  'buffet-libanais': ['Buffet libanais à Paris et en Île-de-France', 'Mezzés froids et chauds, grillades et douceurs orientales, préparés dans notre laboratoire et livrés 7 jours sur 7. Prix TTC, devis gratuit.'],
+  'buffet-chinois': ['Buffet chinois à Paris et en Île-de-France', 'Bouchées vapeur, nems, plats sautés et desserts asiatiques pour vos réceptions, livrés prêts à servir. Prix TTC, devis gratuit.'],
+  'buffet-africain': ['Buffet africain à Paris et en Île-de-France', 'Mafé, yassa, poulet braisé, alloco et accras : les saveurs d’Afrique pour vos fêtes et mariages. Prix TTC, devis gratuit.'],
+  'couscous-party': ['Couscous party à Paris et en Île-de-France', 'Couscous royal, tajines et pâtisseries orientales, servis à volonté pour vos grandes tablées. Prix TTC par personne, devis gratuit.'],
+  'buffet-italien': ['Buffet italien à Paris et en Île-de-France', 'Antipasti, pâtes fraîches, pizzas, burrata et tiramisu : l’Italie généreuse pour vos événements. Prix TTC, devis gratuit.'],
+  'buffet-antillais': ['Buffet antillais à Paris et en Île-de-France', 'Accras, boudins créoles, colombo, rougail et punchs : la cuisine des îles par Le Traiteur Antillais. Prix TTC, devis gratuit.'],
+  'buffet-indien': ['Buffet indien à Paris et en Île-de-France', 'Samoussas, currys, biryani, naans et lassis : un buffet parfumé pour vos réceptions. Prix TTC, devis gratuit.'],
+  'specialites-japonaises': ['Sushis et buffet japonais à Paris et en Île-de-France', 'Plateaux de sushis, makis, california et brochettes yakitori, livrés frais pour vos cocktails. Prix TTC, devis gratuit.'],
+};
 const SOUS_DEFAUT = {
   'saveurs-du-monde': [
     { slug: 'paella-party', nom: 'Paëlla party', pays: 'Espagne', photo: '/site/c/paella-royale/client-1.webp.webp', mots: ['paella'] },
@@ -216,6 +228,56 @@ function classerSous(produits, sous) {
   }
   return res;
 }
+const RANGEMENTS = [['buffets', 'Nos buffets'], ['entrees', 'Nos entrées à l’unité'], ['plats', 'Nos plats à l’unité'], ['desserts', 'Nos desserts à l’unité'], ['divers', 'Produits divers à l’unité']];
+/* section automatique d'une prestation (modifiable dans sa fiche) */
+function rangementDe(p) {
+  if (RANGEMENTS.some(([k]) => k === p.rangement)) return p.rangement;
+  const t = String(p.titre || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  if ((p.groupes || []).length || /^(buffet|paella|couscous|plateau japonais)/.test(t)) return 'buffets';
+  if (/pack|animation|piment|wrap|club sandwich|coffret (antillais|chinois|libanais|italien)/.test(t)) return 'divers';
+  if (/fruit|gateau|flan|sorbet|blanc manger|puff puff|patisserie|mochi|perles coco|litchi|dessert|tiramisu|baklava|corbeille|mahalabia|maamoul|gulab|halwa|kheer|panna cotta/.test(t)) return 'desserts';
+  if (/acras|samoussa|boudin|bokit|pate antillais|pastel|toast|avocat|salade|chiquetaille|achard|feroce|crabe farci|assortiment d.entrees|nems|bouchee|ravioli|hacao|brochette|houmous|taboule|falafel|moutabal|fattouch|kebbe|feuille|rakakat|sambousek|pakora|bhaji|onion|entree/.test(t)) return 'entrees';
+  if (/riz|alloco|attieke|foutou|ablo|placali|thiebou|mijote|soupe|ndole|yassa|saka|tripes|kedjenou|mafe|curry|poulet|niebe|gratin|assiette|plat|canard|porc|crevettes|boulettes|nouilles|agneau|boeuf|kefta|chich|tikka|massala|biryani|naan|dal|legumes/.test(t)) return 'plats';
+  return 'divers';
+}
+
+/* Spécialités en sections (Nos buffets, entrées, plats, desserts, divers à l'unité) : pour chaque spécialité qui n'a pas encore
+   de produits à l'unité, une fiche par plat de ses menus (photos du brouillon). Prix à compléter : « Sur devis ». */
+const TITRES_SECTIONS = { 'paella-party': { buffets: 'Nos paëllas' }, 'couscous-party': { buffets: 'Nos couscous' }, 'specialites-japonaises': { buffets: 'Nos plateaux' } };
+async function initUniteSpecialites(store, log) {
+  const r = await store.get('rubriques/saveurs-du-monde');
+  if (!r || r.uniteInit || !(r.sous || []).length) return;
+  const prods = (await store.list('produits')).map(d => ({ id: d.id, ...d.data }));
+  const RANG = { entrees: 'entrees', mezzes: 'entrees', brochettes: 'entrees', salades: 'entrees', plats: 'plats', accompagnements: 'plats', desserts: 'desserts' };
+  const UNITE = { entrees: ['pièce', 20], mezzes: ['portion', 10], brochettes: ['brochette', 10], salades: ['portion', 10], plats: ['portion', 10], accompagnements: ['portion', 10], desserts: ['pièce', 10] };
+  const vus = new Set(prods.map(p => p.slug)); let ordre = Math.max(0, ...prods.map(p => p.ordre || 0)) + 1, n = 0;
+  for (const x of r.sous) {
+    const dans = prods.filter(p => p.sous === x.slug);
+    const buffets = dans.filter(p => (p.groupes || []).length);
+    if (!buffets.length) continue;
+    const unites = dans.filter(p => !(p.groupes || []).length);
+    const deja = new Set(unites.map(p => slugify(p.titre)));
+    const mot = x.slug.split('-').pop();
+    for (const g0 of Object.keys(RANG)) {
+      const opts = new Map();
+      if (unites.filter(p => rangementDe(p) === RANG[g0]).length >= 3) continue; // cette section a déjà ses produits à l'unité
+      for (const b of buffets) for (const g of b.groupes || []) if (g.id === g0) for (const o of g.options || []) if (!opts.has(o.label)) opts.set(o.label, o);
+      for (const o of opts.values()) {
+        const titre = g0 === 'brochettes' && !/^brochette/i.test(o.label) ? 'Brochettes ' + o.label.charAt(0).toLowerCase() + o.label.slice(1) : o.label;
+        const slug = slugify(titre + ' ' + mot);
+        if (vus.has(slug) || deja.has(slugify(titre))) continue; vus.add(slug);
+        const [unite, min] = UNITE[g0];
+        await store.set('produits/' + slug, { id: slug, slug, rubrique: 'saveurs-du-monde', autresRubriques: [], sous: x.slug, rangement: RANG[g0], titre, prixCents: null, unite, min, extrait: `${titre} : préparé par notre chef et livré prêt à servir.`, description: [], photos: (o.photos || []).slice(0, 1).map(src => ({ src, alt: titre })), video: null, groupes: [], variantes: [], sections: [], details: [], regles: { personnel: 'service', packs: true }, ordre: ordre++, statut: 'visible', maison: true, tva: 10, allergenes: [], aCompleter: true });
+        n++;
+      }
+    }
+  }
+  const cof = prods.find(p => p.slug === 'coffret-chinois-aux-neuf-saveurs');
+  if (cof && !cof.sous) await store.set('produits/' + cof.id, { ...cof, autresRubriques: [...new Set([...(cof.autresRubriques || []), 'saveurs-du-monde'])], sous: 'buffet-chinois', rangement: 'divers' });
+  const sous = r.sous.map(x => ({ ...x, parSections: true, titresSections: { ...(TITRES_SECTIONS[x.slug] || {}), ...(x.titresSections || {}) } }));
+  await store.set('rubriques/saveurs-du-monde', { ...r, sous, chinoisUnite: true, uniteInit: true });
+  if (n) log.log?.(`[demarrage] ${n} plats à l'unité créés dans les spécialités (prix à compléter)`);
+}
 async function initSousRubriques(store, { log = console } = {}) {
   let n = 0;
   for (const [rub, defs] of Object.entries(SOUS_DEFAUT)) {
@@ -228,6 +290,14 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('rubriques/' + rub, { ...r, sous, sousInit: true });
   }
   if (n) log.log?.(`[demarrage] ${n} prestations classées en spécialités`);
+  await initUniteSpecialites(store, log);
+  // une fois : textes des pages d'atterrissage, pour qu'ils apparaissent (et se modifient) dans le back-office
+  for (const d of await store.list('rubriques')) {
+    const r = d.data;
+    if (!r?.sous?.length || r.speTextes) continue;
+    const sous = r.sous.map(x => SPE_TEXTES[x.slug] ? { ...x, titrePage: x.titrePage || SPE_TEXTES[x.slug][0], chapo: x.chapo || SPE_TEXTES[x.slug][1] } : x);
+    await store.set('rubriques/' + d.id, { ...r, sous, speTextes: true });
+  }
 }
 
-module.exports = { initSousRubriques, classerSous, SOUS_DEFAUT, importerAvisAncienSite, dateIso, seed, REGLAGES_DEFAUT, MODELES_DEFAUT, extraireAvis };
+module.exports = { RANGEMENTS, rangementDe, SPE_TEXTES, initSousRubriques, classerSous, SOUS_DEFAUT, importerAvisAncienSite, dateIso, seed, REGLAGES_DEFAUT, MODELES_DEFAUT, extraireAvis };
