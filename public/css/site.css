@@ -193,7 +193,9 @@ section { margin: clamp(56px, 8vw, 110px) auto; }
 .chiffres span { font-size: .86rem; color: var(--gris); }
 @media (max-width: 760px) { .chiffres { grid-template-columns: 1fr 1fr; gap: 28px 12px; } }
 
+.recherche { margin-top: clamp(48px, 5vw, 72px); }
 .recherche h2 { margin-bottom: 0; }
+.recherche .sous-titre { margin: 8px 0 0; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
 .chips.center { justify-content: center; }
 .chip { display: inline-flex; align-items: center; gap: 6px; padding: 9px 16px; border-radius: 999px; border: 1px solid var(--ligne); background: var(--carte); text-decoration: none; font-size: .9rem; white-space: nowrap; transition: border-color .2s, background .2s; }

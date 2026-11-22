@@ -183,7 +183,7 @@ function home(c) {
 <div class="marquee band-vert" aria-label="Nos spécialités du monde"><div class="marquee-t">${[0, 1].map(k => (A.bandeau || []).map(t => `<span${k ? ' aria-hidden="true"' : ''}>${esc(t)}<i>✳</i></span>`).join('')).join('')}</div></div>
 <section class="chiffres wrap">${(A.chiffres || []).map(x => `<div><b>${esc(x.valeur)}</b><span>${esc(x.label)}</span></div>`).join('')}</section>
 <section class="recherche wrap">
-  <p class="eyebrow center">Entrez ou dictez votre envie</p><h2 class="center">Que recherchez-vous ?</h2>
+  <h2 class="center">Que recherchez-vous ?</h2><p class="eyebrow center sous-titre">Entrez ou dictez votre envie</p>
   <form class="bigsearch inline" action="/boutique" role="search" data-live-search>${icon.search}<input type="search" name="q" placeholder="Paëlla, DJ, huîtres, personnel…" aria-label="Que recherchez-vous ?" autocomplete="off"><button type="button" class="mic" data-dictee aria-label="Dicter ma recherche">${icon.mic}<span>Dicter</span></button></form>
   <div class="live" data-live-results></div>
   <div class="chips center">${(A.suggestions || []).map(s => `<a class="chip" href="/boutique?q=${encodeURIComponent(s)}">${esc(s)}</a>`).join('')}</div>
