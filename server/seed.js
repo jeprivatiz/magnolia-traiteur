@@ -243,9 +243,33 @@ const BANDEAUX_SPE = {
   'buffet-libanais': 'https://images.pexels.com/photos/39018407/pexels-photo-39018407.jpeg?auto=compress&cs=tinysrgb&w=2400',
   /* choix de Jean-Luc (2026-11-22, photo A) : Pexels n° 10521312, licence Pexels (usage commercial gratuit) ; voir data/credits-photos.md */
   'paella-party': 'https://images.pexels.com/photos/10521312/pexels-photo-10521312.jpeg?auto=compress&cs=tinysrgb&w=2400',
+  'buffet-antillais': '/site/c/paysages/antilles.webp',
 };
 /* prestations de l'univers Petits-déjeuners (séparé de Boissons le 2026-11-22) */
 const PDJ = /petit-d[ée]jeuner|pause caf[ée]|accueil caf[ée]/i;
+/* Buffet indien, reste de la carte du fournisseur (Jean-Luc, 2026-11-22) : [section, nom, prix d'achat TTC en centimes, unité, photo à nous (sinon photo d'ambiance)] */
+const N = '/site/c/indien-menus/';
+const CARTE_INDIEN = [
+  ['entrees', 'Soupe de lentilles (multagni)', 650], ['entrees', 'Velouté de poulet à la crème d’amande', 750], ['entrees', 'Soupe de tomates népalaise (tamatar ko)', 650],
+  ['entrees', 'Green plate', 550], ['entrees', 'Bharta mashala', 750],
+  ['entrees', 'Samossa à l’agneau', 750, 'portion', N + 'entrees-samossas-portrait-20261102.webp.webp'], ['entrees', 'Pakoras de crevettes', 950],
+  ['entrees', 'Achari murg tikka', 850], ['entrees', 'Bollywood kebab', 850], ['entrees', 'Murg malai tikka', 850], ['entrees', 'Nargisi seekh kebab', 850],
+  ['entrees', 'Battera tandoori', 1200], ['entrees', 'Gambas tandoori', 1950], ['entrees', 'Mixed grill', 2100], ['entrees', 'Chicken 65', 750], ['entrees', 'Momos', 1100],
+  ['plats', 'Poulet makhan paalak', 1300], ['plats', 'Chicken madras', 1300], ['plats', 'Butter chicken', 1300], ['plats', 'Chicken jalfrezi', 1300], ['plats', 'Chicken vindaloo', 1300], ['plats', 'Chicken karahi', 1300],
+  ['plats', 'Fish bengali', 1400], ['plats', 'Fish green mashala', 1500], ['plats', 'Prawn rajasthani', 1500], ['plats', 'Crevettes korma', 1500], ['plats', 'Gambas maison', 2100], ['plats', 'Sipi goan', 1700],
+  ['plats', 'Baigan mutton', 1500], ['plats', 'Bhuna gosht', 1500], ['plats', 'Agneau kashmiri kofta', 1500], ['plats', 'Shahi keema mattar', 1500], ['plats', 'Agneau palak', 1500], ['plats', 'Agneau rogan josh', 1500],
+  ['plats', 'Agneau vindaloo', 1500], ['plats', 'Agneau goan', 1500], ['plats', 'Agneau jalfrezi', 1500], ['plats', 'Agneau tikka mashala', 1500], ['plats', 'Traven karela', 1500],
+  ['plats', 'Côtelettes d’agneau népalaises', 1800], ['plats', 'Bhutuwa', 1800], ['plats', 'Chicken chilli', 1700], ['plats', 'Daal jhaneko', 900], ['plats', 'Daal bhaat tarkari', 1700], ['plats', 'Daal bhaat mashu', 2000],
+  ['plats', 'Chow chow végétarien', 1300], ['plats', 'Chow chow au poulet', 1500], ['plats', 'Chow chow à l’agneau', 1700], ['plats', 'Chow chow aux crevettes', 1700], ['plats', 'Chow chow royal', 1900],
+  ['plats', 'Biryani au poulet', 1500], ['plats', 'Biryani aux crevettes', 1700], ['plats', 'Biryani à l’agneau', 1600], ['plats', 'Biryani royal', 1900], ['plats', 'Biryani aux légumes', 1300],
+  ['plats', 'Baigan bhurta', 950], ['plats', 'Palak paneer', 900], ['plats', 'Mattar paneer', 900], ['plats', 'Dal tarka', 900], ['plats', 'Aloo chana mashala', 900], ['plats', 'Légumes shahi korma', 1050], ['plats', 'Mix vegetable', 950],
+  ['accompagnements', 'Riz jeera (au cumin)', 500], ['accompagnements', 'Riz mattar pulao (aux petits pois)', 500],
+  ['accompagnements', 'Naan', 250, 'pièce'], ['accompagnements', 'Cheese naan', 400, 'pièce', N + 'naan-fromage.webp.webp'], ['accompagnements', 'Cheese naan épicé', 500, 'pièce', N + 'naan-fromage.webp.webp'],
+  ['accompagnements', 'Cheese naan à l’ail', 500, 'pièce', N + 'naan-fromage.webp.webp'], ['accompagnements', 'Naan à l’ail ou aux oignons', 400, 'pièce'], ['accompagnements', 'Kashmiri naan', 450, 'pièce'],
+  ['accompagnements', 'Keema naan', 500, 'pièce'], ['accompagnements', 'Paratha', 400, 'pièce'], ['accompagnements', 'Masala kulcha', 400, 'pièce'], ['accompagnements', 'Tandoori roti (chapati)', 250, 'pièce'],
+  ['desserts', 'Salade de fruits de Goa', 650], ['desserts', 'Pista kulfi', 650], ['desserts', 'Mango kulfi', 650], ['desserts', 'Halwa maison', 450], ['desserts', 'Kheer (riz au lait indien)', 450],
+];
+const AMBIANCE_INDIEN = ['menu-client-1', 'menu-client-2', 'menu-client-3', 'menu-client-4', 'plat-seul-client-1', 'plat-seul-client-2', 'plat-seul-client-3'].map(n => N + n + '.webp.webp');
 const RANGEMENTS = [['buffets', 'Nos buffets'], ['entrees', 'Nos entrées à l’unité'], ['plats', 'Nos plats à l’unité'], ['accompagnements', 'Nos accompagnements à l’unité'], ['desserts', 'Nos desserts à l’unité'], ['divers', 'Produits divers à l’unité']];
 /* « Riz oriental : + 1,50 € HT/personne. » → « Riz oriental » (supplément d'un menu, pas un nom de plat) */
 const SUPPL = /\s*:\s*\+\s*[\d.,]+\s*€.*$/;
@@ -335,6 +359,28 @@ async function initSousRubriques(store, { log = console } = {}) {
     }
     await store.set('rubriques/saveurs-du-monde', { ...(await store.get('rubriques/saveurs-du-monde')), indienPrix: true });
     if (ni) log.log?.(`[demarrage] ${ni} prix du Buffet indien posés (achat + 30 %)`);
+  }
+  // une fois (2026-11-22, accord de Jean-Luc) : le reste de la carte indienne, prix d'achat + 30 %
+  const RC = await store.get('rubriques/saveurs-du-monde');
+  if (RC && !RC.indienCarte) {
+    const prods = (await store.list('produits')).map(d => d.data).filter(Boolean);
+    const vus = new Set(prods.map(p => p.slug)); let ordre = Math.max(0, ...prods.map(p => p.ordre || 0)) + 1, nc = 0;
+    for (const [rangement, titre, cout, unite = 'portion', photo] of CARTE_INDIEN) {
+      const slug = slugify(titre + ' indien');
+      if (vus.has(slug)) continue; vus.add(slug);
+      const src = photo || AMBIANCE_INDIEN[nc % AMBIANCE_INDIEN.length];
+      await store.set('produits/' + slug, { id: slug, slug, rubrique: 'saveurs-du-monde', autresRubriques: [], sous: 'buffet-indien', rangement, titre, prixCents: Math.ceil(cout * 1.3 / 10) * 10, coutCents: cout, unite, min: 10, extrait: `${titre} : spécialité indienne préparée par notre chef et livrée prête à servir.`, description: [], photos: [{ src, alt: titre }], photoAmbiance: !photo, video: null, groupes: [], variantes: [], sections: [], details: [], regles: { personnel: 'service', packs: true }, ordre: ordre++, statut: 'visible', maison: true, tva: 10, allergenes: [], aCompleter: false });
+      nc++;
+    }
+    // titres trop longs (« Chicken tikka massala : poulet mariné… ») : le nom en titre, la description en texte
+    for (const p of prods) {
+      if (p.rubrique !== 'saveurs-du-monde' || (p.groupes || []).length || !/\s:\s/.test(p.titre || '')) continue;
+      const [nom, ...reste] = p.titre.split(/\s:\s/); const desc = reste.join(' : ').trim();
+      if (!nom || !desc || nom.length > 60) continue;
+      await store.set('produits/' + p.id, { ...p, titre: nom.trim(), extrait: desc.charAt(0).toUpperCase() + desc.slice(1), photos: (p.photos || []).map(f => ({ ...f, alt: nom.trim() })) });
+    }
+    await store.set('rubriques/saveurs-du-monde', { ...(await store.get('rubriques/saveurs-du-monde')), indienCarte: true });
+    if (nc) log.log?.(`[demarrage] ${nc} plats indiens ajoutés (carte complète)`);
   }
   // bandeaux photo des spécialités choisis par Jean-Luc (2026-11-22) : appliqués une fois par spécialité, modifiables ensuite dans le back-office
   const RS = await store.get('rubriques/saveurs-du-monde');
