@@ -725,7 +725,10 @@ async function createApp(opts = {}) {
   app.get(['/admin', '/connexion'], (req, res) => res.set('Cache-Control', 'no-store').type('html').send(adminHtml()));
 
   /* ---------- pages du site ---------- */
-  const page = fn => wrap(async (req, res, next) => { const c = await cat.get(); const html = await fn(c, req, res, next); if (html) res.send(html); });
+  const page = fn => wrap(async (req, res, next) => { const c = await cat.get(); let html = await fn(c, req, res, next); if (html) { if (apercu(req)) { res.set('X-Robots-Tag', 'noindex').set('Cache-Control', 'no-store'); html = bandeauApercu(html, req._masque); } res.send(html); } });
+  /* « Voir la présentation sur le site » depuis le back-office : l'équipe connectée voit la page comme un client, même masquée */
+  const apercu = req => 'apercu' in req.query && (req.ctx.role === 'manager' || req.ctx.role === 'collab');
+  const bandeauApercu = (html, masque) => html.replace(/(<body[^>]*>)/, `$1<div class="apercu-bo" role="status"><span><b>Aperçu de l’équipe</b> · ${masque ? `cette page est <em>masquée</em> : les clients ne la voient pas encore` : 'voici la page telle que vos clients la voient'}</span><button type="button" onclick="window.close()">Fermer l’aperçu</button></div>`);
   app.get('/', page(c => views.home(c)));
   app.get('/boutique', page((c, req) => {
     /* plusieurs univers choisis dans le pavé de recherche de l'accueil : /boutique?u=carte-magnolia,douceurs */
@@ -760,21 +763,23 @@ async function createApp(opts = {}) {
     return views.boutique(c, { titre, liste, path: req.path, photo: liste[0]?.photos?.[0]?.src, chapo: r?.chapo || '' });
   }));
   app.get('/:rub', page((c, req, res, next) => {
-    const r = c.rubriques.find(x => x.slug === req.params.rub && x.statut !== 'masque');
+    const r = c.rubriques.find(x => x.slug === req.params.rub && (x.statut !== 'masque' || apercu(req)));
     if (!r) return next();
+    req._masque = r.statut === 'masque';
     if (views.sousVisibles(r).length) return views.pageSpecialites(c, r);
     return views.boutique(c, { intro: { titre: r.introTitre, texte: r.introTexte }, rub: r.slug, titre: r.nom, chapo: r.chapo || r.accroche, photo: r.photoAccueil || r.photo, path: '/' + r.slug, liste: c.byRub.get(r.slug), sections: views.sectionsRub(r, c.byRub.get(r.slug)) });
   }));
   app.get('/:rub/:slug', page((c, req, res, next) => {
-    const ru = c.rubriques.find(x => x.slug === req.params.rub && x.statut !== 'masque');
+    const ru = c.rubriques.find(x => x.slug === req.params.rub && (x.statut !== 'masque' || apercu(req)));
     if (ru && views.sousVisibles(ru).length) {
       if (req.params.slug === 'tout') return views.specialite(c, ru, null);
-      const x = views.sousVisibles(ru).find(y => y.slug === req.params.slug);
-      if (x) return views.specialite(c, ru, x);
+      const x = (apercu(req) ? ru.sous || [] : views.sousVisibles(ru)).find(y => y.slug === req.params.slug);
+      if (x) { req._masque = ru.statut === 'masque' || x.statut === 'masque'; return views.specialite(c, ru, x); }
     }
     const p = c.bySlug.get(req.params.slug);
     if (p && p.fusionneDans) { const q = c.bySlug.get(p.fusionneDans); if (q && q.statut !== 'masque') { res.redirect(301, `/${q.rubrique}/${q.slug}`); return; } }
-    if (!p || p.statut === 'masque') return next();
+    if (!p || (p.statut === 'masque' && !apercu(req))) return next();
+    req._masque = p.statut === 'masque';
     if (p.rubrique !== req.params.rub && !(p.autresRubriques || []).includes(req.params.rub)) { res.redirect(301, `/${p.rubrique}/${p.slug}`); return; }
     return views.produit(c, p);
   }));

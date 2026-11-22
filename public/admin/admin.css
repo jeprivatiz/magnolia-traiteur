@@ -645,3 +645,8 @@ a.qs-back { display: inline-flex; align-items: center; text-decoration: none; }
 .pliable .plibody { margin-top: 10px; }
 .pliable.ferme .plibody { display: none; }
 .prodbox { margin-top: 14px; }
+/* bouton « Voir la présentation sur le site » */
+.btn.voir-site { background: #fff8ea; color: #7a5a1c; border: 1px solid #d8b76a; }
+.btn.voir-site:hover { background: #f6e8c8; }
+.sousrow .voir-site { margin: 2px 0 8px; }
+.rubbox .bh { flex-wrap: wrap; gap: 10px; }

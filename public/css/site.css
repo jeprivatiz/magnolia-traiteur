@@ -860,3 +860,7 @@ textarea:focus, input:focus, select:focus { outline: 2px solid color-mix(in srgb
   .zl-ph.big figcaption span, .zl-ph:nth-child(4) figcaption span { display: block; }
   .zl-big { font-size: 3.4rem; }
 }
+/* bandeau « Aperçu de l'équipe » (bouton « Voir la présentation sur le site » du back-office) */
+.apercu-bo { position: sticky; top: 0; z-index: 200; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px 12px; padding: 8px 16px; background: #b8862f; color: #fff; font-size: .92rem; text-align: center; }
+.apercu-bo em { font-style: normal; text-decoration: underline; }
+.apercu-bo button { border: 1px solid rgba(255,255,255,.7); background: transparent; color: #fff; border-radius: 999px; padding: 3px 12px; cursor: pointer; font: inherit; }
