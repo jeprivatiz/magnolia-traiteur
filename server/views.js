@@ -266,7 +266,7 @@ function bandeauHtml(c, B, fil) {
 /* suggestions de recherche (petits rectangles) : texte simple ou { label, lien } ; sans lien = recherche du mot */
 const suggestions = R => (R.accueil?.suggestions || []).map(x => typeof x === 'string' ? { label: x, lien: '' } : x).filter(x => x && x.label)
   .map(x => ({ label: x.label, href: x.lien || '/boutique?q=' + encodeURIComponent(x.label) }));
-const AIDE_RECH = 'Dites un mot ou deux pour trouver ce que vous voulez. Exemples : paëlla, couscous, libanais.';
+const AIDE_RECH = 'Écrivez ou dites un mot ou deux pour trouver ce que vous voulez. Exemples : paëlla, couscous, libanais.';
 const aideRech = (R, cls = '') => { const t = R.accueil?.aideRecherche ?? AIDE_RECH; return t ? `<p class="aide-rech ${cls}">${esc(t)}</p>` : ''; };
 const suggChips = (R, cls = '') => `<div class="chips sugg ${cls}">${suggestions(R).map(x => `<a class="chip" href="${esc(x.href)}">${esc(x.label)}</a>`).join('')}</div>`;
 /* ---------- pages d'atterrissage des spécialités (publicité Google Ads) ---------- */

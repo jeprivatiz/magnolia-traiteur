@@ -224,7 +224,7 @@
       const max = g.max || opts.length;
       html += `<fieldset class="conf-g" data-g="${esc(g.id)}"${(g.variantes || []).length && (P.variantes || []).length ? ` data-var="${esc(JSON.stringify(g.variantes))}"` : ''} data-max="${max}" data-exact="${g.exact ? 1 : 0}"><legend>${esc(g.titre || 'Vos choix')} <small>${g.exact ? `${max} au choix` : max < opts.length ? `jusqu’à ${max} au choix` : 'au choix'}${g.facultatif ? ' · facultatif' : ''}</small></legend>
         ${g.aide ? `<p class="small">${esc(g.aide)}</p>` : ''}
-        <div class="opts">${opts.map(o => `<label class="opt"><input type="checkbox" value="${esc(o.id)}" data-sup="${o.supCents || 0}">${o.photos?.[0] ? `<img src="${esc(o.photos[0])}" alt="" loading="lazy">` : ''}<span>${esc(o.label)}${o.supCents ? `<small>+ ${euros(o.supCents)}</small>` : ''}${o.supDevis ? '<small>sur devis</small>' : ''}</span></label>`).join('')}</div></fieldset>`;
+        ${g.mode === 'quantites' ? `<div class="opts-q">${opts.map(o => `<label class="optq">${o.photos?.[0] ? `<img src="${esc(o.photos[0])}" alt="" loading="lazy">` : ''}<span>${esc(o.label)}</span><input type="number" min="0" step="1" inputmode="numeric" value="0" data-oq="${esc(o.id)}" data-lab="${esc(o.label)}" aria-label="Nombre : ${esc(o.label)}"></label>`).join('')}</div>` : `<div class="opts">${opts.map(o => `<label class="opt"><input type="checkbox" value="${esc(o.id)}" data-sup="${o.supCents || 0}">${o.photos?.[0] ? `<img src="${esc(o.photos[0])}" alt="" loading="lazy">` : ''}<span>${esc(o.label)}${o.supCents ? `<small>+ ${euros(o.supCents)}</small>` : ''}${o.supDevis ? '<small>sur devis</small>' : ''}</span></label>`).join('')}</div>`}</fieldset>`;
     }
     if (R.personnel && T.personnel) html += `<details class="conf-x"><summary>Personnel de service <small>facultatif · ${euros(T.personnel.heureCents)} TTC / heure</small></summary><p class="small">${T.personnel.minHeures} heures minimum par personne. Le personnel s’ajoute sur une ligne à part.</p><div class="f2"><label>Personnes<select name="pers_nb"><option value="0">Aucune</option>${[1, 2, 3, 4, 5, 6, 8, 10].map(n => `<option>${n}</option>`).join('')}</select></label><label>Heures<select name="pers_h">${[4, 5, 6, 7, 8, 9, 10, 12].map(n => `<option>${n}</option>`).join('')}</select></label></div></details>`;
     if (R.packs && (T.packs || []).length) html += `<details class="conf-x"><summary>Pack traiteur <small>facultatif · vaisselle, nappage</small></summary>${T.packs.map(pk => `<label class="radio"><input type="radio" name="pack" value="${esc(pk.id)}"><span><b>${esc(pk.label)}</b> · ${euros(pk.prixCents)} TTC / pers.<small>${esc(pk.detail)}</small></span></label>`).join('')}<label class="radio"><input type="radio" name="pack" value="" checked><span>Pas de pack</span></label></details>`;
@@ -235,7 +235,7 @@
     const read = () => {
       const qte = q ? Math.max(P.min || 1, +q.value || 0) : 1;
       let sup = 0; const choix = {}, labels = [];
-      $$('[data-g]', form).forEach(fs => { if (fs.hidden) return; const ids = $$('input:checked', fs).map(i => { sup += +i.dataset.sup; labels.push(i.parentElement.querySelector('span').firstChild.textContent); return i.value; }); if (ids.length) choix[fs.dataset.g] = ids; });
+      $$('[data-g]', form).forEach(fs => { if (fs.hidden) return; if ($('[data-oq]', fs)) { const q2 = $$('[data-oq]', fs).filter(i => +i.value > 0); if (q2.length) choix[fs.dataset.g] = q2.map(i => i.dataset.oq + ':' + Math.round(+i.value)); q2.forEach(i => labels.push(`${i.dataset.lab} × ${Math.round(+i.value)}`)); return; } const ids = $$('input:checked', fs).map(i => { sup += +i.dataset.sup; labels.push(i.parentElement.querySelector('span').firstChild.textContent); return i.value; }); if (ids.length) choix[fs.dataset.g] = ids; });
       const persNb = +(form.pers_nb?.value || 0), persH = +(form.pers_h?.value || 4);
       const pack = form.querySelector('[name=pack]:checked')?.value || '';
       let total = P.prixCents == null ? null : (P.prixCents + sup) * qte;
@@ -271,6 +271,15 @@
       for (const fs of $$('[data-g]', form)) {
         if (fs.hidden) continue;
         const g = (P.groupes || []).find(x => x.id === fs.dataset.g) || {};
+        if ($('[data-oq]', fs)) {
+          const v = $$('[data-oq]', fs).map(i => Math.max(0, Math.round(+i.value || 0))), tot = v.reduce((a, b) => a + b, 0), mn = g.minParVariete || 1, sg = g.singulier || 'choix';
+          let msg = '';
+          if (!tot) msg = `Indiquez le nombre voulu pour chaque ${sg}.`;
+          else if (v.some(x => x > 0 && x < mn)) msg = `Au moins ${mn} de chaque ${sg} choisi.`;
+          else if (tot !== r.qte) msg = `Le total de vos ${sg}s (${tot}) doit être égal à la quantité (${r.qte}).`;
+          if (msg) { toast(msg); fs.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
+          continue;
+        }
         const n = $$('input:checked', fs).length;
         if (!g.facultatif && n === 0) { toast('Choisissez au moins une option : ' + (g.titre || '')); fs.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
         if (g.exact && n !== +fs.dataset.max) { toast(`Choisissez exactement ${fs.dataset.max} options : ${g.titre || ''}`); fs.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }

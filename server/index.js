@@ -199,7 +199,7 @@ async function createApp(opts = {}) {
       const p = c.bySlug.get(s(l.slug, 120));
       const est = estimerLigne(l, p, T);
       const choix = {};
-      for (const g of p?.groupes || []) { const ids = (l.choix?.[g.id] || []).filter(id => (g.options || []).some(o => o.id === id)).slice(0, 30); if (ids.length) choix[g.id] = ids; }
+      for (const g of p?.groupes || []) { const ids = (l.choix?.[g.id] || []).filter(id => (g.options || []).some(o => o.id === String(id).replace(/:\d+$/, ''))).slice(0, 30); if (ids.length) choix[g.id] = ids; }
       return {
         slug: p ? p.slug : s(l.slug, 120), titre: p ? p.titre : s(l.titre, 160), rubrique: p?.rubrique || s(l.rubrique, 60), unite: p?.unite || s(l.unite, 40),
         qte: est.qte, prixCents: p?.prixCents ?? null, supCents: est.supCents, totalCents: est.totalCents, surDevis: est.surDevis,

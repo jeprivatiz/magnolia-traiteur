@@ -473,6 +473,30 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('rubriques/saveurs-du-monde', { ...RI2, sous });
   }
 
+  /* phrase d'aide de la recherche (Jean-Luc, 2026-11-22) : « Écrivez ou dites… » ; une fois, si elle avait été enregistrée */
+  const RAi = await store.get('site/reglages');
+  if (RAi && !RAi.aideEcrivez) {
+    const a = RAi.accueil?.aideRecherche;
+    const accueil = typeof a === 'string' && a.startsWith('Dites un mot') ? { ...RAi.accueil, aideRecherche: 'Écrivez ou d' + a.slice(1) } : RAi.accueil;
+    await store.set('site/reglages', { ...RAi, ...(accueil ? { accueil } : {}), aideEcrivez: true });
+  }
+
+  /* Lassi (buffet indien) : nouvelle photo sans texte et choix des parfums, au moins 5 par parfum (Jean-Luc, 2026-11-22). Une fois. */
+  for (const d of await store.list('produits')) {
+    const x = d.data;
+    if (!x || x.lassiParfums || !/^lassi\b/i.test(x.titre || '')) continue;
+    await store.set('produits/' + d.id, {
+      ...x,
+      titre: 'Lassi : boisson traditionnelle au yaourt',
+      extrait: 'Boisson indienne fraîche au yaourt, au parfum de votre choix : fraise, vanille ou banane.',
+      photos: [{ src: PHOTO_LASSI, alt: 'Lassi' }],
+      groupes: [{ id: 'parfums', titre: 'Vos parfums', singulier: 'parfum', mode: 'quantites', minParVariete: 5, facultatif: false,
+        aide: 'Indiquez le nombre de lassis pour chaque parfum : au moins 5 par parfum choisi. Exemple pour 10 : 5 fraise et 5 banane, ou 10 vanille.',
+        options: ['Fraise', 'Vanille', 'Banane'].map(l => ({ id: l.toLowerCase(), label: l, supCents: 0 })) }],
+      lassiParfums: true,
+    });
+  }
+
   /* photos des vignettes « Nos univers » choisies par Jean-Luc (2026-11-22, sources dans data/credits-photos.md).
      Appliquées une fois par univers : modifiables ensuite dans le back-office. */
   const RV = await store.get('site/reglages');
@@ -493,6 +517,8 @@ const INTROS_SPE = {
   'buffet-libanais': ['Le Liban, l’art de recevoir à partager',
     'Au Liban, un bon repas se partage : on pose les mezzés au milieu de la table et chacun se sert. Houmous onctueux, moutabal fumé, taboulé bien frais, falafels croustillants et petits feuilletés chauds ouvrent le bal, avant les grillades marinées et les douceurs orientales.\nTout est préparé dans notre laboratoire avec des produits frais, puis livré prêt à servir pour votre soirée, votre séminaire ou votre mariage. Une cuisine généreuse et colorée, qui met tout le monde d’accord, végétariens compris.'],
 };
+/* lassi sans texte incrusté (Pexels 18142603, licence Pexels) */
+const PHOTO_LASSI = 'https://images.pexels.com/photos/18142603/pexels-photo-18142603.jpeg?auto=compress&cs=tinysrgb&w=1200';
 const pexels = id => `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&w=1600`;
 const VIGNETTES_UNIVERS = {
   'traiteur-vegetarien-vegan': pexels(41063196),

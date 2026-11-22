@@ -72,7 +72,7 @@ function estimerLigne(l, p, tarifs = {}) {
   let sup = 0;
   for (const g of p?.groupes || []) {
     const choisis = (l.choix?.[g.id] || []);
-    for (const id of choisis) { const o = (g.options || []).find(x => x.id === id); if (o?.supCents) sup += o.supCents; }
+    for (const id of choisis) { const [oid, n] = String(id).split(':'); const o = (g.options || []).find(x => x.id === oid); if (o?.supCents) sup += n ? Math.round(o.supCents * n / qte) : o.supCents; }
   }
   let total = base == null ? 0 : (base + sup) * qte;
   if (l.personnel?.nb) total += (tarifs.personnel?.heureCents || 4188) * l.personnel.nb * Math.max(tarifs.personnel?.minHeures || 4, l.personnel.heures || 0);
