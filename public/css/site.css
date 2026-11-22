@@ -629,3 +629,6 @@ textarea:focus, input:focus, select:focus { outline: 2px solid color-mix(in srgb
 @media (max-width: 760px) { .pave input[type=number] { padding: 0 !important; } }
 .pave input[type=number]::-webkit-inner-spin-button, .pave input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 .pave input::placeholder { color: #b3b6b2; opacity: 1; }
+
+/* espace entre un grand bandeau photo et la section qui le suit (ex. « Un voyage à votre table ») */
+.apres-bandeau { padding-top: clamp(40px, 5vw, 60px); }
