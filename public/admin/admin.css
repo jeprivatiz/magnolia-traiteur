@@ -365,3 +365,7 @@ details[open] summary { margin-bottom: 12px; }
 .landbox[open] summary { margin-bottom: 10px; }
 .landf { display: grid; grid-template-columns: minmax(140px, 200px) 1fr; gap: 14px; }
 @media (max-width: 760px) { .landf { grid-template-columns: 1fr; } }
+
+.stylev { max-width: 360px; margin: 6px 0 12px; }
+.sousf { grid-template-columns: 1fr 1fr 1fr 140px; }
+@media (max-width: 760px) { .sousf { grid-template-columns: 1fr; } }
