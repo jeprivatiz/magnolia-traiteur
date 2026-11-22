@@ -591,6 +591,14 @@ async function initSousRubriques(store, { log = console } = {}) {
     }
   }
 
+  /* vraies photos à la place des photos qui font « IA » (Jean-Luc, 2026-11-22) : posées une fois par fiche et par version,
+     modifiables ensuite dans le back-office. Sources dans data/credits-photos-univers.md. */
+  for (const [slug, ver, photos] of VRAIES_PHOTOS) {
+    const x = await store.get('produits/' + slug);
+    if (!x || (x.vraiesPhotos || []).includes(ver)) continue;
+    await store.set('produits/' + slug, { ...x, photos: photos.map(([src, alt]) => ({ src, alt })), vraiesPhotos: [...(x.vraiesPhotos || []), ver] });
+  }
+
   /* photos des vignettes « Nos univers » choisies par Jean-Luc (2026-11-22, sources dans data/credits-photos.md).
      Appliquées une fois par univers : modifiables ensuite dans le back-office. */
   const RV = await store.get('site/reglages');
@@ -627,6 +635,11 @@ const DOUBLONS = [
   ['corbeille-de-fruits-de-saison-9-kg', 'corbeille-de-fruits-de-saison-9-kg-antilles'],
 ];
 /* [titre, photo, texte alternatif] ; sources dans data/credits-photos-univers.md */
+/* [fiche, version, [[photo, description]…]] */
+const VRAIES_PHOTOS = [
+  ['samoussa-legumes', 'v1', [['https://images.pexels.com/photos/9027521/pexels-photo-9027521.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Samoussas aux légumes croustillants, chutneys vert et tamarin']]],
+  ['samoussas-legumes', 'v1', [['https://images.pexels.com/photos/4449068/pexels-photo-4449068.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Samoussas aux légumes dorés dans une corbeille, sauces à côté']]],
+];
 const PHOTOS_FICHES = [
   [/^air hockey/i, 'https://images.pexels.com/photos/5780929/pexels-photo-5780929.jpeg?auto=compress&cs=tinysrgb&w=1200', 'Table d’air hockey lumineuse'],
 ];
