@@ -11,6 +11,9 @@ const { slugify } = require('./util');
 const DATA = path.join(__dirname, '..', 'data');
 
 /* TVA : 10 % restauration à emporter / livrée, 20 % services, boissons alcoolisées, matériel et lieux */
+/* boissons alcoolisées : 20 % ; le reste des boissons et la nourriture : 10 % */
+const ALCOOL = /champagne|\bvins?\b|cave|bi[eè]re|open ?bars?|alcool|cidre|whisk|rhum|punch|spritz|mojito|sangria|cr[eé]mant|prosecco|bordeaux|ch[aâ]teau|cuv[ée]e|ros[ée]\b|chardonnay|chablis|\bcru\b|bourgogne|c[oô]tes? d|gris de|shots?|cocktails?/i;
+const tvaProduit = p => (p.rubrique === 'boissons' && ALCOOL.test(p.titre) && !/softs?|caf[ée]|d[ée]jeuner|gla[cç]ons/i.test(p.titre)) ? 20 : (TVA_RUBRIQUE[p.rubrique] || 10);
 const TVA_RUBRIQUE = { 'personnel': 20, 'musique-animations': 20, 'lieux': 20, 'indispensables': 20 };
 
 const REGLAGES_DEFAUT = {
@@ -117,7 +120,7 @@ async function seed(store, { force = false, log = console } = {}) {
     const id = p.slug;
     await store.set('produits/' + id, {
       ...p, url: undefined, id, ordre: i++, statut: 'visible', maison: true,
-      tva: TVA_RUBRIQUE[p.rubrique] || 10, coutCents: null, allergenes: [], updatedAt: now,
+      tva: tvaProduit(p), coutCents: null, allergenes: [], updatedAt: now,
     });
   }
   let j = 0;

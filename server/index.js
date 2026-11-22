@@ -13,6 +13,7 @@ const { createBrevo, isEmail } = require('./brevo');
 const { createCatalogue } = require('./catalogue');
 const { seed } = require('./seed');
 const views = require('./views');
+const { preparerAlerte } = require('./relances');
 const { totaux, controleMarge, prochainNumero, lignesDepuisDemande, estimerLigne } = require('./devis');
 const { rid, sha, esc, euros, limiter, dateFr, slugify } = require('./util');
 
@@ -289,6 +290,12 @@ async function createApp(opts = {}) {
     await store.set('devis/' + d.id, next);
     if (d.demandeId) await changerStatut(d.demandeId, accepte ? 'accord' : 'refuse', 'client (en ligne)');
     const t = totaux(d);
+    if (accepte) {
+      const cl = await store.get('clients/' + d.clientId); const R = (await cat.get()).reglages;
+      if (cl?.email) brevo.sendEmail({ to: cl.email, name: cl.nom, replyTo: R.email, subject: `Magnolia Traiteur : votre devis ${d.numero} est signé`,
+        html: `<p>Bonjour ${esc((cl.nom || '').split(' ')[0])},</p><p>Merci pour votre confiance ! Votre devis ${esc(d.numero)} (${euros(t.ttcCents)} TTC) est bien signé.</p><p>Pour réserver définitivement votre date, il reste à régler l’acompte : <a href="${SITE}/devis/${d.token}">voir le devis et payer l’acompte</a>.</p><p>À très vite,<br>L’équipe Magnolia Traiteur<br>${esc(R.telephone)}</p>`,
+        text: `Votre devis ${d.numero} est signé. Acompte : ${SITE}/devis/${d.token}` }).catch(e => log.error?.(e));
+    }
     alerterEquipe(`Devis ${d.numero} ${accepte ? 'SIGNÉ' : 'refusé'} par le client`, `<p>Le devis ${esc(d.numero)} (${euros(t.ttcCents)} TTC) a été ${accepte ? 'signé en ligne par <b>' + esc(nom) + '</b>' : 'refusé'}.</p><p><a href="${SITE}/admin#/devis/${d.id}">Ouvrir</a></p>`, `Magnolia : devis ${d.numero} ${accepte ? 'signé' : 'refusé'}`).catch(() => {});
     res.json({ ok: true });
   }));
@@ -304,6 +311,19 @@ async function createApp(opts = {}) {
     if (!d || d.statut === statut) return;
     await store.set('demandes/' + demandeId, { ...d, statut, historique: [...(d.historique || []), { at: new Date().toISOString(), statut, par }] });
   }
+
+  /* avis déposé par un client : publié seulement après relecture de l'équipe */
+  app.post('/api/avis', sameSite, json, wrap(async (req, res) => {
+    if (!publicWrites(req.ip)) return res.status(429).json({ error: 'Trop d’envois. Réessayez plus tard.' });
+    const b = req.body || {};
+    if (b.site) return res.json({ ok: true }); /* robot */
+    const avis = { auteur: s(b.auteur, 80), email: s(b.email, 160).toLowerCase(), evenement: s(b.evenement, 40), note: Math.min(5, Math.max(1, +b.note | 0 || 5)), texte: s(b.texte, 1500), statut: 'attente', source: 'site', ordre: 99, createdAt: new Date().toISOString() };
+    if (!avis.auteur || !isEmail(avis.email) || avis.texte.length < 20) return res.status(400).json({ error: 'Merci d’indiquer votre prénom, votre e-mail et quelques phrases (20 caractères minimum).' });
+    const id = 'a_' + rid(8);
+    await store.set('avis/' + id, avis);
+    alerterEquipe(`Nouvel avis à relire : ${avis.note}/5 de ${avis.auteur}`, `<p><b>${'★'.repeat(avis.note)}</b> ${esc(avis.auteur)} (${esc(avis.evenement)})</p><blockquote>${esc(avis.texte)}</blockquote><p><a href="${SITE}/admin#/avis">Publier ou masquer dans le back-office</a></p>`, `Magnolia : nouvel avis ${avis.note}/5 de ${avis.auteur} à relire.`).catch(e => log.error?.(e));
+    res.json({ ok: true });
+  }));
 
   /* ---------- connexion de l'équipe ---------- */
   app.post('/api/auth/login', sameSite, json, wrap(async (req, res) => {
@@ -321,6 +341,36 @@ async function createApp(opts = {}) {
   app.post('/api/auth/logout', sameSite, wrap(async (req, res) => {
     if (req.ctx.session) await store.delete('_sessions/' + req.ctx.session);
     setCookie(res, 'mg_s', '', 0);
+    res.json({ ok: true });
+  }));
+  /* mot de passe oublié : lien valable 1 heure, envoyé par e-mail ; même réponse que le compte existe ou non */
+  app.post('/api/auth/forgot', sameSite, json, wrap(async (req, res) => {
+    const email = s(req.body?.email, 160).toLowerCase();
+    if (!loginTries('oubli|' + req.ip)) return res.status(429).json({ error: 'Trop de demandes. Réessayez dans 15 minutes.' });
+    const u = isEmail(email) ? await findUserByEmail(email) : null;
+    if (u && !u.disabled) {
+      const tok = rid(32);
+      await store.set('_resets/' + sha(tok), { userId: u.id, expires: Date.now() + 3600e3 });
+      const lien = `${SITE}/connexion#reset=${tok}`;
+      await brevo.sendEmail({ to: email, name: u.name, subject: 'Magnolia : choisir un nouveau mot de passe',
+        html: `<p>Bonjour,</p><p>Pour choisir un nouveau mot de passe du back-office Magnolia, ouvrez ce lien (valable 1 heure) :</p><p><a href="${lien}">Choisir mon mot de passe</a></p><p>Si vous n’avez rien demandé, ignorez ce message.</p>`,
+        text: `Nouveau mot de passe (lien valable 1 heure) : ${lien}` });
+      audit({ uid: u.id, name: u.name }, 'mot de passe oublié : lien envoyé', '');
+    }
+    res.json({ ok: true });
+  }));
+  app.post('/api/auth/reset', sameSite, json, wrap(async (req, res) => {
+    const tok = s(req.body?.token, 80);
+    const r = tok ? await store.get('_resets/' + sha(tok)) : null;
+    if (!r || r.expires < Date.now()) return res.status(400).json({ error: 'Ce lien a expiré. Redemandez-en un.' });
+    if (String(req.body?.password || '').length < 10) return res.status(400).json({ error: 'Mot de passe : 10 caractères minimum.' });
+    const u = await store.get('_users/' + r.userId);
+    if (!u || u.disabled) return res.status(400).json({ error: 'Compte désactivé.' });
+    await store.set('_users/' + r.userId, { ...u, passHash: await bcrypt.hash(String(req.body.password), 11) });
+    await store.delete('_resets/' + sha(tok));
+    /* toutes les anciennes connexions de ce compte sont fermées */
+    for (const d of await store.list('_sessions')) if (d.data?.userId === r.userId) await store.delete('_sessions/' + d.id);
+    audit({ uid: r.userId, name: u.name }, 'mot de passe réinitialisé', '');
     res.json({ ok: true });
   }));
   app.get('/api/session', (req, res) => res.set('Cache-Control', 'no-store').json({ connecte: isTeam(req), role: req.ctx.role, nom: req.ctx.name || '', email: req.ctx.email || '' }));
@@ -569,6 +619,62 @@ async function createApp(opts = {}) {
     audit(req.ctx, 'compte modifié', '_users/' + req.params.id, u.email);
     res.json({ ok: true });
   }));
+  /* essai d'envoi : un e-mail à la personne connectée, et un SMS si un numéro est donné */
+  A.post('/actions/envoi-test', sameSite, json, wrap(async (req, res) => {
+    const u = await store.get('_users/' + req.ctx.uid);
+    if (!u?.email) return res.status(400).json({ error: 'Compte sans e-mail.' });
+    await brevo.sendEmail({ to: u.email, name: u.name, subject: 'Magnolia : e-mail d’essai', html: '<p>Bonjour,</p><p>Ceci est un e-mail d’essai envoyé depuis le back-office Magnolia. S’il est arrivé, les e-mails partent bien.</p>', text: 'E-mail d’essai du back-office Magnolia.' });
+    const tel = s(req.body?.tel, 30);
+    if (tel) await brevo.sendSms({ to: tel, content: 'Magnolia : SMS d’essai envoyé depuis le back-office.' });
+    audit(req.ctx, 'envoi d’essai', '', tel ? 'e-mail + SMS' : 'e-mail');
+    res.json({ ok: true, live: brevo.live, email: u.email });
+  }));
+  /* ---------- Excel : export (CSV « ; » lisible par Excel en français) et mise à jour des prix ---------- */
+  const csv = (rows) => '\ufeff' + rows.map(r => r.map(v => { const x = v == null ? '' : String(v); return /[;"\n\r]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; }).join(';')).join('\r\n');
+  const eurCsv = c => c == null ? '' : (c / 100).toFixed(2).replace('.', ',');
+  A.get('/actions/export/:quoi', wrap(async (req, res) => {
+    const q = req.params.quoi; let rows;
+    if (q === 'catalogue') {
+      const c = await cat.get(); const rubs = new Map(c.rubriques.map(r => [r.slug, r.nom]));
+      rows = [['Code (ne pas modifier)', 'Prestation', 'Rubrique', 'Prix TTC (€)', 'Par', 'Minimum', 'Coût de revient TTC (€)', 'TVA %', 'Statut (visible / masque)', 'Maison (oui / non)'],
+        ...c.produits.map(p => [p.slug, p.titre, rubs.get(p.rubrique) || p.rubrique, eurCsv(p.prixCents), p.unite || '', p.min || '', eurCsv(p.coutCents), p.tva ?? '', p.statut || 'visible', p.maison ? 'oui' : 'non'])];
+    } else if (q === 'demandes') {
+      rows = [['Réf.', 'Reçue le', 'Type', 'Nom', 'Société', 'E-mail', 'Téléphone', 'Événement', 'Date', 'Invités', 'Code postal', 'Ville', 'Estimé TTC (€)', 'Étape'],
+        ...(await store.list('demandes')).map(d => d.data).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).map(d => [d.ref, String(d.createdAt || '').slice(0, 10), d.type, d.contact?.nom, d.contact?.societe, d.contact?.email, d.contact?.tel, d.evenement?.type || d.sujet, d.evenement?.date, d.evenement?.invites, d.evenement?.cp, d.evenement?.ville, eurCsv(d.totalEstimeCents), d.statut])];
+    } else if (q === 'clients') {
+      rows = [['Nom', 'Société', 'E-mail', 'Téléphone', 'Adresse', 'Créé le', 'Dernière activité', 'Source'],
+        ...(await store.list('clients')).map(d => d.data).map(c => [c.nom, c.societe, c.email, c.tel, c.adresse, String(c.creeLe || '').slice(0, 10), String(c.derniereActivite || '').slice(0, 10), c.source])];
+    } else if (q === 'devis' || q === 'factures') {
+      const docs = (await store.list(q)).map(d => d.data);
+      rows = [[q === 'devis' ? 'N° devis' : 'N° facture', 'Client', 'Date', 'Total TTC (€)', 'Total HT (€)', 'Marge (€)', 'Statut'],
+        ...docs.map(d => { const t = totaux(d); return [d.numero, d.clientNom || d.client?.nom, String(d.envoyeLe || d.date || d.createdAt || '').slice(0, 10), eurCsv(q === 'factures' ? d.totalCents ?? t.ttcCents : t.ttcCents), eurCsv(t.htCents), eurCsv(t.margeCents), q === 'factures' ? (d.payee ? 'payée' : 'à encaisser') : d.statut]; })];
+    } else return res.status(404).json({ error: 'Export inconnu.' });
+    audit(req.ctx, 'export Excel', '', q);
+    res.set('Content-Disposition', `attachment; filename="magnolia-${q}-${new Date().toISOString().slice(0, 10)}.csv"`).type('text/csv; charset=utf-8').send(csv(rows));
+  }));
+  /* mise à jour par fichier : seules les colonnes prix, minimum, coût, TVA, statut et maison sont reprises ; jamais de création ni de suppression */
+  A.post('/actions/import-catalogue', sameSite, express.json({ limit: '2mb' }), manager, wrap(async (req, res) => {
+    const lignes = Array.isArray(req.body?.lignes) ? req.body.lignes.slice(0, 2000) : [];
+    const cents = v => { const x = String(v ?? '').replace(/\s|€/g, '').replace(',', '.'); if (x === '') return null; const n = Math.round(parseFloat(x) * 100); return Number.isFinite(n) && n >= 0 ? n : undefined; };
+    let maj = 0; const erreurs = [];
+    for (const [i, l] of lignes.entries()) {
+      const slug = String(l.code || '').trim(); if (!slug) continue;
+      const p = await store.get('produits/' + slug);
+      if (!p) { erreurs.push(`Ligne ${i + 2} : code « ${slug} » inconnu.`); continue; }
+      const prix = cents(l.prix), cout = cents(l.cout);
+      if (prix === undefined || cout === undefined) { erreurs.push(`Ligne ${i + 2} : montant illisible.`); continue; }
+      const next = { ...p, prixCents: prix, coutCents: cout };
+      if (l.min !== undefined && String(l.min).trim() !== '') next.min = Math.max(1, parseInt(l.min, 10) || 1);
+      if ([5.5, 10, 20].includes(parseFloat(String(l.tva || '').replace(',', '.')))) next.tva = parseFloat(String(l.tva).replace(',', '.'));
+      if (['visible', 'masque'].includes(String(l.statut || '').trim().toLowerCase())) next.statut = String(l.statut).trim().toLowerCase();
+      if (['oui', 'non'].includes(String(l.maison || '').trim().toLowerCase())) next.maison = String(l.maison).trim().toLowerCase() === 'oui';
+      if (prix != null && cout != null && prix < cout) { erreurs.push(`Ligne ${i + 2} (${p.titre}) : prix sous le coût, ligne ignorée.`); continue; }
+      if (JSON.stringify(next) !== JSON.stringify(p)) { await store.set('produits/' + slug, { ...next, updatedAt: new Date().toISOString() }); maj++; }
+    }
+    cat.invalidate();
+    audit(req.ctx, 'catalogue mis à jour par fichier', 'produits', maj + ' prestation(s)');
+    res.json({ ok: true, maj, erreurs });
+  }));
   A.get('/actions/journal', wrap(async (req, res) => {
     const rows = (await store.list('_audit')).map(d => d.data).sort((a, b) => a.n - b.n);
     let prev = '0'.repeat(64), intact = true;
@@ -654,6 +760,20 @@ async function createApp(opts = {}) {
     if (req.path.startsWith('/api')) return res.status(500).json({ error: 'Erreur du serveur. Réessayez.' });
     res.status(500).send('<p style="font-family:sans-serif;padding:2em">Une erreur est survenue. Réessayez dans un instant, ou appelez le 07 63 66 98 92.</p>');
   });
+
+  /* alerte 24 h : vérifiée chaque heure, envoyée seulement de 8 h à 20 h (heure de Paris) */
+  async function alerte24h(now = Date.now()) {
+    const h = +new Intl.DateTimeFormat('fr-FR', { hour: 'numeric', hour12: false, timeZone: 'Europe/Paris' }).format(new Date(now));
+    if (h < 8 || h >= 20) return null;
+    const a = await preparerAlerte(store, { site: SITE, esc }, now);
+    if (a) { await alerterEquipe(a.sujet, a.html, a.sms); log.log?.(`[alerte 24 h] ${a.demandes} demande(s), ${a.devis} devis`); }
+    return a;
+  }
+  app.locals.alerte24h = alerte24h;
+  if (!opts.noTimers && env.JP_NO_TIMERS !== '1') {
+    setTimeout(() => alerte24h().catch(e => log.error?.('[alerte 24 h]', e)), 60e3).unref();
+    setInterval(() => alerte24h().catch(e => log.error?.('[alerte 24 h]', e)), 36e5).unref();
+  }
 
   app.locals.store = store;
   app.locals.catalogue = cat;

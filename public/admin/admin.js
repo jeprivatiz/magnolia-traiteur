@@ -79,13 +79,33 @@
   }
 
   function login() {
-    app.innerHTML = `<div class="login"><form id="lf"><img src="/brand/monogramme.svg" alt=""><h1>Magnolia<small>Back-office</small></h1>
+    const reset = (location.hash.match(/reset=([\w-]+)/) || [])[1];
+    const head = '<img src="/brand/monogramme.svg" alt=""><h1>Magnolia<small>Back-office</small></h1>';
+    if (reset) {
+      app.innerHTML = `<div class="login"><form id="rf">${head}<p class="muted">Choisissez votre nouveau mot de passe (10 caractères minimum).</p>
+        <label>Nouveau mot de passe<input type="password" name="password" required minlength="10" autocomplete="new-password"></label>
+        <button class="btn">Enregistrer</button><p class="err" id="lerr"></p></form></div>`;
+      $('#rf').addEventListener('submit', async e => {
+        e.preventDefault();
+        try { await api('/api/auth/reset', { method: 'POST', body: { token: reset, password: e.target.password.value } }); history.replaceState(null, '', '/admin'); toast('Mot de passe enregistré : connectez-vous.'); login(); }
+        catch (err) { $('#lerr').textContent = err.message; }
+      });
+      return;
+    }
+    app.innerHTML = `<div class="login"><form id="lf">${head}
       <label>E-mail<input type="email" name="email" required autocomplete="username"></label>
       <label>Mot de passe<input type="password" name="password" required autocomplete="current-password"></label>
-      <button class="btn">Se connecter</button><p class="err" id="lerr"></p></form></div>`;
+      <button class="btn">Se connecter</button><p class="err" id="lerr"></p>
+      <button type="button" class="lnk" data-oubli>Mot de passe oublié ?</button></form></div>`;
     $('#lf').addEventListener('submit', async e => {
       e.preventDefault();
       try { await api('/api/auth/login', { method: 'POST', body: Object.fromEntries(new FormData(e.target)) }); session = null; render(); }
+      catch (err) { $('#lerr').textContent = err.message; }
+    });
+    $('[data-oubli]').addEventListener('click', async () => {
+      const email = $('#lf').email.value.trim();
+      if (!email) { $('#lerr').textContent = 'Écrivez d’abord votre e-mail ci-dessus.'; return; }
+      try { await api('/api/auth/forgot', { method: 'POST', body: { email } }); $('#lerr').textContent = ''; toast('Si ce compte existe, un lien vient de partir par e-mail.'); }
       catch (err) { $('#lerr').textContent = err.message; }
     });
   }
@@ -548,6 +568,7 @@
       <section class="box"><h2>Photos des blocs</h2><div class="g2">${photoField('photoMaison', Ac.photoMaison, 'Bloc « La maison Magnolia »')}${photoField('photoCommande', Ac.photoCommande, 'Bloc « Comment commander »')}</div></section>
       <section class="box"><h2>Coordonnées</h2><div class="g2"><label>Téléphone<input name="telephone" value="${esc(R.telephone || '')}"></label><label>E-mail<input name="email" value="${esc(R.email || '')}"></label><label>Adresse<input name="adresse" value="${esc(R.adresse || '')}"></label><label>Horaires<input name="horaires" value="${esc(R.horaires || '')}"></label><label>Slogan<input name="slogan" value="${esc(R.slogan || '')}"></label><label>Instagram<input name="instagram" value="${esc(R.instagram || '')}"></label><label>Note Google<input name="g_note" value="${esc(R.avisGoogle?.note || '')}"></label><label>Nombre d’avis Google<input name="g_nombre" value="${esc(R.avisGoogle?.nombre || '')}"></label></div><label>Mention en bas de page<input name="mentionPied" value="${esc(R.mentionPied || '')}"></label></section>
       <section class="box"><h2>Tarifs communs (TTC)</h2><div class="g3"><label>Livraison (€ / km aller-retour)<input name="km" value="${fromCents(T.kmCents)}"></label><label>Personnel (€ / heure)<input name="ph" value="${fromCents(T.personnel?.heureCents)}"></label><label>Heures minimum<select name="pmin">${[2, 3, 4, 5, 6].map(n => `<option${(T.personnel?.minHeures || 4) === n ? ' selected' : ''}>${n}</option>`).join('')}</select></label><label>Petit pack (€ / pers.)<input name="pk0" value="${fromCents(T.packs?.[0]?.prixCents)}"></label><label>Grand pack (€ / pers.)<input name="pk1" value="${fromCents(T.packs?.[1]?.prixCents)}"></label><label>Acompte par défaut<select name="acompte">${[20, 30, 40, 50].map(n => `<option value="${n}"${(T.acomptePct ?? 30) === n ? ' selected' : ''}>${n} %</option>`).join('')}</select></label></div></section>
+      <section class="box"><h2>Paiement de l’acompte</h2><p class="muted sm">Affiché au client dès qu’il a signé son devis. Un lien propre à un devis (dans le devis) passe avant le lien général.</p><div class="g2"><label>Lien de paiement par carte (SumUp, Stripe…)<input name="pay_lien" value="${esc(R.paiement?.lien || '')}" placeholder="https://"></label><label>Titulaire du compte<input name="pay_tit" value="${esc(R.paiement?.titulaire || '')}"></label><label>IBAN (virement)<input name="pay_iban" value="${esc(R.paiement?.iban || '')}"></label><label>BIC<input name="pay_bic" value="${esc(R.paiement?.bic || '')}"></label></div></section>
       <section class="box"><h2>Publicité Google Ads</h2><p class="muted sm">Renseignez l’identifiant du compte (AW-…) et les libellés de conversion donnés par Google Ads. Chaque demande de devis envoyée est alors comptée, avec son montant estimé. Rien n’est mesuré sans l’accord du visiteur.</p><div class="g3"><label>Identifiant du compte<input name="ads_id" value="${esc(R.suivi?.googleAdsId || '')}" placeholder="AW-123456789"></label><label>Libellé « demande de devis »<input name="ads_dem" value="${esc(R.suivi?.conversionDemande || '')}"></label><label>Libellé « message de contact »<input name="ads_con" value="${esc(R.suivi?.conversionContact || '')}"></label></div></section>
       <section class="box"><h2>Redirections (bascule de l’ancien site)</h2><p class="muted sm">Une ligne par ancienne adresse : « /ancienne-page /nouvelle-page ». Une ancienne adresse finissant par * couvre toutes les pages qui commencent pareil. Google transfère alors le référencement (redirection 301).</p><textarea name="redirections" rows="5" class="mono" placeholder="/nos-buffets /saveurs-du-monde&#10;/blog/* /conseils">${esc(R.redirections || '')}</textarea></section>
       <section class="box"><h2>Alertes de l’équipe</h2><div class="g2"><label>E-mails prévenus à chaque demande (séparés par des virgules)<input name="al_emails" value="${esc(R.alertes?.emails || '')}"></label><label>Portables prévenus par SMS<input name="al_sms" value="${esc(R.alertes?.sms || '')}" placeholder="06 12 34 56 78"></label></div></section>
@@ -570,6 +591,7 @@
         tarifs: { ...T, kmCents: toCents(f.km), acomptePct: +f.acompte, personnel: { ...(T.personnel || {}), heureCents: toCents(f.ph), minHeures: +f.pmin }, packs: (T.packs || []).map((pk, i) => ({ ...pk, prixCents: toCents(f['pk' + i]) ?? pk.prixCents })) },
         alertes: { emails: f.al_emails, sms: f.al_sms },
         suivi: { googleAdsId: String(f.ads_id || '').trim().toUpperCase(), conversionDemande: String(f.ads_dem || '').trim(), conversionContact: String(f.ads_con || '').trim() },
+        paiement: { lien: String(f.pay_lien || '').trim(), titulaire: f.pay_tit || '', iban: String(f.pay_iban || '').toUpperCase().replace(/\s+/g, ' ').trim(), bic: String(f.pay_bic || '').toUpperCase().trim() },
         redirections: f.redirections || '' };
       await api(A + '/site', { method: 'PUT', body: next }); cache.R = next; $('#dirty').textContent = ''; toast('Enregistré : en ligne immédiatement.');
     });
@@ -577,11 +599,12 @@
 
   /* ---------- avis ---------- */
   async function avis() {
-    const list = (await api(A + '/avis')).sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
-    return page('Avis clients', '<button class="btn" data-newa>+ Ajouter un avis</button>', `<p class="muted">Les 3 avis « En vedette » apparaissent sur l’accueil ; tous les avis visibles sont sur la page Témoignages.</p><div class="avl">${list.map(a => `<div class="box av" data-id="${a.id}"><textarea rows="3" data-t>${esc(a.texte)}</textarea><div class="row"><input data-a value="${esc(a.auteur || '')}" placeholder="Auteur, ville · date"><select data-s><option value="visible">Visible</option><option value="vedette"${a.statut === 'vedette' ? ' selected' : ''}>En vedette</option><option value="masque"${a.statut === 'masque' ? ' selected' : ''}>Masqué</option></select><button class="btn ghost sm" data-save>Enregistrer</button></div></div>`).join('')}</div>`);
+    const list = (await api(A + '/avis')).sort((a, b) => (b.statut === 'attente') - (a.statut === 'attente') || (a.ordre ?? 0) - (b.ordre ?? 0));
+    cache.avis = list;
+    return page('Avis clients', '<button class="btn" data-newa>+ Ajouter un avis</button>', `<p class="muted">Les 3 avis « En vedette » apparaissent sur l’accueil ; tous les avis visibles sont sur la page Témoignages.</p><div class="avl">${list.map(a => `<div class="box av${a.statut === 'attente' ? ' hl' : ''}" data-id="${a.id}">${a.statut === 'attente' ? `<p class="sm"><span class="pill d-envoye">À relire</span> ${'★'.repeat(a.note || 5)} · ${esc(a.evenement || '')} · <a href="mailto:${esc(a.email || '')}">${esc(a.email || '')}</a></p>` : ''}<textarea rows="3" data-t>${esc(a.texte)}</textarea><div class="row"><input data-a value="${esc(a.auteur || '')}" placeholder="Auteur, ville · date"><select data-s>${a.statut === 'attente' ? '<option value="attente" selected>À relire</option>' : ''}<option value="visible">Visible</option><option value="vedette"${a.statut === 'vedette' ? ' selected' : ''}>En vedette</option><option value="masque"${a.statut === 'masque' ? ' selected' : ''}>Masqué</option></select><button class="btn ghost sm" data-save>Enregistrer</button></div></div>`).join('')}</div>`);
   }
   avis.after = () => {
-    $$('.av').forEach(b => $('[data-save]', b).addEventListener('click', async () => { await api(`${A}/avis/${b.dataset.id}`, { method: 'PUT', body: { texte: $('[data-t]', b).value, auteur: $('[data-a]', b).value, statut: $('[data-s]', b).value, note: 5 } }); toast('Avis enregistré.'); }));
+    $$('.av').forEach(b => $('[data-save]', b).addEventListener('click', async () => { await api(`${A}/avis/${b.dataset.id}`, { method: 'PUT', body: { ...(cache.avis.find(x => x.id === b.dataset.id) || {}), texte: $('[data-t]', b).value, auteur: $('[data-a]', b).value, statut: $('[data-s]', b).value } }); toast('Avis enregistré.'); render(); }));
     $('[data-newa]').addEventListener('click', async () => { await api(A + '/avis', { method: 'POST', body: { texte: 'Nouvel avis…', auteur: '', statut: 'masque', ordre: -1, note: 5 } }); render(); });
   };
 
@@ -605,9 +628,11 @@
         ${mgr ? `<form id="nu"><h3>Ajouter un membre</h3><div class="g2"><label>Nom<input name="nom" required></label><label>E-mail<input type="email" name="email" required></label><label>Mot de passe provisoire<input name="password" minlength="10" required></label><label>Rôle<select name="role"><option value="collab">Collaborateur</option><option value="manager">Manager</option></select></label></div><button class="btn">Créer le compte</button></form>` : ''}
         <form id="pw"><h3>Mon mot de passe</h3><div class="g2"><label>Actuel<input type="password" name="current" required></label><label>Nouveau (10 caractères min.)<input type="password" name="password" minlength="10" required></label></div><button class="btn ghost">Changer</button></form></section>
       <section class="box"><h2>Journal d’activité <span class="pill ${j.intact ? 'd-accepte' : 'd-refuse'}">${j.intact ? 'intact' : 'ALTÉRÉ'}</span></h2><p class="muted sm">Chaque action est enregistrée et chaînée : une modification du journal se verrait.</p><ul class="journal">${j.lignes.map(l => `<li><time>${dateH(l.at)}</time> <b>${esc(l.who)}</b> ${esc(l.op)} <small>${esc(l.resume || l.path)}</small></li>`).join('')}</ul></section></div>
-      <section class="box"><h2>E-mails et SMS envoyés ${env.live ? '' : '<span class="pill d-envoye">mode test : Brevo non branché</span>'}</h2><ul class="journal">${env.envois.map(e => `<li><time>${dateH(e.at)}</time> ${e.kind === 'sms' ? 'SMS' : 'E-mail'} → <b>${esc(e.kind === 'sms' ? e.payload.recipient : e.payload.to?.[0]?.email)}</b> <small>${esc(e.kind === 'sms' ? e.payload.content : e.payload.subject)}</small></li>`).join('') || '<li class="muted">Aucun envoi.</li>'}</ul></section>`);
+      <section class="box"><h2>E-mails et SMS envoyés ${env.live ? '' : '<span class="pill d-envoye">mode test : Brevo non branché</span>'}</h2><div class="row"><input type="tel" data-testtel placeholder="Portable pour un SMS d’essai (facultatif)" style="max-width:280px"><button class="btn ghost sm" data-test>Envoyer un essai</button></div><ul class="journal">${env.envois.map(e => `<li><time>${dateH(e.at)}</time> ${e.kind === 'sms' ? 'SMS' : 'E-mail'} → <b>${esc(e.kind === 'sms' ? e.payload.recipient : e.payload.to?.[0]?.email)}</b> <small>${esc(e.kind === 'sms' ? e.payload.content : e.payload.subject)}</small></li>`).join('') || '<li class="muted">Aucun envoi.</li>'}</ul></section>`);
   }
+  const essaiEnvoi = async () => { try { const r = await api(A + '/actions/envoi-test', { method: 'POST', body: { tel: $('[data-testtel]').value } }); toast(r.live ? `Essai envoyé à ${r.email}.` : 'Mode test : l’essai est noté ci-dessous, rien n’est parti (clé Brevo à brancher).'); render(); } catch (e) { toast(e.message, true); } };
   equipe.after = () => {
+    $('[data-test]')?.addEventListener('click', essaiEnvoi);
     $('#nu')?.addEventListener('submit', async e => { e.preventDefault(); try { await api(A + '/actions/equipe', { method: 'POST', body: Object.fromEntries(new FormData(e.target)) }); toast('Compte créé.'); render(); } catch (err) { toast(err.message, true); } });
     $('#pw').addEventListener('submit', async e => { e.preventDefault(); try { await api('/api/auth/password', { method: 'POST', body: Object.fromEntries(new FormData(e.target)) }); toast('Mot de passe changé.'); e.target.reset(); } catch (err) { toast(err.message, true); } });
     $$('[data-role]').forEach(s => s.addEventListener('change', async () => { try { await api(`${A}/actions/equipe/${s.dataset.role}`, { method: 'PATCH', body: { role: s.value } }); toast('Rôle modifié.'); } catch (err) { toast(err.message, true); render(); } }));
@@ -617,11 +642,37 @@
   /* ---------- outils ---------- */
   async function outils() {
     const [mods, pages] = await Promise.all([api(A + '/modeles'), api(A + '/pages')]);
-    return page('Outils', '', `<section class="box"><h2>Modèles de relance</h2><p class="muted sm">Variables : {prenom} {nom} {numero} {evenement} {date} {lien} {montant}</p>${mods.map(m => `<form class="mod" data-id="${m.id}"><div class="g3"><label>Nom<input name="nom" value="${esc(m.nom)}"></label><label>Canal<select name="canal"><option value="email">E-mail</option><option value="sms"${m.canal === 'sms' ? ' selected' : ''}>SMS</option></select></label><label>Sujet<input name="sujet" value="${esc(m.sujet || '')}"></label></div><textarea name="texte" rows="5">${esc(m.texte)}</textarea><button class="btn ghost sm">Enregistrer</button></form>`).join('')}<button class="btn ghost" data-newm>+ Nouveau modèle</button></section>
+    return page('Outils', '', `<section class="box"><h2>Excel</h2><p class="muted sm">Les fichiers s’ouvrent directement dans Excel. Pour changer beaucoup de prix d’un coup : exportez le catalogue, modifiez les colonnes prix, minimum, coût, TVA, statut ou maison, enregistrez en CSV, puis renvoyez le fichier. Rien n’est créé ni supprimé, et un prix sous le coût est refusé.</p>
+      <div class="row">${[['catalogue', 'Catalogue'], ['demandes', 'Demandes'], ['clients', 'Clients'], ['devis', 'Devis'], ['factures', 'Factures']].map(([k, l]) => `<a class="btn ghost sm" href="${A}/actions/export/${k}">⬇ ${l}</a>`).join('')}${session.role === 'manager' ? '<label class="btn sm up">⬆ Mettre à jour le catalogue<input type="file" accept=".csv,text/csv" hidden data-importcat></label>' : ''}</div><div id="impres"></div></section>
+      <section class="box"><h2>Modèles de relance</h2><p class="muted sm">Variables : {prenom} {nom} {numero} {evenement} {date} {lien} {montant}</p>${mods.map(m => `<form class="mod" data-id="${m.id}"><div class="g3"><label>Nom<input name="nom" value="${esc(m.nom)}"></label><label>Canal<select name="canal"><option value="email">E-mail</option><option value="sms"${m.canal === 'sms' ? ' selected' : ''}>SMS</option></select></label><label>Sujet<input name="sujet" value="${esc(m.sujet || '')}"></label></div><textarea name="texte" rows="5">${esc(m.texte)}</textarea><button class="btn ghost sm">Enregistrer</button></form>`).join('')}<button class="btn ghost" data-newm>+ Nouveau modèle</button></section>
       <section class="box"><h2>Pages administratives</h2><p class="muted sm">CGV, mentions légales, confidentialité, allergènes… Une ligne courte devient un intertitre.</p>${pages.map(p => `<details><summary>${esc(p.titre)} <small class="muted">${esc(p.url)}</small></summary><form class="pg" data-id="${p.id}"><label>Titre<input name="titre" value="${esc(p.titre)}"></label><textarea name="texte" rows="14">${esc(p.texte)}</textarea><button class="btn ghost sm">Enregistrer</button></form></details>`).join('')}</section>
       ${session.role === 'manager' ? `<section class="box"><h2>Reprendre le catalogue du brouillon</h2><p class="muted sm">Remplace les prestations, rubriques et lieux par ceux du brouillon (data/brouillon.json). Les demandes, devis, factures et clients ne sont pas touchés. À n’utiliser qu’avant l’ouverture.</p><button class="btn ghost" data-reimp>Réimporter le brouillon</button></section>` : ''}`);
   }
+  /* lecture d'un CSV « ; » ou « , » (Excel) avec guillemets */
+  function lireCsv(txt) {
+    txt = txt.replace(/^\ufeff/, '');
+    const sep = (txt.split('\n')[0].match(/;/g) || []).length >= (txt.split('\n')[0].match(/,/g) || []).length ? ';' : ',';
+    const rows = []; let row = [], cell = '', q = false;
+    for (let i = 0; i < txt.length; i++) {
+      const ch = txt[i];
+      if (q) { if (ch === '"' && txt[i + 1] === '"') { cell += '"'; i++; } else if (ch === '"') q = false; else cell += ch; }
+      else if (ch === '"') q = true; else if (ch === sep) { row.push(cell); cell = ''; } else if (ch === '\n') { row.push(cell.replace(/\r$/, '')); rows.push(row); row = []; cell = ''; } else cell += ch;
+    }
+    if (cell || row.length) { row.push(cell); rows.push(row); }
+    return rows.filter(r => r.some(x => x.trim()));
+  }
   outils.after = () => {
+    $('[data-importcat]')?.addEventListener('change', async e => {
+      const f = e.target.files[0]; if (!f) return;
+      const rows = lireCsv(await f.text()); const h = rows.shift() || [];
+      const col = re => h.findIndex(x => re.test(x));
+      const ix = { code: col(/^code/i), prix: col(/^prix/i), min: col(/^minimum/i), cout: col(/^co[uû]t/i), tva: col(/^tva/i), statut: col(/^statut/i), maison: col(/^maison/i) };
+      if (ix.code < 0 || ix.prix < 0) { toast('Fichier non reconnu : partez d’un export du catalogue.', true); return; }
+      const lignes = rows.map(r => Object.fromEntries(Object.entries(ix).filter(([, i]) => i >= 0).map(([k, i]) => [k, r[i]])));
+      try { const r = await api(A + '/actions/import-catalogue', { method: 'POST', body: { lignes } }); $('#impres').innerHTML = `<p class="okbox">${r.maj} prestation(s) mise(s) à jour.</p>${r.erreurs.length ? `<ul class="journal">${r.erreurs.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}`; }
+      catch (err) { toast(err.message, true); }
+      e.target.value = '';
+    });
     $$('form.mod').forEach(f => f.addEventListener('submit', async e => { e.preventDefault(); await api(`${A}/modeles/${f.dataset.id}`, { method: 'PUT', body: Object.fromEntries(new FormData(f)) }); toast('Modèle enregistré.'); }));
     $$('form.pg').forEach(f => f.addEventListener('submit', async e => { e.preventDefault(); const p = await api(`${A}/pages/${f.dataset.id}`); await api(`${A}/pages/${f.dataset.id}`, { method: 'PUT', body: { ...p, ...Object.fromEntries(new FormData(f)) } }); toast('Page enregistrée.'); }));
     $('[data-newm]').addEventListener('click', async () => { await api(A + '/modeles', { method: 'POST', body: { nom: 'Nouveau modèle', canal: 'email', sujet: '', texte: 'Bonjour {prenom},\n\n' } }); render(); });

@@ -490,3 +490,8 @@ textarea:focus, input:focus, select:focus { outline: 2px solid color-mix(in srgb
 .consent p { margin: 0; flex: 1 1 240px; }
 .consent div { display: flex; gap: 8px; }
 .p-fiche .consent { bottom: 84px; }
+/* avis déposés par les clients */
+.avis-form { max-width: 760px; margin: 56px auto 0; }
+.avis-form h2 { font-family: var(--serif); font-size: 2rem; margin: 0 0 6px; }
+.hp { position: absolute !important; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+.virement { background: rgba(176,138,79,.08); border-radius: 12px; padding: 14px 18px; margin: 14px 0; } .virement p { margin: 0 0 4px; } .mono { font-family: ui-monospace, Menlo, monospace; letter-spacing: .03em; }
