@@ -21,3 +21,47 @@ Licence Pexels : usage commercial gratuit, sans obligation de citer l'auteur (ht
 | Accueil, bloc « La maison » (serveur avec un plateau de bouchées) | https://www.pexels.com/photo/34321369/ | 22/11/2026 (lot 1) |
 | Vignette Boissons (barman qui sert un cocktail) | https://www.pexels.com/photo/5531479/ | 22/11/2026 (demande directe de Jean-Luc) |
 | La maison, à côté de « Une seule maison, une seule demande » (soirée corporate) | https://unsplash.com/fr/photos/des-gens-en-tenue-formelle-discutant-lors-dun-evenement-G8hi_NbguRc (licence Unsplash : usage commercial gratuit) | 22/11/2026 (demande directe) |
+| Fiche « pizzaiolo-a-domicile » (Pizzaiolo devant son four à bois, à la place de la page de brochure) | https://www.pexels.com/photo/38539266/ | 22/11/2026 (sans brochure) |
+| Fiche « champagne-andre-diligent » (Bouteille de champagne dans un seau à glace, à la place de la page de brochure) | https://www.pexels.com/photo/2259243/ | 22/11/2026 (sans brochure) |
+| Fiche « la-cave-de-magnolia » (Bouteilles de vin et verres, à la place de la page de brochure) | https://www.pexels.com/photo/11851422/ | 22/11/2026 (sans brochure) |
+| Fiche « pack-softs-en-individuel » (Bouteilles de jus et de sodas individuelles, à la place de la page de brochure) | https://www.pexels.com/photo/7414290/ | 22/11/2026 (sans brochure) |
+| Fiche « plateau-de-20-mini-cheeseburgers » (Plateau de mini-burgers, à la place de la page de brochure) | https://www.pexels.com/photo/18354206/ | 22/11/2026 (sans brochure) |
+| Fiche « jeux-de-lumiere » (Jeux de lumière colorés sur une piste de danse, à la place de la page de brochure) | https://www.pexels.com/photo/33539320/ | 22/11/2026 (sans brochure) |
+| Fiche « ambiance-lumiere-et-sonorisation » (Scène décorée avec enceintes et projecteurs, à la place de la page de brochure) | https://www.pexels.com/photo/39204572/ | 22/11/2026 (sans brochure) |
+| Fiche « formule-live-band » (Groupe de musiciens en live, à la place de la page de brochure) | https://www.pexels.com/photo/3984822/ | 22/11/2026 (sans brochure) |
+| Fiche « ecran-led » (Murs d’écrans LED sur scène, à la place de la page de brochure) | https://www.pexels.com/photo/30169356/ | 22/11/2026 (sans brochure) |
+| Fiche « ecran-videoprojecteur » (Présentation projetée sur grand écran devant le public, à la place de la page de brochure) | https://www.pexels.com/photo/18999470/ | 22/11/2026 (sans brochure) |
+| Fiche « animation-drag-queen » (Drag queen en spectacle au micro, à la place de la page de brochure) | https://www.pexels.com/photo/4722585/ | 22/11/2026 (sans brochure) |
+| Fiche « stand-de-churros » (Churros et sauce chocolat, à la place de la page de brochure) | https://www.pexels.com/photo/36361401/ | 22/11/2026 (sans brochure) |
+| Fiche « pause-cafe » (Pause café : boissons chaudes et jus en libre-service, à la place de la page de brochure) | https://www.pexels.com/photo/30183083/ | 22/11/2026 (sans brochure) |
+| Fiche « petit-dejeuner-classique » (Petit-déjeuner : croissants et café, à la place de la page de brochure) | https://www.pexels.com/photo/27846221/ | 22/11/2026 (sans brochure) |
+| Fiche « petit-dejeuner-luxe » (Buffet de petit-déjeuner avec viennoiseries, à la place de la page de brochure) | https://www.pexels.com/photo/34307858/ | 22/11/2026 (sans brochure) |
+| Fiche « saxophoniste-2-heures » (Saxophoniste en concert, à la place de la page de brochure) | https://www.pexels.com/photo/9002848/ | 22/11/2026 (sans brochure) |
+| Fiche « pianiste » (Pianiste au piano à queue, à la place de la page de brochure) | https://www.pexels.com/photo/18238124/ | 22/11/2026 (sans brochure) |
+| Fiche « chanteurs-et-chanteuses » (Chanteuse au micro sur scène, à la place de la page de brochure) | https://www.pexels.com/photo/8041085/ | 22/11/2026 (sans brochure) |
+| Fiche « duo-guitare-voix-2-45-min » (Duo guitare et voix, à la place de la page de brochure) | https://www.pexels.com/photo/10970319/ | 22/11/2026 (sans brochure) |
+| Fiche « jazz-soliste » (Guitariste de jazz, à la place de la page de brochure) | https://www.pexels.com/photo/8044219/ | 22/11/2026 (sans brochure) |
+| Fiche « jazz-trio » (Trio de jazz en concert, à la place de la page de brochure) | https://www.pexels.com/photo/8040897/ | 22/11/2026 (sans brochure) |
+| Fiche « jazz-quatuor » (Quatuor de jazz, à la place de la page de brochure) | https://www.pexels.com/photo/3984817/ | 22/11/2026 (sans brochure) |
+| Fiche « duo-flaming-soul » (Duo de chanteuses soul, à la place de la page de brochure) | https://www.pexels.com/photo/9002786/ | 22/11/2026 (sans brochure) |
+| Fiche « magicien-1-h-30 » (Magicien et ses cartes, à la place de la page de brochure) | https://www.pexels.com/photo/35176748/ | 22/11/2026 (sans brochure) |
+| Fiche « faux-serveur » (Serveur avec un plateau de coupes de champagne, à la place de la page de brochure) | https://www.pexels.com/photo/13375022/ | 22/11/2026 (sans brochure) |
+| Fiche « mentaliste-2-30-min » (Mentaliste et jeu de cartes, à la place de la page de brochure) | https://www.pexels.com/photo/6254935/ | 22/11/2026 (sans brochure) |
+| Fiche « caricaturiste-1-h-30 » (Caricaturiste en train de dessiner, à la place de la page de brochure) | https://www.pexels.com/photo/13541687/ | 22/11/2026 (sans brochure) |
+| Fiche « ventriloque-2-30-min » (Artiste avec sa marionnette, à la place de la page de brochure) | https://www.pexels.com/photo/30218072/ | 22/11/2026 (sans brochure) |
+| Fiche « contorsionniste-2-4-min » (Contorsionniste, à la place de la page de brochure) | https://www.pexels.com/photo/11496079/ | 22/11/2026 (sans brochure) |
+| Fiche « diseuse-de-bonne-aventure-1-heure » (Tirage de cartes de tarot, à la place de la page de brochure) | https://www.pexels.com/photo/7181711/ | 22/11/2026 (sans brochure) |
+| Fiche « animations-pour-enfants » (Animation d’anniversaire pour enfants, à la place de la page de brochure) | https://www.pexels.com/photo/8385870/ | 22/11/2026 (sans brochure) |
+| Fiche « casino » (Table de roulette de casino, à la place de la page de brochure) | https://www.pexels.com/photo/7594343/ | 22/11/2026 (sans brochure) |
+| Fiche « blind-test » (Amis en plein jeu, à la place de la page de brochure) | https://www.pexels.com/photo/8763175/ | 22/11/2026 (sans brochure) |
+| Fiche « karaoke » (Karaoké entre amis, à la place de la page de brochure) | https://www.pexels.com/photo/30489716/ | 22/11/2026 (sans brochure) |
+| Fiche « escape-game » (Ambiance d’escape game, à la place de la page de brochure) | https://www.pexels.com/photo/5427434/ | 22/11/2026 (sans brochure) |
+| Fiche « mise-en-lumiere-du-lieu » (Salle de réception mise en lumière, à la place de la page de brochure) | https://www.pexels.com/photo/12689021/ | 22/11/2026 (sans brochure) |
+| Bière servie à la tireuse (à la place de tireuse56.jpg.webp, filigrane d’un autre site) | https://www.pexels.com/photo/5858056/ | 22/11/2026 (sans filigrane) |
+| Fontaine à chocolat (à la place de page40-chocolat.jpg.webp, filigrane d’un autre site) | https://www.pexels.com/photo/38431059/ | 22/11/2026 (sans filigrane) |
+| Stand de pop-corn (à la place de popcorn55-nouveau-20261030.jpg.webp, filigrane d’un autre site) | https://www.pexels.com/photo/36784776/ | 22/11/2026 (sans filigrane) |
+| Samossas dorés (à la place de entrees-samossas-portrait-20261102.webp.webp, filigrane d’un autre site) | https://www.pexels.com/photo/29037272/ | 22/11/2026 (sans filigrane) |
+| Poulet tikka (à la place de chicken-tikka-massala.webp.webp, filigrane d’un autre site) | https://www.pexels.com/photo/6522616/ | 22/11/2026 (sans filigrane) |
+| Bulots cuits (à la place de bulots.webp.webp, filigrane d’un autre site) | https://www.pexels.com/photo/37402010/ | 22/11/2026 (sans filigrane) |
+| Crevettes roses cuites (à la place de crevettes-roses.webp.webp, filigrane d’un autre site) | https://www.pexels.com/photo/16561736/ | 22/11/2026 (sans filigrane) |
+| Sanbousek, chaussons farcis (à la place de sanbousek.webp.webp, filigrane d’un autre site) | https://www.pexels.com/photo/30168777/ | 22/11/2026 (sans filigrane) |
