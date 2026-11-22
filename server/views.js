@@ -365,7 +365,7 @@ function allergenesHtml(p) {
   if (!l.length && (p.tva || 10) !== 10) return '';
   return `<section class="allerg-f" aria-label="Allergènes"><h2>Allergènes</h2>${l.length
     ? `<p class="pastilles">${l.map(a => `<span>${esc(a)}</span>`).join('')}</p>`
-    : '<p class="small">Liste détaillée sur simple demande.</p>'}<p class="small">Préparé dans un laboratoire qui travaille aussi les 14 allergènes réglementaires : des traces sont possibles. Signalez toute allergie dans votre demande. <a href="/allergenes">En savoir plus</a></p></section>`;
+    : '<p class="small">Liste détaillée sur simple demande.</p>'}<p class="small">Préparé dans un laboratoire qui travaille aussi les 14 allergènes réglementaires : des traces sont possibles. <a href="/allergenes">En savoir plus</a></p><p class="allerg-contact">Merci de nous contacter pour parler des produits qui vous sont contre-indiqués avant validation de votre devis.</p></section>`;
 }
 function produit(c, p) {
   const r = c.rubriques.find(x => x.slug === p.rubrique) || { nom: '', slug: p.rubrique };

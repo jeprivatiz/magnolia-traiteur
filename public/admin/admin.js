@@ -562,7 +562,7 @@
         <textarea name="groupes" rows="8" class="mono">${esc((p.groupes || []).map(g => `${g.titre || ''} | ${g.max || ''} | ${g.exact ? 'exact' : 'max'}${g.facultatif ? ' | facultatif' : ''}\n${(g.options || []).map(o => `${o.label}${o.supCents ? ' | ' + fromCents(o.supCents) : ''}`).join('\n')}`).join('\n\n'))}</textarea>
         ${(p.variantes || []).length && (p.groupes || []).length ? `<h3 class="fg-t">Groupes proposés selon la formule</h3><p class="muted sm">Quand le client choisit une formule, seuls les groupes cochés pour cette formule restent affichés ; les autres disparaissent et leurs choix sont retirés. (Après avoir ajouté un groupe ou une formule, enregistrez pour le voir ici.)</p>
         <div class="fg-wrap"><table class="fg"><thead><tr><th>Groupe</th>${p.variantes.map(v => `<th>${esc(v)}</th>`).join('')}</tr></thead><tbody>${p.groupes.map(g => `<tr><td>${esc(g.titre || '')}</td>${p.variantes.map(v => `<td><input type="checkbox" name="fg" value="${esc(JSON.stringify([g.titre || '', v]))}" ${!(g.variantes || []).length || g.variantes.includes(v) ? 'checked' : ''} aria-label="${esc((g.titre || '') + ' : ' + v)}"></td>`).join('')}</tr>`).join('')}</tbody></table></div>` : ''}</section>
-      <section class="box"><h2>Allergènes</h2><p class="muted sm">Cochez les allergènes présents : ils s’affichent sur la fiche du site, dans un encadré « Allergènes » sous le bouton de devis.</p><div class="allerg">${ALLERGENES.map(a => `<label class="chk"><input type="checkbox" name="al" value="${a}" ${(p.allergenes || []).includes(a) ? 'checked' : ''}> ${a}</label>`).join('')}</div></section>
+      <section class="box"><h2>Allergènes</h2><p class="muted sm">Cochez les allergènes présents : ils s’affichent sur la fiche du site, dans un encadré « Allergènes » sous le bouton de devis.</p>${p.allergenesAuto ? '<p class="sm" style="color:#8a5a00">Cochés automatiquement d’après le nom et la composition du plat : à vérifier avec la cuisine. Enregistrez la fiche pour confirmer.</p>' : ''}<div class="allerg">${ALLERGENES.map(a => `<label class="chk"><input type="checkbox" name="al" value="${a}" ${(p.allergenes || []).includes(a) ? 'checked' : ''}> ${a}</label>`).join('')}</div></section>
       <div class="actions sticky"><button class="btn">Enregistrer</button><span class="muted" id="dirty"></span></div>
       </form>`);
   }
@@ -601,7 +601,7 @@
         prixCents: toCents(f.get('prix')), unite: f.get('unite'), min: +f.get('min') || 1, minimumTexte: '', prixTexte: '', coutCents: toCents(f.get('cout')), tva: +f.get('tva'),
         regles: { ...(p.regles || {}), personnel: f.get('r_personnel') ? (p.regles?.personnel || 'service') : null, packs: !!f.get('r_packs') },
         variantes: String(f.get('variantes')).split('\n').map(x => x.trim()).filter(Boolean), photos, video: f.get('video') ? { src: f.get('video'), poster: f.get('poster') || '' } : null,
-        sections, details: String(f.get('details')).split('\n').map(x => x.trim()).filter(Boolean), groupes, allergenes: f.getAll('al') };
+        sections, details: String(f.get('details')).split('\n').map(x => x.trim()).filter(Boolean), groupes, allergenes: f.getAll('al'), allergenesAuto: false };
       try { await api(`${A}/produits/${id}`, { method: 'PUT', body: next }); cache.p = next; cache.produits = null; $('#dirty').textContent = ''; toast('Enregistré : visible sur le site immédiatement.'); }
       catch (err) { toast(err.message, true); }
     });

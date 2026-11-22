@@ -621,3 +621,4 @@ textarea:focus, input:focus, select:focus { outline: 2px solid color-mix(in srgb
 .allerg-f .pastilles span { padding: 4px 11px; border-radius: 999px; background: #fff3dc; border: 1px solid #e8c98a; color: #6b4a12; font-size: .82rem; font-weight: 500; }
 .allerg-f .small { margin: 0; }
 .allerg-f .small + .small { margin-top: 6px; }
+.allerg-f .allerg-contact { margin: 8px 0 0; font-weight: 600; font-size: .86rem; color: #1b211e; }
