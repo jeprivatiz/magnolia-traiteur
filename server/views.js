@@ -6,7 +6,7 @@ function logoExiste(src) { if (!src) return false; if (!src.startsWith('/site/')
 const { esc, euros, dateFr } = require('./util');
 const { prixCourt } = require('./catalogue');
 
-const V = '20261122a'; /* version des fichiers CSS/JS : à changer pour forcer le rechargement */
+const V = (process.env.RAILWAY_GIT_COMMIT_SHA || '').slice(0, 8) || Date.now().toString(36); /* change à chaque mise en ligne : force le rechargement du CSS et du JS */
 const MONO = '<img class="mono" src="/brand/monogramme.svg" alt="" width="40" height="34">';
 
 const icon = {
