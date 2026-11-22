@@ -228,6 +228,15 @@ function classerSous(produits, sous) {
   }
   return res;
 }
+/* prix d'achat TTC (en centimes) des plats indiens, par nom de plat (sans accents, en minuscules) */
+const PRIX_INDIEN = [
+  [/^oignon bhaji/, 650], [/^begnan pakora/, 650], [/^mix pakora/, 750], [/^samossas legumes/, 650],
+  [/^chicken tandoori/, 750], [/^agneau tikka$/, 950], [/^prawn salade/, 750], [/^kinkiri/, 650],
+  [/^chicken tikka massala/, 1300], [/^chicken shahi korma/, 1300], [/^fish tikka malai/, 950], [/^prawn madras/, 1400],
+  [/^agneau shahi korma/, 1500], [/^agneau madras/, 1500], [/^crevettes massala/, 1500],
+  [/^riz au safran/, 350], [/^riz (cachemiri|kashmiri)/, 500],
+  [/^(hot )?gulab jamun/, 550],
+];
 const BANDEAUX_SPE = {
   'specialites-japonaises': '/site/c/paysages/japon.webp',
 };
@@ -300,6 +309,27 @@ async function initSousRubriques(store, { log = console } = {}) {
   }
   if (n) log.log?.(`[demarrage] ${n} prestations classées en spécialités`);
   await initUniteSpecialites(store, log);
+  // une fois (2026-11-22, décision de Jean-Luc) : prix du Buffet indien = prix d'achat + 30 % (arrondi aux 10 centimes supérieurs).
+  // Le prix d'achat est rangé dans « coût de revient » (jamais affiché au client). Les doublons de plats sont retirés.
+  const RI = await store.get('rubriques/saveurs-du-monde');
+  if (RI && !RI.indienPrix) {
+    const net = t => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    const vus = new Set(); let ni = 0;
+    for (const d of (await store.list('produits')).sort((x, y) => (x.data?.ordre ?? 0) - (y.data?.ordre ?? 0))) {
+      const p = d.data;
+      if (!p || p.sous !== 'buffet-indien' || !p.aCompleter) continue;
+      const nom = net(p.titre).split(':')[0].trim();
+      if (vus.has(nom)) { await store.delete('produits/' + d.id); continue; }
+      vus.add(nom);
+      const ligne = PRIX_INDIEN.find(([re]) => re.test(nom));
+      if (!ligne) continue;
+      const cout = ligne[1];
+      await store.set('produits/' + d.id, { ...p, prixCents: Math.ceil(cout * 1.3 / 10) * 10, coutCents: cout, unite: 'portion', min: 10, aCompleter: false });
+      ni++;
+    }
+    await store.set('rubriques/saveurs-du-monde', { ...(await store.get('rubriques/saveurs-du-monde')), indienPrix: true });
+    if (ni) log.log?.(`[demarrage] ${ni} prix du Buffet indien posés (achat + 30 %)`);
+  }
   // bandeaux photo des spécialités choisis par Jean-Luc (2026-11-22) : appliqués une fois par spécialité, modifiables ensuite dans le back-office
   const RS = await store.get('rubriques/saveurs-du-monde');
   if (RS) {
