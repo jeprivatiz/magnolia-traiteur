@@ -1,0 +1,46 @@
+name: Récupérer les avis de magnoliatraiteur.fr
+
+# Copie les avis clients et les logos du site actuel magnoliatraiteur.fr dans le dépôt.
+# Se lance à la main (onglet Actions › « Run workflow ») ou quand le script change.
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: Adresse du site actuel
+        required: false
+        default: https://www.magnoliatraiteur.fr
+  push:
+    paths:
+      - scripts/recuperer-avis.js
+      - .github/workflows/recuperer-avis.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: recuperer-avis-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  recuperer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Récupération
+        run: node scripts/recuperer-avis.js "${{ github.event.inputs.url || 'https://www.magnoliatraiteur.fr' }}"
+      - name: Réduire les photos (1200 px, logos inclus)
+        run: |
+          find public/site/avis -type f \( -iname '*.jpg' -o -iname '*.jpeg' \) -size +400k -exec mogrify -auto-orient -resize '1200x1200>' -quality 80 -strip {} +
+          find public/site/avis -type f -iname '*.png' -size +800k -exec mogrify -resize '1200x1200>' {} +
+      - name: Enregistrer dans le dépôt
+        run: |
+          git config user.name "magnolia-bot"
+          git config user.email "magnolia-bot@users.noreply.github.com"
+          git add data public
+          if git diff --cached --quiet; then echo "Rien de nouveau."; exit 0; fi
+          git commit -m "Avis clients et logos repris de magnoliatraiteur.fr"
+          git push

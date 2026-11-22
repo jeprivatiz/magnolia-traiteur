@@ -11,7 +11,7 @@ const bcrypt = require('bcryptjs');
 const { createStore } = require('./store');
 const { createBrevo, isEmail } = require('./brevo');
 const { createCatalogue } = require('./catalogue');
-const { seed } = require('./seed');
+const { seed, importerAvisAncienSite } = require('./seed');
 const views = require('./views');
 const { preparerAlerte } = require('./relances');
 const { totaux, controleMarge, prochainNumero, lignesDepuisDemande, estimerLigne } = require('./devis');
@@ -51,6 +51,7 @@ async function createApp(opts = {}) {
   const store = opts.store || createStore(env);
   await store.init();
   await seed(store, { log });
+  await importerAvisAncienSite(store, { log });
   const cat = createCatalogue(store);
   const brevo = opts.brevo || createBrevo({ env, store, log });
   const prod = env.NODE_ENV === 'production';
@@ -695,6 +696,7 @@ async function createApp(opts = {}) {
     audit(req.ctx, 'fichier envoyé', '/media/' + nom);
     res.json({ ok: true, url: '/media/' + nom });
   }));
+  A.get('/actions/bandeaux-defaut', (req, res) => res.json(views.BANDEAUX_DEFAUT));
   A.get('/actions/medias', wrap(async (req, res) => {
     const envoyes = (await store.list('_assets')).map(d => ({ url: '/media/' + d.data.nom, type: d.data.type, at: d.data.at }));
     const site = [];
@@ -703,7 +705,7 @@ async function createApp(opts = {}) {
     res.json({ envoyes: envoyes.sort((a, b) => b.at.localeCompare(a.at)), site });
   }));
   A.post('/actions/reimporter', sameSite, manager, wrap(async (req, res) => {
-    const r = await seed(store, { force: true, log });
+    const r = await seed(store, { force: true, log }); await importerAvisAncienSite(store, { log });
     cat.invalidate(); audit(req.ctx, 'catalogue réimporté depuis le brouillon', '');
     res.json({ ok: true, ...r });
   }));

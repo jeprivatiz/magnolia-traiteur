@@ -151,4 +151,41 @@ function nettoyerPage(t) {
   return String(t || '').split('\n').filter(l => !/^(Accueil|\[photo )/.test(l.trim())).join('\n').trim();
 }
 
-module.exports = { seed, REGLAGES_DEFAUT, MODELES_DEFAUT, extraireAvis };
+/* Avis clients et logos repris du site actuel magnoliatraiteur.fr (data/avis-magnolia.json, rempli par une action GitHub).
+   Importés une fois par version du fichier ; un avis déjà présent (même modifié ou masqué dans le back-office) n'est jamais écrasé. */
+const MOIS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+function dateIso(t) {
+  const m = String(t || '').toLowerCase().match(/(\d{1,2})\s+(\S+)\s+(\d{4})/);
+  if (!m) return '';
+  const k = MOIS.indexOf(m[2].replace('fevrier', 'février').replace('aout', 'août').replace('decembre', 'décembre'));
+  return k < 0 ? '' : `${m[3]}-${String(k + 1).padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+}
+async function importerAvisAncienSite(store, { log = console, fichier = path.join(__dirname, '..', 'data', 'avis-magnolia.json') } = {}) {
+  let data;
+  try { data = JSON.parse(fs.readFileSync(fichier, 'utf8')); } catch { return { fait: false }; }
+  const marque = await store.get('site/avis-ancien-site');
+  if (marque?.recupereLe === data.recupereLe) return { fait: false };
+  const deja = new Set((await store.list('avis')).map(d => d.id));
+  const liste = (data.avis || []).filter(a => a.texte && String(a.texte).length > 5)
+    .map(a => ({ ...a, iso: dateIso(a.date) }))
+    .sort((a, b) => (b.iso || '').localeCompare(a.iso || '') || (+b.id || 0) - (+a.id || 0));
+  let n = 0;
+  for (const [i, a] of liste.entries()) {
+    const id = 'mt_' + a.id;
+    if (deja.has(id)) continue;
+    await store.set('avis/' + id, { titre: a.titre || '', texte: a.texte, auteur: a.auteur || '', lieu: a.lieu || '', date: a.date || '', dateIso: a.iso, note: Math.min(5, Math.max(1, +a.note || 5)), photo: /\.(jpe?g|png|webp|gif)$/i.test(a.photo || '') ? a.photo : '', source: 'ancien-site', statut: 'visible', ordre: 1000 + i });
+    n++;
+  }
+  /* logos du bandeau défilant : ceux du site actuel remplacent la liste d'origine (dont les fichiers n'existent pas) */
+  const R = await store.get('site/reglages');
+  const vus = new Set();
+  const logos = (data.logos || []).filter(l => l.logo && !vus.has(l.nom + l.logo) && vus.add(l.nom + l.logo))
+    .map(l => ({ src: l.logo, nom: l.nom || '', avisId: l.avisId ? 'mt_' + l.avisId : '' }));
+  const existe = src => src && fs.existsSync(path.join(__dirname, '..', 'public', src));
+  if (R && logos.length && !(R.logosClients || []).some(l => existe(l.src))) await store.set('site/reglages', { ...R, logosClients: logos });
+  await store.set('site/avis-ancien-site', { recupereLe: data.recupereLe, importes: n, at: new Date().toISOString() });
+  log.log?.(`[demarrage] ${n} avis et ${logos.length} logos repris de magnoliatraiteur.fr`);
+  return { fait: true, avis: n, logos: logos.length };
+}
+
+module.exports = { importerAvisAncienSite, dateIso, seed, REGLAGES_DEFAUT, MODELES_DEFAUT, extraireAvis };

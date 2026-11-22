@@ -407,7 +407,10 @@
 
   /* champ photo : aperçu, envoi depuis l'ordinateur ou le téléphone, ou choix dans la médiathèque */
   function photoField(name, val, label) {
-    return `<div class="pf" data-pf><span class="lab">${esc(label)}</span><div class="pf-img">${val ? (/\.mp4$/.test(val) ? `<video src="${esc(val)}" muted></video>` : `<img src="${esc(val)}" alt="">`) : '<span>Aucune</span>'}</div><input type="hidden" name="${name}" value="${esc(val || '')}"><div class="row"><label class="btn ghost sm up">Envoyer…<input type="file" accept="image/*,video/mp4" hidden></label><button type="button" class="btn ghost sm" data-pick>Médiathèque</button></div></div>`;
+    const quoi = /vid[ée]o/i.test(label) ? 'la vidéo' : 'la photo';
+    const apercu = v => v ? (/\.mp4$/i.test(v) ? `<video src="${esc(v)}" muted></video>` : `<img src="${esc(v)}" alt="">`) : `<span>Aucune · cliquez pour choisir</span>`;
+    return `<div class="pf" data-pf data-quoi="${quoi}"><span class="lab">${esc(label)}</span><button type="button" class="pf-img" data-pf-open title="Modifier ${quoi}">${apercu(val)}<span class="pf-over">✎ Modifier ${quoi}</span></button><input type="hidden" name="${name}" value="${esc(val || '')}">
+      <div class="pf-act"><button type="button" class="btn sm" data-pf-open>✎ Modifier ${quoi}</button><div class="pf-menu" hidden><label class="pf-opt">💻 Depuis mon ordinateur<input type="file" accept="image/*,video/mp4" hidden></label><button type="button" class="pf-opt" data-pick>🖼 Depuis la médiathèque</button><button type="button" class="pf-opt pf-del" data-clear>✕ Retirer ${quoi}</button></div></div><p class="pf-note" hidden>${quoi === 'la vidéo' ? 'Vidéo changée' : 'Photo changée'} : pensez à <b>enregistrer</b>.</p></div>`;
   }
   async function uploadFile(file) {
     const fd = new FormData(); fd.append('fichier', await compress(file));
@@ -426,26 +429,47 @@
       return blob ? new File([blob], file.name.replace(/\.\w+$/, '') + '.webp', { type: 'image/webp' }) : file;
     } catch { return file; }
   }
+  /* grille de médias : vignettes carrées avec le nom du fichier, affichées par paquets de 120 au fil du défilement */
+  const nomFichier = u => decodeURIComponent(u.split('/').pop()).replace(/(\.\w+)\.\1$/, '$1');
+  const vignette = (x, tag) => `<${tag} class="mt" ${tag === 'a' ? `href="${esc(x.url)}" target="_blank"` : 'type="button"'} data-u="${esc(x.url)}" title="${esc(x.url)}"><span class="mt-img">${/mp4$/i.test(x.url) ? `<video src="${esc(x.url)}#t=0.5" muted preload="metadata"></video><i>▶</i>` : `<img src="${esc(x.url)}" loading="lazy" decoding="async" alt="">`}</span><small>${esc(nomFichier(x.url))}</small></${tag}>`;
+  const ordreMedias = l => [...l.filter(x => !x.url.startsWith('/site/avis/')), ...l.filter(x => x.url.startsWith('/site/avis/'))];
+  function grilleMedias(box, items, tag) {
+    let liste = items, n = 0; const PAQ = 120;
+    const fin = document.createElement('div'); fin.className = 'mgrid-fin';
+    const suite = () => { box.insertAdjacentHTML('beforeend', liste.slice(n, n + PAQ).map(x => vignette(x, tag)).join('')); n += PAQ; box.appendChild(fin); };
+    const io = new IntersectionObserver(e => { if (e.some(x => x.isIntersecting) && n < liste.length) suite(); }, { root: box.closest('.modal-in') ? box : null, rootMargin: '400px' });
+    io.observe(fin);
+    const filtrer = q => { q = q.trim().toLowerCase(); liste = q ? items.filter(x => x.url.toLowerCase().includes(q)) : items; n = 0; box.innerHTML = ''; suite(); const c = box.parentElement.querySelector('[data-mcount]'); if (c) c.textContent = liste.length + ' fichier' + (liste.length > 1 ? 's' : ''); };
+    filtrer('');
+    return filtrer;
+  }
   async function pickMedia() {
     const m = await api(A + '/actions/medias');
     return new Promise(resolve => {
       const dlg = document.createElement('div'); dlg.className = 'modal';
       const all = [...m.envoyes, ...m.site];
-      dlg.innerHTML = `<div class="modal-in"><div class="bh"><h2>Médiathèque</h2><input type="search" placeholder="Filtrer…" data-mq><button class="x" data-close>×</button></div><div class="mgrid">${all.map(x => `<button type="button" data-u="${esc(x.url)}" title="${esc(x.url)}">${/mp4$/.test(x.url) ? `<video src="${esc(x.url)}" muted preload="none"></video><i>▶</i>` : `<img src="${esc(x.url)}" loading="lazy" alt="">`}</button>`).join('')}</div></div>`;
+      dlg.innerHTML = `<div class="modal-in"><div class="bh"><h2>Médiathèque</h2><input type="search" placeholder="Filtrer par nom…" data-mq><button class="x" data-close aria-label="Fermer">×</button></div><p class="muted sm" data-mcount></p><div class="mgrid"></div></div>`;
       document.body.appendChild(dlg);
+      const filtrer = grilleMedias($('.mgrid', dlg), ordreMedias(all), 'button');
       const close = v => { dlg.remove(); resolve(v); };
       dlg.addEventListener('click', e => { const b = e.target.closest('[data-u]'); if (b) close(b.dataset.u); if (e.target.matches('[data-close], .modal')) close(null); });
-      $('[data-mq]', dlg).addEventListener('input', e => $$('[data-u]', dlg).forEach(b => { b.hidden = !b.dataset.u.toLowerCase().includes(e.target.value.toLowerCase()); }));
+      $('[data-mq]', dlg).addEventListener('input', e => filtrer(e.target.value));
+      $('[data-mq]', dlg).focus();
     });
   }
   function bindPhotos(root) {
     $$('[data-pf]', root).forEach(pf => {
-      const input = $('input[type=hidden]', pf), prev = $('.pf-img', pf);
-      const set = u => { input.value = u; prev.innerHTML = /\.mp4$/.test(u) ? `<video src="${esc(u)}" muted></video>` : `<img src="${esc(u)}" alt="">`; input.dispatchEvent(new Event('input', { bubbles: true })); };
-      $('input[type=file]', pf).addEventListener('change', async e => { const f = e.target.files[0]; if (!f) return; toast('Envoi…'); try { set(await uploadFile(f)); toast('Photo envoyée.'); } catch (err) { toast(err.message, true); } });
-      $('[data-pick]', pf).addEventListener('click', async () => { const u = await pickMedia(); if (u) set(u); });
+      const input = $('input[type=hidden]', pf), prev = $('.pf-img', pf), menu = $('.pf-menu', pf), quoi = pf.dataset.quoi;
+      const over = `<span class="pf-over">✎ Modifier ${quoi}</span>`;
+      const set = u => { input.value = u; prev.innerHTML = (!u ? '<span>Aucune · cliquez pour choisir</span>' : /\.mp4$/i.test(u) ? `<video src="${esc(u)}" muted></video>` : `<img src="${esc(u)}" alt="">`) + over; $('.pf-note', pf).hidden = false; menu.hidden = true; input.dispatchEvent(new Event('input', { bubbles: true })); };
+      $$('[data-pf-open]', pf).forEach(b => b.addEventListener('click', e => { e.stopPropagation(); const was = menu.hidden; $$('.pf-menu').forEach(m => { m.hidden = true; }); menu.hidden = !was; }));
+      $('input[type=file]', pf).addEventListener('change', async e => { const f = e.target.files[0]; if (!f) return; menu.hidden = true; toast('Envoi…'); try { set(await uploadFile(f)); toast('Envoyé. Pensez à enregistrer.'); } catch (err) { toast(err.message, true); } e.target.value = ''; });
+      $('[data-pick]', pf).addEventListener('click', async () => { menu.hidden = true; const u = await pickMedia(); if (u) set(u); });
+      $('[data-clear]', pf).addEventListener('click', () => set(''));
     });
+    if (!window.__pfClose) { window.__pfClose = true; document.addEventListener('click', e => { if (!e.target.closest('.pf-act, [data-pf-open]')) $$('.pf-menu').forEach(m => { m.hidden = true; }); }); }
   }
+
 
   async function produit(id) {
     const [p, rubs] = await Promise.all([api(A + '/produits/' + id), cache.rubriques || api(A + '/rubriques')]);
@@ -473,7 +497,7 @@
           <label>Variantes (une par ligne, ex. « Entrée & plat »)<textarea name="variantes" rows="2">${esc((p.variantes || []).join('\n'))}</textarea></label>
         </section>
       </div>
-      <section class="box"><div class="bh"><h2>Photos et vidéo</h2><div class="row"><label class="btn ghost sm up">+ Envoyer des photos<input type="file" accept="image/*" multiple hidden data-multi></label><button type="button" class="btn ghost sm" data-pickp>+ Médiathèque</button></div></div>
+      <section class="box"><div class="bh"><h2>Photos et vidéo</h2><div class="row"><label class="btn ghost sm up">+ Ajouter depuis mon ordinateur<input type="file" accept="image/*" multiple hidden data-multi></label><button type="button" class="btn ghost sm" data-pickp>+ Ajouter depuis la médiathèque</button></div></div>
         <p class="muted sm">La première photo est la photo principale. Glissez pour changer l’ordre.</p>
         <div class="photos" id="photos"></div>
         <div class="g2">${photoField('video', p.video?.src || '', 'Vidéo (boucle muette, MP4)')}${photoField('poster', p.video?.poster || '', 'Image d’attente de la vidéo')}</div>
@@ -534,7 +558,7 @@
     const l = await api(A + '/lieux/' + id); cache.l = l;
     return page(esc(l.nom), `<a class="btn ghost" href="#/lieux">← Lieux</a><a class="btn ghost" href="/lieux/${esc(l.slug)}" target="_blank">Voir ↗</a>`, `<form id="lf2"><div class="cols c21"><section class="box"><label>Nom<input name="nom" value="${esc(l.nom)}"></label><label>Description<textarea name="description" rows="5">${esc(l.description || '')}</textarea></label><div class="g2"><label>Adresse<input name="adresse" value="${esc(l.adresse || '')}"></label><label>Ville<input name="ville" value="${esc(l.ville || '')}"></label></div><label>Équipements (un par ligne)<textarea name="equipements" rows="5">${esc((l.equipements || []).join('\n'))}</textarea></label></section>
       <section class="box"><div class="g2"><label>Statut<select name="statut"><option value="visible">Visible</option><option value="masque"${l.statut === 'masque' ? ' selected' : ''}>Masqué</option></select></label><label>Mise en avant<select name="maison"><option value="">Partenaire</option><option value="1"${l.maison ? ' selected' : ''}>Lieu maison (en premier)</option></select></label></div><label>Capacité max<input type="number" name="capacite" value="${esc(l.capacite || '')}"></label><label>Prix affiché<input name="prixTexte" value="${esc(l.prixTexte || '')}" placeholder="Sur devis"></label></section></div>
-      <section class="box"><div class="bh"><h2>Photos</h2><div class="row"><label class="btn ghost sm up">+ Envoyer<input type="file" accept="image/*" multiple hidden data-multi></label><button type="button" class="btn ghost sm" data-pickp>+ Médiathèque</button></div></div><div class="photos" id="photos"></div></section>
+      <section class="box"><div class="bh"><h2>Photos</h2><div class="row"><label class="btn ghost sm up">+ Ajouter depuis mon ordinateur<input type="file" accept="image/*" multiple hidden data-multi></label><button type="button" class="btn ghost sm" data-pickp>+ Ajouter depuis la médiathèque</button></div></div><div class="photos" id="photos"></div></section>
       <div class="actions sticky"><button class="btn">Enregistrer</button></div></form>`);
   }
   lieu.after = id => {
@@ -553,13 +577,16 @@
 
   /* ---------- photos et textes du site ---------- */
   async function site() {
-    const [R, prods] = await Promise.all([api(A + '/site'), cache.produits || api(A + '/produits')]);
+    const [R, prods, BD] = await Promise.all([api(A + '/site'), cache.produits || api(A + '/produits'), api(A + '/actions/bandeaux-defaut')]);
     cache.R = R; cache.produits = prods;
+    const PAGES_B = [['boutique', 'La boutique', '/boutique'], ['lieux', 'Lieux de réception', '/lieux'], ['temoignages', 'Avis clients', '/temoignages'], ['maison', 'La maison', '/maison']];
     const Ac = R.accueil || {};
     const T = R.tarifs || {};
     return page('Photos & textes du site', '<a class="btn ghost" href="/" target="_blank">Voir l’accueil ↗</a>', `<form id="sf">
       <section class="box"><h2>Les trois vidéos de l’accueil</h2><p class="muted sm">Elles défilent en grand sur ordinateur (trois panneaux) et l’une après l’autre sur téléphone. Format conseillé : MP4 muet de 10 à 20 secondes, moins de 3 Mo.</p>
         <div class="g3">${[0, 1, 2].map(i => { const v = (Ac.videos || [])[i] || {}; return `<div class="vcard"><h3>${['Gauche', 'Centre', 'Droite'][i]}</h3>${photoField(`v${i}_src`, v.src, 'Vidéo')}${photoField(`v${i}_poster`, v.poster, 'Image d’attente')}<label>Titre<input name="v${i}_titre" value="${esc(v.titre || '')}"></label><label>Lien au clic<input name="v${i}_lien" value="${esc(v.lien || '')}" placeholder="/buffet-antillais"></label></div>`; }).join('')}</div></section>
+      <section class="box"><h2>Bandeaux des pages (pages d’arrivée de la publicité)</h2><p class="muted sm">Le grand bandeau photo en haut de chaque page. Une vidéo, si elle est choisie, passe devant la photo (la photo s’affiche pendant le chargement).</p>
+        <div class="g2">${PAGES_B.map(([k, nom, url]) => { const b0 = R.bandeaux?.[k] || {}, d = { ...(BD[k] || {}) }; if (k === 'maison' && !d.photo) d.photo = Ac.photoMaison || ''; const b = { photo: b0.photo || d.photo, video: b0.video ?? d.video, titre: b0.titre || d.titre, chapo: b0.chapo || d.chapo, bouton: b0.bouton || d.bouton }; return `<div class="vcard bcard"><h3>${nom} <a class="sm" href="${url}" target="_blank">voir ↗</a></h3>${photoField(`b_${k}_photo`, b.photo || '', 'Photo')}${photoField(`b_${k}_video`, b.video || '', 'Vidéo (facultatif)')}<label>Titre<input name="b_${k}_titre" value="${esc(b.titre || '')}" placeholder="${esc(d.titre || '')}"></label><label>Texte<textarea name="b_${k}_chapo" rows="3" placeholder="${esc(d.chapo || '')}">${esc(b.chapo || '')}</textarea></label><label>Bouton<input name="b_${k}_bouton" value="${esc(b.bouton || '')}" placeholder="${esc(d.bouton || '')}"></label></div>`; }).join('')}</div></section>
       <section class="box"><h2>Textes de l’accueil</h2><label>Petit titre<input name="surtitre" value="${esc(Ac.surtitre || '')}"></label><label>Grand titre<input name="titre" value="${esc(Ac.titre || '')}"></label><label>Sous-titre<input name="sousTitre" value="${esc(Ac.sousTitre || '')}"></label>
         <label>Bandeau défilant (un mot par ligne)<textarea name="bandeau" rows="4">${esc((Ac.bandeau || []).join('\n'))}</textarea></label>
         <label>Suggestions de recherche (une par ligne)<textarea name="suggestions" rows="4">${esc((Ac.suggestions || []).join('\n'))}</textarea></label>
@@ -592,7 +619,8 @@
         alertes: { emails: f.al_emails, sms: f.al_sms },
         suivi: { googleAdsId: String(f.ads_id || '').trim().toUpperCase(), conversionDemande: String(f.ads_dem || '').trim(), conversionContact: String(f.ads_con || '').trim() },
         paiement: { lien: String(f.pay_lien || '').trim(), titulaire: f.pay_tit || '', iban: String(f.pay_iban || '').toUpperCase().replace(/\s+/g, ' ').trim(), bic: String(f.pay_bic || '').toUpperCase().trim() },
-        redirections: f.redirections || '' };
+        redirections: f.redirections || '',
+        bandeaux: Object.fromEntries(['boutique', 'lieux', 'temoignages', 'maison'].map(k => [k, { ...(R.bandeaux?.[k] || {}), photo: f[`b_${k}_photo`] || '', video: f[`b_${k}_video`] || '', titre: (f[`b_${k}_titre`] || '').trim(), chapo: (f[`b_${k}_chapo`] || '').trim(), bouton: (f[`b_${k}_bouton`] || '').trim() }])) };
       await api(A + '/site', { method: 'PUT', body: next }); cache.R = next; $('#dirty').textContent = ''; toast('Enregistré : en ligne immédiatement.');
     });
   };
@@ -610,13 +638,14 @@
 
   /* ---------- médiathèque ---------- */
   async function medias() {
-    const m = await api(A + '/actions/medias');
+    const m = await api(A + '/actions/medias'); cache.medias = m;
     return page('Médiathèque', '<label class="btn up">+ Envoyer des photos ou vidéos<input type="file" accept="image/*,video/mp4" multiple hidden data-up></label>', `<p class="muted">${m.envoyes.length} fichiers envoyés depuis le back-office · ${m.site.length} photos et vidéos reprises du brouillon. Les photos de téléphone sont réduites automatiquement avant l’envoi.</p>
-      <input type="search" placeholder="Filtrer par nom…" data-mq><div class="mgrid big">${[...m.envoyes, ...m.site].map(x => `<a href="${esc(x.url)}" target="_blank" title="${esc(x.url)}">${/mp4$/.test(x.url) ? `<video src="${esc(x.url)}" muted preload="none"></video><i>▶</i>` : `<img src="${esc(x.url)}" loading="lazy" alt="">`}<small>${esc(x.url.split('/').pop())}</small></a>`).join('')}</div>`);
+      <div class="bh"><input type="search" placeholder="Filtrer par nom…" data-mq><span class="muted sm" data-mcount></span></div><div class="mgrid big"></div>`);
   }
   medias.after = () => {
+    const m = cache.medias; const filtrer = grilleMedias($('.mgrid.big'), ordreMedias([...m.envoyes, ...m.site]), 'a');
     $('[data-up]').addEventListener('change', async e => { let n = 0; for (const f of e.target.files) { try { await uploadFile(f); n++; } catch (err) { toast(err.message, true); } } toast(n + ' fichier(s) envoyé(s).'); render(); });
-    $('[data-mq]').addEventListener('input', e => $$('.mgrid a').forEach(a => { a.hidden = !a.title.toLowerCase().includes(e.target.value.toLowerCase()); }));
+    $('[data-mq]').addEventListener('input', e => filtrer(e.target.value));
   };
 
   /* ---------- équipe et activité ---------- */
