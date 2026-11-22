@@ -26,7 +26,7 @@ const REGLAGES_DEFAUT = {
   origine: { lat: 48.6948, lon: 2.2287, nom: 'Villebon-sur-Yvette' },
   horaires: 'Du lundi au vendredi de 9 h à 18 h, le samedi de 10 h à 18 h.',
   instagram: 'https://www.instagram.com/magnoliatraiteur/',
-  avisGoogle: { note: '4,9', nombre: 'plus de 800', url: 'https://search.google.com/local/reviews?placeid=ChIJQb9vuprX5UcR2-iHFOth55k' },
+  avisGoogle: { note: '4,9', nombre: 'plus de 650', url: 'https://search.google.com/local/reviews?placeid=ChIJQb9vuprX5UcR2-iHFOth55k' },
   mentionPied: 'Paris & Île-de-France · Le Traiteur Antillais est un département de Magnolia Traiteur',
   accueil: {
     surtitre: 'L’art de recevoir, signé Magnolia',
@@ -38,7 +38,7 @@ const REGLAGES_DEFAUT = {
       { src: '/site/v/chinois-boucle.mp4', poster: '/site/v/chinois-boucle.jpg', titre: 'Buffet chinois', lien: '/buffet-chinois' },
     ],
     chiffres: [
-      { valeur: '4,9/5', label: 'sur Google, plus de 800 avis' },
+      { valeur: '4,9/5', label: 'Sur Google, plus de 650 avis' },
       { valeur: '800', label: 'plus de 800 prestations par an' },
       { valeur: '7 j/7', label: 'livraison en Île-de-France' },
       { valeur: '1 seule', label: 'demande pour tout votre événement' },
@@ -645,11 +645,13 @@ async function initSousRubriques(store, { log = console } = {}) {
     }
     await store.set('site/reglages', { ...(await store.get('site/reglages')), sushisSansLogo: true });
   }
-  /* chiffre de l'accueil : « 800 / plus de 800 prestations par an » à la place du nombre de prestations en ligne (Jean-Luc, 2026-11-22). Une fois. */
+  /* chiffres de l'accueil (Jean-Luc, 2026-11-22) : « 800 / plus de 800 prestations par an » à la place du nombre de prestations en ligne, et « Sur Google, plus de 650 avis ». Une fois. */
   const RSh = await store.get('site/reglages');
   if (RSh && !RSh.chiffre800) {
-    const ch = (RSh.accueil?.chiffres || []).map(x => /prestations en ligne/i.test(x.label || '') ? { valeur: '800', label: 'plus de 800 prestations par an' } : x);
-    await store.set('site/reglages', { ...RSh, accueil: { ...(RSh.accueil || {}), chiffres: ch }, chiffre800: true });
+    const ch = (RSh.accueil?.chiffres || []).map(x => /prestations en ligne/i.test(x.label || '') ? { valeur: '800', label: 'plus de 800 prestations par an' }
+      : /sur google/i.test(x.label || '') ? { ...x, label: 'Sur Google, plus de 650 avis' } : x);
+    const ag = RSh.avisGoogle && /800/.test(RSh.avisGoogle.nombre || '') ? { ...RSh.avisGoogle, nombre: 'plus de 650' } : RSh.avisGoogle;
+    await store.set('site/reglages', { ...RSh, avisGoogle: ag, accueil: { ...(RSh.accueil || {}), chiffres: ch }, chiffre800: true });
   }
   /* prix corrigé par Jean-Luc (2026-11-22) : le brouillon avait repris le prix de « Entrées + plat » (21,90 €). Une fois. */
   const RSc = await store.get('site/reglages');
