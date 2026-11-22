@@ -228,6 +228,9 @@ function classerSous(produits, sous) {
   }
   return res;
 }
+const BANDEAUX_SPE = {
+  'specialites-japonaises': '/site/c/paysages/japon.webp',
+};
 const RANGEMENTS = [['buffets', 'Nos buffets'], ['entrees', 'Nos entrées à l’unité'], ['plats', 'Nos plats à l’unité'], ['desserts', 'Nos desserts à l’unité'], ['divers', 'Produits divers à l’unité']];
 /* section automatique d'une prestation (modifiable dans sa fiche) */
 function rangementDe(p) {
@@ -291,6 +294,16 @@ async function initSousRubriques(store, { log = console } = {}) {
   }
   if (n) log.log?.(`[demarrage] ${n} prestations classées en spécialités`);
   await initUniteSpecialites(store, log);
+  // bandeaux photo des spécialités choisis par Jean-Luc (2026-11-22) : appliqués une fois par spécialité, modifiables ensuite dans le back-office
+  const RS = await store.get('rubriques/saveurs-du-monde');
+  if (RS) {
+    const faits = new Set(RS.bandeauxSpeFaits || []);
+    const a_faire = Object.keys(BANDEAUX_SPE).filter(k => !faits.has(k));
+    if (a_faire.length) {
+      const sous = (RS.sous || []).map(x => a_faire.includes(x.slug) ? { ...x, bandeauPhoto: BANDEAUX_SPE[x.slug], bandeauVideo: '' } : x);
+      await store.set('rubriques/saveurs-du-monde', { ...RS, sous, bandeauxSpeFaits: [...faits, ...a_faire] });
+    }
+  }
   // une fois : textes des pages d'atterrissage, pour qu'ils apparaissent (et se modifient) dans le back-office
   for (const d of await store.list('rubriques')) {
     const r = d.data;
