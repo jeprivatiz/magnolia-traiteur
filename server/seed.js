@@ -228,6 +228,9 @@ function classerSous(produits, sous) {
   }
   return res;
 }
+const BANDEAUX_SPE = {
+  'specialites-japonaises': '/site/c/paysages/japon.webp',
+};
 const RANGEMENTS = [['buffets', 'Nos buffets'], ['entrees', 'Nos entrées à l’unité'], ['plats', 'Nos plats à l’unité'], ['accompagnements', 'Nos accompagnements à l’unité'], ['desserts', 'Nos desserts à l’unité'], ['divers', 'Produits divers à l’unité']];
 /* « Riz oriental : + 1,50 € HT/personne. » → « Riz oriental » (supplément d'un menu, pas un nom de plat) */
 const SUPPL = /\s*:\s*\+\s*[\d.,]+\s*€.*$/;
@@ -297,6 +300,16 @@ async function initSousRubriques(store, { log = console } = {}) {
   }
   if (n) log.log?.(`[demarrage] ${n} prestations classées en spécialités`);
   await initUniteSpecialites(store, log);
+  // bandeaux photo des spécialités choisis par Jean-Luc (2026-11-22) : appliqués une fois par spécialité, modifiables ensuite dans le back-office
+  const RS = await store.get('rubriques/saveurs-du-monde');
+  if (RS) {
+    const faits = new Set(RS.bandeauxSpeFaits || []);
+    const a_faire = Object.keys(BANDEAUX_SPE).filter(k => !faits.has(k));
+    if (a_faire.length) {
+      const sous = (RS.sous || []).map(x => a_faire.includes(x.slug) ? { ...x, bandeauPhoto: BANDEAUX_SPE[x.slug], bandeauVideo: '' } : x);
+      await store.set('rubriques/saveurs-du-monde', { ...RS, sous, bandeauxSpeFaits: [...faits, ...a_faire] });
+    }
+  }
   // une fois (2026-11-22, demande de Jean-Luc) : section « Nos accompagnements à l'unité » ; riz, gratins, alloco… y passent
   const RA = await store.get('rubriques/saveurs-du-monde');
   if (RA && !RA.accompInit) {
