@@ -205,7 +205,7 @@ const SPE_TEXTES = {
 const SOUS_DEFAUT = {
   'saveurs-du-monde': [
     { slug: 'paella-party', nom: 'Paëlla party', pays: 'Espagne', photo: '/site/c/paella-royale/client-1.webp.webp', mots: ['paella'] },
-    { slug: 'buffet-libanais', nom: 'Buffet libanais · 8 mezzés', pays: 'Liban', photo: '/site/v/libanais-boucle.jpg', video: '/site/v/libanais-boucle.mp4', mots: ['libanais'] },
+    { slug: 'buffet-libanais', nom: 'Buffet libanais', pays: 'Liban', photo: '/site/v/libanais-boucle.jpg', video: '/site/v/libanais-boucle.mp4', mots: ['libanais'] },
     { slug: 'buffet-chinois', nom: 'Buffet chinois', pays: 'Chine', photo: '/site/v/chinois-boucle.jpg', video: '/site/v/chinois-boucle.mp4', mots: ['chinois'] },
     { slug: 'buffet-africain', nom: 'Buffet africain', pays: 'Afrique', photo: '/site/v/africain-boucle.jpg', video: '/site/v/africain-boucle.mp4', mots: ['africain'], dossiers: ['africain-'] },
     { slug: 'couscous-party', nom: 'Couscous party', pays: 'Maghreb', photo: '/site/c/couscous-menus/couscous-royal-sans-logo-20261106.webp.webp', mots: ['couscous'] },
@@ -552,6 +552,45 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('site/reglages', { ...REq, equipe, photoRomain: true });
   }
 
+  /* « Buffet libanais · 8 mezzés » devient « Buffet libanais » (Jean-Luc, 2026-11-22). Une fois. */
+  const RLb = await store.get('rubriques/saveurs-du-monde');
+  if (RLb && !RLb.libanaisCourt) {
+    const sous = (RLb.sous || []).map(x => x.slug === 'buffet-libanais' && /mezz/i.test(x.nom || '') ? { ...x, nom: 'Buffet libanais' } : x);
+    await store.set('rubriques/saveurs-du-monde', { ...RLb, sous, libanaisCourt: true });
+  }
+
+  /* doublons antillais / africain fusionnés (Jean-Luc, 2026-11-22) : on garde la fiche africaine, rattachée aussi à l'antillais ;
+     l'autre est masquée et son adresse renvoie vers la fiche gardée. Une fois. */
+  const RF = await store.get('site/reglages');
+  if (RF && !RF.doublonsFusionnes) {
+    let nf = 0;
+    for (const [garde, ...autres] of DOUBLONS) {
+      const g = await store.get('produits/' + garde);
+      if (!g) continue;
+      const sous2 = new Set(g.autresSous || []), rubs2 = new Set(g.autresRubriques || []);
+      for (const a of autres) {
+        const x = await store.get('produits/' + a);
+        if (!x || x.fusionneDans) continue;
+        if (x.sous && x.sous !== g.sous) sous2.add(x.sous);
+        if (x.rubrique !== g.rubrique) rubs2.add(x.rubrique);
+        await store.set('produits/' + a, { ...x, statut: 'masque', fusionneDans: garde });
+        nf++;
+      }
+      await store.set('produits/' + garde, { ...g, autresSous: [...sous2], autresRubriques: [...rubs2] });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), doublonsFusionnes: true });
+    if (nf) log.log?.(`[demarrage] ${nf} doublons fusionnés`);
+  }
+
+  /* photos ajoutées aux fiches qui n'en avaient pas (Jean-Luc, 2026-11-22). Une fois par fiche, si elle est toujours sans photo. */
+  for (const [re, src, alt] of PHOTOS_FICHES) {
+    for (const d of await store.list('produits')) {
+      const x = d.data;
+      if (!x || !re.test(x.titre || '') || (x.photos || []).length || x.photoAjoutee) continue;
+      await store.set('produits/' + d.id, { ...x, photos: [{ src, alt }], photoAjoutee: true });
+    }
+  }
+
   /* photos des vignettes « Nos univers » choisies par Jean-Luc (2026-11-22, sources dans data/credits-photos.md).
      Appliquées une fois par univers : modifiables ensuite dans le back-office. */
   const RV = await store.get('site/reglages');
@@ -568,7 +607,46 @@ async function initSousRubriques(store, { log = console } = {}) {
   }
 }
 
+/* [fiche gardée, doublons…] : mêmes produit, prix et minimum */
+const DOUBLONS = [
+  ['acras-de-morue', 'acras-de-morue-antilles'], ['acras-de-legumes', 'acras-de-legumes-antilles'], ['puff-puff', 'puff-puff-antilles'],
+  ['samoussa-legumes', 'samoussa-legumes-antilles'], ['samoussas-legumes', 'samoussas-legumes-antilles'],
+  ['samoussas-au-boeuf', 'samoussas-au-boeuf-antilles'], ['samoussas-au-poulet', 'samoussas-au-poulet-antilles'],
+  ['toasts-a-l-avocat-et-aux-crevettes', 'toasts-a-l-avocat-et-aux-crevettes-antilles'], ['salade-composee-200-g', 'salade-composee-200-g-antilles'],
+  ['avocat-aux-crevettes-200-g', 'avocat-aux-crevettes-200-g-antilles'], ['riz-aux-legumes', 'riz-aux-legumes-antillais'],
+  ['salade-de-fruits-exotiques-africain', 'salade-de-fruits-exotiques-antilles'], ['salade-de-4-fruits-de-saison-250-g', 'salade-de-4-fruits-de-saison-250-g-antilles'],
+  ['curry-d-agneau-300-g', 'curry-d-agneau-antillais'],
+  ['gateau-a-l-ananas-fait-maison-gateau-de-10-parts', 'gateau-a-l-ananas-fait-maison-gateau-de-10-parts-antilles'],
+  ['flan-coco-fait-maison-gateau-de-10-parts', 'flan-coco-fait-maison-gateau-de-10-parts-antilles'],
+  ['coffret-de-fruits-frais-pour-8-10-pers', 'coffret-de-fruits-frais-pour-8-10-pers-antilles'],
+  ['plateau-de-80-mini-club-sandwichs', 'plateau-de-80-mini-club-sandwichs-antilles'],
+  ['brochettes-de-fruits-frais-plateau-de-20-brochettes', 'brochettes-de-fruits-frais-plateau-de-20-brochettes-antilles'],
+  ['plateau-de-48-mini-wraps-africain', 'plateau-de-48-mini-wraps-antilles'],
+  ['corbeille-exotique-3-kg-africain', 'corbeille-exotique-3-kg-antilles'], ['corbeille-exotique-5-kg', 'corbeille-exotique-5-kg-antilles', 'corbeille-exotique-5-kg-2'],
+  ['corbeille-exotique-7-kg', 'corbeille-exotique-7-kg-antilles', 'corbeille-exotique-7-kg-2'], ['corbeille-exotique-9-kg', 'corbeille-exotique-9-kg-antilles', 'corbeille-exotique-9-kg-2'],
+  ['corbeille-de-fruits-de-saison-9-kg', 'corbeille-de-fruits-de-saison-9-kg-antilles'],
+];
+/* [titre, photo, texte alternatif] ; sources dans data/credits-photos-univers.md */
+const PHOTOS_FICHES = [
+  [/^air hockey/i, 'https://images.pexels.com/photos/5780929/pexels-photo-5780929.jpeg?auto=compress&cs=tinysrgb&w=1200', 'Table d’air hockey lumineuse'],
+];
 const INTROS_SPE = {
+  'paella-party': ['La paëlla, la fête à partager',
+    'Une grande poêle dorée au milieu des invités, et la fête commence. Notre paëlla royale marie poulet, chorizo, crevettes, calamars et moules sur un riz parfumé au safran ; la paëlla de la mer garde le meilleur de l’océan.\nCuisinée devant vos invités ou livrée prête à servir, elle régale aussi bien un anniversaire au jardin qu’un repas d’entreprise.'],
+  'buffet-chinois': ['La Chine en bouchées à partager',
+    'Nems croustillants, bouchées vapeur et hacao aux crevettes, raviolis, brochettes yakitori : un buffet chinois, c’est d’abord une ribambelle de petites gourmandises à picorer. Viennent ensuite les plats qui ont fait la réputation de cette cuisine : canard laqué, porc au caramel, poulet à la citronnelle, riz cantonais et nouilles sautées.\nPour finir en douceur, perles coco, mochis et litchis. Tout est préparé dans notre laboratoire et livré prêt à servir, pour une soirée conviviale comme pour un cocktail d’entreprise.'],
+  'buffet-africain': ['L’Afrique généreuse, en couleurs et en saveurs',
+    'Acras de morue, pastels, samoussas et puff-puff pour commencer, puis les grands classiques mijotés longuement : mafé, yassa, thiéboudienne, ndolé, kédjénou ou poulet braisé. Alloco, attiéké, bananes plantains et foutou les accompagnent, comme à la maison.\nUne cuisine chaleureuse et parfumée, servie en buffet pour vos mariages, baptêmes, anniversaires et fêtes de famille, avec des fruits frais et des douceurs coco pour le dessert.'],
+  'couscous-party': ['Le couscous, le plat qui rassemble',
+    'Semoule légère, légumes fondants, bouillon parfumé aux épices : le couscous est le plat de fête par excellence. Notre couscous royal réunit trois viandes, et le couscous végétarien fait la part belle aux légumes et aux pois chiches.\nPréparé le jour de votre événement et livré bien chaud, il régale facilement un grand nombre d’invités, du mariage à l’anniversaire.'],
+  'buffet-italien': ['La dolce vita à votre table',
+    'Charcuterie italienne, fromages, salades de pâtes fraîches comme la Belle Toscane ou les mini-pennes à l’italienne, lasagnes à la bolognaise au parmigiano reggiano : notre buffet italien, c’est le goût simple et généreux de l’Italie.\nEt pour finir, un tiramisu fait maison. Une cuisine qui plaît à tous, à partager entre amis, en famille ou entre collègues.'],
+  'buffet-antillais': ['Les Antilles, le soleil dans l’assiette',
+    'Acras de morue, boudins créoles et samoussas pour l’apéritif, puis colombo de poulet ou de cabri, fricassée de chatrou, rougail saucisse ou vivaneau au court-bouillon : la cuisine antillaise est pleine d’épices et de bonne humeur.\nGratins de bananes plantains ou de christophines, riz et haricots rouges accompagnent les plats, et le flan coco ou le blanc-manger terminent le repas. De quoi faire voyager vos invités, d’un anniversaire à un repas d’entreprise.'],
+  'buffet-indien': ['L’Inde, ses épices et ses couleurs',
+    'Samossas, bhajias d’oignon et pakoras pour commencer, puis les grands classiques : chicken tikka massala, korma à la crème d’amande, agneau madras ou crevettes massala, servis avec un riz au safran et des naans au fromage.\nPour le dessert, gulab jamun et lassi au parfum de votre choix. Une cuisine parfumée sans être forcément piquante, idéale pour surprendre vos invités.'],
+  'specialites-japonaises': ['Le Japon en plateaux à partager',
+    'Sushis, makis et californias préparés avec soin et présentés en plateaux prêts à poser sur la table. De 36 à 80 pièces, il y en a pour un apéritif entre amis comme pour un grand cocktail.\nFrais, légers et élégants, nos plateaux japonais se partagent facilement et plaisent à tous les âges.'],
   'buffet-libanais': ['Le Liban, l’art de recevoir à partager',
     'Au Liban, un bon repas se partage : on pose les mezzés au milieu de la table et chacun se sert. Houmous onctueux, moutabal fumé, taboulé bien frais, falafels croustillants et petits feuilletés chauds ouvrent le bal, avant les grillades marinées et les douceurs orientales.\nTout est préparé dans notre laboratoire avec des produits frais, puis livré prêt à servir pour votre soirée, votre séminaire ou votre mariage. Une cuisine généreuse et colorée, qui met tout le monde d’accord, végétariens compris.'],
 };

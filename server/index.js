@@ -764,6 +764,7 @@ async function createApp(opts = {}) {
       if (x) return views.specialite(c, ru, x);
     }
     const p = c.bySlug.get(req.params.slug);
+    if (p && p.fusionneDans) { const q = c.bySlug.get(p.fusionneDans); if (q && q.statut !== 'masque') { res.redirect(301, `/${q.rubrique}/${q.slug}`); return; } }
     if (!p || p.statut === 'masque') return next();
     if (p.rubrique !== req.params.rub && !(p.autresRubriques || []).includes(req.params.rub)) { res.redirect(301, `/${p.rubrique}/${p.slug}`); return; }
     return views.produit(c, p);
