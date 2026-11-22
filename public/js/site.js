@@ -374,6 +374,13 @@
     try { const r = await post('/api/demandes', { ...f, type: 'contact', lignes: [] }); conversion('contact', r.ref); contactForm.innerHTML = `<p class="ok">Merci, votre message est bien envoyé (référence ${esc(r.ref)}). Nous vous répondons vite.</p>`; }
     catch (err) { toast(err.message); }
   });
+  const avisForm = $('[data-avis]');
+  avisForm?.addEventListener('submit', async e => {
+    e.preventDefault();
+    if (!avisForm.checkValidity()) { avisForm.reportValidity(); return; }
+    try { await post('/api/avis', Object.fromEntries(new FormData(avisForm))); avisForm.innerHTML = '<p class="ok">Merci beaucoup ! Votre avis sera publié après relecture par l’équipe.</p>'; }
+    catch (err) { toast(err.message); }
+  });
   const lien = $('[data-lien]');
   lien?.addEventListener('submit', async e => {
     e.preventDefault();
@@ -396,24 +403,43 @@
   }
 })();
 
-/* ---------- Google Ads : conversions et accord du visiteur (seulement si le compte est réglé) ---------- */
+/* ---------- cookies (règles CNIL) et Google Ads ----------
+   Sans identifiant Google Ads réglé dans le back-office : rien n'est chargé, pas de bandeau.
+   Avec : « Tout refuser » et « Tout accepter » de même poids ; rien de Google avant l'accord ;
+   choix gardé 6 mois ; lien « Gérer mes cookies » en bas de page. */
+const MG_CONSENT = 'mg_consent', SIX_MOIS = 182 * 864e5;
+function lireAccord() { try { const c = JSON.parse(localStorage.getItem(MG_CONSENT)); return c && Date.now() - c.at < SIX_MOIS ? c : null; } catch { return null; } }
+function chargerGoogle() {
+  const id = document.body.dataset.ads;
+  if (!id || window.gtag) return;
+  window.dataLayer = window.dataLayer || [];
+  window.gtag = function () { window.dataLayer.push(arguments); };
+  window.gtag('consent', 'default', { ad_storage: 'granted', ad_user_data: 'granted', ad_personalization: 'granted', analytics_storage: 'granted' });
+  window.gtag('js', new Date()); window.gtag('config', id);
+  const sc = document.createElement('script'); sc.async = true; sc.src = 'https://www.googletagmanager.com/gtag/js?id=' + encodeURIComponent(id);
+  document.head.appendChild(sc);
+}
 function conversion(type, ref, cents) {
   const to = document.body.dataset['conv' + type[0].toUpperCase() + type.slice(1)];
-  if (!to || typeof window.gtag !== 'function') return;
+  if (!to || !lireAccord()?.ads || typeof window.gtag !== 'function') return;
   window.gtag('event', 'conversion', { send_to: to, transaction_id: ref, ...(cents ? { value: cents / 100, currency: 'EUR' } : {}) });
 }
-(function consentement() {
-  if (!document.body.dataset.ads) return;
-  let v = null; try { v = localStorage.getItem('mg_consent'); } catch { /* */ }
-  if (v) return;
+function bandeauCookies() {
+  if (!document.body.dataset.ads || document.querySelector('.consent')) return;
   const b = document.createElement('div');
-  b.className = 'consent';
-  b.innerHTML = '<p>Nous utilisons des cookies pour mesurer l’efficacité de nos publicités. Vous pouvez refuser.</p><div><button type="button" class="btn btn-ghost" data-c="non">Refuser</button><button type="button" class="btn btn-vert" data-c="oui">Accepter</button></div>';
+  b.className = 'consent'; b.setAttribute('role', 'dialog'); b.setAttribute('aria-label', 'Cookies');
+  b.innerHTML = '<p><b>Cookies</b> : avec votre accord, nous mesurons l’efficacité de nos publicités Google. Vous pouvez refuser, le site fonctionne de la même façon.</p><div><button type="button" class="btn btn-vert" data-c="0">Tout refuser</button><button type="button" class="btn btn-vert" data-c="1">Tout accepter</button></div>';
   document.body.appendChild(b);
   b.addEventListener('click', e => {
     const c = e.target.closest('[data-c]'); if (!c) return;
-    try { localStorage.setItem('mg_consent', c.dataset.c); } catch { /* */ }
-    if (c.dataset.c === 'oui' && typeof window.gtag === 'function') window.gtag('consent', 'update', { ad_storage: 'granted', ad_user_data: 'granted', ad_personalization: 'granted', analytics_storage: 'granted' });
+    try { localStorage.setItem(MG_CONSENT, JSON.stringify({ ads: c.dataset.c === '1', at: Date.now() })); } catch { /* navigation privée */ }
     b.remove();
+    if (c.dataset.c === '1') chargerGoogle(); else if (window.gtag) location.reload();
   });
+}
+(function cookies() {
+  if (!document.body.dataset.ads) { document.querySelectorAll('[data-cookies]').forEach(a => a.hidden = true); return; }
+  const c = lireAccord();
+  if (c?.ads) chargerGoogle(); else if (!c) bandeauCookies();
+  document.addEventListener('click', e => { if (e.target.closest('[data-cookies]')) { e.preventDefault(); try { localStorage.removeItem(MG_CONSENT); } catch { /* */ } bandeauCookies(); } });
 })();

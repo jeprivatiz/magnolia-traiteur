@@ -23,7 +23,7 @@ function createCatalogue(store) {
     }));
     cache = {
       reglages: reglages || {}, rubriques, produits, bySlug, byRub, lieux: lieuxL, index,
-      avis: avis.map(d => ({ id: d.id, ...d.data })).filter(a => a.statut !== 'masque').sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0)),
+      avis: avis.map(d => ({ id: d.id, ...d.data })).filter(a => a.statut === 'visible' || a.statut === 'vedette' || !a.statut).sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0)),
       pages: Object.fromEntries(pages.map(d => [d.data.url, d.data])),
       loadedAt: Date.now(),
     };

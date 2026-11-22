@@ -26,18 +26,13 @@ const img = (src, alt = '', cls = '', attrs = '') => src ? `<img src="${esc(src)
 
 /* Google Ads : balise chargée seulement si le compte est renseigné, et en mode consentement (rien n'est mesuré avant l'accord du visiteur) */
 const ADS_RE = /^AW-\d{6,14}$/, LAB_RE = /^[A-Za-z0-9_-]{4,64}$/;
-function adsTag(R) {
-  const id = R.suivi?.googleAdsId;
-  if (!ADS_RE.test(id || '')) return '';
-  return `<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('consent','default',{ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied',analytics_storage:'denied'});try{if(localStorage.getItem('mg_consent')==='oui')gtag('consent','update',{ad_storage:'granted',ad_user_data:'granted',ad_personalization:'granted',analytics_storage:'granted'})}catch(e){}gtag('js',new Date());gtag('config','${id}');</script>
-<script async src="https://www.googletagmanager.com/gtag/js?id=${id}"></script>`;
-}
+function adsTag() { return ''; } /* la balise Google n'est chargée par le navigateur qu'après « Accepter » (règles CNIL) */
 function adsConv(R) {
   const S = R.suivi || {}, id = S.googleAdsId;
   if (!ADS_RE.test(id || '')) return '';
   const d = LAB_RE.test(S.conversionDemande || '') ? ` data-conv-demande="${id}/${S.conversionDemande}"` : '';
   const k = LAB_RE.test(S.conversionContact || '') ? ` data-conv-contact="${id}/${S.conversionContact}"` : '';
-  return ' data-ads="1"' + d + k;
+  return ` data-ads="${id}"` + d + k;
 }
 
 function layout(c, { title, description = '', body, path = '/', schema = null, bodyClass = '', image = '' }) {
@@ -113,7 +108,7 @@ ${schema ? `<script type="application/ld+json">${JSON.stringify(schema).replace(
     <div><h2>Magnolia</h2><ul><li><a href="/boutique">La boutique</a></li><li><a href="/ma-selection">Ma sélection</a></li><li><a href="/comment-commander">Comment commander</a></li><li><a href="/livraison">Zones de livraison</a></li><li><a href="/temoignages">Témoignages</a></li><li><a href="/maison">La maison Magnolia</a></li><li><a href="/contact">Contact</a></li><li><a href="/espace-client">Mon espace client</a></li></ul></div>
     <div><h2>Nous joindre</h2><ul class="contact"><li><a href="tel:${esc((R.telephone || '').replace(/\s/g, ''))}">${esc(R.telephone)}</a></li><li><a href="mailto:${esc(R.email)}">${esc(R.email)}</a></li><li>${esc(R.adresse)}</li><li>${esc(R.horaires)}</li>${R.instagram ? `<li><a href="${esc(R.instagram)}" rel="noopener">Instagram</a></li>` : ''}</ul></div>
   </div>
-  <div class="foot-bas"><p>${esc(R.mentionPied || '')}</p><p><a href="/mentions-legales">Mentions légales</a> · <a href="/confidentialite">Confidentialité</a> · <a href="/cgv">CGV</a> · <a href="/allergenes">Allergènes</a> · © ${new Date().getFullYear()} ${esc(R.nom)}</p></div>
+  <div class="foot-bas"><p>${esc(R.mentionPied || '')}</p><p><a href="/mentions-legales">Mentions légales</a> · <a href="/confidentialite">Confidentialité</a> · <a href="/cgv">CGV</a> · <a href="/allergenes">Allergènes</a><span data-cookies> · <a href="#cookies">Gérer mes cookies</a></span> · © ${new Date().getFullYear()} ${esc(R.nom)}</p></div>
 </footer>
 <div class="toast" data-toast role="status" aria-live="polite"></div>
 <script>window.MG=${JSON.stringify({ tel: R.telephone, tarifs: R.tarifs, origine: R.origine, evenements: R.evenements }).replace(/</g, '\\u003c')};</script>
@@ -377,8 +372,12 @@ function commander(c) {
 }
 
 function temoignages(c) {
-  const html = `<div class="masonry">${c.avis.map(a => `<figure class="quote"><p class="stars">${'★'.repeat(a.note || 5)}</p><blockquote>« ${esc(a.texte)} »</blockquote><figcaption>${esc(a.auteur || '')}</figcaption></figure>`).join('')}</div>`;
-  return texte(c, { titre: 'Avis clients', chapo: `${c.reglages.avisGoogle?.note || '4,9'}/5 sur Google, ${c.reglages.avisGoogle?.nombre || ''} avis.`, html, path: '/temoignages' });
+  const html = `<div class="masonry">${c.avis.map(a => `<figure class="quote"><p class="stars">${'★'.repeat(a.note || 5)}</p><blockquote>« ${esc(a.texte)} »</blockquote><figcaption>${esc(a.auteur || '')}${a.evenement ? ' · ' + esc(a.evenement) : ''}</figcaption></figure>`).join('')}</div>`;
+  const form = `<section class="avis-form" id="laisser-un-avis"><h2>Vous avez fêté un moment avec nous ?</h2><p>Racontez-le en quelques mots : votre avis sera publié après relecture par l’équipe.</p>
+  <form class="card-form" data-avis novalidate><div class="f2"><label>Prénom et ville<input name="auteur" required maxlength="80" placeholder="Claire, Massy"></label><label>Votre événement<select name="evenement">${(c.reglages.evenements || []).map(e => `<option>${esc(e)}</option>`).join('')}</select></label></div>
+  <div class="f2"><label>Votre note<select name="note"><option value="5">★★★★★ Excellent</option><option value="4">★★★★ Très bien</option><option value="3">★★★ Bien</option><option value="2">★★ Moyen</option><option value="1">★ Décevant</option></select></label><label>E-mail (jamais publié)<input type="email" name="email" required autocomplete="email"></label></div>
+  <label>Votre avis<textarea name="texte" rows="4" required minlength="20" maxlength="1500"></textarea></label><input name="site" tabindex="-1" autocomplete="off" class="hp" aria-hidden="true"><button class="btn btn-vert">Envoyer mon avis</button></form></section>`;
+  return texte(c, { titre: 'Avis clients', chapo: `${c.reglages.avisGoogle?.note || '4,9'}/5 sur Google, ${c.reglages.avisGoogle?.nombre || ''} avis.`, html: html + form, path: '/temoignages' });
 }
 
 function contact(c) {
@@ -433,7 +432,7 @@ function devisLignesHtml(d) {
 }
 function totauxHtml(t) {
   return `<dl class="totaux">${t.remiseCents ? `<div><dt>Sous-total</dt><dd>${euros(t.brutCents)}</dd></div><div><dt>Remise</dt><dd>− ${euros(t.remiseCents)}</dd></div>` : ''}
-  ${Object.entries(t.tva).map(([taux, v]) => `<div class="sm"><dt>dont TVA ${taux} %</dt><dd>${euros(v)}</dd></div>`).join('')}
+  ${Object.entries(t.tva).filter(([, v]) => v).map(([taux, v]) => `<div class="sm"><dt>dont TVA ${String(taux).replace(".", ",")} %</dt><dd>${euros(v)}</dd></div>`).join('')}
   <div class="sm"><dt>Total HT</dt><dd>${euros(t.htCents)}</dd></div><div class="tot"><dt>Total TTC</dt><dd>${euros(t.ttcCents)}</dd></div></dl>`;
 }
 
@@ -442,6 +441,8 @@ function devisPage(c, d, t, { client, demande }) {
   const signe = d.statut === 'accepte';
   const expire = d.validiteJusquau && d.validiteJusquau < new Date().toISOString().slice(0, 10) && !signe;
   const acompte = Math.round(t.ttcCents * (d.acomptePct ?? R.tarifs?.acomptePct ?? 30) / 100);
+  const https = u => /^https:\/\/[^\s"'<>]+$/.test(String(u || '')) ? String(u) : '';
+  const payer = https(d.lienPaiement) || https(R.paiement?.lien);
   const body = `<section class="wrap doc">
   <header class="doc-h"><div>${MONO}<p class="brand-txt">Magnolia<small>${esc(R.sousNom || '')}</small></p><p class="small">${esc(R.adresse)}<br>${esc(R.telephone)} · ${esc(R.email)}</p></div>
   <div class="doc-ref"><h1>Devis ${esc(d.numero)}</h1><p>Émis le ${esc(dateFr(d.envoyeLe || d.createdAt))}${d.validiteJusquau ? `<br>Valable jusqu’au ${esc(dateFr(d.validiteJusquau))}` : ''}</p><span class="pill p-${esc(d.statut)}">${esc({ envoye: 'À signer', accepte: 'Signé', refuse: 'Refusé', brouillon: 'Brouillon' }[d.statut] || '')}</span></div></header>
@@ -453,7 +454,9 @@ function devisPage(c, d, t, { client, demande }) {
   ${d.conditions ? `<p class="small">${esc(d.conditions)}</p>` : ''}
   <div class="sign" data-sign="${esc(d.token)}">
   ${signe ? `<p class="ok">✓ Devis signé en ligne par <b>${esc(d.signature?.nom || '')}</b> le ${esc(dateFr(d.signature?.at, { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }))}.</p>
-     ${d.lienPaiement ? `<p>Acompte de <b>${euros(acompte)}</b> (${d.acomptePct ?? R.tarifs?.acomptePct ?? 30} %) pour réserver votre date :</p><p><a class="btn btn-or" href="${esc(d.lienPaiement)}" rel="noopener">Régler l’acompte en ligne</a></p>` : `<p>L’équipe vous envoie le lien de paiement de l’acompte (${euros(acompte)}).</p>`}`
+     ${payer ? `<p>Acompte de <b>${euros(acompte)}</b> (${d.acomptePct ?? R.tarifs?.acomptePct ?? 30} %) pour réserver votre date :</p><p><a class="btn btn-or" href="${esc(payer)}" rel="noopener">Régler l’acompte par carte</a></p>` : ''}
+     ${R.paiement?.iban ? `<div class="virement"><p class="eyebrow">${payer ? 'Ou par virement' : `Acompte de ${euros(acompte)} par virement`}</p><p>Titulaire : <b>${esc(R.paiement.titulaire || 'Magnolia Traiteur')}</b><br>IBAN : <b class="mono">${esc(R.paiement.iban)}</b>${R.paiement.bic ? `<br>BIC : <b class="mono">${esc(R.paiement.bic)}</b>` : ''}<br>Référence à indiquer : <b>${esc(d.numero)}</b></p></div>` : ''}
+     ${!payer && !R.paiement?.iban ? `<p>L’équipe vous envoie le lien de paiement de l’acompte (${euros(acompte)}).</p>` : ''}`
     : d.statut === 'refuse' ? '<p>Ce devis a été clôturé. Appelez-nous pour en établir un nouveau.</p>'
     : expire ? `<p>Ce devis a expiré. Appelez-nous au ${esc(R.telephone)} : nous le mettons à jour.</p>`
     : `<h2>Bon pour accord</h2><p>Acompte de ${euros(acompte)} (${d.acomptePct ?? R.tarifs?.acomptePct ?? 30} %) à la signature, solde avant l’événement. En signant, vous acceptez les <a href="/cgv" target="_blank">conditions générales de vente</a>.</p>
