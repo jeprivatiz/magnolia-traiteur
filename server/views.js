@@ -135,6 +135,18 @@ function univers(c) {
     + `<a class="tile" href="/lieux">${img(c.lieux[0]?.photos?.[0], '')}<span class="tile-t"><b>Lieux de réception</b><small>${c.lieux.filter(l => l.statut !== 'masque').length} lieux à privatiser</small></span></a>`;
 }
 
+/* bandeau défilant des logos clients (page Avis clients, et accueil avec lien vers l'avis) */
+function bandeLogos(c, { lien = false, titre = '' } = {}) {
+  const logos = (c.reglages.logosClients || []).filter(l => logoExiste(l.src));
+  if (!logos.length) return '';
+  const ids = new Set(c.avis.map(a => a.id));
+  return `<section class="bande-clients${titre ? ' accueil' : ''}" aria-label="Ils nous ont fait confiance">${titre ? `<p class="eyebrow center">${esc(titre)}</p>` : ''}<div class="marquee"><div class="marquee-t">${[0, 1].map(k => logos.map(l => {
+    const im = `<img src="${esc(l.src)}" alt="${k ? '' : esc(l.nom)}" title="${esc(l.nom)}" loading="lazy" decoding="async">`;
+    const href = l.avisId && ids.has(l.avisId) ? (lien ? '/temoignages' : '') + '#avis-' + l.avisId : (lien ? '/temoignages' : '');
+    return href ? `<a href="${esc(href)}"${!lien ? ` data-avis-lien="${esc(l.avisId)}"` : ''}${k ? ' tabindex="-1" aria-hidden="true"' : ''}>${im}</a>` : `<span${k ? ' aria-hidden="true"' : ''}>${im}</span>`;
+  }).join('')).join('')}</div></div></section>`;
+}
+
 function avisBloc(c) {
   const R = c.reglages, a = c.avis.filter(x => x.statut === 'vedette').slice(0, 3);
   const g = R.avisGoogle || {};
@@ -180,8 +192,13 @@ function home(c) {
   </div>
   <div class="hero-dots" aria-hidden="true">${vids.map((_, i) => `<i data-dot="${i}"></i>`).join('')}</div>
 </section>
-<div class="marquee band-vert" aria-label="Nos spécialités du monde"><div class="marquee-t">${[0, 1].map(k => (A.bandeau || []).map(t => `<span${k ? ' aria-hidden="true"' : ''}>${esc(t)}<i>✳</i></span>`).join('')).join('')}</div></div>
-<section class="chiffres wrap">${(A.chiffres || []).map(x => `<div><b>${esc(x.valeur)}</b><span>${esc(x.label)}</span></div>`).join('')}</section>
+<div class="marquee band-vert" aria-label="Nos spécialités du monde"><div class="marquee-t">${[0, 1].map(k => (A.bandeau || []).map(t => lienMot(c, t)).map(({ t, href }) => `<span${k ? ' aria-hidden="true"' : ''}><a href="${esc(href)}"${k ? ' tabindex="-1"' : ''}>${esc(t)}</a><i>✳</i></span>`).join('')).join('')}</div></div>
+<section class="chiffres wrap">${(A.chiffres || []).map(x => {
+  const nb = c.produits.filter(p => p.statut !== 'masque').length;
+  const v = /prestation/i.test(x.label || '') && /^\s*\d+\s*$/.test(x.valeur || '') ? String(nb) : x.valeur;
+  return `<div><b>${esc(v)}</b>${/\/\s*5\s*$/.test(v || '') ? '<i class="etoiles" aria-hidden="true">★★★★★</i>' : ''}<span>${esc(x.label === 'prestations en ligne, prix TTC' ? 'prestations en ligne' : x.label)}</span></div>`;
+}).join('')}</section>
+${bandeLogos(c, { lien: true, titre: 'Particuliers et entreprises : ils nous font confiance' })}
 <section class="recherche wrap">
   <h2 class="center">Que recherchez-vous ?</h2><p class="eyebrow center sous-titre">Entrez ou dictez votre envie</p>
   <form class="bigsearch inline" action="/boutique" role="search" data-live-search>${icon.search}<input type="search" name="q" placeholder="Paëlla, DJ, huîtres, personnel…" aria-label="Que recherchez-vous ?" autocomplete="off"><button type="button" class="mic" data-dictee aria-label="Dicter ma recherche">${icon.mic}<span>Dicter</span></button></form>
@@ -218,15 +235,38 @@ function bandeauDe(c, cle) {
   return o;
 }
 function bandeau(c, cle, { fil, titre } = {}) {
-  const R = c.reglages, B = bandeauDe(c, cle);
+  const B = bandeauDe(c, cle);
+  return bandeauHtml(c, { ...B, titre: titre || B.titre }, fil);
+}
+function bandeauHtml(c, B, fil) {
+  const R = c.reglages;
   const tel = (R.telephone || '').replace(/\s/g, '');
   const G = R.avisGoogle || {};
   const media = B.video
     ? `<video src="${esc(B.video)}" poster="${esc(B.photo || '')}" autoplay muted loop playsinline preload="metadata" aria-hidden="true" data-autoplay></video>`
     : img(B.photo, '', '', 'fetchpriority="high"').replace(' loading="lazy"', '');
-  return `<section class="phero land">${media}<div class="phero-c wrap">${crumbs(fil || [[titre || B.titre]])}<h1>${esc(titre || B.titre)}</h1>${B.chapo ? `<p class="lead">${esc(B.chapo)}</p>` : ''}
+  return `<section class="phero land">${media}<div class="phero-c wrap">${crumbs(fil || [[B.titre]])}<h1>${esc(B.titre)}</h1>${B.chapo ? `<p class="lead">${esc(B.chapo)}</p>` : ''}
   <div class="row land-cta"><a class="btn btn-or" href="${esc(B.ancre || '/boutique')}">${esc(B.bouton || 'Découvrir')}</a><a class="btn btn-ghost-light" href="tel:${esc(tel)}">${icon.phone}<span>${esc(R.telephone || '')}</span></a></div>
   <p class="confiance"><span><span class="etoiles" aria-hidden="true">★★★★★</span> <b>${esc(G.note || '4,9')}/5</b> sur Google${G.nombre ? `, ${esc(G.nombre)} avis` : ''}</span><span>Livraison 7 j/7 en Île-de-France</span><span>Devis gratuit</span></p></div></section>`;
+}
+
+/* ---------- pages d'atterrissage des spécialités (publicité Google Ads) ---------- */
+const { SPE_TEXTES } = require('./seed');
+const speTitre = x => x.titrePage || SPE_TEXTES[x.slug]?.[0] || `${x.nom} à Paris et en Île-de-France`;
+const speChapo = x => x.chapo || SPE_TEXTES[x.slug]?.[1] || `${x.pays ? x.pays + ' : ' : ''}toutes nos propositions, préparées par Magnolia Traiteur et livrées 7 jours sur 7 en Île-de-France. Prix TTC, devis gratuit.`;
+/* mots du bandeau défilant de l'accueil → page de la spécialité (ou de l'univers), sinon recherche */
+const sansAccent = t => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+function lienMot(c, t) {
+  const m = String(t).match(/^(.*?)\s*[|=]\s*(\/\S*)$/);
+  if (m) return { t: m[1], href: m[2] };
+  const k = sansAccent(t);
+  const rubs = c.rubriques.filter(r => r.statut !== 'masque');
+  const r0 = rubs.find(r => sansAccent(r.nom) === k || sansAccent(r.slug) === k);
+  if (r0) return { t, href: '/' + r0.slug };
+  for (const r of rubs) for (const x of sousVisibles(r)) {
+    if ([x.nom, x.slug.replace(/-/g, ' '), x.pays].some(v => sansAccent(v).split(' ').some(w => w === k || (k.length > 4 && w.startsWith(k.slice(0, -1)))))) return { t, href: `/${r.slug}/${x.slug}` };
+  }
+  return { t, href: '/boutique?q=' + encodeURIComponent(t) };
 }
 
 /* ---------- univers à spécialités (ex. Saveurs du monde → Paëlla, Libanais, Chinois…) ---------- */
@@ -240,30 +280,32 @@ function pageSpecialites(c, r) {
     const n = prodsDeSous(c, r, x.slug).length;
     return `<a class="tile spe" href="/${esc(r.slug)}/${esc(x.slug)}">${img(x.photo, x.nom)}${x.video ? `<video src="${esc(x.video)}" muted loop playsinline preload="none" aria-hidden="true" data-survol></video>` : ''}<span class="tile-t">${x.pays ? `<i class="pays">${esc(x.pays)}</i>` : ''}<b>${esc(x.nom)}</b><small>${n} prestation${n > 1 ? 's' : ''}</small><span class="voir">Voir nos propositions ${icon.arrow}</span></span></a>`;
   };
-  const body = `<section class="phero">${img(r.photoAccueil || r.photo, '')}<div class="phero-c wrap">${crumbs([['La boutique', '/boutique'], [r.nom]])}<h1>${esc(r.nom)}</h1><p class="lead">${esc(r.chapo || r.accroche || 'Choisissez votre spécialité : chaque cuisine a ses buffets, ses plats et ses douceurs.')}</p></div></section>
+  const body = `${bandeauHtml(c, { photo: r.bandeauPhoto || r.photoAccueil || r.photo, video: r.bandeauVideo || '', titre: r.titrePage || r.nom, chapo: r.chapo || r.accroche || 'Choisissez votre spécialité : chaque cuisine a ses buffets, ses plats et ses douceurs.', bouton: 'Choisir ma spécialité', ancre: '#specialites' }, [['La boutique', '/boutique'], [r.nom]])}
   <section class="wrap" id="specialites"><p class="eyebrow">Un voyage à votre table</p><h2>Choisissez votre spécialité</h2>
   <div class="tiles specialites">${S.map(tuile).join('')}${autres.length ? `<a class="tile spe autres" href="/${esc(r.slug)}/tout"><span class="tile-t"><b>Autres saveurs</b><small>${autres.length} prestation${autres.length > 1 ? 's' : ''}</small><span class="voir">Voir ${icon.arrow}</span></span></a>` : ''}</div>
   <p class="center tout-voir"><a class="lnk" href="/${esc(r.slug)}/tout">Voir les ${tous.length} prestations ${esc(r.nom.toLowerCase())} ensemble</a></p></section>`;
-  return layout(c, { title: r.nom, description: r.chapo || '', body, path: '/' + r.slug, image: r.photoAccueil || r.photo });
+  return layout(c, { title: r.seoTitre || r.titrePage || r.nom, description: r.seoDescription || r.chapo || '', body, path: '/' + r.slug, image: r.bandeauPhoto || r.photoAccueil || r.photo });
 }
 function specialite(c, r, x) {
   const S = sousVisibles(r);
   const liste = x ? prodsDeSous(c, r, x.slug) : (c.byRub.get(r.slug) || []);
   const chips = `<div class="chips scroll-x spe-chips">${S.map(y => `<a class="chip${x && y.slug === x.slug ? ' on' : ''}" href="/${esc(r.slug)}/${esc(y.slug)}">${esc(y.nom)}</a>`).join('')}<a class="chip${!x ? ' on' : ''}" href="/${esc(r.slug)}/tout">Tout</a></div>`;
-  return boutique(c, { rub: r.slug, titre: x ? x.nom : r.nom, chapo: x ? (x.chapo || `${x.pays ? x.pays + ' : ' : ''}toutes nos propositions, prix TTC. Ajoutez vos choix à votre sélection, puis demandez votre devis.`) : r.chapo, photo: x ? x.photo : (r.photoAccueil || r.photo), path: `/${r.slug}/${x ? x.slug : 'tout'}`, liste, fil: [['La boutique', '/boutique'], [r.nom, '/' + r.slug], [x ? x.nom : 'Tout']], chips });
+  const fil = [['La boutique', '/boutique'], [r.nom, '/' + r.slug], [x ? x.nom : 'Tout']];
+  const hero = x ? bandeauHtml(c, { photo: x.bandeauPhoto || x.photo, video: x.bandeauVideo ?? x.video ?? '', titre: speTitre(x), chapo: speChapo(x), bouton: x.bouton || 'Voir les propositions', ancre: '#prestations' }, fil) : '';
+  return boutique(c, { rub: r.slug, titre: x ? speTitre(x) : r.nom, chapo: x ? speChapo(x) : r.chapo, photo: x ? (x.bandeauPhoto || x.photo) : (r.photoAccueil || r.photo), path: `/${r.slug}/${x ? x.slug : 'tout'}`, liste, fil, chips, hero, seo: x ? { title: x.seoTitre || speTitre(x), description: x.seoDescription || speChapo(x) } : null });
 }
 
 function crumbs(list) {
   return `<nav class="crumbs" aria-label="Fil d’Ariane"><a href="/">Accueil</a>${list.map(([t, h]) => h ? ` / <a href="${h}">${esc(t)}</a>` : ` / <span>${esc(t)}</span>`).join('')}</nav>`;
 }
 
-function boutique(c, { q = '', rub = '', titre, chapo, photo, path = '/boutique', liste = null, fil = null, chips = '' }) {
+function boutique(c, { q = '', rub = '', titre, chapo, photo, path = '/boutique', liste = null, fil = null, chips = '', hero = '', seo = null }) {
   const rubs = c.rubriques.filter(r => r.statut !== 'masque' && r.slug !== 'lieux');
   const prods = liste || (q ? c.search(c, q, 400) : c.produits.filter(p => p.statut !== 'masque'));
   const r = rubs.find(x => x.slug === rub);
   const body = `
-${path === '/boutique' && !q ? bandeau(c, 'boutique') : photo ? `<section class="phero">${img(photo, '')}<div class="phero-c wrap">${crumbs(fil || (r ? [['La boutique', '/boutique'], [r.nom]] : [[titre]]))}<h1>${esc(titre)}</h1>${chapo ? `<p class="lead">${esc(chapo)}</p>` : ''}</div></section>`
-    : `<section class="wrap page-h">${crumbs([[titre]])}<h1>${esc(titre)}</h1><p class="lead">${esc(chapo || 'Toute la brochure, avec ses prix. Ajoutez vos choix à votre sélection, puis demandez votre devis.')}</p></section>`}
+${hero || (path === '/boutique' && !q ? bandeau(c, 'boutique') : photo ? bandeauHtml(c, { photo: r?.bandeauPhoto || photo, video: r?.bandeauVideo || '', titre: r?.titrePage || titre, chapo, bouton: 'Voir les prestations', ancre: '#prestations' }, fil || (r ? [['La boutique', '/boutique'], [r.nom]] : [[titre]]))
+    : `<section class="wrap page-h">${crumbs([[titre]])}<h1>${esc(titre)}</h1><p class="lead">${esc(chapo || 'Toute la brochure, avec ses prix. Ajoutez vos choix à votre sélection, puis demandez votre devis.')}</p></section>`)}
 <section class="wrap shop" id="prestations" data-shop>
   <div class="shop-bar">
     ${chips}<div class="chips scroll-x" role="tablist"${chips ? ' hidden' : ''}>${liste ? '' : `<a class="chip${!rub ? ' on' : ''}" href="/boutique" data-filter="">Tout <small>${c.produits.filter(p => p.statut !== 'masque').length}</small></a>`}${liste ? '' : rubs.map(x => `<a class="chip${x.slug === rub ? ' on' : ''}" href="/${x.slug}" data-filter="${x.slug}">${esc(x.nom)} <small>${c.byRub.get(x.slug)?.length || 0}</small></a>`).join('')}</div>
@@ -276,7 +318,7 @@ ${path === '/boutique' && !q ? bandeau(c, 'boutique') : photo ? `<section class=
   <div class="cards grid" data-grid>${prods.map(p => card(p, c, { rubNom: !rub })).join('')}</div>
   ${!prods.length ? `<div class="empty"><p>Aucune prestation ne correspond à « ${esc(q)} ».</p><p>Appelez-nous au <a href="tel:${esc(c.reglages.telephone)}">${esc(c.reglages.telephone)}</a> : nous trouvons toujours une solution.</p></div>` : ''}
 </section>`;
-  return layout(c, { title: titre, description: chapo || (path === '/boutique' && !q ? bandeauDe(c, 'boutique').chapo : ''), body, path, image: path === '/boutique' && !q ? bandeauDe(c, 'boutique').photo : photo });
+  return layout(c, { title: seo?.title || (r && path === '/' + r.slug && r.seoTitre) || titre, description: seo?.description || (r && path === '/' + r.slug && r.seoDescription) || chapo || (path === '/boutique' && !q ? bandeauDe(c, 'boutique').chapo : ''), body, path, image: path === '/boutique' && !q ? bandeauDe(c, 'boutique').photo : photo });
 }
 
 function produit(c, p) {
@@ -427,12 +469,7 @@ function commander(c) {
 function temoignages(c) {
   const R = c.reglages;
   const avis = c.avis;
-  const logos = (R.logosClients || []).filter(l => logoExiste(l.src));
-  const ids = new Set(avis.map(a => a.id));
-  const bande = logos.length ? `<section class="bande-clients" aria-label="Ils nous ont fait confiance"><div class="marquee"><div class="marquee-t">${[0, 1].map(k => logos.map(l => {
-    const im = `<img src="${esc(l.src)}" alt="${k ? '' : esc(l.nom)}" title="${esc(l.nom)}" loading="lazy" decoding="async">`;
-    return l.avisId && ids.has(l.avisId) ? `<a href="#avis-${esc(l.avisId)}" data-avis-lien="${esc(l.avisId)}"${k ? ' tabindex="-1" aria-hidden="true"' : ''}>${im}</a>` : `<span${k ? ' aria-hidden="true"' : ''}>${im}</span>`;
-  }).join('')).join('')}</div></div></section>` : '';
+  const bande = bandeLogos(c);
   const PAR = 24;
   const carte = (a, i) => `<figure class="quote" id="avis-${esc(a.id)}"${i >= PAR ? ' hidden' : ''} data-avis-item><p class="stars" aria-label="${a.note || 5} sur 5">${'★'.repeat(a.note || 5)}</p>${a.titre ? `<h3>${esc(a.titre)}</h3>` : ''}<blockquote>« ${esc(a.texte)} »</blockquote>${a.photo ? `<img class="quote-ph" src="${esc(a.photo)}" alt="" loading="lazy" decoding="async">` : ''}<figcaption>${[String(a.auteur || '').replace(/([a-zà-ÿ])([A-ZÀ-Ý][a-zà-ÿ])/g, '$1 · $2'), a.lieu, a.evenement, a.date].filter(Boolean).map(esc).join(' · ')}</figcaption></figure>`;
   const html = `<div class="masonry" data-avis-liste>${avis.map(carte).join('')}</div>${avis.length > PAR ? `<p class="center"><button class="btn btn-line" type="button" data-avis-plus="${PAR}">Voir plus d’avis <small>(${avis.length - PAR})</small></button></p>` : ''}`;

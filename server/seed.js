@@ -39,7 +39,7 @@ const REGLAGES_DEFAUT = {
     ],
     chiffres: [
       { valeur: '4,9/5', label: 'sur Google, plus de 800 avis' },
-      { valeur: '377', label: 'prestations en ligne, prix TTC' },
+      { valeur: '377', label: 'prestations en ligne' },
       { valeur: '7 j/7', label: 'livraison en Île-de-France' },
       { valeur: '1 seule', label: 'demande pour tout votre événement' },
     ],
@@ -190,6 +190,18 @@ async function importerAvisAncienSite(store, { log = console, fichier = path.joi
 
 /* Sous-rubriques (« spécialités ») d'un univers : Saveurs du monde → Paëlla, Libanais, Chinois…
    Créées une seule fois au démarrage, avec un premier classement des prestations ; tout se règle ensuite dans le back-office. */
+/* textes des pages d'atterrissage des spécialités (modifiables dans le back-office) : [titre de la page, texte du bandeau] */
+const SPE_TEXTES = {
+  'paella-party': ['Paëlla party à Paris et en Île-de-France', 'La paëlla géante cuisinée devant vos invités ou livrée prête à servir : royale, poulet chorizo, fruits de mer ou végétarienne. Prix TTC par personne, devis gratuit.'],
+  'buffet-libanais': ['Buffet libanais à Paris et en Île-de-France', 'Mezzés froids et chauds, grillades et douceurs orientales, préparés dans notre laboratoire et livrés 7 jours sur 7. Prix TTC, devis gratuit.'],
+  'buffet-chinois': ['Buffet chinois à Paris et en Île-de-France', 'Bouchées vapeur, nems, plats sautés et desserts asiatiques pour vos réceptions, livrés prêts à servir. Prix TTC, devis gratuit.'],
+  'buffet-africain': ['Buffet africain à Paris et en Île-de-France', 'Mafé, yassa, poulet braisé, alloco et accras : les saveurs d’Afrique pour vos fêtes et mariages. Prix TTC, devis gratuit.'],
+  'couscous-party': ['Couscous party à Paris et en Île-de-France', 'Couscous royal, tajines et pâtisseries orientales, servis à volonté pour vos grandes tablées. Prix TTC par personne, devis gratuit.'],
+  'buffet-italien': ['Buffet italien à Paris et en Île-de-France', 'Antipasti, pâtes fraîches, pizzas, burrata et tiramisu : l’Italie généreuse pour vos événements. Prix TTC, devis gratuit.'],
+  'buffet-antillais': ['Buffet antillais à Paris et en Île-de-France', 'Accras, boudins créoles, colombo, rougail et punchs : la cuisine des îles par Le Traiteur Antillais. Prix TTC, devis gratuit.'],
+  'buffet-indien': ['Buffet indien à Paris et en Île-de-France', 'Samoussas, currys, biryani, naans et lassis : un buffet parfumé pour vos réceptions. Prix TTC, devis gratuit.'],
+  'specialites-japonaises': ['Sushis et buffet japonais à Paris et en Île-de-France', 'Plateaux de sushis, makis, california et brochettes yakitori, livrés frais pour vos cocktails. Prix TTC, devis gratuit.'],
+};
 const SOUS_DEFAUT = {
   'saveurs-du-monde': [
     { slug: 'paella-party', nom: 'Paëlla party', pays: 'Espagne', photo: '/site/c/paella-royale/client-1.webp.webp', mots: ['paella'] },
@@ -228,6 +240,13 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('rubriques/' + rub, { ...r, sous, sousInit: true });
   }
   if (n) log.log?.(`[demarrage] ${n} prestations classées en spécialités`);
+  // une fois : textes des pages d'atterrissage, pour qu'ils apparaissent (et se modifient) dans le back-office
+  for (const d of await store.list('rubriques')) {
+    const r = d.data;
+    if (!r?.sous?.length || r.speTextes) continue;
+    const sous = r.sous.map(x => SPE_TEXTES[x.slug] ? { ...x, titrePage: x.titrePage || SPE_TEXTES[x.slug][0], chapo: x.chapo || SPE_TEXTES[x.slug][1] } : x);
+    await store.set('rubriques/' + d.id, { ...r, sous, speTextes: true });
+  }
 }
 
-module.exports = { initSousRubriques, classerSous, SOUS_DEFAUT, importerAvisAncienSite, dateIso, seed, REGLAGES_DEFAUT, MODELES_DEFAUT, extraireAvis };
+module.exports = { SPE_TEXTES, initSousRubriques, classerSous, SOUS_DEFAUT, importerAvisAncienSite, dateIso, seed, REGLAGES_DEFAUT, MODELES_DEFAUT, extraireAvis };
