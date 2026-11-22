@@ -406,8 +406,12 @@
   };
 
   /* champ photo : aperçu, envoi depuis l'ordinateur ou le téléphone, ou choix dans la médiathèque */
+  /* vignette de galerie (fiche, lieu) : photo, badge « Principale », boutons visibles */
+  const vigGalerie = (src, i, alt) => `<figure class="ph${i === 0 ? ' main' : ''}" draggable="true" data-i="${i}"><div class="ph-img"><img src="${esc(src)}" alt="">${i === 0 ? '<span class="ph-badge">★ Photo principale</span>' : ''}</div>
+    <div class="ph-act">${i ? '<button type="button" data-main title="Mettre en photo principale">★ Principale</button>' : ''}<button type="button" class="ph-del" data-rm title="Supprimer de la galerie">🗑 Supprimer</button></div>${alt === undefined ? '' : `<input value="${esc(alt || '')}" placeholder="Description (Google)" data-alt>`}</figure>`;
+  const confirmerRetrait = () => confirm('Supprimer cette photo de la galerie ?\n\nElle reste dans la médiathèque. Pensez à enregistrer.');
   function photoField(name, val, label) {
-    const quoi = /vid[ée]o/i.test(label) ? 'la vidéo' : 'la photo';
+    const quoi = /attente/i.test(label) ? 'l’image' : /vid[ée]o/i.test(label) ? 'la vidéo' : 'la photo';
     const apercu = v => v ? (/\.mp4$/i.test(v) ? `<video src="${esc(v)}" muted></video>` : `<img src="${esc(v)}" alt="">`) : `<span>Aucune · cliquez pour choisir</span>`;
     return `<div class="pf" data-pf data-quoi="${quoi}"><span class="lab">${esc(label)}</span><button type="button" class="pf-img" data-pf-open title="Modifier ${quoi}">${apercu(val)}<span class="pf-over">✎ Modifier ${quoi}</span></button><input type="hidden" name="${name}" value="${esc(val || '')}">
       <div class="pf-act"><button type="button" class="btn sm" data-pf-open>✎ Modifier ${quoi}</button><div class="pf-menu" hidden><label class="pf-opt">💻 Depuis mon ordinateur<input type="file" accept="image/*,video/mp4" hidden></label><button type="button" class="pf-opt" data-pick>🖼 Depuis la médiathèque</button><button type="button" class="pf-opt pf-del" data-clear>✕ Retirer ${quoi}</button></div></div><p class="pf-note" hidden>${quoi === 'la vidéo' ? 'Vidéo changée' : 'Photo changée'} : pensez à <b>enregistrer</b>.</p></div>`;
@@ -498,9 +502,9 @@
         </section>
       </div>
       <section class="box"><div class="bh"><h2>Photos et vidéo</h2><div class="row"><label class="btn ghost sm up">+ Ajouter depuis mon ordinateur<input type="file" accept="image/*" multiple hidden data-multi></label><button type="button" class="btn ghost sm" data-pickp>+ Ajouter depuis la médiathèque</button></div></div>
-        <p class="muted sm">La première photo est la photo principale. Glissez pour changer l’ordre.</p>
+        <p class="muted sm">La photo principale s’affiche sur la vignette de la boutique. Glissez les photos pour changer l’ordre, ou cliquez sur « ★ Principale ».</p>
         <div class="photos" id="photos"></div>
-        <div class="g2">${photoField('video', p.video?.src || '', 'Vidéo (boucle muette, MP4)')}${photoField('poster', p.video?.poster || '', 'Image d’attente de la vidéo')}</div>
+        <h3 class="sub">Vidéo de la fiche <small class="muted">facultatif</small></h3><p class="muted sm">Sur la fiche, la vidéo passe en premier dans la galerie, avant les photos : elle tourne en boucle, sans le son. L’image d’attente s’affiche pendant son chargement (prenez une photo de la galerie). Format : fichier MP4 court (10 à 20 secondes).</p><div class="g2 vfiche">${photoField('video', p.video?.src || '', 'Vidéo (fichier MP4)')}${photoField('poster', p.video?.poster || '', 'Image d’attente')}</div>
       </section>
       <section class="box"><h2>Composition</h2><p class="muted sm">Un bloc par section, séparés par une ligne vide. Première ligne = titre, puis un élément par ligne. « # » = note avant la liste, « ## » = note après, « > » = paragraphe.</p><textarea name="sections" rows="10" class="mono">${esc((p.sections || []).map(sec).join('\n\n'))}</textarea>
         <label>Informations pratiques (une par ligne)<textarea name="details" rows="3">${esc((p.details || []).join('\n'))}</textarea></label></section>
@@ -514,14 +518,14 @@
     const p = cache.p, form = $('#pf');
     let photos = (p.photos || []).map(x => ({ ...x }));
     const draw = () => {
-      $('#photos').innerHTML = photos.map((ph, i) => `<figure draggable="true" data-i="${i}"><img src="${esc(ph.src)}" alt=""><input value="${esc(ph.alt || '')}" placeholder="Description (Google, accessibilité)" data-alt><button type="button" class="x" data-rm aria-label="Retirer">×</button>${i === 0 ? '<span class="main">Principale</span>' : ''}</figure>`).join('') || '<p class="muted">Aucune photo.</p>';
+      $('#photos').innerHTML = photos.map((ph, i) => vigGalerie(ph.src, i, ph.alt)).join('') || '<p class="muted">Aucune photo.</p>';
     };
     draw();
     const dirty = () => { $('#dirty').textContent = 'Modifications non enregistrées'; };
     form.addEventListener('input', dirty);
     bindPhotos(form);
     $('#photos').addEventListener('input', e => { if (e.target.matches('[data-alt]')) photos[+e.target.closest('[data-i]').dataset.i].alt = e.target.value; });
-    $('#photos').addEventListener('click', e => { if (e.target.closest('[data-rm]')) { photos.splice(+e.target.closest('[data-i]').dataset.i, 1); draw(); dirty(); } });
+    $('#photos').addEventListener('click', e => { const f = e.target.closest('[data-i]'); if (!f) return; const i = +f.dataset.i; if (e.target.closest('[data-rm]') && confirmerRetrait()) { photos.splice(i, 1); draw(); dirty(); } if (e.target.closest('[data-main]')) { photos.unshift(...photos.splice(i, 1)); draw(); dirty(); } });
     let dragI = null;
     $('#photos').addEventListener('dragstart', e => { dragI = +e.target.closest('[data-i]').dataset.i; });
     $('#photos').addEventListener('dragover', e => e.preventDefault());
@@ -563,9 +567,9 @@
   }
   lieu.after = id => {
     const l = cache.l; let photos = [...(l.photos || [])];
-    const draw = () => { $('#photos').innerHTML = photos.map((s, i) => `<figure data-i="${i}" draggable="true"><img src="${esc(s)}" alt=""><button type="button" class="x" data-rm>×</button>${i ? '' : '<span class="main">Principale</span>'}</figure>`).join(''); };
+    const draw = () => { $('#photos').innerHTML = photos.map((s, i) => vigGalerie(s, i)).join('') || '<p class="muted">Aucune photo.</p>'; };
     draw();
-    $('#photos').addEventListener('click', e => { if (e.target.closest('[data-rm]')) { photos.splice(+e.target.closest('[data-i]').dataset.i, 1); draw(); } });
+    $('#photos').addEventListener('click', e => { const f = e.target.closest('[data-i]'); if (!f) return; const i = +f.dataset.i; if (e.target.closest('[data-rm]') && confirmerRetrait()) { photos.splice(i, 1); draw(); } if (e.target.closest('[data-main]')) { photos.unshift(...photos.splice(i, 1)); draw(); } });
     let dragI = null;
     $('#photos').addEventListener('dragstart', e => { dragI = +e.target.closest('[data-i]').dataset.i; });
     $('#photos').addEventListener('dragover', e => e.preventDefault());
