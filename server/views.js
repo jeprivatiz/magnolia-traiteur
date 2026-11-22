@@ -232,7 +232,7 @@ function bandeau(c, cle, { fil, titre } = {}) {
 /* ---------- univers à spécialités (ex. Saveurs du monde → Paëlla, Libanais, Chinois…) ---------- */
 const sousVisibles = r => (r?.sous || []).filter(x => x.statut !== 'masque').sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
 const prodsDeSous = (c, r, sl) => (c.byRub.get(r.slug) || []).filter(p => p.sous === sl);
-function univers(c, r) {
+function pageSpecialites(c, r) {
   const S = sousVisibles(r);
   const tous = c.byRub.get(r.slug) || [];
   const autres = tous.filter(p => !S.some(x => x.slug === p.sous));
@@ -546,4 +546,4 @@ function facturePage(c, f, t) {
   return layout(c, { title: 'Facture ' + f.numero, body, bodyClass: 'p-doc' }).replace('<head>', '<head><meta name="robots" content="noindex">');
 }
 
-module.exports = { univers, specialite, sousVisibles, layout, home, boutique, produit, lieux, lieu, selection, texte, maison, livraison, commander, temoignages, contact, legal, erreur, espaceConnexion, espace, devisPage, facturePage, textToHtml, V, BANDEAUX_DEFAUT };
+module.exports = { pageSpecialites, specialite, sousVisibles, layout, home, boutique, produit, lieux, lieu, selection, texte, maison, livraison, commander, temoignages, contact, legal, erreur, espaceConnexion, espace, devisPage, facturePage, textToHtml, V, BANDEAUX_DEFAUT };

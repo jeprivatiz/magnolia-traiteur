@@ -743,7 +743,7 @@ async function createApp(opts = {}) {
   app.get('/:rub', page((c, req, res, next) => {
     const r = c.rubriques.find(x => x.slug === req.params.rub && x.statut !== 'masque');
     if (!r) return next();
-    if (views.sousVisibles(r).length) return views.univers(c, r);
+    if (views.sousVisibles(r).length) return views.pageSpecialites(c, r);
     return views.boutique(c, { rub: r.slug, titre: r.nom, chapo: r.chapo || r.accroche, photo: r.photoAccueil || r.photo, path: '/' + r.slug, liste: c.byRub.get(r.slug) });
   }));
   app.get('/:rub/:slug', page((c, req, res, next) => {
