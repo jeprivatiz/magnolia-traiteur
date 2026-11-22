@@ -946,3 +946,22 @@ textarea:focus, input:focus, select:focus { outline: 2px solid color-mix(in srgb
 .phero > .phero-pays { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 1.1s ease; }
 .phero > .phero-pays.on { opacity: 1; }
 .phero.pays-on > video { opacity: 0; transition: opacity 1.1s ease; }
+/* plats en portions (buffets) : compteur, + / −, plats grisés quand il n'y a plus la place */
+.gstat { margin: 4px 0 10px; padding: 10px 12px; border-radius: 10px; background: #fff8ea; border: 1px solid #e6cf9c; font-size: .9rem; display: grid; gap: 2px; }
+.gstat b { font-size: 1rem; color: #7a5a1c; }
+.gstat span { color: var(--gris, #666); }
+.gstat.ok { background: #eef6ef; border-color: #b9d8be; }
+.gstat.ok b { color: #2f6b3a; }
+.gstat.ko { background: #fdeeee; border-color: #efc1c1; }
+.gstat.ko b { color: #a23b3b; }
+.opts-q { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+.optq { transition: opacity .15s, border-color .15s; }
+.optq span small { display: block; font-size: .78rem; color: var(--gris, #777); }
+.optq .optq-why:empty { display: none; }
+.optq.on { border-color: var(--or, #b8862f); background: #fffaf0; }
+.optq.off { opacity: .5; }
+.optq.off .optq-why { color: #a23b3b; }
+.optq-c { display: flex; align-items: center; gap: 4px; flex: none !important; }
+.optq-c button { width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--ligne); background: #fff; cursor: pointer; font-size: 1rem; line-height: 1; }
+.optq-c button:disabled { opacity: .35; cursor: not-allowed; }
+.optq-c input { width: 3.2em !important; }

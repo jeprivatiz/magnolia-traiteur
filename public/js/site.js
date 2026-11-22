@@ -221,9 +221,9 @@
     for (const g of P.groupes || []) {
       const opts = g.options || [];
       const max = g.max || opts.length;
-      html += `<fieldset class="conf-g" data-g="${esc(g.id)}"${(g.variantes || []).length && (P.variantes || []).length ? ` data-var="${esc(JSON.stringify(g.variantes))}"` : ''} data-max="${max}" data-exact="${g.exact ? 1 : 0}"><legend>${esc(g.titre || 'Vos choix')} <small>${g.exact ? `${max} au choix` : max < opts.length ? `jusqu’à ${max} au choix` : 'au choix'}${g.facultatif ? ' · facultatif' : ''}</small></legend>
+      html += `<fieldset class="conf-g" data-g="${esc(g.id)}"${(g.variantes || []).length && (P.variantes || []).length ? ` data-var="${esc(JSON.stringify(g.variantes))}"` : ''} data-max="${max}" data-exact="${g.exact ? 1 : 0}"><legend>${esc(g.titre || 'Vos choix')} <small>${g.mode === 'quantites' ? `${g.minParVariete || 1} portions minimum par ${esc(g.singulier || 'choix')}` : g.exact ? `${max} au choix` : max < opts.length ? `jusqu’à ${max} au choix` : 'au choix'}${g.facultatif ? ' · facultatif' : ''}</small></legend>
         ${g.aide ? `<p class="small">${esc(g.aide)}</p>` : ''}
-        ${g.mode === 'quantites' ? `<div class="opts-q">${opts.map(o => `<label class="optq">${o.photos?.[0] ? `<img src="${esc(o.photos[0])}" alt="" loading="lazy">` : ''}<span>${esc(o.label)}</span><input type="number" min="0" step="1" inputmode="numeric" value="0" data-oq="${esc(o.id)}" data-lab="${esc(o.label)}" aria-label="Nombre : ${esc(o.label)}"></label>`).join('')}</div>` : `<div class="opts">${opts.map(o => `<label class="opt"><input type="checkbox" value="${esc(o.id)}" data-sup="${o.supCents || 0}">${o.photos?.[0] ? `<img src="${esc(o.photos[0])}" alt="" loading="lazy">` : ''}<span>${esc(o.label)}${o.supCents ? `<small>+ ${euros(o.supCents)}</small>` : ''}${o.supDevis ? '<small>sur devis</small>' : ''}</span></label>`).join('')}</div>`}</fieldset>`;
+        ${g.mode === 'quantites' ? `<p class="gstat" data-gstat aria-live="polite"></p><div class="opts-q">${opts.map(o => `<div class="optq" data-optq>${o.photos?.[0] ? `<img src="${esc(o.photos[0])}" alt="" loading="lazy">` : ''}<span>${esc(o.label)}${o.supCents ? `<small>+ ${euros(o.supCents)} / portion</small>` : ''}<small class="optq-why" data-why></small></span><span class="optq-c"><button type="button" data-om="-1" aria-label="Moins : ${esc(o.label)}">−</button><input type="number" min="0" step="1" inputmode="numeric" value="0" data-oq="${esc(o.id)}" data-lab="${esc(o.label)}" data-sup="${o.supCents || 0}" aria-label="Portions : ${esc(o.label)}"><button type="button" data-om="1" aria-label="Plus : ${esc(o.label)}">+</button></span></div>`).join('')}</div>` : `<div class="opts">${opts.map(o => `<label class="opt"><input type="checkbox" value="${esc(o.id)}" data-sup="${o.supCents || 0}">${o.photos?.[0] ? `<img src="${esc(o.photos[0])}" alt="" loading="lazy">` : ''}<span>${esc(o.label)}${o.supCents ? `<small>+ ${euros(o.supCents)}</small>` : ''}${o.supDevis ? '<small>sur devis</small>' : ''}</span></label>`).join('')}</div>`}</fieldset>`;
     }
     if (R.personnel && T.personnel) html += `<details class="conf-x"><summary>Personnel de service <small>facultatif · ${euros(T.personnel.heureCents)} TTC / heure</small></summary><p class="small">${T.personnel.minHeures} heures minimum par personne. Le personnel s’ajoute sur une ligne à part.</p><div class="f2"><label>Personnes<select name="pers_nb"><option value="0">Aucune</option>${[1, 2, 3, 4, 5, 6, 8, 10].map(n => `<option>${n}</option>`).join('')}</select></label><label>Heures<select name="pers_h">${[4, 5, 6, 7, 8, 9, 10, 12].map(n => `<option>${n}</option>`).join('')}</select></label></div></details>`;
     if (R.packs && (T.packs || []).length) html += `<details class="conf-x"><summary>Pack traiteur <small>facultatif · vaisselle, nappage</small></summary>${T.packs.map(pk => `<label class="radio"><input type="radio" name="pack" value="${esc(pk.id)}"><span><b>${esc(pk.label)}</b> · ${euros(pk.prixCents)} TTC / pers.<small>${esc(pk.detail)}</small></span></label>`).join('')}<label class="radio"><input type="radio" name="pack" value="" checked><span>Pas de pack</span></label></details>`;
@@ -234,7 +234,7 @@
     const read = () => {
       const qte = q ? Math.max(P.min || 1, +q.value || 0) : 1;
       let sup = 0; const choix = {}, labels = [];
-      $$('[data-g]', form).forEach(fs => { if (fs.hidden) return; if ($('[data-oq]', fs)) { const q2 = $$('[data-oq]', fs).filter(i => +i.value > 0); if (q2.length) choix[fs.dataset.g] = q2.map(i => i.dataset.oq + ':' + Math.round(+i.value)); q2.forEach(i => labels.push(`${i.dataset.lab} × ${Math.round(+i.value)}`)); return; } const ids = $$('input:checked', fs).map(i => { sup += +i.dataset.sup; labels.push(i.parentElement.querySelector('span').firstChild.textContent); return i.value; }); if (ids.length) choix[fs.dataset.g] = ids; });
+      $$('[data-g]', form).forEach(fs => { if (fs.hidden) return; if ($('[data-oq]', fs)) { const q2 = $$('[data-oq]', fs).filter(i => +i.value > 0); if (q2.length) choix[fs.dataset.g] = q2.map(i => i.dataset.oq + ':' + Math.round(+i.value)); q2.forEach(i => { labels.push(`${i.dataset.lab} × ${Math.round(+i.value)}`); if (+i.dataset.sup) sup += Math.round(+i.dataset.sup * Math.round(+i.value) / qte); }); return; } const ids = $$('input:checked', fs).map(i => { sup += +i.dataset.sup; labels.push(i.parentElement.querySelector('span').firstChild.textContent); return i.value; }); if (ids.length) choix[fs.dataset.g] = ids; });
       const persNb = +(form.pers_nb?.value || 0), persH = +(form.pers_h?.value || 4);
       const pack = form.querySelector('[name=pack]:checked')?.value || '';
       let total = P.prixCents == null ? null : (P.prixCents + sup) * qte;
@@ -243,6 +243,44 @@
       if (total != null && pk) total += pk.prixCents * qte;
       return { qte, sup, choix, labels, persNb, persH, pack, total, variante: form.variante?.value || '', note: form.note?.value.trim() || '' };
     };
+    /* plats à choisir en portions (règle de Jean-Luc) : le total des portions = le nombre de personnes,
+       au moins « minParVariete » portions (5) pour chaque plat choisi, donc au plus floor(personnes / 5) plats différents */
+    const regleG = fs => { const g = (P.groupes || []).find(x => x.id === fs.dataset.g) || {}; const mn = g.minParVariete || 1, sg = g.singulier || 'choix'; return { g, mn, sg, sgs: /[sx]$/.test(sg) ? sg : sg + 's' }; };
+    const portions = (fs, qte) => {
+      const { g, mn, sg, sgs } = regleG(fs);
+      const ins = $$('[data-oq]', fs), v = ins.map(i => Math.max(0, Math.round(+i.value || 0)));
+      const tot = v.reduce((a, b) => a + b, 0), nb = v.filter(x => x > 0).length, reste = qte - tot;
+      const maxF = +fs.dataset.max || ins.length, maxP = Math.floor(qte / mn), maxChoix = Math.max(1, Math.min(maxF, maxP));
+      const fem = /ée$/.test(sg), chac = fem ? 'chacune' : 'chacun', diff = n => (fem ? 'différente' : 'différent') + (n > 1 ? 's' : '');
+      const st = $('[data-gstat]', fs);
+      if (st) {
+        st.className = 'gstat ' + (reste === 0 ? 'ok' : reste < 0 ? 'ko' : '');
+        st.innerHTML = `<b>${reste === 0 ? `✓ ${tot} portions sur ${qte} : c’est complet` : reste > 0 ? `${reste} portion${reste > 1 ? 's' : ''} restante${reste > 1 ? 's' : ''} sur ${qte}` : `${-reste} portion${reste < -1 ? 's' : ''} de trop (${tot} pour ${qte} personnes)`}</b>`
+          + `<span>Le total doit faire ${qte} portions (une par personne), avec ${mn} portions minimum par ${sg}. ${maxF <= maxP ? `Cette formule : jusqu’à ${maxChoix}` : `Pour ${qte} personnes : jusqu’à ${maxChoix}`} ${maxChoix > 1 ? sgs : sg} ${diff(maxChoix)}.</span>`;
+      }
+      ins.forEach((i, k) => {
+        const box = i.closest('[data-optq]'), why = $('[data-why]', box), on = v[k] > 0;
+        let bloque = '';
+        if (!on && nb >= maxChoix) bloque = maxF <= maxP ? `Cette formule comprend ${maxF} ${maxF > 1 ? sgs : sg} au maximum.` : `Pour ${qte} personnes, ${maxP} ${maxP > 1 ? sgs : sg} au maximum (${mn} portions minimum ${chac}).`;
+        else if (!on && reste < mn) bloque = reste > 0 ? `Il ne reste que ${reste} portion${reste > 1 ? 's' : ''} : ajoutez-les à un ${sg} déjà choisi.` : `Toutes les portions sont attribuées.`;
+        box.classList.toggle('on', on); box.classList.toggle('off', !!bloque);
+        $('[data-om="1"]', box).disabled = !!bloque || (on && reste <= 0);
+        $('[data-om="-1"]', box).disabled = !on;
+        i.disabled = !!bloque;
+        if (why) why.textContent = bloque || (on && v[k] < mn ? `${mn} portions minimum` : '');
+      });
+      return { tot, mn, sg, sgs };
+    };
+    form.addEventListener('click', e => {
+      const b = e.target.closest('[data-om]'); if (!b) return;
+      const fs = b.closest('[data-g]'), i = $('[data-oq]', b.parentElement), { mn } = regleG(fs);
+      const qte = Math.max(P.min || 1, +(q?.value) || 0), tot = $$('[data-oq]', fs).reduce((a, x) => a + Math.max(0, Math.round(+x.value || 0)), 0);
+      const cur = Math.max(0, Math.round(+i.value || 0));
+      /* + : de 0, on prend d'un coup le minimum (5), ou tout ce qui reste ; − : sous le minimum, on retire le plat */
+      if (+b.dataset.om > 0) i.value = cur === 0 ? Math.max(mn, Math.min(qte - tot, mn)) : cur + 1;
+      else i.value = cur - 1 < mn ? 0 : cur - 1;
+      refresh();
+    });
     /* formule choisie : seuls les groupes compris dans la formule restent visibles ; les choix des autres sont décochés */
     const formule = () => {
       const v = form.variante?.value || '';
@@ -255,6 +293,7 @@
       if (t) t.textContent = r.total == null ? 'Sur devis' : euros(r.total);
       const u = $('[data-unit]', form); if (u) u.textContent = plur(P.unite || '', r.qte);
       $$('[data-g]', form).forEach(fs => {
+        if ($('[data-oq]', fs)) return portions(fs, r.qte);
         const max = +fs.dataset.max, n = $$('input:checked', fs).length;
         $$('input', fs).forEach(i => { i.disabled = !i.checked && n >= max; i.parentElement.classList.toggle('on', i.checked); });
       });
@@ -275,8 +314,8 @@
           const v = $$('[data-oq]', fs).map(i => Math.max(0, Math.round(+i.value || 0))), tot = v.reduce((a, b) => a + b, 0), mn = g.minParVariete || 1, sg = g.singulier || 'choix';
           let msg = '';
           if (!tot) msg = `Indiquez le nombre voulu pour chaque ${sg}.`;
-          else if (v.some(x => x > 0 && x < mn)) msg = `Au moins ${mn} de chaque ${sg} choisi.`;
-          else if (tot !== r.qte) msg = `Le total de vos ${sg}s (${tot}) doit être égal à la quantité (${r.qte}).`;
+          else if (v.some(x => x > 0 && x < mn)) msg = `${mn} portions minimum pour chaque ${sg} choisi.`;
+          else if (tot !== r.qte) msg = tot < r.qte ? `Il reste ${r.qte - tot} portion${r.qte - tot > 1 ? 's' : ''} à répartir : le total doit faire ${r.qte} (une par personne).` : `${tot - r.qte} portion${tot - r.qte > 1 ? 's' : ''} de trop : le total doit faire ${r.qte} (une par personne).`;
           if (msg) { toast(msg); fs.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
           continue;
         }
