@@ -16,6 +16,22 @@ const ALCOOL = /champagne|\bvins?\b|cave|bi[eè]re|open ?bars?|alcool|cidre|whis
 const tvaProduit = p => (p.rubrique === 'boissons' && ALCOOL.test(p.titre) && !/softs?|caf[ée]|d[ée]jeuner|gla[cç]ons/i.test(p.titre)) ? 20 : (TVA_RUBRIQUE[p.rubrique] || 10);
 const TVA_RUBRIQUE = { 'personnel': 20, 'musique-animations': 20, 'lieux': 20, 'indispensables': 20 };
 
+/* bulles sous la recherche de l'accueil, dans l'ordre choisi par Jean-Luc (2026-11-22) ; sans lien = recherche du mot */
+const SUGGESTIONS_ACCUEIL = [
+  { label: 'Buffet & cocktail français', lien: '/cocktails-buffets' },
+  { label: 'Paëlla', lien: '/saveurs-du-monde/paella-party' },
+  { label: 'Buffet antillais', lien: '/saveurs-du-monde/buffet-antillais' },
+  { label: 'DJ', lien: '' },
+  { label: 'Huîtres', lien: '' },
+  { label: 'Louer des verres', lien: '/boutique?q=verres' },
+  { label: 'Personnel de service', lien: '/personnel' },
+  { label: 'Lieu', lien: '/lieux' },
+  { label: 'Barbecue party', lien: '/boutique?q=barbecue' },
+  { label: 'Fontaine à chocolat', lien: '' },
+  { label: 'Pièces montées', lien: '' },
+  { label: 'Candy bar', lien: '' },
+  { label: 'Fruits de mer', lien: '/grand-large' },
+];
 const REGLAGES_DEFAUT = {
   nom: 'Magnolia Traiteur',
   sousNom: 'Traiteur · Événementiel',
@@ -44,7 +60,7 @@ const REGLAGES_DEFAUT = {
       { valeur: '1 seule', label: 'demande pour tout votre événement' },
     ],
     bandeau: ['Saveurs du monde', 'Antillais', 'Chinois', 'Indien', 'Paëlla', 'Libanais', 'Italien', 'Africain', 'Couscous', 'Japonais'],
-    suggestions: ['Paëlla', 'Buffet antillais', 'DJ', 'Huîtres', 'Louer des verres', 'Personnel de service', 'Lieux', 'Barbecue', 'Fontaine à chocolat', 'Pièce montée', 'Candy bar', 'Fruits de mer'],
+    suggestions: SUGGESTIONS_ACCUEIL,
     incontournables: ['grand-cocktail-magnolia', 'paella-royale', 'buffet-antillais-entree-plat-dessert', 'buffet-chinois-entrees-plat-dessert', 'buffet-indien-entree-plat-dessert', 'buffet-libanais-6-mezzes-1-plat', 'bar-a-burrata', 'couscous-royal'],
     photoMaison: '/site/c/antilles-menus/buffet-equipe-colombo-20261103-sans-logo-20261106.webp.webp',
     photoCommande: '/site/c/accueil/personnel80-client-20261102.webp',
@@ -652,6 +668,11 @@ async function initSousRubriques(store, { log = console } = {}) {
       : /sur google/i.test(x.label || '') ? { ...x, label: 'Sur Google, plus de 650 avis' } : x);
     const ag = RSh.avisGoogle && /800/.test(RSh.avisGoogle.nombre || '') ? { ...RSh.avisGoogle, nombre: 'plus de 650' } : RSh.avisGoogle;
     await store.set('site/reglages', { ...RSh, avisGoogle: ag, accueil: { ...(RSh.accueil || {}), chiffres: ch }, chiffre800: true });
+  }
+  /* bulles de l'accueil : nouvel ordre de Jean-Luc (2026-11-22). Une fois ; modifiables ensuite dans Photos & textes. */
+  const RSb = await store.get('site/reglages');
+  if (RSb && !RSb.bullesAccueil2) {
+    await store.set('site/reglages', { ...RSb, accueil: { ...(RSb.accueil || {}), suggestions: SUGGESTIONS_ACCUEIL }, bullesAccueil2: true });
   }
   /* prix corrigé par Jean-Luc (2026-11-22) : le brouillon avait repris le prix de « Entrées + plat » (21,90 €). Une fois. */
   const RSc = await store.get('site/reglages');
