@@ -147,7 +147,7 @@ async function pool(items, n, fn) {
   const data = { source: BASE, recupereLe: new Date().toISOString(), rubriques, evenements, produits, lieux, pages };
   let blob = JSON.stringify(data) + Object.values(html).join('\n');
   const local = new Set();
-  for (const m of blob.matchAll(/\/site\/[A-Za-z0-9_\-./%]+?\.(?:webp|jpe?g|png|svg|gif|mp4|webm|avif)/g)) local.add(m[0]);
+  for (const m of blob.matchAll(/\/site\/[A-Za-z0-9_\-./%]+\.(?:webp|jpe?g|png|svg|gif|mp4|webm|avif)(?![A-Za-z0-9_\-./%])/g)) local.add(m[0]);
   for (const m of blob.matchAll(/\/(?:icon\.svg|apple-icon\.png|favicon\.ico)/g)) local.add(m[0]);
   const ext = new Map();
   for (const m of JSON.stringify(data).matchAll(/https:\/\/[a-z0-9]+\.supabase\.co\/storage\/v1\/object\/public\/[^"\s)]+?\.(?:webp|jpe?g|png|mp4)/g)) {
