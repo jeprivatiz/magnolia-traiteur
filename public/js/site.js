@@ -123,6 +123,7 @@
       const maj = () => { const n = $$('[name=u]:checked', ub).map(x => x.closest('label').textContent.trim()); txt.textContent = n.length ? (n.length > 1 ? `${n[0]} + ${n.length - 1}` : n[0]) : vide; ub.classList.toggle('on', n.length > 0); };
       (evt.univers || []).forEach(v => { const x = $(`[name=u][value="${v}"]`, ub); if (x) x.checked = true; });
       ub.addEventListener('change', maj); maj();
+      document.addEventListener('click', e => { if (ub.open && !ub.contains(e.target)) ub.open = false; });
     }
   }
 
