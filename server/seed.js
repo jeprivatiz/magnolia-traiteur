@@ -241,6 +241,8 @@ const BANDEAUX_SPE = {
   'specialites-japonaises': '/site/c/paysages/japon.webp',
   /* table de mezzés (Pexels 39018407, licence Pexels) à la place de la vidéo de l'huile versée : Jean-Luc, 2026-11-22 */
   'buffet-libanais': 'https://images.pexels.com/photos/39018407/pexels-photo-39018407.jpeg?auto=compress&cs=tinysrgb&w=2400',
+  /* choix de Jean-Luc (2026-11-22, photo A) : Pexels n° 10521312, licence Pexels (usage commercial gratuit) ; voir data/credits-photos.md */
+  'paella-party': 'https://images.pexels.com/photos/10521312/pexels-photo-10521312.jpeg?auto=compress&cs=tinysrgb&w=2400',
 };
 /* prestations de l'univers Petits-déjeuners (séparé de Boissons le 2026-11-22) */
 const PDJ = /petit-d[ée]jeuner|pause caf[ée]|accueil caf[ée]/i;
