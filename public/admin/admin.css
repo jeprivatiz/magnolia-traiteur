@@ -361,3 +361,8 @@ details[open] summary { margin-bottom: 12px; }
 .landbox[open] summary { margin-bottom: 10px; }
 .landf { display: grid; grid-template-columns: minmax(140px, 200px) 1fr; gap: 14px; }
 @media (max-width: 760px) { .landf { grid-template-columns: 1fr; } }
+
+/* recherche dans les prestations d'une rubrique */
+.sousfiltre { align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.sousfiltre .pq { flex: 1 1 280px; display: flex; flex-direction: column; gap: 4px; }
+.sousfiltre .pq input { width: 100%; }

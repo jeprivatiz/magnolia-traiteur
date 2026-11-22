@@ -387,7 +387,7 @@
         <div class="span3 sousbox"><h3>Spécialités <small class="muted">(vignettes affichées avant les prestations, ex. Buffet libanais, Paëlla party)</small></h3>
           <p class="muted sm">Sans spécialité, la rubrique affiche directement toutes ses prestations. Chaque prestation se range dans une spécialité depuis sa fiche (liste « Spécialité »).</p>
           <div id="sous"></div><button type="button" class="btn ghost sm" data-addsous>+ Ajouter une spécialité</button></div></form></section>
-      ${(rub.sous || []).length ? `<div class="row sousfiltre"><label>Afficher<select data-sousf><option value="*">Toutes les prestations (${liste.length})</option>${[...rub.sous].sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0)).map(x => `<option value="${esc(x.slug)}">${esc(x.nom)} (${liste.filter(p => p.sous === x.slug).length})</option>`).join('')}<option value="">Sans spécialité (${liste.filter(p => !(rub.sous || []).some(x => x.slug === p.sous)).length})</option></select></label></div>` : ''}
+      <div class="row sousfiltre"><label class="pq">Rechercher une prestation<input type="search" data-pq placeholder="Tapez un nom : nems, mafé, paëlla…" autocomplete="off"></label>${(rub.sous || []).length ? `<label>Afficher<select data-sousf><option value="*">Toutes les prestations (${liste.length})</option>${[...rub.sous].sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0)).map(x => `<option value="${esc(x.slug)}">${esc(x.nom)} (${liste.filter(p => p.sous === x.slug).length})</option>`).join('')}<option value="">Sans spécialité (${liste.filter(p => !(rub.sous || []).some(x => x.slug === p.sous)).length})</option></select></label>` : ''}<span class="muted sm" data-pqn></span></div>
       <div class="plist" id="plist">${liste.map(prow).join('') || '<p class="muted">Aucune prestation dans cette rubrique.</p>'}</div></div></div>`);
   }
   const prow = p => `<a class="prow${p.statut === 'masque' ? ' hid' : ''}" href="#/catalogue/${p.id || p.slug}">${p.photos?.[0]?.src ? `<img src="${esc(p.photos[0].src)}" alt="" loading="lazy">` : '<span class="ph0"></span>'}<span><b>${esc(p.titre)}</b><small>${p.prixCents == null ? 'Sur devis' : euros(p.prixCents) + (p.unite ? ' / ' + esc(p.unite) : '')}${p.min > 1 ? ' · min. ' + p.min : ''}</small></span><span class="pill ${p.statut === 'masque' ? 'd-refuse' : 'd-accepte'}">${p.statut === 'masque' ? 'Masqué' : 'Visible'}</span>${p.maison ? '<span class="pill">Maison</span>' : ''}${p.sous ? `<span class="pill">${esc(((cache.rubriques || []).find(r => r.slug === p.rubrique)?.sous || []).find(x => x.slug === p.sous)?.nom || '')}</span>` : ''}</a>`;
@@ -431,7 +431,16 @@
       if (e.target.closest('[data-delsous]')) { const n = nbSous(sous[i].slug); if (!confirm(`Supprimer la spécialité « ${sous[i].nom} » ?\n\n${n ? n + ' prestation(s) restent dans la rubrique, sans spécialité. ' : ''}Pensez à enregistrer.`)) return; lireSous(); sous.splice(i, 1); drawSous(); }
     });
     $('[data-addsous]').addEventListener('click', () => { const nom = prompt('Nom de la spécialité ? (ex. Buffet grec)'); if (!nom) return; lireSous(); let sl = slugDe(nom), k = 2; while (sous.some(x => x.slug === sl)) sl = slugDe(nom) + '-' + k++; sous.push({ slug: sl, nom, pays: '', photo: '', statut: 'visible' }); drawSous(); toast('Ajoutée : choisissez sa photo, puis enregistrez.'); });
-    $('[data-sousf]')?.addEventListener('change', e => { const v = e.target.value; const L = cache.produits.filter(p => p.rubrique === cache.catR && (v === '*' || (v ? p.sous === v : !sous.some(x => x.slug === p.sous)))); $('#plist').innerHTML = L.map(prow).join('') || '<p class="muted">Aucune prestation.</p>'; });
+    const sansAcc = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const filtrer = () => {
+      const v = $('[data-sousf]')?.value ?? '*', q = sansAcc($('[data-pq]').value).trim();
+      const L = cache.produits.filter(p => p.rubrique === cache.catR && (v === '*' || (v ? p.sous === v : !sous.some(x => x.slug === p.sous))) && (!q || q.split(/\s+/).every(m => sansAcc(p.titre + ' ' + p.slug).includes(m))));
+      $('#plist').innerHTML = L.map(prow).join('') || '<p class="muted">Aucune prestation ne correspond.</p>';
+      $('[data-pqn]').textContent = q ? `${L.length} résultat${L.length > 1 ? 's' : ''}` : '';
+    };
+    $('[data-sousf]')?.addEventListener('change', filtrer);
+    $('[data-pq]').addEventListener('input', filtrer);
+    $('[data-pq]').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); const a = $('#plist a.prow'); if (a) location.hash = a.getAttribute('href'); } });
     bindPhotos($('#rf'));
     $('#rf').addEventListener('submit', async e => {
       e.preventDefault(); lireSous(); const f = Object.fromEntries(new FormData(e.target)); const rub = cache.rubriques.find(x => x.slug === cache.catR);
