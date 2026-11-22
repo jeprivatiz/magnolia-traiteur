@@ -576,3 +576,9 @@ textarea:focus, input:focus, select:focus { outline: 2px solid color-mix(in srgb
 .spe-bloc .count { margin-top: 0; }
 /* pages de texte (La maison…) : de l'air entre le texte et les blocs suivants */
 .prose ~ section:not(:empty) { margin-top: clamp(56px, 7vw, 96px); }
+
+/* vignettes « carte du monde » (Saveurs du monde) */
+.tile.carte-v { background: #1d3b2f; }
+.tile.carte-v .carte { position: absolute; inset: 0; width: 100%; height: 100%; z-index: -2; transition: transform .6s; }
+.tile.carte-v:hover .carte { transform: scale(1.04); }
+.tile.carte-v::after { background: linear-gradient(180deg, transparent 52%, rgba(10, 24, 18, .88)); }

@@ -37,7 +37,7 @@ function adsConv(R) {
 
 function layout(c, { title, description = '', body, path = '/', schema = null, bodyClass = '', image = '' }) {
   const R = c.reglages;
-  const fullTitle = title ? `${title} · ${R.nom || 'Magnolia Traiteur'}` : `${R.nom || 'Magnolia Traiteur'} · Traiteur événementiel à Paris et en Île-de-France`;
+  const fullTitle = title ? `${title} · ${R.nom || 'Magnolia Traiteur'}` : `${R.nom || 'Magnolia Traiteur'} · Traiteur événementiel`;
   const site = (process.env.SITE_URL || 'https://www.magnoliatraiteur.fr').replace(/\/$/, '');
   const rubs = c.rubriques.filter(r => r.statut !== 'masque' && r.slug !== 'lieux');
   return `<!doctype html>
@@ -222,8 +222,8 @@ ${avisBloc(c)}
 /* Grand bandeau photo en haut des pages d'arrivée (publicité Google Ads) : photo ou vidéo, titre, texte, boutons, ligne de confiance.
    Tout se change dans le back-office › Photos & textes du site › Bandeaux des pages. */
 const BANDEAUX_DEFAUT = {
-  boutique: { photo: '/site/c/cocktail10-client-20261104.jpg.webp', video: '', titre: 'La boutique Magnolia', chapo: 'Buffets, cocktails, spécialités du monde, boissons, personnel et animations : plus de 350 prestations, prix TTC, livrées 7 jours sur 7 en Île-de-France.', bouton: 'Voir les prestations', ancre: '#prestations' },
-  lieux: { photo: '/site/v/lieux-ambiances.jpg', video: '', titre: 'Lieux de réception', chapo: 'Lofts, péniches, demeures et salons à privatiser à Paris et en Île-de-France. Associez votre lieu et votre traiteur dans une seule demande.', bouton: 'Voir les lieux', ancre: '#lieux' },
+  boutique: { photo: '/site/c/cocktail10-client-20261104.jpg.webp', video: '', titre: 'La boutique Magnolia', chapo: 'Buffets, cocktails, spécialités du monde, boissons, personnel et animations : plus de 350 prestations, prix TTC, livrées 7 jours sur 7.', bouton: 'Voir les prestations', ancre: '#prestations' },
+  lieux: { photo: '/site/v/lieux-ambiances.jpg', video: '', titre: 'Lieux de réception', chapo: 'Lofts, péniches, demeures et salons à privatiser. Associez votre lieu et votre traiteur dans une seule demande.', bouton: 'Voir les lieux', ancre: '#lieux' },
   temoignages: { photo: '/site/v/temoignages-table.jpg', video: '/site/v/temoignages-table.mp4', titre: 'Avis clients', chapo: 'Mariages, anniversaires, séminaires, fêtes de famille : ils nous ont confié leur événement et le racontent.', bouton: 'Lire les avis', ancre: '#avis' },
   maison: { photo: '', video: '', titre: 'La maison Magnolia', chapo: 'Votre événement commence ici.', bouton: 'Découvrir nos propositions', ancre: '/boutique' },
 };
@@ -247,13 +247,14 @@ function bandeauHtml(c, B, fil) {
     : img(B.photo, '', '', 'fetchpriority="high"').replace(' loading="lazy"', '');
   return `<section class="phero land">${media}<div class="phero-c wrap">${crumbs(fil || [[B.titre]])}<h1>${esc(B.titre)}</h1>${B.chapo ? `<p class="lead">${esc(B.chapo)}</p>` : ''}
   <div class="row land-cta"><a class="btn btn-or" href="${esc(B.ancre || '/boutique')}">${esc(B.bouton || 'Découvrir')}</a><a class="btn btn-ghost-light" href="tel:${esc(tel)}">${icon.phone}<span>${esc(R.telephone || '')}</span></a></div>
-  <p class="confiance"><span><span class="etoiles" aria-hidden="true">★★★★★</span> <b>${esc(G.note || '4,9')}/5</b> sur Google${G.nombre ? `, ${esc(G.nombre)} avis` : ''}</span><span>Livraison 7 j/7 en Île-de-France</span><span>Devis gratuit</span></p></div></section>`;
+  <p class="confiance"><span><span class="etoiles" aria-hidden="true">★★★★★</span> <b>${esc(G.note || '4,9')}/5</b> sur Google${G.nombre ? `, ${esc(G.nombre)} avis` : ''}</span><span>Livraison 7 j/7</span><span>Devis gratuit</span></p></div></section>`;
 }
 
 /* ---------- pages d'atterrissage des spécialités (publicité Google Ads) ---------- */
 const { SPE_TEXTES, RANGEMENTS, rangementDe } = require('./seed');
-const speTitre = x => x.titrePage || SPE_TEXTES[x.slug]?.[0] || `${x.nom} à Paris et en Île-de-France`;
-const speChapo = x => x.chapo || SPE_TEXTES[x.slug]?.[1] || `${x.pays ? x.pays + ' : ' : ''}toutes nos propositions, préparées par Magnolia Traiteur et livrées 7 jours sur 7 en Île-de-France. Prix TTC, devis gratuit.`;
+const { carteSvg } = require('./cartes');
+const speTitre = x => x.titrePage || SPE_TEXTES[x.slug]?.[0] || x.nom;
+const speChapo = x => x.chapo || SPE_TEXTES[x.slug]?.[1] || `${x.pays ? x.pays + ' : ' : ''}toutes nos propositions, préparées par Magnolia Traiteur et livrées 7 jours sur 7. Prix TTC, devis gratuit.`;
 /* mots du bandeau défilant de l'accueil → page de la spécialité (ou de l'univers), sinon recherche */
 const sansAccent = t => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
 function lienMot(c, t) {
@@ -276,8 +277,11 @@ function pageSpecialites(c, r) {
   const S = sousVisibles(r);
   const tous = c.byRub.get(r.slug) || [];
   const autres = tous.filter(p => !S.some(x => x.slug === p.sous));
+  const styleV = r.styleVignettes || (r.slug === 'saveurs-du-monde' ? 'carte' : 'photo');
   const tuile = x => {
     const n = prodsDeSous(c, r, x.slug).length;
+    const carte = styleV === 'carte' ? carteSvg(x) : '';
+    if (carte) return `<a class="tile spe carte-v" href="/${esc(r.slug)}/${esc(x.slug)}">${carte}<span class="tile-t">${x.pays ? `<i class="pays">${esc(x.pays)}</i>` : ''}<b>${esc(x.nom)}</b><small>${n} prestation${n > 1 ? 's' : ''}</small><span class="voir">Voir nos propositions ${icon.arrow}</span></span></a>`;
     return `<a class="tile spe" href="/${esc(r.slug)}/${esc(x.slug)}">${img(x.photo, x.nom)}${x.video ? `<video src="${esc(x.video)}" muted loop playsinline preload="none" aria-hidden="true" data-survol></video>` : ''}<span class="tile-t">${x.pays ? `<i class="pays">${esc(x.pays)}</i>` : ''}<b>${esc(x.nom)}</b><small>${n} prestation${n > 1 ? 's' : ''}</small><span class="voir">Voir nos propositions ${icon.arrow}</span></span></a>`;
   };
   const body = `${bandeauHtml(c, { photo: r.bandeauPhoto || r.photoAccueil || r.photo, video: r.bandeauVideo || '', titre: r.titrePage || r.nom, chapo: r.chapo || r.accroche || 'Choisissez votre spécialité : chaque cuisine a ses buffets, ses plats et ses douceurs.', bouton: 'Choisir ma spécialité', ancre: '#specialites' }, [['La boutique', '/boutique'], [r.nom]])}

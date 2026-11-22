@@ -31,7 +31,7 @@ const REGLAGES_DEFAUT = {
   accueil: {
     surtitre: 'L’art de recevoir, signé Magnolia',
     titre: 'Vos plus beaux moments\nont du goût',
-    sousTitre: 'Traiteur, animations et lieux de réception, à Paris et en Île-de-France.',
+    sousTitre: 'Traiteur, animations et lieux de réception pour tous vos événements.',
     videos: [
       { src: '/site/v/italien-boucle.mp4', poster: '/site/v/italien-boucle.jpg', titre: 'Buffet italien', lien: '/saveurs-du-monde/buffet-italien-entree-plat-dessert' },
       { src: '/site/v/antillais-boucle.mp4', poster: '/site/v/antillais-boucle.jpg', titre: 'Buffet antillais', lien: '/buffet-antillais' },
@@ -192,15 +192,15 @@ async function importerAvisAncienSite(store, { log = console, fichier = path.joi
    Créées une seule fois au démarrage, avec un premier classement des prestations ; tout se règle ensuite dans le back-office. */
 /* textes des pages d'atterrissage des spécialités (modifiables dans le back-office) : [titre de la page, texte du bandeau] */
 const SPE_TEXTES = {
-  'paella-party': ['Paëlla party à Paris et en Île-de-France', 'La paëlla géante cuisinée devant vos invités ou livrée prête à servir : royale, poulet chorizo, fruits de mer ou végétarienne. Prix TTC par personne, devis gratuit.'],
-  'buffet-libanais': ['Buffet libanais à Paris et en Île-de-France', 'Mezzés froids et chauds, grillades et douceurs orientales, préparés dans notre laboratoire et livrés 7 jours sur 7. Prix TTC, devis gratuit.'],
-  'buffet-chinois': ['Buffet chinois à Paris et en Île-de-France', 'Bouchées vapeur, nems, plats sautés et desserts asiatiques pour vos réceptions, livrés prêts à servir. Prix TTC, devis gratuit.'],
-  'buffet-africain': ['Buffet africain à Paris et en Île-de-France', 'Mafé, yassa, poulet braisé, alloco et accras : les saveurs d’Afrique pour vos fêtes et mariages. Prix TTC, devis gratuit.'],
-  'couscous-party': ['Couscous party à Paris et en Île-de-France', 'Couscous royal, tajines et pâtisseries orientales, servis à volonté pour vos grandes tablées. Prix TTC par personne, devis gratuit.'],
-  'buffet-italien': ['Buffet italien à Paris et en Île-de-France', 'Antipasti, pâtes fraîches, pizzas, burrata et tiramisu : l’Italie généreuse pour vos événements. Prix TTC, devis gratuit.'],
-  'buffet-antillais': ['Buffet antillais à Paris et en Île-de-France', 'Accras, boudins créoles, colombo, rougail et punchs : la cuisine des îles par Le Traiteur Antillais. Prix TTC, devis gratuit.'],
-  'buffet-indien': ['Buffet indien à Paris et en Île-de-France', 'Samoussas, currys, biryani, naans et lassis : un buffet parfumé pour vos réceptions. Prix TTC, devis gratuit.'],
-  'specialites-japonaises': ['Sushis et buffet japonais à Paris et en Île-de-France', 'Plateaux de sushis, makis, california et brochettes yakitori, livrés frais pour vos cocktails. Prix TTC, devis gratuit.'],
+  'paella-party': ['Paëlla party', 'La paëlla géante cuisinée devant vos invités ou livrée prête à servir : royale, poulet chorizo, fruits de mer ou végétarienne. Prix TTC par personne, devis gratuit.'],
+  'buffet-libanais': ['Buffet libanais', 'Mezzés froids et chauds, grillades et douceurs orientales, préparés dans notre laboratoire et livrés 7 jours sur 7. Prix TTC, devis gratuit.'],
+  'buffet-chinois': ['Buffet chinois', 'Bouchées vapeur, nems, plats sautés et desserts asiatiques pour vos réceptions, livrés prêts à servir. Prix TTC, devis gratuit.'],
+  'buffet-africain': ['Buffet africain', 'Mafé, yassa, poulet braisé, alloco et accras : les saveurs d’Afrique pour vos fêtes et mariages. Prix TTC, devis gratuit.'],
+  'couscous-party': ['Couscous party', 'Couscous royal, tajines et pâtisseries orientales, servis à volonté pour vos grandes tablées. Prix TTC par personne, devis gratuit.'],
+  'buffet-italien': ['Buffet italien', 'Antipasti, pâtes fraîches, pizzas, burrata et tiramisu : l’Italie généreuse pour vos événements. Prix TTC, devis gratuit.'],
+  'buffet-antillais': ['Buffet antillais', 'Accras, boudins créoles, colombo, rougail et punchs : la cuisine des îles par Le Traiteur Antillais. Prix TTC, devis gratuit.'],
+  'buffet-indien': ['Buffet indien', 'Samoussas, currys, biryani, naans et lassis : un buffet parfumé pour vos réceptions. Prix TTC, devis gratuit.'],
+  'specialites-japonaises': ['Sushis et buffet japonais', 'Plateaux de sushis, makis, california et brochettes yakitori, livrés frais pour vos cocktails. Prix TTC, devis gratuit.'],
 };
 const SOUS_DEFAUT = {
   'saveurs-du-monde': [
@@ -297,6 +297,20 @@ async function initSousRubriques(store, { log = console } = {}) {
     if (!r?.sous?.length || r.speTextes) continue;
     const sous = r.sous.map(x => SPE_TEXTES[x.slug] ? { ...x, titrePage: x.titrePage || SPE_TEXTES[x.slug][0], chapo: x.chapo || SPE_TEXTES[x.slug][1] } : x);
     await store.set('rubriques/' + d.id, { ...r, sous, speTextes: true });
+  }
+  // une fois (2026-11-22, demande de Jean-Luc) : plus de « à Paris et en Île-de-France » dans les bandeaux et titres (livraison aussi en province)
+  const IDF = /,?\s*(à|a) Paris et (en |l’|l')?Île-de-France|\s*en Île-de-France(?=[.,]|$)/g;
+  const net = t => typeof t === 'string' ? t.replace(IDF, '').replace(/\s+\./g, '.').trim() : t;
+  for (const d of await store.list('rubriques')) {
+    const r = d.data; if (!r || r.sansIdf) continue;
+    const sous = (r.sous || []).map(x => ({ ...x, titrePage: net(x.titrePage), chapo: net(x.chapo), seoTitre: net(x.seoTitre), seoDescription: net(x.seoDescription) }));
+    await store.set('rubriques/' + d.id, { ...r, titrePage: net(r.titrePage), chapo: net(r.chapo), seoTitre: net(r.seoTitre), seoDescription: net(r.seoDescription), sous, sansIdf: true });
+  }
+  const R = await store.get('site/reglages');
+  if (R && !R.sansIdf) {
+    const bandeaux = Object.fromEntries(Object.entries(R.bandeaux || {}).map(([k, b]) => [k, { ...b, titre: net(b.titre), chapo: net(b.chapo) }]));
+    const sousTitre = R.accueil?.sousTitre === 'Traiteur, animations et lieux de réception, à Paris et en Île-de-France.' ? 'Traiteur, animations et lieux de réception pour tous vos événements.' : net(R.accueil?.sousTitre);
+    await store.set('site/reglages', { ...R, bandeaux, accueil: { ...(R.accueil || {}), sousTitre }, sansIdf: true });
   }
 }
 
