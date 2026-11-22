@@ -609,6 +609,32 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('produits/' + slug, { ...x, photos: photos.map(([src, alt]) => ({ src, alt })), vraiesPhotos: [...(x.vraiesPhotos || []), ver] });
   }
 
+  /* plateaux de sushis : compositions, prix et photos du site actuel magnoliatraiteur.fr/plateaux-de-sushis (Jean-Luc, 2026-11-22).
+     Une fois. Le plateau 80 pièces n'existe plus et le « Plateau de 75 sushis » des coffrets faisait doublon : masqués, leur adresse renvoie au grand plateau. */
+  const RSu = await store.get('site/reglages');
+  if (RSu && !RSu.sushisSiteActuel) {
+    const modele = await store.get('produits/plateau-japonais-75-pieces');
+    if (modele) {
+      for (const [i, x] of PLATEAUX_SUSHIS.entries()) {
+        const avant = (await store.get('produits/' + x.slug)) || { ...modele, id: x.slug, slug: x.slug, createdAt: new Date().toISOString() };
+        await store.set('produits/' + x.slug, {
+          ...avant, titre: x.titre, prixCents: x.prixCents, prixTexte: null, unite: 'plateau', min: 1, minimumTexte: null,
+          extrait: `${x.pieces} pièces · ${x.pour}`,
+          description: [`${x.pieces} pièces, ${x.pour}. Si vous êtes plus nombreux, ajoutez des plateaux.`, 'Préparé le jour de votre événement par nos chefs, avec des ingrédients frais. Baguettes, sauces soja salée et sucrée et wasabi sont offerts, en proportion de la commande.'],
+          sections: [{ titre: `Composition (${x.pieces} pièces)`, items: x.compo }],
+          photos: [{ src: x.photo, alt: x.titre }], statut: 'visible', sous: 'specialites-japonaises', rubrique: 'saveurs-du-monde', ordre: 51 + i,
+          autresRubriques: x.slug === 'plateau-japonais-75-pieces' ? [...new Set([...(avant.autresRubriques || []), 'coffrets-plateaux'])] : (avant.autresRubriques || []),
+          fusionneDans: undefined, aCompleter: false,
+        });
+      }
+      for (const slug of ['plateau-japonais-80-pieces', 'plateau-de-75-sushis']) {
+        const x = await store.get('produits/' + slug);
+        if (x) await store.set('produits/' + slug, { ...x, statut: 'masque', fusionneDans: 'plateau-japonais-75-pieces' });
+      }
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), sushisSiteActuel: true });
+  }
+
   /* photos des vignettes « Nos univers » choisies par Jean-Luc (2026-11-22, sources dans data/credits-photos.md).
      Appliquées une fois par univers : modifiables ensuite dans le back-office. */
   const RV = await store.get('site/reglages');
@@ -652,6 +678,28 @@ const VRAIES_PHOTOS = [
 ];
 const PHOTOS_FICHES = [
   [/^air hockey/i, 'https://images.pexels.com/photos/5780929/pexels-photo-5780929.jpeg?auto=compress&cs=tinysrgb&w=1200', 'Table d’air hockey lumineuse'],
+];
+/* plateaux de sushis du site actuel (prix TTC, TVA 10 %) */
+const SUSHI_IMG = f => 'https://www.magnoliatraiteur.fr/wp-content/uploads/2024/01/' + f;
+const PLATEAUX_SUSHIS = [
+  { slug: 'plateau-japonais-75-pieces', titre: 'Grand plateau de sushis en assortiment', pieces: 75, prixCents: 9790, pour: 'pour 15 à 20 personnes en cocktail (3 à 4 pièces par personne)',
+    photo: SUSHI_IMG('capture-decran-2024-01-05-a-073616.png'),
+    compo: ['9 sushis saumon', '9 sushis crevette', '9 sushis saumon laqué sésame', '4 makis saumon', '8 makis concombre', '8 makis avocat', '8 makis thon cuit mayonnaise', '8 cristal saumon', '8 californias saumon', '4 californias thon cuit mayonnaise oignons frits'] },
+  { slug: 'plateau-japonais-38-pieces', titre: 'Plateau de sushis gourmet en assortiment', pieces: 38, prixCents: 6590, pour: 'pour 8 à 9 personnes en cocktail (3 à 4 pièces par personne)',
+    photo: SUSHI_IMG('5-ambiance-menu-love-vdh-bis1-1.jpg'),
+    compo: ['4 sushis saumon', '4 sushis thon', '6 californias saumon', '6 makis thon mayonnaise', '6 cristal végétarien', '6 crunch thon mayonnaise', '6 rolls saumon'] },
+  { slug: 'plateau-californias-et-makis-40-pieces', titre: 'Plateau californias & makis en assortiment', pieces: 40, prixCents: 4720, pour: 'pour 8 à 9 personnes en cocktail (4 à 5 pièces par personne)',
+    photo: SUSHI_IMG('11-ambiance-plateau-a-partager-vdh-bis1-1.jpg'),
+    compo: ['8 rolls saumon', '4 californias saumon', '4 cristal saumon', '4 cristal thon cuit mayonnaise', '4 californias thon cuit mayonnaise oignons frits', '4 makis saumon', '4 makis thon cuit mayonnaise', '4 makis avocat', '4 makis concombre'] },
+  { slug: 'plateau-japonais-36-pieces', titre: 'Plateau premium', pieces: 36, prixCents: 5270, pour: 'pour 8 à 9 personnes en cocktail (4 à 5 pièces par personne)',
+    photo: SUSHI_IMG('10-ambiance-plateau-premium-a-partager-36p-vdh-bis1-1-1.jpg'),
+    compo: ['4 sushis thon', '4 sushis saumon', '4 rolls saumon', '8 californias saumon', '8 californias végétariens oignons frits', '4 makis concombre', '4 makis avocat'] },
+  { slug: 'plateau-sushi-tout-cuit-20-pieces', titre: 'Plateau sushi tout cuit', pieces: 20, prixCents: 2850, pour: 'pour 4 à 5 personnes en cocktail (4 à 5 pièces par personne)',
+    photo: SUSHI_IMG('capture-decran-2024-01-05-a-072013.png'),
+    compo: ['4 californias thon cuit mayonnaise', '4 californias végétariens', '4 cristal surimi', '4 cristal crevette ebi', '4 californias thon cuit mayonnaise oignons frits'] },
+  { slug: 'plateau-de-luxe-42-pieces', titre: 'Plateau de luxe', pieces: 42, prixCents: 6590, pour: 'pour 8 à 9 personnes en cocktail (5 à 6 pièces par personne)',
+    photo: SUSHI_IMG('capture-decran-2024-01-05-a-073015.png'),
+    compo: ['7 sushis saumon laqué sésame', '7 sushis thon laqué sésame', '4 levana tartare de saumon, topping avocat', '4 dragons saumon oignons frits', '4 cristal saumon', '8 californias thon cuit mayonnaise oignons frits', '4 makis concombre', '4 makis saumon'] },
 ];
 const INTROS_SPE = {
   'paella-party': ['La paëlla, la fête à partager',
