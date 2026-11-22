@@ -628,7 +628,8 @@
         <div class="g2">${PAGES_B.map(([k, nom, url]) => { const b0 = R.bandeaux?.[k] || {}, d = { ...(BD[k] || {}) }; if (k === 'maison' && !d.photo) d.photo = Ac.photoMaison || ''; const b = { photo: b0.photo || d.photo, video: b0.video ?? d.video, titre: b0.titre || d.titre, chapo: b0.chapo || d.chapo, bouton: b0.bouton || d.bouton }; return `<div class="vcard bcard"><h3>${nom} <a class="sm" href="${url}" target="_blank">voir ↗</a></h3>${photoField(`b_${k}_photo`, b.photo || '', 'Photo')}${photoField(`b_${k}_video`, b.video || '', 'Vidéo (facultatif)')}<label>Titre<input name="b_${k}_titre" value="${esc(b.titre || '')}" placeholder="${esc(d.titre || '')}"></label><label>Texte<textarea name="b_${k}_chapo" rows="3" placeholder="${esc(d.chapo || '')}">${esc(b.chapo || '')}</textarea></label><label>Bouton<input name="b_${k}_bouton" value="${esc(b.bouton || '')}" placeholder="${esc(d.bouton || '')}"></label></div>`; }).join('')}</div></section>
       <section class="box"><h2>Textes de l’accueil</h2><label>Petit titre<input name="surtitre" value="${esc(Ac.surtitre || '')}"></label><label>Grand titre <small class="muted">(appuyez sur Entrée pour passer à la ligne)</small><textarea name="titre" rows="2">${esc(Ac.titre === 'Vos plus beaux moments ont du goût' ? 'Vos plus beaux moments\nont du goût' : (Ac.titre || ''))}</textarea></label><label>Sous-titre<input name="sousTitre" value="${esc(Ac.sousTitre || '')}"></label>
         <label>Bandeau défilant (un mot par ligne)<textarea name="bandeau" rows="4">${esc((Ac.bandeau || []).join('\n'))}</textarea></label>
-        <label>Suggestions de recherche (une par ligne)<textarea name="suggestions" rows="4">${esc((Ac.suggestions || []).join('\n'))}</textarea></label>
+        <label>Phrase d’aide sous la barre de recherche<input name="aideRecherche" value="${esc(Ac.aideRecherche ?? 'Dites un mot ou deux pour trouver ce que vous voulez. Exemples : paëlla, couscous, libanais.')}" placeholder="(vide = pas de phrase)"></label>
+        <h3>Idées de recherche (petits rectangles)</h3><p class="muted sm">Affichées sous la barre de recherche de l’accueil et dans la fenêtre « Rechercher » de toutes les pages. Pour chacune : le texte du rectangle et ce qui s’ouvre au clic.</p><div id="sugg"></div><button type="button" class="btn ghost sm" data-addsugg>+ Ajouter une idée</button>
         <h3>Chiffres clés</h3><p class="muted sm">Le nombre de prestations se met à jour tout seul. Une note « sur 5 » s’affiche avec des étoiles.</p><div class="g4">${[0, 1, 2, 3].map(i => `<div><input name="ch${i}_v" value="${esc(Ac.chiffres?.[i]?.valeur || '')}" placeholder="4,9/5"><input name="ch${i}_l" value="${esc(Ac.chiffres?.[i]?.label || '')}" placeholder="sur Google"></div>`).join('')}</div></section>
       <section class="box"><h2>Les incontournables</h2><p class="muted sm">Les prestations mises en avant sur l’accueil, dans l’ordre.</p><div class="incs">${[0, 1, 2, 3, 4, 5, 6, 7].map(i => `<select name="inc${i}"><option value="">—</option>${prods.filter(p => p.statut !== 'masque').sort((a, b) => a.titre.localeCompare(b.titre)).map(p => `<option value="${esc(p.slug)}"${(Ac.incontournables || [])[i] === p.slug ? ' selected' : ''}>${esc(p.titre)}</option>`).join('')}</select>`).join('')}</div></section>
       <section class="box"><h2>Photos des blocs</h2><div class="g2">${photoField('photoMaison', Ac.photoMaison, 'Bloc « La maison Magnolia »')}${photoField('photoCommande', Ac.photoCommande, 'Bloc « Comment commander »')}</div></section>
@@ -640,15 +641,33 @@
       <section class="box"><h2>Alertes de l’équipe</h2><div class="g2"><label>E-mails prévenus à chaque demande (séparés par des virgules)<input name="al_emails" value="${esc(R.alertes?.emails || '')}"></label><label>Portables prévenus par SMS<input name="al_sms" value="${esc(R.alertes?.sms || '')}" placeholder="06 12 34 56 78"></label></div></section>
       <div class="actions sticky"><button class="btn">Enregistrer</button><span class="muted" id="dirty"></span></div></form>`);
   }
-  site.after = () => {
+  site.after = async () => {
     const form = $('#sf'); bindPhotos(form);
+    const [rubs, lieuxL] = await Promise.all([cache.rubriques || api(A + '/rubriques'), api(A + '/lieux')]);
+    const DEST = [['', 'Rechercher ce mot'], ['/boutique', 'La boutique (tout)'], ...rubs.filter(r => r.statut !== 'masque').sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0)).flatMap(r => [['/' + r.slug, 'Univers · ' + r.nom], ...(r.sous || []).map(x => [`/${r.slug}/${x.slug}`, '   ' + r.nom + ' › ' + x.nom])]),
+      ['/lieux', 'Lieux de réception (tous)'], ...lieuxL.filter(l => l.statut !== 'masque').map(l => ['/lieux/' + l.slug, '   Lieu · ' + l.nom]), ['/maison', 'La maison'], ['/temoignages', 'Avis clients'], ['/livraison', 'Zones de livraison'], ['/comment-commander', 'Comment commander'], ['/contact', 'Contact']];
+    let sugg = (cache.R.accueil?.suggestions || []).map(x => typeof x === 'string' ? { label: x, lien: '' } : { ...x });
+    const lireSugg = () => { $$('#sugg .sgrow').forEach((row, i) => { sugg[i].label = $('[data-l]', row).value.trim(); sugg[i].lien = $('[data-d]', row).value; }); return sugg; };
+    const drawSugg = () => {
+      $('#sugg').innerHTML = sugg.map((x, i) => `<div class="sgrow" data-i="${i}"><input data-l value="${esc(x.label)}" placeholder="Texte du rectangle" aria-label="Texte"><select data-d aria-label="Ouvre">${(DEST.some(d => d[0] === (x.lien || '')) ? DEST : [...DEST, [x.lien, x.lien]]).map(([v, t]) => `<option value="${esc(v)}"${v === (x.lien || '') ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select><button type="button" class="btn ghost sm" data-u ${i ? '' : 'disabled'} title="Monter">↑</button><button type="button" class="btn ghost sm" data-dn ${i < sugg.length - 1 ? '' : 'disabled'} title="Descendre">↓</button><button type="button" class="btn ghost sm" data-x title="Supprimer">🗑</button></div>`).join('') || '<p class="muted sm">Aucune idée.</p>';
+    };
+    drawSugg();
+    $('#sugg').addEventListener('click', e => {
+      const row = e.target.closest('[data-i]'); if (!row) return; const i = +row.dataset.i; lireSugg();
+      if (e.target.closest('[data-u]')) [sugg[i - 1], sugg[i]] = [sugg[i], sugg[i - 1]];
+      else if (e.target.closest('[data-dn]')) [sugg[i + 1], sugg[i]] = [sugg[i], sugg[i + 1]];
+      else if (e.target.closest('[data-x]')) sugg.splice(i, 1);
+      else return;
+      drawSugg(); $('#dirty').textContent = 'Modifications non enregistrées';
+    });
+    $('[data-addsugg]').addEventListener('click', () => { lireSugg(); sugg.push({ label: '', lien: '' }); drawSugg(); $$('#sugg [data-l]').pop().focus(); });
     form.addEventListener('input', () => { $('#dirty').textContent = 'Modifications non enregistrées'; });
     form.addEventListener('submit', async e => {
       e.preventDefault();
       const f = Object.fromEntries(new FormData(form)); const R = cache.R; const T = R.tarifs || {};
       const lines = s => String(s || '').split('\n').map(x => x.trim()).filter(Boolean);
       const next = { ...R,
-        accueil: { ...(R.accueil || {}), surtitre: f.surtitre, titre: f.titre, sousTitre: f.sousTitre, bandeau: lines(f.bandeau), suggestions: lines(f.suggestions),
+        accueil: { ...(R.accueil || {}), surtitre: f.surtitre, titre: f.titre, sousTitre: f.sousTitre, bandeau: lines(f.bandeau), aideRecherche: f.aideRecherche ?? '', suggestions: lireSugg().filter(x => x.label),
           videos: [0, 1, 2].map(i => ({ src: f[`v${i}_src`], poster: f[`v${i}_poster`], titre: f[`v${i}_titre`], lien: f[`v${i}_lien`] })).filter(v => v.src),
           chiffres: [0, 1, 2, 3].map(i => ({ valeur: f[`ch${i}_v`], label: f[`ch${i}_l`] })).filter(c => c.valeur),
           incontournables: [0, 1, 2, 3, 4, 5, 6, 7].map(i => f['inc' + i]).filter(Boolean), photoMaison: f.photoMaison, photoCommande: f.photoCommande },
