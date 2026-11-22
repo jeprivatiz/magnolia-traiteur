@@ -1,0 +1,52 @@
+name: Récupérer les photos de la flotte
+
+# Copie les photos des véhicules Magnolia (site actuel et Le Traiteur Antillais) dans public/site/flotte.
+# Le serveur de travail ne joint pas ces sites : c'est GitHub qui les télécharge.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/recuperer-flotte.yml
+
+permissions:
+  contents: write
+
+jobs:
+  recuperer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Téléchargement et réduction (1800 px)
+        run: |
+          mkdir -p public/site/flotte/source
+          cd public/site/flotte/source
+          dl() { curl -fsSL -A "Mozilla/5.0 (magnolia-recuperation)" -o "$1" "$2" || echo "échec $2"; }
+          dl fourgon-paris.png      https://www.letraiteurantillais.fr/wp-content/uploads/2025/11/Livraison-de-Magnolia-Traiteur-a-Paris.png
+          dl fourgon-paris-2.jpg    https://www.letraiteurantillais.fr/wp-content/uploads/2025/11/Livraison-en-plein-coeur-de-Paris.jpg
+          dl camion-antillais.png   https://www.letraiteurantillais.fr/wp-content/uploads/2025/11/sac-de-20-kg-de-glacons-2.png
+          dl fourgon-noir.jpg       https://www.magnoliatraiteur.fr/wp-content/uploads/2023/01/adobestock-421036772-1.jpg
+          dl fourgon-noir-nu.jpeg   https://www.magnoliatraiteur.fr/wp-content/uploads/2022/09/adobestock-421036772-scaled.jpeg
+          dl fourgon-blanc.jpeg     https://www.magnoliatraiteur.fr/wp-content/uploads/2022/09/adobestock-182850608-scaled.jpeg
+          dl camion-frigo.jpeg      https://www.magnoliatraiteur.fr/wp-content/uploads/2025/07/daf89f88-ca1f-4447-b49a-e4ef8ae59197.jpeg
+          ls -la
+          pip install --quiet pillow
+          python3 - <<'PY'
+          import os
+          from PIL import Image, ImageOps
+          for f in os.listdir('.'):
+              try:
+                  im = ImageOps.exif_transpose(Image.open(f)).convert('RGB'); im.thumbnail((1800, 1800))
+                  im.save(os.path.splitext(f)[0] + '.jpg', 'JPEG', quality=88)
+                  if not f.endswith('.jpg'): os.remove(f)
+              except Exception as e: print(f, e)
+          PY
+          ls -la
+      - name: Enregistrer dans le dépôt
+        run: |
+          git config user.name "magnolia-bot"
+          git config user.email "magnolia-bot@users.noreply.github.com"
+          git add public/site/flotte
+          if git diff --cached --quiet; then echo "Rien de nouveau."; exit 0; fi
+          git commit -m "Photos de la flotte reprises des sites Magnolia"
+          git push

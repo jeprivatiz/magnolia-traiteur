@@ -34,14 +34,16 @@ const SUGGESTIONS_ACCUEIL = [
 ];
 /* La maison, à côté de « Une seule maison, une seule demande » : soirée corporate, vraie photo (Unsplash, Jean-Luc 2026-11-22) */
 const PHOTO_MAISON_INTRO = 'https://images.unsplash.com/photo-1768508948849-b2ee9e074ab1?auto=format&fit=crop&w=1600&q=80';
+/* laboratoire : 15 avenue de Norvège, Villebon-sur-Yvette (Base Adresse Nationale) */
+const ORIGINE_LABO = { lat: 48.692674, lon: 2.212317, nom: 'Villebon-sur-Yvette' };
 const REGLAGES_DEFAUT = {
   nom: 'Magnolia Traiteur',
   sousNom: 'Traiteur · Événementiel',
   slogan: 'Des saveurs, des idées, votre événement.',
   telephone: '07 63 66 98 92',
   email: 'infos@magnoliatraiteur.fr',
-  adresse: '15 rue de Norvège, 91140 Villebon-sur-Yvette',
-  origine: { lat: 48.6948, lon: 2.2287, nom: 'Villebon-sur-Yvette' },
+  adresse: '15 avenue de Norvège, 91140 Villebon-sur-Yvette',
+  origine: ORIGINE_LABO,
   horaires: 'Du lundi au vendredi de 9 h à 18 h, le samedi de 10 h à 18 h.',
   instagram: 'https://www.instagram.com/magnoliatraiteur/',
   avisGoogle: { note: '4,9', nombre: 'plus de 650', url: 'https://search.google.com/local/reviews?placeid=ChIJQb9vuprX5UcR2-iHFOth55k' },
@@ -72,6 +74,7 @@ const REGLAGES_DEFAUT = {
     .map(k => ({ src: `/site/logos/${k}.svg`, nom: { aircaraibes: 'Air Caraïbes', doctolib: 'Doctolib', villedeparis: 'Ville de Paris', nestle: 'Nestlé', bnpparibas: 'BNP Paribas', loreal: 'L’Oréal', accenture: 'Accenture', armani: 'Giorgio Armani', radisson: 'Radisson Blu', canon: 'Canon', cnrs: 'CNRS', bpifrance: 'Bpifrance', creditagricole: 'Crédit Agricole', lcl: 'LCL' }[k] })),
   tarifs: {
     kmCents: 100,
+    livraisonOfferteCents: 70000, /* livraison offerte dès 700 € TTC de commande (0 = jamais) */
     personnel: { label: 'Personnel de service polyvalent', heureCents: 4188, minHeures: 4 },
     packs: [
       { id: 'petit', label: 'Petit Pack Traiteur éco-responsable', prixCents: 450, detail: 'Matériel de buffet, verres éco-responsables, assiettes biodégradables, couverts en bois et serviettes.' },
@@ -794,6 +797,15 @@ async function initSousRubriques(store, { log = console } = {}) {
       await store.set('rubriques/' + slug, { ...r, photoAccueil: photo, ...(r.bandeauPhoto !== undefined || slug === 'grand-large' ? { bandeauPhoto: photo, bandeauVideo: '' } : {}) });
     }
     await store.set('site/reglages', { ...(await store.get('site/reglages')), vignettesFaites: [...faites, ...nouvelles] });
+  }
+
+  /* page Zone de livraison (Jean-Luc, 2026-11-22) : départ exact avenue de Norvège et livraison offerte dès 700 € TTC.
+     Posé une fois : modifiable ensuite dans le back-office (Réglages > Tarifs communs). */
+  const RL = await store.get('site/reglages');
+  if (RL && !RL.zoneLivraison2026) {
+    const adresse = !RL.adresse || /^15 rue de Norv/.test(RL.adresse) ? '15 avenue de Norvège, 91140 Villebon-sur-Yvette' : RL.adresse;
+    await store.set('site/reglages', { ...RL, adresse, origine: { ...(RL.origine || {}), ...ORIGINE_LABO },
+      tarifs: { ...(RL.tarifs || {}), livraisonOfferteCents: RL.tarifs?.livraisonOfferteCents ?? 70000 }, zoneLivraison2026: true });
   }
 }
 

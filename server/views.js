@@ -4,6 +4,7 @@ const _logos = new Map();
 function logoExiste(src) { if (!src) return false; if (!src.startsWith('/site/')) return true; if (!_logos.has(src)) _logos.set(src, _fs.existsSync(_path.join(__dirname, '..', 'public', src))); return _logos.get(src); }
 /* Pages publiques, rendues par le serveur (rapides et bien référencées par Google). */
 const { esc, euros, dateFr } = require('./util');
+const _euros = euros;
 const { prixCourt } = require('./catalogue');
 
 const V = (process.env.RAILWAY_GIT_COMMIT_SHA || '').slice(0, 8) || Date.now().toString(36); /* change à chaque mise en ligne : force le rechargement du CSS et du JS */
@@ -37,7 +38,7 @@ function adsConv(R) {
   return ` data-ads="${id}"` + d + k;
 }
 
-function layout(c, { title, description = '', body, path = '/', schema = null, bodyClass = '', image = '' }) {
+function layout(c, { title, description = '', body, path = '/', schema = null, bodyClass = '', image = '', head = '', scripts = '' }) {
   const R = c.reglages;
   const fullTitle = title ? `${title} · ${R.nom || 'Magnolia Traiteur'}` : `${R.nom || 'Magnolia Traiteur'} · Traiteur événementiel`;
   const site = (process.env.SITE_URL || 'https://www.magnoliatraiteur.fr').replace(/\/$/, '');
@@ -59,6 +60,7 @@ ${image ? `<meta property="og:image" content="${esc(site + image)}">` : ''}
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/site.css?v=${V}">
+${head}
 ${process.env.SITE_NOINDEX === '1' ? '<meta name="robots" content="noindex, nofollow">' : ''}
 ${adsTag(R)}
 ${schema ? `<script type="application/ld+json">${JSON.stringify(schema).replace(/</g, '\\u003c')}</script>` : ''}
@@ -75,6 +77,7 @@ ${schema ? `<script type="application/ld+json">${JSON.stringify(schema).replace(
       <a class="nav-l" href="/lieux">Lieux</a>
       <a class="nav-l" href="/maison">La maison</a>
       <a class="nav-l" href="/temoignages">Avis clients</a>
+      <a class="nav-l" href="/zone-de-livraison">Zone de livraison</a>
       <a class="nav-l" href="/espace-client" aria-label="Mon espace">${icon.user}<span>Mon espace</span></a>
       <a class="nav-sel" href="/ma-selection">${icon.bag}<span>Ma sélection</span><b class="badge" data-sel-count hidden>0</b></a>
     </nav>
@@ -87,7 +90,7 @@ ${schema ? `<script type="application/ld+json">${JSON.stringify(schema).replace(
     <p class="eyebrow">Nos univers</p>
     <ul class="drawer-l">${rubs.map(r => `<li><a href="${rubHref(r)}">${esc(r.nom)}<span>${c.byRub.get(r.slug)?.length || ''}</span></a></li>`).join('')}<li><a href="/lieux">Lieux de réception<span>${c.lieux.filter(l => l.statut !== 'masque').length}</span></a></li></ul>
     <p class="eyebrow">Magnolia</p>
-    <ul class="drawer-l small"><li><a href="/maison">La maison</a></li><li><a href="/comment-commander">Comment commander</a></li><li><a href="/livraison">Zones de livraison</a></li><li><a href="/temoignages">Avis clients</a></li><li><a href="/contact">Contact</a></li><li><a href="/espace-client">Mon espace client</a></li></ul>
+    <ul class="drawer-l small"><li><a href="/maison">La maison</a></li><li><a href="/comment-commander">Comment commander</a></li><li><a href="/temoignages">Avis clients</a></li><li><a href="/zone-de-livraison">Zone de livraison</a></li><li><a href="/contact">Contact</a></li><li><a href="/espace-client">Mon espace client</a></li></ul>
     <a class="btn btn-or wide" href="tel:${esc((R.telephone || '').replace(/\s/g, ''))}">${icon.phone} ${esc(R.telephone)}</a>
   </div>
 </div>
@@ -109,7 +112,7 @@ ${schema ? `<script type="application/ld+json">${JSON.stringify(schema).replace(
     <div class="foot-brand"><a class="brand foot-logo" href="/" aria-label="${esc(R.nom)}, accueil">${MONO}<span class="brand-txt">Magnolia<small>${esc(R.sousNom || 'Traiteur · Événementiel')}</small></span></a><p class="slogan">${esc(R.slogan || '')}</p>
       <a class="btn btn-ghost-light" href="/ma-selection">Composer mon événement</a></div>
     <div><h2>Nos univers</h2><ul>${rubs.map(r => `<li><a href="${rubHref(r)}">${esc(r.nom)}</a></li>`).join('')}<li><a href="/lieux">Lieux de réception</a></li></ul></div>
-    <div><h2>Magnolia</h2><ul><li><a href="/boutique">La boutique</a></li><li><a href="/ma-selection">Ma sélection</a></li><li><a href="/comment-commander">Comment commander</a></li><li><a href="/livraison">Zones de livraison</a></li><li><a href="/temoignages">Témoignages</a></li><li><a href="/maison">La maison Magnolia</a></li><li><a href="/contact">Contact</a></li><li><a href="/espace-client">Mon espace client</a></li></ul></div>
+    <div><h2>Magnolia</h2><ul><li><a href="/boutique">La boutique</a></li><li><a href="/ma-selection">Ma sélection</a></li><li><a href="/comment-commander">Comment commander</a></li><li><a href="/zone-de-livraison">Zone de livraison</a></li><li><a href="/temoignages">Témoignages</a></li><li><a href="/maison">La maison Magnolia</a></li><li><a href="/contact">Contact</a></li><li><a href="/espace-client">Mon espace client</a></li></ul></div>
     <div><h2>Nous joindre</h2><ul class="contact"><li><a href="tel:${esc((R.telephone || '').replace(/\s/g, ''))}">${esc(R.telephone)}</a></li><li><a href="mailto:${esc(R.email)}">${esc(R.email)}</a></li><li>${esc(R.adresse)}</li><li>${esc(R.horaires)}</li>${R.instagram ? `<li><a href="${esc(R.instagram)}" rel="noopener">Instagram</a></li>` : ''}</ul></div>
   </div>
   <div class="foot-bas"><p>${esc(R.mentionPied || '')}</p><p><a href="/mentions-legales">Mentions légales</a> · <a href="/confidentialite">Confidentialité</a> · <a href="/cgv">CGV</a> · <a href="/allergenes">Allergènes</a><span data-cookies> · <a href="#cookies">Gérer mes cookies</a></span> · © ${new Date().getFullYear()} ${esc(R.nom)}</p></div>
@@ -117,6 +120,7 @@ ${schema ? `<script type="application/ld+json">${JSON.stringify(schema).replace(
 <div class="toast" data-toast role="status" aria-live="polite"></div>
 <script>window.MG=${JSON.stringify({ tel: R.telephone, tarifs: R.tarifs, origine: R.origine, evenements: R.evenements }).replace(/</g, '\\u003c')};</script>
 <script src="/js/site.js?v=${V}" defer></script>
+${scripts}
 </body>
 </html>`;
 }
@@ -407,7 +411,7 @@ function produit(c, p) {
       <form class="conf" data-conf='${esc(JSON.stringify(conf))}' novalidate>
         <div data-conf-body></div>
         <div class="conf-tot"><span>Total estimé</span><b data-conf-total>${esc(prixTxt)}</b></div>
-        <p class="small">TTC, hors livraison (${esc(euros(T.kmCents || 100))} TTC du km aller-retour depuis ${esc(R.origine?.nom || 'Villebon-sur-Yvette')}).</p>
+        <p class="small">TTC, hors livraison (${esc(euros(T.kmCents || 100))} TTC du km aller-retour depuis ${esc(R.origine?.nom || 'Villebon-sur-Yvette')}${(T.livraisonOfferteCents ?? 70000) > 0 ? `, <a href="/zone-de-livraison">offerte dès ${esc(euros(T.livraisonOfferteCents ?? 70000))} TTC</a>` : ''}).</p>
         <div class="conf-act"><button class="btn btn-line" type="submit" name="go" value="add">Ajouter à ma sélection</button><button class="btn btn-vert" type="submit" name="go" value="devis">Ajouter et demander mon devis</button></div>
       </form>
       ${(p.details || []).length ? `<ul class="details">${p.details.map(d => `<li>${esc(d)}</li>`).join('')}</ul>` : ''}
@@ -462,13 +466,13 @@ function selection(c) {
       <label>Horaire de livraison<select name="horaire">${['Matin (8 h – 12 h)', 'Midi (11 h – 13 h)', 'Après-midi (13 h – 17 h)', 'Soir (17 h – 20 h)', 'À préciser avec l’équipe'].map(h => `<option>${h}</option>`).join('')}</select></label></div>
       <div class="f2"><label>Code postal du lieu<input name="cp" inputmode="numeric" maxlength="5" pattern="\\d{5}" required data-cp></label>
       <label>Ville<select name="ville" required data-ville><option value="">D’abord le code postal</option></select></label></div>
-      <p class="livr" data-livr>Frais de livraison : ${esc(euros(R.tarifs?.kmCents || 100))} TTC du km aller-retour depuis ${esc(R.origine?.nom || '')}.</p>
+      <p class="livr" data-livr>Frais de livraison : ${esc(euros(R.tarifs?.kmCents || 100))} TTC du km aller-retour depuis ${esc(R.origine?.nom || '')}${(R.tarifs?.livraisonOfferteCents ?? 70000) > 0 ? `, offerts dès ${esc(euros(R.tarifs?.livraisonOfferteCents ?? 70000))} TTC de commande` : ''}.</p>
       <h2>Vos coordonnées</h2>
       <div class="f2"><label>Prénom et nom<input name="nom" autocomplete="name" required></label><label>Société <small>(facultatif)</small><input name="societe" autocomplete="organization"></label></div>
       <div class="f2"><label>E-mail<input type="email" name="email" autocomplete="email" required></label><label>Téléphone<input type="tel" name="tel" autocomplete="tel" required></label></div>
       <label>Votre message <small>(allergies, déroulé, accès…)</small><textarea name="message" rows="3"></textarea></label>
       <label class="check"><input type="checkbox" name="rgpd" required> J’accepte que Magnolia Traiteur utilise ces informations pour répondre à ma demande (<a href="/confidentialite">confidentialité</a>).</label>
-      <div class="sel-tot"><div><span>Sélection</span><b data-sel-sub>0 €</b></div><div><span>Livraison estimée</span><b data-sel-livr>—</b></div><div class="tot"><span>Total estimé TTC</span><b data-sel-total>0 €</b></div></div>
+      <div class="sel-tot"><div><span>Sélection</span><b data-sel-sub>0 €</b></div><div><span>Livraison estimée</span><b data-sel-livr>—</b></div><div class="tot"><span>Total estimé TTC</span><b data-sel-total>0 €</b></div></div><p class="small sel-offerte" data-sel-offerte></p>
       <button class="btn btn-vert wide" data-send>Envoyer ma demande de devis</button>
       <p class="small center">Votre envoi est une demande à étudier, pas une commande. Réponse rapide, du lundi au samedi.</p>
     </form>
@@ -497,19 +501,115 @@ function maison(c) {
   return texte(c, { titre: B.titre, chapo: B.chapo, html: html + '</section>' + etapes(c) + avisBloc(c) + '<section>', path: '/maison', land: 'maison', image: B.photo, large: true });
 }
 
+/* ---------- page Zone de livraison (carte 3D de l'Île-de-France, flotte, tarifs) ---------- */
+const DEPS_IDF = [['75', 'Paris'], ['92', 'Hauts-de-Seine'], ['93', 'Seine-Saint-Denis'], ['94', 'Val-de-Marne'], ['91', 'Essonne'], ['78', 'Yvelines'], ['95', 'Val-d’Oise'], ['77', 'Seine-et-Marne']];
+/* villes d'exemple : [nom, département, lat, lon] */
+const VILLES_EXEMPLES = [
+  ['Massy', '91', 48.7309, 2.2713], ['Versailles', '78', 48.8049, 2.1204], ['Boulogne-Billancourt', '92', 48.8397, 2.2399], ['Paris', '75', 48.8566, 2.3522],
+  ['Évry-Courcouronnes', '91', 48.6290, 2.4410], ['Créteil', '94', 48.7904, 2.4556], ['Nanterre', '92', 48.8924, 2.2069], ['Saint-Denis', '93', 48.9362, 2.3574],
+  ['Saint-Germain-en-Laye', '78', 48.8989, 2.0938], ['Roissy-en-France', '95', 49.0039, 2.5167], ['Cergy', '95', 49.0364, 2.0761], ['Melun', '77', 48.5421, 2.6554],
+  ['Chessy (Val d’Europe)', '77', 48.8722, 2.7832], ['Rambouillet', '78', 48.6436, 1.8295], ['Fontainebleau', '77', 48.4047, 2.7016], ['Meaux', '77', 48.9601, 2.8788],
+];
+/* même calcul que le site (public/js/site.js) : route ≈ 1,3 × vol d'oiseau, aller-retour, 10 km minimum */
+function kmAllerRetour(o, lat, lon) {
+  const rad = x => x * Math.PI / 180;
+  const d = 2 * 6371 * Math.asin(Math.sqrt(Math.sin(rad(lat - o.lat) / 2) ** 2 + Math.cos(rad(o.lat)) * Math.cos(rad(lat)) * Math.sin(rad(lon - o.lon) / 2) ** 2));
+  return Math.max(10, Math.round(d * 1.3 * 2));
+}
+/* carte de secours (dessinée par le serveur) : visible avant le chargement de la carte 3D, ou si le navigateur ne sait pas l'afficher */
+let _idfSvg = null;
+function carteSecours(o) {
+  if (_idfSvg) return _idfSvg;
+  let geo; try { geo = JSON.parse(_fs.readFileSync(_path.join(__dirname, '..', 'public', 'data', 'idf.json'), 'utf8')); } catch { return ''; }
+  const [x0, x1, y0, y1] = [1.42, 3.58, 48.10, 49.26], k = Math.cos(48.7 * Math.PI / 180), W = 1000, H = Math.round(W * (y1 - y0) / ((x1 - x0) * k));
+  const P = ([lon, lat]) => `${((lon - x0) / (x1 - x0) * W).toFixed(1)},${((y1 - lat) / (y1 - y0) * H).toFixed(1)}`;
+  const ring = r => 'M' + r.map(P).join('L') + 'Z';
+  const paths = geo.features.map(f => { const polys = f.geometry.type === 'Polygon' ? [f.geometry.coordinates] : f.geometry.coordinates; return `<path class="d${f.properties.code === '91' ? ' maison' : ''}" d="${polys.map(p => p.map(ring).join('')).join('')}"><title>${esc(f.properties.code + ' · ' + f.properties.nom)}</title></path>`; }).join('');
+  const [ox, oy] = P([o.lon, o.lat]).split(',');
+  _idfSvg = `<svg class="zl-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Carte des huit départements d’Île-de-France livrés par Magnolia">${paths}<circle class="o" cx="${ox}" cy="${oy}" r="9"/></svg>`;
+  return _idfSvg;
+}
+
 function livraison(c) {
-  const R = c.reglages;
-  const html = `<p class="lead">Livraison 7 jours sur 7 dans toute l’Île-de-France, depuis notre laboratoire de ${esc(R.origine?.nom || '')}.</p>
-  <ul class="deps">${[['75', 'Paris'], ['77', 'Seine-et-Marne'], ['78', 'Yvelines'], ['91', 'Essonne'], ['92', 'Hauts-de-Seine'], ['93', 'Seine-Saint-Denis'], ['94', 'Val-de-Marne'], ['95', 'Val-d’Oise']].map(([n, t]) => `<li><b>${n}</b>${t}</li>`).join('')}</ul>
-  <div class="calc" data-calc><h2>Estimez vos frais</h2><p>${esc(euros(R.tarifs?.kmCents || 100))} TTC du kilomètre, aller-retour, depuis ${esc(R.adresse || '')}.</p>
-  <div class="f2"><label>Code postal du lieu<input inputmode="numeric" maxlength="5" data-cp></label><label>Ville<select data-ville><option value="">D’abord le code postal</option></select></label></div><p class="livr big" data-livr></p></div>
+  const R = c.reglages, T = R.tarifs || {};
+  const o = { lat: 48.692674, lon: 2.212317, nom: 'Villebon-sur-Yvette', ...(R.origine || {}) };
+  const km = T.kmCents || 100, seuil = T.livraisonOfferteCents ?? 70000;
+  const euros = c => (c % 100 ? _euros(c) : _euros(c).replace(/,00(?=\s?€)/, '')); /* « 1 € », « 700 € » */
+  const tel = (R.telephone || '').replace(/\s/g, '');
+  const offerteTxt = seuil > 0 ? `offerte dès ${euros(seuil)} TTC de commande` : '';
+  const villes = VILLES_EXEMPLES.map(([nom, dep, lat, lon]) => ({ nom, dep, lat, lon, km: kmAllerRetour(o, lat, lon) })).sort((a, b) => a.km - b.km);
+  const flotte = [
+    ['/site/flotte/fourgon-livraison-paris.jpg', 'Fourgon de livraison Magnolia en plein cœur de Paris', 'Nos fourgons de livraison', 'Pour les buffets, le matériel et les grandes réceptions, livrés et installés.'],
+    ['/site/flotte/camion-refrigere.jpg', 'Camion réfrigéré ouvert, chargé de sacs de glaçons', 'Nos camions réfrigérés', 'La chaîne du froid respectée, du laboratoire jusqu’à votre lieu.'],
+    ['/site/flotte/camion-traiteur-antillais.jpg', 'Livreur du Traiteur Antillais déchargeant un sac de glaçons de 20 kg', 'Le Traiteur Antillais', 'Notre département antillais et africain, avec ses propres véhicules.'],
+    ['/site/flotte/fourgon-magnolia.jpg', 'Fourgon Magnolia aux couleurs de la maison', 'Aux couleurs de Magnolia', 'Des véhicules à nos couleurs, des livreurs de la maison.'],
+  ];
+  const faq = [
+    ['Comment les frais sont-ils calculés ?', `Par la distance aller-retour entre notre laboratoire de ${o.nom} et la commune de votre événement, à ${euros(km)} TTC du kilomètre. L’estimation en ligne est confirmée dans votre devis.`],
+    ['À partir de quel montant la livraison est-elle offerte ?', seuil > 0 ? `Dès ${euros(seuil)} TTC de commande, la livraison et la reprise sont offertes, partout dans notre zone de livraison.` : 'Les frais de livraison sont indiqués dans votre devis.'],
+    ['Livrez-vous le week-end et les jours fériés ?', 'Oui, 7 jours sur 7. Indiquez l’horaire souhaité dans votre demande : nous convenons ensemble du créneau exact.'],
+    ['Et en dehors de notre zone de livraison ?', `C’est souvent possible, selon votre événement : contactez-nous au ${R.telephone} ou par le formulaire de contact, nous vous faisons une proposition.`],
+    ['La reprise du matériel est-elle comprise ?', 'Oui, le prix au kilomètre comprend l’aller et le retour. Le devis précise la livraison et la récupération pour chaque prestation (matériel, animations, packs).'],
+  ];
+  const schema = { '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: faq.map(([q, a]) => ({ '@type': 'Question', name: q, acceptedAnswer: { '@type': 'Answer', text: a } })) };
+  const body = `
+<section class="zl-hero" data-zl data-zl-origine="${esc(JSON.stringify({ lat: o.lat, lon: o.lon, nom: o.nom }))}" data-zl-km="${km}" data-zl-seuil="${seuil}">
+  <div class="zl-map" data-zl-map aria-label="Carte 3D de notre zone de livraison : faites-la tourner, cliquez sur une ville">${carteSecours(o)}</div>
+  <div class="zl-glow" aria-hidden="true"></div>
+  <div class="zl-panel">
+    ${crumbs([['Zone de livraison']])}
+    <p class="eyebrow">Livraison 7 jours sur 7</p>
+    <h1>Notre zone de livraison</h1>
+    <p class="lead">Les huit départements d’Île-de-France, livrés depuis notre laboratoire de ${esc(o.nom)} par nos propres véhicules.</p>
+    <ul class="zl-cles"><li><b>${esc(euros(km))}</b><span>TTC du km<br>aller-retour</span></li>${seuil > 0 ? `<li class="or"><b>Offerte</b><span>dès ${esc(euros(seuil))} TTC<br>de commande</span></li>` : ''}<li><b>Hors zone</b><span>nous<br>contacter</span></li></ul>
+    <form class="zl-sim" data-zl-form autocomplete="off" onsubmit="return false">
+      <label for="zl-q">Où a lieu votre événement ?</label>
+      <div class="zl-q"><input id="zl-q" type="search" placeholder="Code postal ou ville (ex. Versailles)" data-zl-q aria-describedby="zl-aide"><ul class="zl-sugg" data-zl-sugg role="listbox" hidden></ul></div>
+      <p class="small" id="zl-aide">Ou cliquez directement sur la carte.</p>
+      <label for="zl-m">Montant de votre commande : <output data-zl-mout>${esc(euros(40000))}</output> TTC</label>
+      <input id="zl-m" type="range" min="0" max="${Math.max(150000, seuil * 2)}" step="1000" value="40000" data-zl-m>
+      ${seuil > 0 ? `<div class="zl-jauge" aria-hidden="true"><span style="left:${Math.round(seuil / Math.max(150000, seuil * 2) * 100)}%">${esc(euros(seuil))}</span></div>` : ''}
+      <div class="zl-res" data-zl-res aria-live="polite"><p>Choisissez une ville pour voir le trajet et les frais de livraison.</p></div>
+    </form>
+  </div>
+  <div class="zl-ctrl" data-zl-ctrl hidden><button type="button" data-zl-act="3d" aria-pressed="true">Vue 3D</button><button type="button" data-zl-act="tour" aria-pressed="true">Rotation</button><button type="button" data-zl-act="reset">Recentrer</button></div>
+</section>
+
+<section class="wrap zl-tarifs">
+  <article><p class="eyebrow">Le tarif</p><p class="zl-big">${esc(euros(km))}<small> TTC</small></p><h2>du kilomètre aller-retour</h2><p>Depuis ${esc(o.nom)}, pour la livraison et la reprise. Le montant exact figure dans votre devis.</p></article>
+  ${seuil > 0 ? `<article class="or"><p class="eyebrow">Pour l’instant</p><p class="zl-big">0<small> €</small></p><h2>dès ${esc(euros(seuil))} TTC de commande</h2><p>Votre livraison est offerte, partout dans notre zone, quel que soit le nombre de kilomètres.</p></article>` : ''}
+  <article><p class="eyebrow">Hors zone de livraison</p><p class="zl-big zl-big-t">Nous contacter</p><h2>pour une livraison plus loin</h2><p>Province, grand événement, horaire particulier : appelez-nous, nous trouvons une solution.</p><p class="row"><a class="btn btn-vert" href="tel:${esc(tel)}">${icon.phone}<span>${esc(R.telephone)}</span></a><a class="btn btn-line" href="/contact">Nous écrire</a></p></article>
+</section>
+
+<section class="zl-flotte">
+  <div class="wrap">
+    <div class="zl-flotte-h"><div><p class="eyebrow">Notre flotte</p><h2>Des véhicules prêts à partir, 7 jours sur 7</h2></div>
+    <p>Fourgons, camions réfrigérés, véhicules du Traiteur Antillais : nos livreurs chargent au laboratoire, respectent la chaîne du froid et installent tout sur place. Vous n’avez rien à transporter.</p></div>
+    <ul class="zl-chiffres"><li><b data-zl-count="800">800</b><span>prestations par an</span></li><li><b>7 j/7</b><span>y compris le week-end</span></li><li><b data-zl-count="8">8</b><span>départements livrés</span></li><li><b>${seuil > 0 ? '0 €' : esc(euros(km))}</b><span>${seuil > 0 ? `de livraison dès ${esc(euros(seuil))}` : 'TTC du km'}</span></li></ul>
+    <div class="zl-photos">${flotte.map(([src, alt, t, d], i) => `<figure class="zl-ph${i === 0 ? ' big' : ''}">${img(src, alt)}<figcaption><b>${esc(t)}</b><span>${esc(d)}</span></figcaption></figure>`).join('')}</div>
+    <p class="small zl-nc">Photos non contractuelles.</p>
+  </div>
+</section>
+
+<section class="wrap zl-villes">
+  <p class="eyebrow">Exemples de frais</p><h2>Combien coûte la livraison chez vous ?</h2>
+  <p class="lead">Estimations aller-retour depuis ${esc(o.nom)}. Touchez une ville pour voir le trajet sur la carte.</p>
+  <div class="zl-vgrid">${villes.map(v => `<button type="button" class="zl-v" data-zl-ville="${esc(JSON.stringify({ nom: v.nom, dep: v.dep, lat: v.lat, lon: v.lon }))}"><span class="zl-v-n">${esc(v.nom)}<small>${esc(v.dep)}</small></span><span class="zl-v-k">${v.km} km A/R</span><b>${esc(euros(v.km * km))}</b>${seuil > 0 ? '<em>offerte dès ' + esc(euros(seuil)) + '</em>' : ''}</button>`).join('')}</div>
+  <ul class="deps">${DEPS_IDF.map(([n, t]) => `<li><b>${n}</b>${esc(t)}</li>`).join('')}</ul>
+</section>
+
+<section class="wrap zl-faq prose">
   <h2>Questions fréquentes</h2>
-  <details><summary>Comment les frais sont-ils calculés ?</summary><p>Par l’itinéraire aller-retour entre notre laboratoire et la commune du lieu, à ${esc(euros(R.tarifs?.kmCents || 100))} TTC du kilomètre. L’estimation en ligne est confirmée dans votre devis.</p></details>
-  <details><summary>Livrez-vous le week-end ?</summary><p>Oui, 7 jours sur 7. Indiquez l’horaire souhaité dans votre demande.</p></details>
-  <details><summary>Et hors Île-de-France ?</summary><p>C’est possible selon votre événement : appelez-nous au ${esc(R.telephone)}.</p></details>
-  <details><summary>La reprise du matériel est-elle comprise ?</summary><p>Elle dépend des prestations (matériel, animations, packs) : le devis précise la livraison et la récupération pour chacune.</p></details>
-  <p class="row"><a class="btn btn-vert" href="/boutique">Composer ma sélection</a></p>`;
-  return texte(c, { titre: 'Zones de livraison', chapo: 'Nous livrons partout en Île-de-France.', html, path: '/livraison' });
+  ${faq.map(([q, a]) => `<details><summary>${esc(q)}</summary><p>${esc(a)}</p></details>`).join('\n  ')}
+</section>
+
+<section class="zl-cta"><div class="wrap"><h2>Votre événement, livré là où vous le fêtez</h2><p>Composez votre sélection en quelques clics : la livraison est calculée automatiquement${seuil > 0 ? ` et ${esc(offerteTxt)}` : ''}.</p>
+  <p class="row"><a class="btn btn-or" href="/boutique">Composer ma sélection</a><a class="btn btn-ghost-light" href="tel:${esc(tel)}">${icon.phone}<span>${esc(R.telephone)}</span></a></p></div></section>`;
+  return layout(c, {
+    title: 'Zone de livraison', path: '/zone-de-livraison', bodyClass: 'zl-page', schema, image: '/site/flotte/fourgon-livraison-paris.jpg',
+    description: `Livraison 7 j/7 dans les 8 départements d’Île-de-France depuis Villebon-sur-Yvette : ${euros(km)} TTC du km aller-retour${seuil > 0 ? `, ${offerteTxt}` : ''}. Hors zone : contactez-nous.`,
+    body, head: `<link rel="stylesheet" href="/vendor/maplibre/maplibre-gl.css">`, scripts: `<script src="/vendor/maplibre/maplibre-gl.js" defer></script><script src="/js/zone.js?v=${V}" defer></script>`,
+  });
 }
 
 function commander(c) {
