@@ -306,6 +306,8 @@ function introHtml(titre, texte) {
   return texte ? `<div class="shop-intro">${titre ? `<h2>${esc(titre)}</h2>` : ''}${String(texte).split(/\n+/).map(l => l.trim()).filter(Boolean).map(l => `<p>${esc(l)}</p>`).join('')}</div>` : '';
 }
 /* centre des lieux dont les pays sont trop petits ou trop nombreux pour un calcul automatique [lon, lat] */
+/* photo d'ambiance du pays derrière le globe (Pexels, licence libre, voir data/credits-photos.md) */
+const PHOTOS_PAYS = { afrique: 1, antilles: 1, chine: 1, espagne: 1, inde: 1, italie: 1, japon: 1, liban: 1, maghreb: 1 };
 const CENTRES_GLOBE = { antilles: [-61.3, 15.4], afrique: [17, 4], maghreb: [2, 31.5], reunion: [55.5, -21.1], polynesie: [-149.4, -17.6] };
 /* Saveurs du monde : globe 3D interactif (Jean-Luc, 2026-11-22) — pavés des spécialités à gauche, flèche vers le pays, image du pays en fond */
 function pageGlobe(c, r) {
@@ -316,10 +318,8 @@ function pageGlobe(c, r) {
     const L = prodsDeSous(c, r, x.slug).slice().sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
     const vedette = L.find(p => rangementDe(p) === 'buffets' && p.prixCents != null) || L.find(p => p.prixCents != null) || L[0];
     const lieu = lieuDe(x);
-    const pr = vedette ? prixCourt(vedette, euros) : null;
-    return { slug: x.slug, nom: x.nom, pays: x.pays || (lieu ? lieu[1] : ''), n: L.length, href: `/${r.slug}/${x.slug}`, photo: x.bandeauPhoto || x.photo || '', vignette: vedette?.photos?.[0]?.src || x.photo || '',
-      ids: lieu ? lieu[2].map(Number) : [], centre: lieu ? CENTRES_GLOBE[lieu[0]] || null : null,
-      plat: vedette ? { titre: vedette.titre, prix: pr ? `${pr.prix} ${pr.unite}`.trim() : '', photo: vedette.photos?.[0]?.src || '' } : null };
+    return { slug: x.slug, nom: x.nom, pays: x.pays || (lieu ? lieu[1] : ''), n: L.length, href: `/${r.slug}/${x.slug}`, photo: x.photoGlobe || (lieu && PHOTOS_PAYS[lieu[0]] ? `/site/pays/${lieu[0]}.jpg` : x.bandeauPhoto || x.photo || ''), vignette: vedette?.photos?.[0]?.src || x.photo || '',
+      ids: lieu ? lieu[2].map(Number) : [], centre: lieu ? CENTRES_GLOBE[lieu[0]] || null : null };
   });
   const premier = items[0] || {};
   const grandLarge = c.rubriques.find(z => z.slug === 'grand-large' && z.statut !== 'masque');
@@ -333,7 +333,6 @@ function pageGlobe(c, r) {
   <div class="sm-tete" data-sm-tete>
     <p class="eyebrow">Un voyage à votre table</p>
     <h2 data-sm-titre>${esc(premier.pays || premier.nom || '')}</h2>
-    <div class="sm-plat" data-sm-plat>${premier.plat ? `${premier.plat.photo ? img(premier.plat.photo, '') : ''}<span><b>${esc(premier.plat.titre)}</b><small>${esc(premier.plat.prix)}</small></span>` : ''}</div>
     <a class="btn btn-or sm-voir" href="${esc(premier.href || '#')}" data-sm-voir>Voir nos propositions ${icon.arrow}</a>
   </div>
   <ul class="sm-paves" data-sm-paves>${items.map((x, i) => `<li><a class="sm-pave${i === 0 ? ' on' : ''}" href="${esc(x.href)}" data-sm-i="${i}">${img(x.vignette, '')}<span><i>${esc(x.pays)}</i><b>${esc(x.nom)}</b><small>${x.n} prestation${x.n > 1 ? 's' : ''}</small></span></a></li>`).join('')}</ul>

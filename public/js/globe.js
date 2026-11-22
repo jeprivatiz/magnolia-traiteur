@@ -19,7 +19,6 @@
   let fondVisible = 0;
   function majTete(x) {
     $('[data-sm-titre]').textContent = x.pays || x.nom;
-    $('[data-sm-plat]').innerHTML = x.plat ? `${x.plat.photo ? `<img src="${esc(x.plat.photo)}" alt="">` : ''}<span><b>${esc(x.plat.titre)}</b><small>${esc(x.plat.prix)}</small></span>` : '';
     const voir = $('[data-sm-voir]'); voir.href = x.href;
     const t = $('[data-sm-tete]'); t.classList.remove('entre'); void t.offsetWidth; t.classList.add('entre');
     if (x.photo && fonds.length === 2) {
