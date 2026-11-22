@@ -61,7 +61,10 @@ function lignesDepuisDemande(demande, catalogue, tarifs = {}) {
       if (pk) out.push({ designation: pk.label, detail: pk.detail, qte: l.pack.nb || l.qte, unite: 'personne', puCents: pk.prixCents, coutCents: null, tva: 20 });
     }
   }
-  if (demande.livraison?.km) out.push({ designation: 'Livraison et reprise', detail: `${demande.evenement?.ville || ''} · ${demande.livraison.km} km aller-retour`, qte: demande.livraison.km, unite: 'km', puCents: tarifs.kmCents || 100, coutCents: null, tva: 20 });
+  if (demande.livraison?.km) {
+    const offerte = !!demande.livraison.offerte;
+    out.push({ designation: offerte ? 'Livraison et reprise (offerte)' : 'Livraison et reprise', detail: `${demande.evenement?.ville || ''} · ${demande.livraison.km} km aller-retour${offerte ? ` · offerte dès ${(tarifs.livraisonOfferteCents ?? 70000) / 100} € TTC de commande` : ''}`, qte: demande.livraison.km, unite: 'km', puCents: offerte ? 0 : tarifs.kmCents || 100, coutCents: null, tva: 20 });
+  }
   return out;
 }
 

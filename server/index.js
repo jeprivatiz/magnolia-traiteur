@@ -142,7 +142,7 @@ async function createApp(opts = {}) {
   app.get('/robots.txt', (req, res) => env.SITE_NOINDEX === '1' ? res.type('text/plain').send('User-agent: *\nDisallow: /\n') : res.type('text/plain').send(`User-agent: *\nDisallow: /admin\nDisallow: /devis/\nDisallow: /facture/\nDisallow: /espace-client\nSitemap: ${SITE}/sitemap.xml\n`));
   app.get('/sitemap.xml', wrap(async (req, res) => {
     const c = await cat.get();
-    const urls = ['/', '/boutique', '/lieux', '/maison', '/livraison', '/comment-commander', '/temoignages', '/contact',
+    const urls = ['/', '/boutique', '/lieux', '/maison', '/zone-de-livraison', '/comment-commander', '/temoignages', '/contact',
       ...c.rubriques.filter(r => r.statut !== 'masque').map(r => '/' + r.slug),
       ...c.produits.filter(p => p.statut !== 'masque').map(p => `/${p.rubrique}/${p.slug}`),
       ...c.lieux.filter(l => l.statut !== 'masque').map(l => '/lieux/' + l.slug)];
@@ -210,14 +210,16 @@ async function createApp(opts = {}) {
     });
     const km = Math.min(2000, Math.max(0, Math.round(+b.km || 0)));
     const sousTotal = lignes.reduce((t, l) => t + l.totalCents, 0);
+    const seuil = T.livraisonOfferteCents ?? 70000; /* livraison offerte dès ce montant TTC (0 = jamais) */
+    const offerte = !!(km && seuil > 0 && sousTotal >= seuil);
     const { id: clientId, nouveau } = await upsertClient(contact);
     const id = 'd_' + rid(8);
     const ref = await prochainNumero(store, 'demande');
     const demande = {
       id, ref, type: b.type === 'contact' ? 'contact' : 'devis', clientId, contact,
       evenement: { type: s(b.evenement, 40), date: /^\d{4}-\d{2}-\d{2}$/.test(b.date) ? b.date : '', invites: Math.min(10000, Math.max(0, +b.invites | 0)), cp: s(b.cp, 5), ville: s(b.ville, 80), horaire: s(b.horaire, 60) },
-      livraison: km ? { km, cents: km * (T.kmCents || 100) } : null,
-      lignes, sousTotalCents: sousTotal, totalEstimeCents: sousTotal + (km ? km * (T.kmCents || 100) : 0),
+      livraison: km ? { km, cents: offerte ? 0 : km * (T.kmCents || 100), ...(offerte ? { offerte: true } : {}) } : null,
+      lignes, sousTotalCents: sousTotal, totalEstimeCents: sousTotal + (km && !offerte ? km * (T.kmCents || 100) : 0),
       message: s(b.message, 3000), sujet: s(b.sujet, 80), statut: 'demande', historique: [{ at: new Date().toISOString(), statut: 'demande', par: 'site' }],
       createdAt: new Date().toISOString(), ip: req.ip,
     };
@@ -740,7 +742,8 @@ async function createApp(opts = {}) {
   app.get('/lieux/:slug', page((c, req, res, next) => { const l = c.lieux.find(x => x.slug === req.params.slug && x.statut !== 'masque'); return l ? views.lieu(c, l) : next(); }));
   app.get('/ma-selection', page(c => views.selection(c)));
   app.get('/maison', page(c => views.maison(c)));
-  app.get('/livraison', page(c => views.livraison(c)));
+  app.get('/zone-de-livraison', page(c => views.livraison(c)));
+  app.get(['/livraison', '/zones-de-livraison'], (req, res) => res.redirect(301, '/zone-de-livraison'));
   app.get('/comment-commander', page(c => views.commander(c)));
   app.get('/temoignages', page(c => views.temoignages(c)));
   app.get('/contact', page(c => views.contact(c)));

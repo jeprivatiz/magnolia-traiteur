@@ -14,7 +14,7 @@ test('pages publiques principales en 200', async () => {
   const base = 'http://127.0.0.1:' + srv.address().port;
   try {
     const c = await app.locals.catalogue.get();
-    const pages = ['/', '/boutique', '/boutique?q=paella', '/lieux', '/maison', '/temoignages', '/livraison', '/comment-commander', '/contact', '/ma-selection', '/espace-client', '/cgv'];
+    const pages = ['/', '/boutique', '/boutique?q=paella', '/lieux', '/maison', '/temoignages', '/zone-de-livraison', '/comment-commander', '/contact', '/ma-selection', '/espace-client', '/cgv'];
     for (const r of c.rubriques.filter(x => x.statut !== 'masque')) {
       pages.push('/' + r.slug);
       for (const x of r.sous || []) pages.push(`/${r.slug}/${x.slug}`);

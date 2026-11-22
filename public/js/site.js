@@ -306,7 +306,8 @@
     const upd = () => {
       const c = list.find(x => x.nom === v.value);
       const km = c ? kmAR(c.lat, c.lon) : 0;
-      if (out && c) out.innerHTML = `Livraison à ${esc(c.nom)} : environ <b>${km} km</b> aller-retour, soit <b>${euros(km * (T.kmCents || 100))}</b> TTC (confirmé dans votre devis).`;
+      const seuil = T.livraisonOfferteCents ?? 70000;
+      if (out && c) out.innerHTML = `Livraison à ${esc(c.nom)} : environ <b>${km} km</b> aller-retour, soit <b>${euros(km * (T.kmCents || 100))}</b> TTC (confirmé dans votre devis)${seuil > 0 ? `, <b>offerte dès ${euros(seuil)} TTC</b> de commande` : ''}.`;
       onKm && onKm(km, c);
     };
     cp.addEventListener('input', async () => {
@@ -362,9 +363,12 @@
         }).join('') + '<p class="row"><a class="lnk" href="/boutique">+ Ajouter une autre prestation</a></p>';
       }
       const sub = items.reduce((s, l) => s + (lineTotal(l) || 0), 0);
-      const fl = km * (T.kmCents || 100);
+      const seuil = T.livraisonOfferteCents ?? 70000, offerte = km && seuil > 0 && sub >= seuil;
+      const fl = offerte ? 0 : km * (T.kmCents || 100);
       $('[data-sel-sub]').textContent = euros(sub);
-      $('[data-sel-livr]').textContent = km ? euros(fl) : '—';
+      $('[data-sel-livr]').textContent = km ? (offerte ? 'Offerte' : euros(fl)) : '—';
+      const rest = $('[data-sel-offerte]');
+      if (rest) rest.textContent = seuil > 0 ? (sub >= seuil ? 'La livraison vous est offerte.' : `Livraison offerte dès ${euros(seuil)} TTC : plus que ${euros(seuil - sub)}.`) : '';
       $('[data-sel-total]').textContent = euros(sub + fl) + (items.some(l => l.prixCents == null) ? ' + sur devis' : '');
     };
     list.addEventListener('click', e => {
