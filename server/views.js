@@ -106,7 +106,7 @@ ${schema ? `<script type="application/ld+json">${JSON.stringify(schema).replace(
 <main id="contenu">${body}</main>
 <footer class="foot">
   <div class="foot-in">
-    <div class="foot-brand">${MONO}<p class="brand-txt">Magnolia<small>${esc(R.sousNom || '')}</small></p><p class="slogan">${esc(R.slogan || '')}</p>
+    <div class="foot-brand"><a class="brand foot-logo" href="/" aria-label="${esc(R.nom)}, accueil">${MONO}<span class="brand-txt">Magnolia<small>${esc(R.sousNom || 'Traiteur · Événementiel')}</small></span></a><p class="slogan">${esc(R.slogan || '')}</p>
       <a class="btn btn-ghost-light" href="/ma-selection">Composer mon événement</a></div>
     <div><h2>Nos univers</h2><ul>${rubs.map(r => `<li><a href="${rubHref(r)}">${esc(r.nom)}</a></li>`).join('')}<li><a href="/lieux">Lieux de réception</a></li></ul></div>
     <div><h2>Magnolia</h2><ul><li><a href="/boutique">La boutique</a></li><li><a href="/ma-selection">Ma sélection</a></li><li><a href="/comment-commander">Comment commander</a></li><li><a href="/livraison">Zones de livraison</a></li><li><a href="/temoignages">Témoignages</a></li><li><a href="/maison">La maison Magnolia</a></li><li><a href="/contact">Contact</a></li><li><a href="/espace-client">Mon espace client</a></li></ul></div>
