@@ -6,7 +6,7 @@
   --encre: #1b211e; --gris: #5d6661; --ligne: #e3ddd2;
   --fond: #fffdf9; --carte: #ffffff;
   --rayon: 14px; --ombre: 0 10px 30px rgba(20, 30, 25, .08);
-  --serif: 'Cormorant Garamond', Georgia, serif;
+  --serif: 'EB Garamond', Georgia, serif;
   --sans: 'Jost', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --max: 1240px;
   color-scheme: light;
@@ -27,7 +27,7 @@ body { margin: 0; font-family: var(--sans); font-weight: 400; color: var(--encre
 body.noscroll { overflow: hidden; }
 img, video { max-width: 100%; display: block; }
 a { color: inherit; }
-h1, h2, h3 { font-family: var(--serif); font-weight: 500; line-height: 1.12; margin: 0 0 .5em; letter-spacing: -.01em; }
+h1, h2, h3 { font-family: var(--serif); font-weight: 400; line-height: 1.12; margin: 0 0 .5em; letter-spacing: -.01em; }
 h1 { font-size: clamp(2.2rem, 5.2vw, 4rem); }
 h2 { font-size: clamp(1.7rem, 3.4vw, 2.6rem); }
 h3 { font-size: 1.35rem; }
@@ -148,7 +148,7 @@ section { margin: clamp(56px, 8vw, 110px) auto; }
 .hero-shade { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, rgba(10, 14, 12, .5) 0%, rgba(10, 14, 12, .1) 25%, rgba(10, 14, 12, .35) 50%, rgba(10, 14, 12, .85) 100%); }
 .hero-c { position: absolute; left: 0; right: 0; bottom: clamp(36px, 8vh, 90px); z-index: 2; text-align: center; pointer-events: none; }
 .hero-c > * { pointer-events: auto; }
-.hero h1 { color: #fff; font-size: clamp(2.5rem, 6.4vw, 5.2rem); font-weight: 500; text-shadow: 0 2px 30px rgba(0, 0, 0, .3); margin-bottom: .2em; }
+.hero h1 { color: #fff; font-size: min(clamp(2.3rem, 5vw, 4.5rem), 8.2vw); text-wrap: balance; font-weight: 500; text-shadow: 0 2px 30px rgba(0, 0, 0, .3); margin-bottom: .2em; }
 .hero .lead { color: rgba(255, 255, 255, .88); margin: 0 auto 28px; }
 .pave { display: grid; grid-template-columns: 1.2fr 1fr .8fr auto; gap: 0; max-width: 860px; margin: 0 auto; background: rgba(255, 255, 255, .97); border-radius: 18px; padding: 8px; box-shadow: 0 20px 50px rgba(0, 0, 0, .3); text-align: left; color: #1b211e; }
 .pave label { display: flex; flex-direction: column; padding: 6px 16px; border-right: 1px solid #e6e0d5; }
@@ -171,7 +171,7 @@ section { margin: clamp(56px, 8vw, 110px) auto; }
   .pave label:first-child { grid-column: 1 / -1; }
   .pave .btn { grid-column: 1 / -1; }
   .hero-c { position: relative; bottom: auto; padding-top: 168px; padding-bottom: 28px; }
-  .hero-c h1 { font-size: 2.3rem; text-shadow: 0 2px 18px rgba(0,0,0,.45); }
+  .hero-c h1 { font-size: min(2.3rem, 8.6vw); text-shadow: 0 2px 18px rgba(0,0,0,.45); }
   .hero-shade { background: linear-gradient(180deg, rgba(10,14,12,.55) 0%, rgba(10,14,12,.45) 30%, rgba(10,14,12,.6) 60%, rgba(10,14,12,.85) 100%); }
   .hero-dots { display: flex; gap: 8px; position: absolute; top: 128px; left: 50%; transform: translateX(-50%); z-index: 3; }
   .hero-dots i { width: 7px; height: 7px; border-radius: 50%; background: rgba(255, 255, 255, .45); transition: all .3s; }
@@ -567,3 +567,5 @@ textarea:focus, input:focus, select:focus { outline: 2px solid color-mix(in srgb
 .chiffres .etoiles { display: inline-block; font-style: normal; color: var(--or); letter-spacing: .1em; font-size: .95rem; line-height: 1; margin: 0 6px 0 0; vertical-align: 1px; }
 .bande-clients.accueil { margin-top: clamp(40px, 5vw, 64px); border-top: 1px solid var(--ligne); padding-top: 18px; }
 .bande-clients.accueil .eyebrow { margin: 0 0 4px; }
+/* pages de texte (La maison…) : de l'air entre le texte et les blocs suivants */
+.prose ~ section:not(:empty) { margin-top: clamp(56px, 7vw, 96px); }
