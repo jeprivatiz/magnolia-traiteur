@@ -709,6 +709,16 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('site/reglages', { ...(await store.get('site/reglages')), cocktailsFrancais: true });
   }
 
+  /* paragraphe de présentation de chaque rubrique et de la page Lieux (Jean-Luc, 2026-11-22). Posé une fois, seulement si vide. */
+  const RIr = await store.get('site/reglages');
+  if (RIr && !RIr.introsRubriques) {
+    for (const [slug, [titre, texte]] of Object.entries(INTROS_RUBRIQUES)) {
+      const r = await store.get('rubriques/' + slug);
+      if (r && !r.introTexte) await store.set('rubriques/' + slug, { ...r, introTitre: r.introTitre || titre, introTexte: texte });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), introsRubriques: true });
+  }
+
   /* paragraphe de présentation de Saveurs du monde (Jean-Luc, 2026-11-22). Une fois : modifiable ensuite dans le back-office. */
   const RSdm = await store.get('site/reglages');
   if (RSdm && !RSdm.introSaveursDuMonde) {
@@ -812,6 +822,20 @@ const PLATEAUX_SUSHIS = [
     photo: '/site/sushis/plateau-de-luxe-42.webp',
     compo: ['7 sushis saumon laqué sésame', '7 sushis thon laqué sésame', '4 levana tartare de saumon, topping avocat', '4 dragons saumon oignons frits', '4 cristal saumon', '8 californias thon cuit mayonnaise oignons frits', '4 makis concombre', '4 makis saumon'] },
 ];
+const INTROS_RUBRIQUES = {
+  'carte-magnolia': ['La cuisine du chef, comme au restaurant', 'Carpaccios et tartares, foie gras aux figues, bœuf bourguignon, blanquette de veau, parmentier de canard, tartiflette : la carte Magnolia réunit les grands classiques de la cuisine française, préparés dans notre laboratoire de Villebon-sur-Yvette.\nComposez votre repas à l’unité, entrée, plat et dessert, pour un déjeuner d’entreprise, un dîner de famille ou un mariage. Nous livrons prêt à servir, ou nous dressons sur place avec notre personnel.'],
+  'grand-large': ['La mer, fraîche du jour, sur votre table', 'Huîtres Gillardeau, Utah Beach ou pleine mer, homard de Bretagne, langoustines, crevettes, bulots, praires et caviar : nos plateaux de fruits de mer sont ouverts et dressés le jour même, pour garder tout l’iode et la fraîcheur.\nEn plateau à partager, en bar à huîtres ou en complément d’un buffet, ils donnent tout de suite un air de fête à vos réceptions, du dîner entre amis au grand mariage.'],
+  'boissons': ['De quoi trinquer, du champagne aux softs', 'Champagne, vins choisis en Bourgogne, à Bordeaux ou en Provence, sangria maison, open bars et softs en bouteilles individuelles : tout pour accompagner votre repas, de l’apéritif au dessert.\nNous livrons vos boissons fraîches avec le reste de votre commande. Ajoutez des glaçons, des verres et un barman, et vous n’avez plus rien à prévoir.'],
+  'coffrets-plateaux': ['Des plateaux prêts à partager', 'Coffrets antillais, italien, libanais ou chinois, plateaux de mini-burgers, de mini-clubs et de wraps, fromages de nos régions et charcuteries : des formules pratiques, livrées prêtes à poser sur la table.\nParfaits pour une réunion, un séminaire, un déjeuner au bureau ou un apéritif improvisé : chacun se sert, sans service ni installation.'],
+  'animations-salees': ['Le chef cuisine devant vos invités', 'Pizzaiolo et son four, pâtes flambées dans la meule de parmesan, barbecue, chef sushi, bar à huîtres, bar à foie gras, Saint-Jacques à la plancha, stand de burgers : nos animations salées transforment le repas en spectacle.\nVos invités voient les plats préparés sous leurs yeux, échangent avec le chef et se servent chaud. Une vraie animation pour un mariage, un anniversaire ou une soirée d’entreprise.'],
+  'douceurs': ['Le sucré en spectacle', 'Fontaine à chocolat, barbe à papa, crêpes, gaufres, churros, pop-corn, candy bar, pièces montées, macarons et corbeilles de fruits : de quoi terminer la fête en beauté, pour les petits comme pour les grands.\nNos animations sucrées sont installées et servies par notre équipe, et nos desserts arrivent prêts à être découpés. Il ne reste plus qu’à souffler les bougies.'],
+  'indispensables': ['Tout le nécessaire, livré avec le repas', 'Vaisselle, nappage, tables, chaises, mange-debout, tente de réception, tireuse à bières, photobooth : tout le matériel pour recevoir vos invités dans de bonnes conditions, sans courir chez plusieurs loueurs.\nNous livrons le matériel avec votre commande traiteur, nous l’installons si besoin, puis nous le reprenons après l’événement.'],
+  'personnel': ['Une équipe pour servir vos invités', 'Maîtres d’hôtel, serveurs, grilladin, pizzaïolo, régisseur, agent de sécurité : notre personnel de réception s’occupe du service pour que vous profitiez pleinement de votre événement.\nNos équipes installent le buffet, servent vos invités, réapprovisionnent les plats et rangent en fin de soirée. Elles connaissent nos produits et nos animations sur le bout des doigts.'],
+  'musique-animations': ['L’ambiance qui fait la soirée', 'DJ, live band, jazz, saxophoniste, pianiste, chanteurs, magicien, mentaliste, caricaturiste, casino, karaoké ou blind test : choisissez l’animation qui ressemble à vos invités.\nPour une ambiance réussie jusqu’au bout de la nuit, ajoutez nos jeux de lumière, la sonorisation, un écran LED ou un vidéoprojecteur. Tout est réservé, livré et installé avec votre traiteur, dans une seule commande.'],
+  'traiteur-vegetarien-vegan': ['Tout le goût, sans viande ni poisson', 'Buffets, cocktails dînatoires et plateaux végétariens : des recettes colorées et généreuses, pensées pour que personne ne se sente mis de côté.\nIdéal pour un événement entièrement végétarien, ou pour compléter un buffet classique afin que chaque invité trouve son bonheur.'],
+  'petits-dejeuners': ['Bien commencer la journée', 'Viennoiseries, café, thé, jus de fruits frais : nos pauses café et petits-déjeuners accueillent vos équipes, vos clients ou vos invités dès le matin.\nIdéals pour un séminaire, une réunion, une formation ou un lendemain de mariage, ils sont livrés tôt et prêts à servir.'],
+  'lieux': ['Le lieu idéal pour votre événement', 'Lofts, péniches sur la Seine, manoir, demeures avec jardin, salles de réception : nous avons sélectionné des lieux où nous avons l’habitude de travailler, de Paris à Versailles, en passant par Boulogne et Sèvres.\nRéservez le lieu et le traiteur ensemble, avec un seul interlocuteur : nous connaissons les cuisines, les accès et les contraintes de chaque endroit, pour que tout se passe bien le jour J.'],
+};
 const INTRO_SAVEURS = ['Toutes les cuisines du monde, sur un seul site',
   'Magnolia est le seul site d’Île-de-France sur lequel vous pouvez commander, pour un même événement, un buffet libanais, un buffet chinois et des cocktails français. Libanais, chinois, japonais, antillais, africain, indien, italien, espagnol ou oriental : chaque cuisine est préparée par un traiteur spécialiste de sa tradition.\nCes traiteurs, nous les avons choisis et testés ces dernières années sur des centaines de prestations. Vous gardez un seul interlocuteur et un seul devis, et vos invités goûtent le meilleur de chaque cuisine.'];
 const INTRO_COCKTAILS = ['Cocktails et buffets à la française',
