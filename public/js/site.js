@@ -48,7 +48,7 @@
         const sugg = form.parentElement.querySelector('[data-sugg]'); if (sugg) sugg.hidden = q.length >= 2;
         if (q.length < 2) { out.innerHTML = ''; return; }
         const r = await fetch('/api/recherche?q=' + encodeURIComponent(q)).then(x => x.json()).catch(() => ({ resultats: [] }));
-        out.innerHTML = r.resultats.length ? r.resultats.map(x => `<a class="live-i" href="${x.href}">${x.photo ? `<img src="${esc(x.photo)}" alt="">` : '<span></span>'}<span><b>${esc(x.titre)}</b><small>${esc(x.rubrique)} · ${esc(x.prix)}</small></span></a>`).join('') + `<a class="live-all" href="/boutique?q=${encodeURIComponent(q)}">Voir tous les résultats pour « ${esc(q)} »</a>`
+        out.innerHTML = r.resultats.length ? r.resultats.map(x => `<a class="live-i${x.page ? ' live-page' : ''}" href="${x.href}">${x.photo ? `<img src="${esc(x.photo)}" alt="">` : x.page ? '<span class="live-ico">→</span>' : '<span></span>'}<span><b>${esc(x.titre)}</b><small>${esc(x.rubrique)} · ${esc(x.prix)}</small></span></a>`).join('') + `<a class="live-all" href="/boutique?q=${encodeURIComponent(q)}">Voir tous les résultats pour « ${esc(q)} »</a>`
           : `<p class="live-none">Rien pour « ${esc(q)} ». Appelez-nous au ${esc(MG.tel || '')} : nous trouvons toujours une solution.</p>`;
       }, 160);
     });

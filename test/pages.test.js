@@ -25,7 +25,15 @@ test('pages publiques principales en 200', async () => {
       const r = await fetch(base + u, { redirect: 'manual' });
       assert.ok(r.status === 200 || r.status === 301, `${u} → ${r.status}`);
     }
-    /* le sur-titre « Un voyage à votre table » ne doit pas être collé au bandeau photo */
+    /* « zone de livraison » tapé dans la recherche (téléphone ou ordinateur) mène à la page */
+    for (const q of ['zone de livraison', 'Zones de livraison', 'livraison']) {
+      const r = await fetch(base + '/boutique?q=' + encodeURIComponent(q), { redirect: 'manual' });
+      assert.equal(r.status, 302, q); assert.equal(r.headers.get('location'), '/zone-de-livraison', q);
+    }
+    assert.equal((await fetch(base + '/livraison', { redirect: 'manual' })).headers.get('location'), '/zone-de-livraison');
+    const api = await (await fetch(base + '/api/recherche?q=zone%20de%20liv')).json();
+    assert.equal(api.resultats[0].href, '/zone-de-livraison');
+        /* le sur-titre « Un voyage à votre table » ne doit pas être collé au bandeau photo */
     const sm = await (await fetch(base + '/saveurs-du-monde')).text();
     if (sm.includes('id="specialites"')) assert.match(sm, /class="[^"]*apres-bandeau[^"]*" id="specialites"/, 'espace sous le bandeau de Saveurs du monde');
   } finally { srv.close(); }

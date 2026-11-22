@@ -860,3 +860,5 @@ textarea:focus, input:focus, select:focus { outline: 2px solid color-mix(in srgb
   .zl-ph.big figcaption span, .zl-ph:nth-child(4) figcaption span { display: block; }
   .zl-big { font-size: 3.4rem; }
 }
+.live-page .live-ico { display: grid; place-items: center; font-size: 1.4rem; color: #fff; background: var(--vert) !important; }
+.live-page small { color: var(--or); }
