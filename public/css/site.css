@@ -604,3 +604,9 @@ textarea:focus, input:focus, select:focus { outline: 2px solid color-mix(in srgb
 .shop-intro { max-width: 860px; margin: 0 0 26px; }
 .shop-intro h2 { margin: 0 0 10px; }
 .shop-intro p { margin: 0; color: var(--gris); line-height: 1.65; }
+
+/* nombre d'invités : un chiffre exact tapé au clavier (pas de flèches), 30 en exemple grisé */
+.pave input[type=number] { -moz-appearance: textfield; border: 0 !important; box-shadow: none !important; background: none !important; border-radius: 0; padding: 4px 0 !important; min-height: 0; text-align: left; }
+@media (max-width: 760px) { .pave input[type=number] { padding: 0 !important; } }
+.pave input[type=number]::-webkit-inner-spin-button, .pave input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.pave input::placeholder { color: #b3b6b2; opacity: 1; }

@@ -192,7 +192,10 @@
     const P = JSON.parse(form.dataset.conf);
     const body = $('[data-conf-body]', form);
     const perPers = /personne/.test(P.unite || '');
-    const qte0 = P.min || 1; /* règle de Jean-Luc : la quantité de départ est toujours le minimum de la prestation */
+    /* règle de Jean-Luc : la quantité de départ est le minimum de la prestation ;
+       pour une prestation « par personne », si le client a tapé son nombre exact d'invités (pavé de recherche ou devis), on part de ce nombre s'il dépasse le minimum */
+    const nbInv = +(store.get('mg_evt', {}).invites) || 0;
+    const qte0 = Math.max(P.min || 1, perPers ? nbInv : 0);
     const R = P.regles || {};
     const plur = (u, n) => (n > 1 && u && !/[sx]$/.test(u) && !/ de /.test(u) ? u + 's' : u);
     let html = '';

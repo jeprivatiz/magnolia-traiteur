@@ -187,7 +187,7 @@ function home(c) {
     <form class="pave" action="/boutique" data-pave>
       <label><span>Événement</span><select name="evt">${(R.evenements || []).map(e => `<option>${esc(e)}</option>`).join('')}</select></label>
       <label><span>Date</span><input type="date" name="date" required></label>
-      <label><span>Invités</span><select name="invites">${[10, 15, 20, 25, 30, 40, 50, 60, 80, 100, 120, 150, 200, 250, 300, 400, 500].map(n => `<option${n === 30 ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
+      <label><span>Invités</span><input type="number" name="invites" inputmode="numeric" pattern="[0-9]*" min="1" max="5000" step="1" placeholder="30" required aria-label="Nombre exact d’invités"></label>
       <button class="btn btn-or">Composer ${icon.arrow}</button>
     </form>
     <a class="hero-g" href="${esc(R.avisGoogle?.url || '#')}" rel="noopener"><span class="stars">★★★★★</span> ${esc(R.avisGoogle?.note || '')}/5 sur Google · ${esc(R.avisGoogle?.nombre || '')} avis</a>
@@ -427,7 +427,7 @@ function selection(c) {
       <h2>Votre événement</h2>
       <div class="f2"><label>Type d’événement<select name="evenement" required>${(R.evenements || []).map(e => `<option>${esc(e)}</option>`).join('')}</select></label>
       <label>Date<input type="date" name="date" required></label></div>
-      <div class="f2"><label>Nombre d’invités<select name="invites" required><option value="">Choisir…</option>${[10, 15, 20, 25, 30, 35, 40, 50, 60, 70, 80, 100, 120, 150, 200, 250, 300, 400, 500, 750, 1000].map(n => `<option>${n}</option>`).join('')}</select></label>
+      <div class="f2"><label>Nombre d’invités<input type="number" name="invites" inputmode="numeric" pattern="[0-9]*" min="1" max="10000" step="1" placeholder="Ex. : 35" required></label>
       <label>Horaire de livraison<select name="horaire">${['Matin (8 h – 12 h)', 'Midi (11 h – 13 h)', 'Après-midi (13 h – 17 h)', 'Soir (17 h – 20 h)', 'À préciser avec l’équipe'].map(h => `<option>${h}</option>`).join('')}</select></label></div>
       <div class="f2"><label>Code postal du lieu<input name="cp" inputmode="numeric" maxlength="5" pattern="\\d{5}" required data-cp></label>
       <label>Ville<select name="ville" required data-ville><option value="">D’abord le code postal</option></select></label></div>
