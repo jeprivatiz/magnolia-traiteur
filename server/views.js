@@ -22,6 +22,8 @@ const icon = {
 
 const rubHref = r => '/' + r.slug;
 const prodHref = p => '/' + p.rubrique + '/' + p.slug;
+/* effet « vidéo » (zoom lent) sur les photos des grands bandeaux ; 3 mouvements différents selon la page. Réglage : Photos & textes du site */
+const kb = (c, photo, cle = '') => photo && c.reglages?.effetBandeaux !== false ? ` kb kb${[...String(cle)].reduce((n, ch) => n + ch.charCodeAt(0), 0) % 3 + 1}` : '';
 const img = (src, alt = '', cls = '', attrs = '') => src ? `<img src="${esc(src)}" alt="${esc(alt)}" loading="lazy" decoding="async"${cls ? ` class="${cls}"` : ''} ${attrs}>` : `<div class="noimg ${cls}" aria-hidden="true">${MONO}</div>`;
 
 /* Google Ads : balise chargée seulement si le compte est renseigné, et en mode consentement (rien n'est mesuré avant l'accord du visiteur) */
@@ -249,7 +251,7 @@ function bandeauHtml(c, B, fil) {
   const media = B.video
     ? `<video src="${esc(B.video)}" poster="${esc(B.photo || '')}" autoplay muted loop playsinline preload="metadata" aria-hidden="true" data-autoplay></video>`
     : img(B.photo, '', '', 'fetchpriority="high"').replace(' loading="lazy"', '');
-  return `<section class="phero land">${media}<div class="phero-c wrap">${crumbs(fil || [[B.titre]])}<h1>${esc(B.titre)}</h1>${B.chapo ? `<p class="lead">${esc(B.chapo)}</p>` : ''}
+  return `<section class="phero land${kb(c, B.video ? '' : B.photo, B.titre)}">${media}<div class="phero-c wrap">${crumbs(fil || [[B.titre]])}<h1>${esc(B.titre)}</h1>${B.chapo ? `<p class="lead">${esc(B.chapo)}</p>` : ''}
   <div class="row land-cta"><a class="btn btn-or" href="${esc(B.ancre || '/boutique')}">${esc(B.bouton || 'Découvrir')}</a><a class="btn btn-ghost-light" href="tel:${esc(tel)}">${icon.phone}<span>${esc(R.telephone || '')}</span></a></div>
   <p class="confiance"><span><span class="etoiles" aria-hidden="true">★★★★★</span> <b>${esc(G.note || '4,9')}/5</b> sur Google${G.nombre ? `, ${esc(G.nombre)} avis` : ''}</span><span>Livraison 7 j/7</span></p></div></section>`;
 }
@@ -448,7 +450,7 @@ function selection(c) {
 }
 
 function texte(c, { titre, chapo = '', html, path, photo = '', land = '', image = '' }) {
-  const body = `${land ? bandeau(c, land) : photo ? `<section class="phero">${img(photo, '')}<div class="phero-c wrap">${crumbs([[titre]])}<h1>${esc(titre)}</h1>${chapo ? `<p class="lead">${esc(chapo)}</p>` : ''}</div></section>` : `<section class="wrap page-h">${crumbs([[titre]])}<h1>${esc(titre)}</h1>${chapo ? `<p class="lead">${esc(chapo)}</p>` : ''}</section>`}
+  const body = `${land ? bandeau(c, land) : photo ? `<section class="phero${kb(c, photo, titre)}">${img(photo, '')}<div class="phero-c wrap">${crumbs([[titre]])}<h1>${esc(titre)}</h1>${chapo ? `<p class="lead">${esc(chapo)}</p>` : ''}</div></section>` : `<section class="wrap page-h">${crumbs([[titre]])}<h1>${esc(titre)}</h1>${chapo ? `<p class="lead">${esc(chapo)}</p>` : ''}</section>`}
   <section class="wrap prose">${html}</section>`;
   return layout(c, { title: titre, description: chapo, body, path, image: image || photo });
 }

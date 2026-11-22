@@ -600,3 +600,12 @@ textarea:focus, input:focus, select:focus { outline: 2px solid color-mix(in srgb
 .shop-intro { max-width: 860px; margin: 0 0 26px; }
 .shop-intro h2 { margin: 0 0 10px; }
 .shop-intro p { margin: 0; color: var(--gris); line-height: 1.65; }
+
+/* effet « vidéo » sur les photos des grands bandeaux : zoom et glissement lents, en boucle */
+.phero.kb > img { animation: kb1 24s ease-in-out infinite alternate; will-change: transform; transform-origin: 50% 50%; }
+.phero.kb2 > img { animation-name: kb2; }
+.phero.kb3 > img { animation-name: kb3; }
+@keyframes kb1 { from { transform: scale(1.03) translate3d(0, 0, 0); } to { transform: scale(1.16) translate3d(-2.5%, -1.5%, 0); } }
+@keyframes kb2 { from { transform: scale(1.16) translate3d(2%, 1%, 0); } to { transform: scale(1.03) translate3d(-1%, 0, 0); } }
+@keyframes kb3 { from { transform: scale(1.05) translate3d(1.5%, -1%, 0); } to { transform: scale(1.15) translate3d(-1.5%, 1.5%, 0); } }
+@media (prefers-reduced-motion: reduce) { .phero.kb > img { animation: none; } }
