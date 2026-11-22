@@ -3,7 +3,7 @@
   --vert: #1d3b2f; --vert-2: #2b5443; --or: #b08a4f; --or-2: #c9a56b;
   --fond: #f6f3ec; --carte: #fff; --texte: #1f2a24; --gris: #6b7069; --ligne: #e4dfd3; --doux: #efeadf;
   --rouge: #b4412f; --vert-ok: #2f7a4f; --bleu: #3b6aa0; --orange: #c07a1f; --violet: #7a4f9c;
-  --sans: 'Jost', system-ui, sans-serif; --serif: 'Cormorant Garamond', Georgia, serif;
+  --sans: 'Jost', system-ui, sans-serif; --serif: 'EB Garamond', Georgia, serif;
   --r: 12px; --ombre: 0 1px 2px rgba(20, 30, 25, .05), 0 6px 20px rgba(20, 30, 25, .05);
   color-scheme: light;
 }

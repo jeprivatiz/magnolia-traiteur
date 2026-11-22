@@ -30,7 +30,7 @@ const REGLAGES_DEFAUT = {
   mentionPied: 'Paris & Île-de-France · Le Traiteur Antillais est un département de Magnolia Traiteur',
   accueil: {
     surtitre: 'L’art de recevoir, signé Magnolia',
-    titre: 'Vos plus beaux moments ont du goût',
+    titre: 'Vos plus beaux moments\nont du goût',
     sousTitre: 'Traiteur, animations et lieux de réception, à Paris et en Île-de-France.',
     videos: [
       { src: '/site/v/italien-boucle.mp4', poster: '/site/v/italien-boucle.jpg', titre: 'Buffet italien', lien: '/saveurs-du-monde/buffet-italien-entree-plat-dessert' },
