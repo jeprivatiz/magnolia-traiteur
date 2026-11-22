@@ -12,7 +12,7 @@
   const calme = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const mobile = () => matchMedia('(max-width: 860px)').matches;
   const paves = $$('[data-sm-i]');
-  let actif = 0, map = null, geo = null, marque = null, carteVoir = null;
+  let actif = -1, map = null, geo = null, marque = null, carteVoir = null;
 
   /* ---------- en-tête et image de fond ---------- */
   /* photo du bandeau en haut de page : elle prend l'ambiance du pays choisi (Jean-Luc, 2026-11-22) */
@@ -72,6 +72,9 @@
     const x = items[actif], pave = paves[actif]; if (!pave) return;
     const R = root.getBoundingClientRect(), P = pave.getBoundingClientRect();
     const c = centreDe(x), pt = map.project(c);
+    const cache = Math.abs(ecart(c[0])) > 84 && (map.getProjection()?.type || 'globe') === 'globe';
+    root.classList.toggle('sm-cache', cache);
+    if (cache) { trait.setAttribute('d', ''); return; }
     const mob = mobile();
     const sx = mob ? P.left + P.width / 2 - R.left : P.right - R.left + 6, sy = mob ? P.bottom - R.top + 6 : P.top + P.height / 2 - R.top;
     const ex = pt.x + (map.getContainer().getBoundingClientRect().left - R.left), ey = pt.y + (map.getContainer().getBoundingClientRect().top - R.top);
@@ -98,7 +101,6 @@
     if (bandeau) majBandeau(x);
     if (mobile()) paves[i]?.scrollIntoView({ behavior: calme ? 'auto' : 'smooth', inline: 'center', block: 'nearest' });
     if (!map || !geo) return;
-    arreterTour();
     const c = centreDe(x);
     map.getSource('choix').setData({ type: 'FeatureCollection', features: geo.features.filter(f => x.ids.includes(f.id)) });
     /* point qui clignote + case « Voir nos propositions » */
@@ -122,12 +124,26 @@
     flecheT0 = calme ? 0 : performance.now() + 200;
   }
   paves.forEach(p => p.addEventListener('click', e => { e.preventDefault(); choisir(+p.dataset.smI); }));
-  majTete(items[0] || {});
 
   /* ---------- globe ---------- */
   function zoomBase() { const b = map.getContainer(); const w = b.clientWidth - (mobile() ? 0 : 380), h = b.clientHeight - (mobile() ? 0 : 270); return Math.log2(Math.max(260, Math.min(w, h)) / 512) + (mobile() ? .95 : 1.3); }
-  let tour = !calme, tourId = 0;
-  function arreterTour() { tour = false; clearTimeout(tourId); $('[data-sm-act="tour"]')?.setAttribute('aria-pressed', 'false'); }
+  /* rotation permanente (Jean-Luc, 2026-11-22) : la Terre tourne tout doucement d'ouest en est ;
+     quand le pays choisi passe derrière, elle accélère pour le faire revenir vite de l'autre côté. */
+  let tour = !calme, pause = 0, vitesse = 0, tPrec = 0;
+  const LENT = 5, VITE = 75; // degrés par seconde
+  const ecart = lon => { const d = ((lon - map.getCenter().lng) % 360 + 540) % 360 - 180; return d; }; // -180..180, négatif = à gauche
+  function arreterTour() { tour = false; vitesse = 0; $('[data-sm-act="tour"]')?.setAttribute('aria-pressed', 'false'); }
+  function boucleTour(t) {
+    requestAnimationFrame(boucleTour);
+    const dt = tPrec ? Math.min(.1, (t - tPrec) / 1000) : 0; tPrec = t;
+    if (!map || !tour || t < pause || map.isMoving()) { vitesse = 0; return; }
+    /* le pays file vers la droite : dès qu'il va disparaître (bord droit), on accélère jusqu'à son retour à gauche */
+    const d = actif >= 0 ? ecart(centreDe(items[actif])[0]) : 0;
+    const cible = d > 70 || d < -110 ? VITE : LENT;
+    vitesse += (cible - vitesse) * Math.min(1, dt * 2.2);
+    const c = map.getCenter();
+    map.jumpTo({ center: [c.lng - vitesse * dt, c.lat] });
+  }
   function demarrer() {
     const ml = window.maplibregl; if (!ml) return;
     try { const cv = document.createElement('canvas'); if (!(cv.getContext('webgl2') || cv.getContext('webgl'))) return; } catch (e) { return; }
@@ -185,9 +201,10 @@
       map.on('click', 'terres', e => { const f = e.features[0]; const k = f ? speDe(f.id) : -1; if (k >= 0) choisir(k); });
 
       /* rotation lente au repos */
-      const tourner = () => { if (!tour) return; const c = map.getCenter(); map.easeTo({ center: [c.lng + 25, c.lat], duration: 7000, easing: t => t }); };
-      map.on('moveend', () => { if (tour) tourId = setTimeout(tourner, 0); });
-      ['mousedown', 'touchstart'].forEach(ev => box.addEventListener(ev, arreterTour, { passive: true }));
+      /* on la fait tourner au doigt ou à la souris : la rotation reprend toute seule 2,5 s après */
+      const repos = () => { pause = performance.now() + 2500; };
+      ['mousedown', 'touchstart'].forEach(ev => box.addEventListener(ev, repos, { passive: true }));
+      map.on('dragend', repos); map.on('moveend', e => { if (e.originalEvent) repos(); });
 
       /* boutons */
       const ctrl = $('[data-sm-ctrl]'); ctrl.hidden = false;
@@ -195,17 +212,16 @@
       ctrl.addEventListener('click', e => {
         const b = e.target.closest('[data-sm-act]'); if (!b) return;
         if (b.dataset.smAct === '3d') { const g = (map.getProjection()?.type || 'globe') === 'globe'; map.setProjection({ type: g ? 'mercator' : 'globe' }); b.setAttribute('aria-pressed', String(!g)); if (g) map.easeTo({ zoom: Math.max(1, zoomBase() - .2), duration: 600 }); }
-        if (b.dataset.smAct === 'tour') { if (tour) arreterTour(); else { tour = true; b.setAttribute('aria-pressed', 'true'); tourner(); } }
-        if (b.dataset.smAct === 'reset') { arreterTour(); const c = centreDe(items[actif] || {}); map.flyTo({ center: [c[0] - (mobile() ? 0 : 6), Math.max(-35, Math.min(45, c[1] - 4))], zoom: zoomBase() + .35, duration: 1400 }); }
+        if (b.dataset.smAct === 'tour') { if (tour) arreterTour(); else { tour = true; pause = 0; b.setAttribute('aria-pressed', 'true'); } }
+        if (b.dataset.smAct === 'reset') { if (actif < 0) { map.flyTo({ center: [20, 22], zoom: zoomBase() + .35, duration: 1400 }); return; } const c = centreDe(items[actif]); map.flyTo({ center: [c[0] - (mobile() ? 0 : 6), Math.max(-35, Math.min(45, c[1] - 4))], zoom: zoomBase() + .35, duration: 1400 }); }
       });
 
       /* au départ : la Terre tourne, puis se pose sur la première spécialité */
-      choisir(0, { voler: false, bandeau: false });
-      const c0 = centreDe(items[0] || {});
-      map.jumpTo({ center: [c0[0] - 70, 20] });
-      map.flyTo({ center: [c0[0] - (mobile() ? 0 : 6), Math.max(-35, Math.min(45, c0[1] - 4))], zoom: zoomBase() + .35, duration: calme ? 0 : 3200, essential: true });
-      tour = false; $('[data-sm-act="tour"]').setAttribute('aria-pressed', 'false');
+      /* à l'arrivée : aucun pays choisi, la Terre tourne doucement en montrant l'Europe et l'Afrique */
+      map.jumpTo({ center: [20, 22], zoom: zoomBase() + .35 });
+      $('[data-sm-act="tour"]').setAttribute('aria-pressed', String(tour));
       boucleFleche();
+      requestAnimationFrame(boucleTour);
     });
     addEventListener('resize', () => map && map.resize());
   }

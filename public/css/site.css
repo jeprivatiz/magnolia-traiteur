@@ -946,3 +946,6 @@ textarea:focus, input:focus, select:focus { outline: 2px solid color-mix(in srgb
 .phero > .phero-pays { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 1.1s ease; }
 .phero > .phero-pays.on { opacity: 1; }
 .phero.pays-on > video { opacity: 0; transition: opacity 1.1s ease; }
+/* globe : bulle et point masqués quand le pays choisi passe derrière la Terre */
+.sm-globe .sm-case, .sm-globe .sm-point { transition: visibility 0s, opacity .3s; }
+.sm-globe.sm-cache .sm-case, .sm-globe.sm-cache .sm-point { visibility: hidden; }
