@@ -658,3 +658,11 @@ textarea:focus, input:focus, select:focus { outline: 2px solid color-mix(in srgb
 
 /* espace entre un grand bandeau photo et la section qui le suit (ex. « Un voyage à votre table ») */
 .apres-bandeau { padding-top: clamp(40px, 5vw, 60px); }
+/* La Maison Magnolia : même largeur de haut en bas (Jean-Luc, 2026-11-22) */
+.prose.prose-l { max-width: var(--max); }
+.prose-l .cols2 { gap: clamp(28px, 5vw, 64px); }
+.prose-l .cols2 p { font-size: 1.05rem; line-height: 1.7; }
+.prose-l .equipe { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; }
+.prose-l .membre { padding: 22px; }
+.prose-l .membre img, .prose-l .avatar { width: 110px; height: 110px; }
+.prose-l .cols2 img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }

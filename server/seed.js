@@ -63,7 +63,7 @@ const REGLAGES_DEFAUT = {
   },
   evenements: ['Anniversaire', 'Fête de famille', 'Entreprise', 'Mariage', 'Baptême', 'Cocktail', 'Autre'],
   equipe: [
-    { nom: 'Romain Goujon', role: 'Directeur commercial', photo: '', citation: '« Merci Romain de m’avoir guidée dans l’organisation de la soirée d’anniversaire de mes 50 ans, avec 75 invités on a besoin des conseils d’un vrai professionnel ! »', auteur: 'Marie Line Ricard, septembre 2025' },
+    { nom: 'Romain Goujon', role: 'Directeur commercial', photo: '/site/equipe/romain-goujon.webp', citation: '« Merci Romain de m’avoir guidée dans l’organisation de la soirée d’anniversaire de mes 50 ans, avec 75 invités on a besoin des conseils d’un vrai professionnel ! »', auteur: 'Marie Line Ricard, septembre 2025' },
     { nom: 'Hermine', role: 'Responsable opérationnelle', photo: '/site/c/equipe/hermine.webp', citation: '« Le jour J, Hermine et son équipe ont été aux petits soins : du buffet aux boissons, en passant par le personnel et l’animation musicale, tout était impeccable. »', auteur: 'Julie Triolet-Bigueur, juin 2025' },
   ],
   alertes: { emails: 'infos@magnoliatraiteur.fr', sms: '' },
@@ -543,6 +543,13 @@ async function initSousRubriques(store, { log = console } = {}) {
         options: ['Fraise', 'Vanille', 'Banane'].map(l => ({ id: l.toLowerCase(), label: l, supCents: 0 })) }],
       lassiParfums: true,
     });
+  }
+
+  /* portrait de Romain Goujon envoyé par Jean-Luc (2026-11-22). Une fois, si sa fiche n'a pas déjà une photo. */
+  const REq = await store.get('site/reglages');
+  if (REq && !REq.photoRomain) {
+    const equipe = (REq.equipe || []).map(e => /romain/i.test(e.nom || '') && !e.photo ? { ...e, photo: '/site/equipe/romain-goujon.webp' } : e);
+    await store.set('site/reglages', { ...REq, equipe, photoRomain: true });
   }
 
   /* photos des vignettes « Nos univers » choisies par Jean-Luc (2026-11-22, sources dans data/credits-photos.md).
