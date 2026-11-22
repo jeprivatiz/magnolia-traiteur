@@ -198,7 +198,7 @@ function home(c) {
     <p class="eyebrow light">${esc(A.surtitre || '')}</p>
     <h1>${String(A.titre === 'Vos plus beaux moments ont du goût' ? 'Vos plus beaux moments\nont du goût' : (A.titre || '')).split('\n').map(l => esc(l.trim())).filter(Boolean).join('<br>')}</h1>
     <p class="lead">${esc(A.sousTitre || '')}</p>
-    <form class="pave" action="/boutique" data-pave>
+    <form class="pave" action="/boutique" data-pave autocomplete="off">
       <label><span>Événement</span><select name="evt">${(R.evenements || []).map(e => `<option>${esc(e)}</option>`).join('')}</select></label>
       <label><span>Date</span><input type="date" name="date" required></label>
       <label><span>Invités</span><input type="number" name="invites" inputmode="numeric" pattern="[0-9]*" min="1" max="5000" step="1" placeholder="30" required aria-label="Nombre exact d’invités"></label>
