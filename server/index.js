@@ -75,8 +75,8 @@ async function createApp(opts = {}) {
     await store.set('_useremail/' + sha(email), { id });
     return id;
   }
-  if (env.ADMIN_EMAIL && env.ADMIN_PASSWORD && !(await store.list('_users')).length) {
-    await createUser({ email: env.ADMIN_EMAIL, name: env.ADMIN_NAME || 'Manager', role: 'manager', password: env.ADMIN_PASSWORD });
+  if (env.ADMIN_EMAIL && (env.ADMIN_PASSWORD || env.MOT_DE_PASSE_ADMIN) && !(await store.list('_users')).length) {
+    await createUser({ email: env.ADMIN_EMAIL, name: env.ADMIN_NAME || 'Manager', role: 'manager', password: (env.ADMIN_PASSWORD || env.MOT_DE_PASSE_ADMIN) });
     log.log?.('[comptes] compte Manager créé pour ' + env.ADMIN_EMAIL);
   }
 
