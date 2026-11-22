@@ -437,6 +437,22 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('rubriques/saveurs-du-monde', { ...(await store.get('rubriques/saveurs-du-monde')), libanaisPrix: true });
     if (nl) log.log?.(`[demarrage] ${nl} prix du Buffet libanais posés (référence + 30 %)`);
   }
+  // une fois (Jean-Luc, 2026-11-22) : « Brochettes de Chich Taouk », 1 portion = 4 brochettes ; beignets libanais, 1 portion = 2 pièces
+  const RLq = await store.get('rubriques/saveurs-du-monde');
+  if (RLq && !RLq.libanaisPortions) {
+    const net = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+    for (const d of await store.list('produits')) {
+      const p = d.data;
+      if (!p || p.sous !== 'buffet-libanais' || (p.groupes || []).length || p.contenuPortion) continue;
+      const t = net(p.titre);
+      if (/^(morceaux de |brochettes? de )?chich taouk/.test(t)) {
+        await store.set('produits/' + d.id, { ...p, titre: 'Brochettes de Chich Taouk', contenuPortion: '4 brochettes', photos: (p.photos || []).map(f => ({ ...f, alt: 'Brochettes de Chich Taouk' })) });
+      } else if (/^(kebbe|fatayer|sanbousek|falafel|rikakat|manakish|roulade)/.test(t)) {
+        await store.set('produits/' + d.id, { ...p, contenuPortion: '2 pièces' });
+      }
+    }
+    await store.set('rubriques/saveurs-du-monde', { ...(await store.get('rubriques/saveurs-du-monde')), libanaisPortions: true });
+  }
   // bandeaux photo des spécialités choisis par Jean-Luc (2026-11-22) : appliqués une fois par spécialité, modifiables ensuite dans le back-office
   const RS = await store.get('rubriques/saveurs-du-monde');
   if (RS) {
