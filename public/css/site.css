@@ -581,6 +581,12 @@ textarea:focus, input:focus, select:focus { outline: 2px solid color-mix(in srgb
 /* pages de texte (La maison…) : de l'air entre le texte et les blocs suivants */
 .prose ~ section:not(:empty) { margin-top: clamp(56px, 7vw, 96px); }
 
+/* formulaires : de l'air entre les champs et le bouton */
+.card-form > .btn, .card-form > .row, .card-form > button { margin-top: 22px; }
+.card-form [data-lien-msg]:empty { display: none; }
+.card-form + .small, .card-form + p { margin-top: 18px; }
+.narrow .card-form { margin-top: 26px; }
+
 /* phrase d'aide sous la recherche */
 .aide-rech { max-width: 820px; margin: 10px auto 0; font-size: .9rem; color: var(--gris); }
 .aide-rech.center { text-align: center; margin-top: 12px; }
