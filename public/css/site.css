@@ -630,9 +630,10 @@ textarea:focus, input:focus, select:focus { outline: 2px solid color-mix(in srgb
 .aide-rech.center { text-align: center; margin-top: 12px; }
 
 /* boutique : présentation au-dessus des filtres */
-.shop-intro { max-width: 860px; margin: 0 0 26px; }
+.shop-intro { max-width: 760px; margin: 0 auto 26px; text-align: center; }
 .shop-intro h2 { margin: 0 0 10px; }
-.shop-intro p { margin: 0; color: var(--gris); line-height: 1.65; }
+.shop-intro p { margin: 0; color: var(--gris); font-size: 1.05rem; line-height: 1.7; }
+.shop-intro::after { content: ""; display: block; width: 56px; height: 2px; background: var(--or); margin: 18px auto 0; }
 
 /* fiche produit : allergènes en pastilles */
 .allerg-f { margin: 18px 0 6px; padding: 14px 16px; border: 1px solid #e6e0d5; border-radius: 12px; background: #fbf8f2; }
