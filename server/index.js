@@ -757,7 +757,11 @@ async function createApp(opts = {}) {
     if (us.length) {
       const liste = us.flatMap(u => u.prods || []).filter((p, i, a) => a.indexOf(p) === i);
       const chips = `<div class="chips scroll-x">${us.map(u => `<a class="chip on" href="${u.href}">${esc(u.nom)}${u.prods ? ` <small>${u.prods.length}</small>` : ''}</a>`).join('')}</div>`;
-      return views.boutique(c, { titre: 'Vos univers', chapo: us.map(u => u.nom).join(', '), liste, chips, path: '/boutique?u=' + us.map(u => u.slug).join(','), photo: us[0].photo });
+      /* paragraphe de présentation adapté aux univers choisis (Jean-Luc, 2026-11-23) */
+      const noms = us.map(u => u.nom), liste2 = noms.length > 1 ? noms.slice(0, -1).join(', ') + ' et ' + noms[noms.length - 1] : noms[0];
+      const intro = { titre: us.length > 1 ? 'Tous vos univers, réunis sur une seule page' : `Bienvenue dans l’univers ${noms[0]}`,
+        texte: `Vous avez choisi ${liste2} : excellent choix ! ${us.length > 1 ? 'Toutes les propositions de ces univers vous attendent ici, côte à côte, pour composer votre événement d’un seul coup d’œil.' : 'Toutes ses propositions vous attendent ici.'}\nFaites votre choix${us.length > 1 ? ' : un clic sur une pastille pour n’afficher qu’un univers' : ''}, ouvrez les fiches pour découvrir photos, prix et détails, puis ajoutez vos coups de cœur à votre sélection. Quand tout vous plaît, demandez votre devis : un seul interlocuteur s’occupe de tout, de la première idée jusqu’au dernier invité.` };
+      return views.boutique(c, { intro, titre: 'Vos univers', chapo: us.map(u => u.nom).join(', '), liste, chips, path: '/boutique?u=' + us.map(u => u.slug).join(','), photo: us[0].photo });
     }
     const pg = req.query.q && pageRecherchee(req.query.q);
     if (pg) return res.redirect(302, pg.href); /* « zone de livraison » tapé dans la recherche → la page */
