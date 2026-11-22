@@ -313,7 +313,7 @@ section { margin: clamp(56px, 8vw, 110px) auto; }
 .shop-q { flex: 1; display: flex; align-items: center; gap: 8px; border: 1px solid var(--ligne); border-radius: 999px; padding: 0 16px; background: var(--carte); }
 .shop-q svg { width: 18px; color: var(--gris); }
 .shop-q input { flex: 1; border: 0; background: none; font: inherit; color: inherit; height: 44px; outline: none; min-width: 0; }
-.sel select, select { font: inherit; color: inherit; background: var(--carte); border: 1px solid var(--ligne); border-radius: 999px; height: 46px; padding: 0 14px; }
+.tri select, select { font: inherit; color: inherit; background: var(--carte); border: 1px solid var(--ligne); border-radius: 999px; height: 46px; padding: 0 14px; }
 .count { font-size: .74rem; letter-spacing: .14em; text-transform: uppercase; color: var(--gris); margin: 16px 0; }
 .empty { text-align: center; padding: 50px 20px; background: var(--creme); border-radius: var(--rayon); }
 
@@ -495,3 +495,9 @@ textarea:focus, input:focus, select:focus { outline: 2px solid color-mix(in srgb
 .avis-form h2 { font-family: var(--serif); font-size: 2rem; margin: 0 0 6px; }
 .hp { position: absolute !important; left: -9999px; width: 1px; height: 1px; opacity: 0; }
 .virement { background: rgba(176,138,79,.08); border-radius: 12px; padding: 14px 18px; margin: 14px 0; } .virement p { margin: 0 0 4px; } .mono { font-family: ui-monospace, Menlo, monospace; letter-spacing: .03em; }
+/* rien ne dépasse de l'écran sur téléphone */
+.fiche-g > *, .boutique-in > *, .bt > * { min-width: 0; }
+.scroll-x { max-width: 100%; min-width: 0; }
+@media (max-width: 860px) { .fiche-g { grid-template-columns: minmax(0, 1fr); } }
+.tri { display: block; flex: none; margin: 0; } .tri select { max-width: 100%; }
+.shop-bar, .shop-tools, .shop-bar > * { min-width: 0; } .shop-q { min-width: 0; flex: 1; }

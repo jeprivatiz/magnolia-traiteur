@@ -39,7 +39,7 @@ function layout(c, { title, description = '', body, path = '/', schema = null, b
   const R = c.reglages;
   const fullTitle = title ? `${title} · ${R.nom || 'Magnolia Traiteur'}` : `${R.nom || 'Magnolia Traiteur'} · Traiteur événementiel à Paris et en Île-de-France`;
   const site = (process.env.SITE_URL || 'https://www.magnoliatraiteur.fr').replace(/\/$/, '');
-  const rubs = c.rubriques.filter(r => r.statut !== 'masque');
+  const rubs = c.rubriques.filter(r => r.statut !== 'masque' && r.slug !== 'lieux');
   return `<!doctype html>
 <html lang="fr">
 <head>
@@ -130,7 +130,7 @@ function card(p, c, { rubNom = true } = {}) {
 const trunc = (s, n) => { s = String(s || ''); return s.length > n ? s.slice(0, n - 1).replace(/\s+\S*$/, '') + '…' : s; };
 
 function univers(c) {
-  return c.rubriques.filter(r => r.statut !== 'masque').map(r => `<a class="tile" href="${rubHref(r)}">
+  return c.rubriques.filter(r => r.statut !== 'masque' && r.slug !== 'lieux').map(r => `<a class="tile" href="${rubHref(r)}">
     ${img(r.photoAccueil || r.photo, '')}<span class="tile-t"><b>${esc(r.nom)}</b>${r.accroche ? `<small>${esc(r.accroche)}</small>` : `<small>${c.byRub.get(r.slug)?.length || 0} prestations</small>`}</span></a>`).join('')
     + `<a class="tile" href="/lieux">${img(c.lieux[0]?.photos?.[0], '')}<span class="tile-t"><b>Lieux de réception</b><small>${c.lieux.filter(l => l.statut !== 'masque').length} lieux à privatiser</small></span></a>`;
 }
@@ -207,7 +207,7 @@ function crumbs(list) {
 }
 
 function boutique(c, { q = '', rub = '', titre, chapo, photo, path = '/boutique', liste = null }) {
-  const rubs = c.rubriques.filter(r => r.statut !== 'masque');
+  const rubs = c.rubriques.filter(r => r.statut !== 'masque' && r.slug !== 'lieux');
   const prods = liste || (q ? c.search(c, q, 400) : c.produits.filter(p => p.statut !== 'masque'));
   const r = rubs.find(x => x.slug === rub);
   const body = `
@@ -218,7 +218,7 @@ ${photo ? `<section class="phero">${img(photo, '')}<div class="phero-c wrap">${c
     <div class="chips scroll-x" role="tablist">${liste ? '' : `<a class="chip${!rub ? ' on' : ''}" href="/boutique" data-filter="">Tout <small>${c.produits.filter(p => p.statut !== 'masque').length}</small></a>`}${liste ? '' : rubs.map(x => `<a class="chip${x.slug === rub ? ' on' : ''}" href="/${x.slug}" data-filter="${x.slug}">${esc(x.nom)} <small>${c.byRub.get(x.slug)?.length || 0}</small></a>`).join('')}</div>
     <div class="shop-tools">
       <form class="shop-q" action="/boutique" role="search">${icon.search}<input type="search" name="q" value="${esc(q)}" placeholder="Paëlla, DJ, huîtres…" aria-label="Rechercher dans la boutique" data-shop-q></form>
-      <label class="sel"><span class="sr">Trier</span><select data-sort><option value="ordre">Ordre de la brochure</option><option value="asc">Prix croissant</option><option value="desc">Prix décroissant</option></select></label>
+      <label class="tri"><span class="sr">Trier</span><select data-sort><option value="ordre">Ordre de la brochure</option><option value="asc">Prix croissant</option><option value="desc">Prix décroissant</option></select></label>
     </div>
   </div>
   <p class="count"><span data-count>${prods.length}</span> prestations · tarifs TTC${q ? ` pour « ${esc(q)} »` : ''}</p>
@@ -305,7 +305,7 @@ function selection(c) {
       <h2>Votre événement</h2>
       <div class="f2"><label>Type d’événement<select name="evenement" required>${(R.evenements || []).map(e => `<option>${esc(e)}</option>`).join('')}</select></label>
       <label>Date<input type="date" name="date" required></label></div>
-      <div class="f2"><label>Nombre d’invités<input type="number" name="invites" min="1" max="5000" inputmode="numeric" required></label>
+      <div class="f2"><label>Nombre d’invités<select name="invites" required><option value="">Choisir…</option>${[10, 15, 20, 25, 30, 35, 40, 50, 60, 70, 80, 100, 120, 150, 200, 250, 300, 400, 500, 750, 1000].map(n => `<option>${n}</option>`).join('')}</select></label>
       <label>Horaire de livraison<select name="horaire">${['Matin (8 h – 12 h)', 'Midi (11 h – 13 h)', 'Après-midi (13 h – 17 h)', 'Soir (17 h – 20 h)', 'À préciser avec l’équipe'].map(h => `<option>${h}</option>`).join('')}</select></label></div>
       <div class="f2"><label>Code postal du lieu<input name="cp" inputmode="numeric" maxlength="5" pattern="\\d{5}" required data-cp></label>
       <label>Ville<select name="ville" required data-ville><option value="">D’abord le code postal</option></select></label></div>
