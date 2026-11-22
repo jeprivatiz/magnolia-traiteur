@@ -26,28 +26,37 @@
   let session = null, cache = {};
 
   /* ---------- structure ---------- */
+  /* menu « Espace équipe » comme Je Privatise : CRM regroupe Demandes de devis, Suivi client, Devis et Factures */
+  const CRM = ['demandes', 'suivi', 'devis', 'factures'];
   const MENU = [
-    ['', 'Tableau de bord', '◎'],
-    ['demandes', 'Demandes de devis', '✉'],
-    ['suivi', 'Suivi client', '▦'],
-    ['devis', 'Devis', '✎'],
-    ['factures', 'Factures', '€'],
-    ['agenda', 'Agenda', '▣'],
-    ['clients', 'Clients', '☺'],
+    ['', 'Tableau de bord'],
+    ['crm', 'CRM'],
+    ['demandes', 'Demandes de devis'],
+    ['suivi', 'Suivi client'],
+    ['devis', 'Devis'],
+    ['factures', 'Factures'],
+    ['agenda', 'Agenda'],
+    ['clients', 'Clients'],
     ['-'],
-    ['catalogue', 'Catalogue', '✿'],
-    ['lieux', 'Lieux', '⌂'],
-    ['site', 'Photos & textes du site', '◐'],
-    ['avis', 'Avis clients', '★'],
-    ['medias', 'Médiathèque', '▤'],
+    ['catalogue', 'Catalogue'],
+    ['lieux', 'Lieux'],
+    ['site', 'Photos & textes du site'],
+    ['avis', 'Avis clients'],
+    ['medias', 'Médiathèque'],
     ['-'],
-    ['equipe', 'Équipe & activité', '♟'],
-    ['outils', 'Outils', '⚙'],
+    ['equipe', 'Équipe & activité'],
+    ['outils', 'Outils'],
   ];
+  const mem = { get: k => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* */ } } };
   function shell(inner, cur) {
+    const open = CRM.includes(cur) || mem.get('mg_crm') === '1';
+    const nb = cache.nouvelles ? String(cache.nouvelles) : '';
+    const item = m => m[0] === '-' ? '<hr>'
+      : m[0] === 'crm' ? `<button type="button" class="chip crm-btn" data-tab="crm" data-crm aria-expanded="${open}" title="Demandes de devis, Suivi client, Devis, Factures">CRM<span>${nb}</span></button>`
+      : `<a href="#/${m[0]}" data-tab="${m[0]}" class="chip${CRM.includes(m[0]) ? ' crm-sub' : ''}${cur === m[0] ? ' on' : ''}"${cur === m[0] ? ' aria-current="page"' : ''}>${m[1]}${m[0] === 'demandes' ? `<span>${nb}</span>` : ''}</a>`;
     return `<div class="bo">
       <aside class="side" id="side"><a class="logo" href="#/"><img src="/brand/monogramme.svg" alt=""><span>Magnolia<small>Back-office</small></span></a>
-      <nav>${MENU.map(m => m[0] === '-' ? '<hr>' : `<a href="#/${m[0]}" class="${cur === m[0] ? 'on' : ''}"><i>${m[2]}</i>${m[1]}${m[0] === 'demandes' && cache.nouvelles ? `<b class="bdg">${cache.nouvelles}</b>` : ''}</a>`).join('')}</nav>
+      <nav class="tabs${open ? ' crm-open' : ''}"><p class="tabs-lab">Espace équipe</p>${MENU.map(item).join('')}</nav>
       <div class="me"><span>${esc(session.nom || session.email)}<small>${session.role === 'manager' ? 'Manager' : 'Collaborateur'}</small></span><a href="/" target="_blank">Voir le site ↗</a><button class="lnk" data-logout>Déconnexion</button></div></aside>
       <div class="main"><header class="mtop"><button class="burger" data-burger aria-label="Menu">☰</button><span class="mtitle">${esc((MENU.find(m => m[0] === cur) || [, ''])[1])}</span></header><div class="content">${inner}</div></div></div>`;
   }
@@ -62,6 +71,8 @@
     const [route, id, sub] = location.hash.replace(/^#\/?/, '').split('?')[0].split('/');
     const views = { '': dashboard, demandes, suivi, devis, factures, agenda, clients, catalogue, produit, lieux, lieu, site, avis, medias, equipe, outils };
     const fn = route === 'catalogue' && id ? produit : route === 'lieux' && id ? lieu : views[route] || dashboard;
+    if (CRM.includes(route)) mem.set('mg_crm_last', route);
+    if (!cache.nouvelles && cache.nouvelles !== 0) api(A + '/demandes').then(l => { cache.nouvelles = l.filter(d => aTraiter(d, cache.devisL || [])).length; $$('#side .chip[data-tab=demandes] span, #side .crm-btn span').forEach(x => { x.textContent = cache.nouvelles || ''; }); }).catch(() => {});
     app.innerHTML = shell('<p class="muted">Chargement…</p>', route === 'produit' ? 'catalogue' : route);
     bindShell();
     try {
@@ -76,6 +87,13 @@
     $('[data-logout]')?.addEventListener('click', async () => { await api('/api/auth/logout', { method: 'POST' }); session = null; render(); });
     $('[data-burger]')?.addEventListener('click', () => $('#side').classList.toggle('open'));
     $$('#side nav a').forEach(a => a.addEventListener('click', () => $('#side').classList.remove('open')));
+    /* CRM : la flèche ouvre et referme le groupe ; un clic depuis une autre rubrique rouvre la dernière rubrique CRM utilisée */
+    $('[data-crm]')?.addEventListener('click', e => {
+      const nav = e.currentTarget.parentElement, cur = location.hash.replace(/^#\/?/, '').split(/[/?]/)[0];
+      if (!CRM.includes(cur)) { mem.set('mg_crm', '1'); location.hash = '#/' + (mem.get('mg_crm_last') || 'suivi'); return; }
+      const open = !nav.classList.contains('crm-open');
+      nav.classList.toggle('crm-open', open); e.currentTarget.setAttribute('aria-expanded', open); mem.set('mg_crm', open ? '1' : '0');
+    });
   }
 
   function login() {
@@ -125,19 +143,43 @@
   }
 
   /* ---------- demandes ---------- */
+  /* une demande dont le devis est parti passe dans « Suivi client » : ici, seulement celles qui attendent encore leur devis */
+  const aTraiter = (d, dv) => d.type !== 'contact' && !d.classee && d.statut === 'demande' && !dv.some(x => x.demandeId === d.id && x.statut !== 'brouillon');
   async function demandes(id) {
     if (id) return demande(id);
-    const list = (await api(A + '/demandes')).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-    cache.nouvelles = list.filter(d => d.statut === 'demande').length;
-    return page('Demandes de devis', `<select data-filtre><option value="">Toutes</option>${Object.entries(STATUTS).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}<option value="contact">Messages (contact)</option></select>`,
-      list.length ? `<div class="table"><table><thead><tr><th>Réf.</th><th>Reçue</th><th>Client</th><th>Événement</th><th>Date</th><th class="n">Invités</th><th class="n">Estimé TTC</th><th>Statut</th></tr></thead><tbody>
-      ${list.map(d => `<tr data-href="#/demandes/${d.id}" data-st="${d.type === 'contact' ? 'contact' : d.statut}" class="${d.statut === 'demande' ? 'new' : ''}"><td>${esc(d.ref)}</td><td>${dateH(d.createdAt)}</td><td><b>${esc(d.contact?.nom)}</b><small>${esc(d.contact?.societe || d.contact?.email)}</small></td><td>${d.type === 'contact' ? 'Message : ' + esc(d.sujet) : esc(d.evenement?.type)}</td><td>${dateFr(d.evenement?.date)}</td><td class="n">${d.evenement?.invites || ''}</td><td class="n">${d.type === 'contact' ? '' : euros(d.totalEstimeCents)}</td><td><span class="pill st-${d.statut}">${STATUTS[d.statut] || d.statut}</span></td></tr>`).join('')}</tbody></table></div>`
-        : `<div class="vide"><p>Aucune demande pour le moment.</p><p class="muted">Les demandes envoyées depuis « Ma sélection » sur le site arrivent ici, avec une alerte par e-mail.</p></div>`);
+    const [list0, dv] = await Promise.all([api(A + '/demandes'), api(A + '/devis')]);
+    const list = list0.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    cache.devisL = dv;
+    const todo = list.filter(d => aTraiter(d, dv)), msgs = list.filter(d => d.type === 'contact' && !d.classee), done = list.filter(d => !todo.includes(d) && !msgs.includes(d));
+    cache.nouvelles = todo.length;
+    const voir = demandes.voir || 'todo', shown = voir === 'done' ? done : voir === 'msg' ? msgs : todo;
+    const tel = t => String(t || '').replace(/[^\d+]/g, '');
+    const action = d => {
+      if (d.type === 'contact') return `<button class="lnk sm" type="button" data-classer="${d.id}">Déjà traité : classer</button>`;
+      const x = dv.filter(v => v.demandeId === d.id).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))[0];
+      return `${x ? `<a class="btn sm" href="#/devis/${x.id}">${x.statut === 'brouillon' ? 'Terminer le devis' : 'Ouvrir le devis'}</a>` : `<button class="btn sm" type="button" data-mk="${d.id}">Créer un devis</button>`}${voir === 'todo' ? `<button class="lnk sm" type="button" data-classer="${d.id}">Déjà traitée : classer</button>` : ''}`;
+    };
+    const row = d => `<tr data-href="#/demandes/${d.id}"${d.statut === 'demande' && !d.vue ? ' class="new"' : ''}>
+      <td>${new Date(d.createdAt).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })}<small>${esc(d.ref)}</small></td>
+      <td><b>${esc(d.contact?.nom)}</b>${d.contact?.societe ? `<small class="ink">${esc(d.contact.societe)}</small>` : ''}<small>${esc(d.contact?.email)}${d.contact?.tel ? `<br><a href="tel:${esc(tel(d.contact.tel))}">${esc(d.contact.tel)}</a>` : ''}</small></td>
+      <td>${d.type === 'contact' ? `<b>Message</b><small>${esc(d.sujet || '')}</small>` : `<b>${esc(d.evenement?.type || '—')}</b><small>${esc([d.evenement?.cp, d.evenement?.ville].filter(Boolean).join(' '))}${d.evenement?.horaire ? ' · ' + esc(d.evenement.horaire) : ''}</small>`}</td>
+      <td>${d.evenement?.date ? dateFr(d.evenement.date, { day: 'numeric', month: 'long', year: 'numeric' }) : '—'}</td>
+      <td class="n">${d.evenement?.invites || '—'}</td>
+      <td>${(d.lignes || []).length ? `<b>${d.lignes.length} prestation${d.lignes.length > 1 ? 's' : ''}</b> · ${euros(d.totalEstimeCents)}<small>${esc(d.lignes.slice(0, 3).map(l => l.titre).join(', '))}${d.lignes.length > 3 ? '…' : ''}</small>` : ''}${d.message ? `<small class="msg">${esc(String(d.message).slice(0, 160))}${String(d.message).length > 160 ? '…' : ''}</small>` : ''}</td>
+      <td class="act">${action(d)}</td></tr>`;
+    const onglet = (k, l, n) => `<button type="button" class="qs-chip${voir === k ? ' on' : ''}" data-voir="${k}">${l} <b>${n}</b></button>`;
+    return page('Demandes de devis', '<a class="btn" href="#/devis/nouveau">+ Nouveau devis</a>', `
+      <p class="muted intro">Les demandes envoyées depuis « Ma sélection » arrivent ici, avec une alerte par e-mail. Dès que leur devis est parti, elles passent dans « Suivi client ».</p>
+      <div class="qs-top"><div class="qs-chips">${onglet('todo', 'À traiter', todo.length)}${onglet('msg', 'Messages', msgs.length)}${onglet('done', 'Déjà traitées', done.length)}</div></div>
+      ${shown.length ? `<div class="table jp"><table><thead><tr><th>Reçue</th><th>Client</th><th>Événement</th><th>Date</th><th class="n">Invités</th><th>Sélection et message</th><th></th></tr></thead><tbody>${shown.map(row).join('')}</tbody></table></div>`
+        : `<div class="vide"><p>${voir === 'todo' ? (list.length ? 'Aucune demande en attente : toutes ont reçu leur devis. Leur suivi est dans « Suivi client ».' : 'Aucune demande de devis pour l’instant.') : 'Rien ici pour l’instant.'}</p></div>`}`);
   }
   demandes.after = id => {
     if (id) return demande.after(id);
-    $$('tr[data-href]').forEach(tr => tr.addEventListener('click', () => { location.hash = tr.dataset.href; }));
-    $('[data-filtre]')?.addEventListener('change', e => $$('tr[data-st]').forEach(tr => { tr.hidden = e.target.value && tr.dataset.st !== e.target.value; }));
+    $$('tr[data-href]').forEach(tr => tr.addEventListener('click', e => { if (!e.target.closest('a,button')) location.hash = tr.dataset.href; }));
+    $$('[data-voir]').forEach(b => b.addEventListener('click', () => { demandes.voir = b.dataset.voir; render(); }));
+    $$('[data-mk]').forEach(b => b.addEventListener('click', async () => { const r = await api(`${A}/actions/devis-depuis-demande/${b.dataset.mk}`, { method: 'POST' }); location.hash = '#/devis/' + r.id; }));
+    $$('[data-classer]').forEach(b => b.addEventListener('click', async () => { const d = await api(`${A}/demandes/${b.dataset.classer}`); await api(`${A}/demandes/${d.id}`, { method: 'PUT', body: { ...d, classee: true } }); toast('Demande classée : elle reste visible dans « Déjà traitées ».'); render(); }));
   };
   async function demande(id) {
     const d = await api(A + '/demandes/' + id);
@@ -161,25 +203,159 @@
     $('[data-mkdevis]')?.addEventListener('click', async () => { const r = await api(`${A}/actions/devis-depuis-demande/${id}`, { method: 'POST' }); location.hash = '#/devis/' + r.id; });
   };
 
-  /* ---------- suivi client (tableau par étape) ---------- */
+  /* ---------- suivi client : une fiche par opportunité et sa frise (Demande → Devis envoyé → Relance → Accord client → Réservé / Refusé), comme Je Privatise ---------- */
+  const H1 = 36e5;
+  const OUVERT = ['demande', 'devis_envoye', 'relance'];
+  function opportunite(d, devisL) {
+    const dv = devisL.filter(x => x.demandeId === d.id).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+    const main = dv.find(x => x.statut === 'accepte') || dv.find(x => x.statut === 'envoye') || dv[0];
+    const h = d.historique || [], at = st => (h.filter(x => x.statut === st).pop() || {}).at;
+    const envoyeLe = main && main.statut !== 'brouillon' ? main.envoyeLe : at('devis_envoye');
+    const relances = [...(main?.relances || []).map(r => ({ at: r.at, how: /sms/i.test(r.modele || '') ? 'SMS' : 'e-mail' })), ...(d.relancesNotees || [])]
+      .filter(r => r.at).sort((x, y) => String(x.at).localeCompare(String(y.at)));
+    const last = [d.createdAt, envoyeLe, ...relances.map(r => r.at), ...h.map(x => x.at)].filter(Boolean).map(String).sort().pop();
+    const age = (Date.now() - Date.parse(last)) / H1;
+    const late = OUVERT.includes(d.statut) && age >= 24 && age < 720 ? Math.floor(age) : 0;
+    const montant = main ? tot(main).ttc : d.totalEstimeCents;
+    const cat = d.statut === 'refuse' ? 'ko' : ['reserve', 'termine'].includes(d.statut) ? 'ok' : d.statut === 'accord' ? 'acc' : !envoyeLe ? 'draft' : late ? 'late' : 'sent';
+    return { d, dv, main, envoyeLe, relances, late, last, montant, cat, at, estime: !main };
+  }
   async function suivi() {
-    const list = (await api(A + '/demandes')).filter(d => d.type !== 'contact');
-    const cols = ['demande', 'devis_envoye', 'relance', 'accord', 'reserve', 'refuse'];
-    return page('Suivi client', '<span class="muted">Glissez une carte pour changer son étape.</span>', `<div class="kanban">${cols.map(k => `<div class="kcol" data-col="${k}"><h3><span class="dot st-${k}"></span>${STATUTS[k]} <small>${list.filter(d => d.statut === k).length}</small></h3>
-      ${list.filter(d => d.statut === k).sort((a, b) => String(a.evenement?.date).localeCompare(String(b.evenement?.date))).map(d => `<a class="kcard" draggable="true" data-id="${d.id}" href="#/demandes/${d.id}"><b>${esc(d.contact?.nom)}</b><span>${esc(d.evenement?.type)} · ${dateFr(d.evenement?.date)}</span><span>${d.evenement?.invites || ''} pers. · ${euros(d.totalEstimeCents)}</span></a>`).join('')}</div>`).join('')}</div>`);
+    const [dem, devisL, eq] = await Promise.all([api(A + '/demandes'), api(A + '/devis'), api(A + '/actions/equipe').catch(() => [])]);
+    cache.devisL = devisL; cache.equipe = eq.filter(u => !u.desactive);
+    cache.opps = dem.filter(d => d.type !== 'contact').map(d => opportunite(d, devisL));
+    return page('Suivi client', '<a class="btn" href="#/devis/nouveau">+ Nouveau devis</a>', '<div id="qs"></div>');
+  }
+  const SV = { p: 'all', o: '', f: 'all', s: '', d1: '', d2: '' };
+  function suiviDessin() {
+    const box = $('#qs'); if (!box) return;
+    const all = cache.opps || [];
+    const R = (() => { const n = new Date(), y = n.getFullYear(), m = n.getMonth(), D = (a, b, c) => new Date(a, b, c).getTime();
+      if (SV.p === 'mois') return [D(y, m, 1), D(y, m + 1, 1)]; if (SV.p === 'mprec') return [D(y, m - 1, 1), D(y, m, 1)];
+      if (SV.p === 'trim') { const t = m - m % 3; return [D(y, t, 1), D(y, t + 3, 1)]; } if (SV.p === 'an') return [D(y, 0, 1), D(y + 1, 0, 1)];
+      if (SV.p === 'dates') { const a = SV.d1 ? Date.parse(SV.d1 + 'T00:00:00') : -Infinity, b = SV.d2 ? Date.parse(SV.d2 + 'T00:00:00') + 864e5 : Infinity; return a > -Infinity || b < Infinity ? [a, b] : null; }
+      return null; })();
+    const inR = x => { if (!R) return true; const t = Date.parse(x || ''); return !isNaN(t) && t >= R[0] && t < R[1]; };
+    const inP = o => !R || [o.d.createdAt, o.envoyeLe, o.last, ...(o.d.historique || []).map(h => h.at)].some(inR);
+    const owner = o => o.d.commercial || '';
+    const mine = o => !SV.o || (SV.o === '—' ? !owner(o) : owner(o) === SV.o);
+    const base = all.filter(o => mine(o) && inP(o));
+    const sum = (l, f) => l.reduce((a, o) => a + (f(o) || 0), 0);
+    const signes = base.filter(o => ['acc', 'ok'].includes(o.cat)), perdus = base.filter(o => o.cat === 'ko');
+    const kpis = [[base.filter(o => !['ok', 'ko'].includes(o.cat)).length, 'opportunités en cours'], [base.filter(o => ['sent', 'late'].includes(o.cat)).length, 'en attente de réponse'],
+      [base.filter(o => o.late).length, 'sans nouvelles depuis 24 h'], [euros(sum(signes, o => o.montant)), 'chiffre d’affaires signé (TTC)'],
+      [signes.length + perdus.length ? Math.round(signes.length / (signes.length + perdus.length) * 100) + ' %' : '—', 'opportunités gagnées']];
+    const inF = (o, k) => !mine(o) || !inP(o) ? false : k === 'all' ? !['ok', 'ko'].includes(o.cat) : k === 'sent' ? ['sent', 'late'].includes(o.cat) : o.cat === k;
+    const cnt = k => all.filter(o => inF(o, k)).length;
+    const hay = o => [o.d.contact?.nom, o.d.contact?.societe, o.d.contact?.email, o.d.contact?.tel, o.d.ref, o.d.evenement?.type, o.d.evenement?.ville, ...o.dv.map(x => x.numero)].join(' ').toLowerCase();
+    const S = SV.s.trim().toLowerCase();
+    const list = all.filter(o => inF(o, SV.f) && (!S || S.split(/\s+/).every(w => hay(o).includes(w))))
+      .sort((x, y) => (y.late - x.late) || String(y.last).localeCompare(String(x.last)));
+    const owners = [...new Set([...(cache.equipe || []).map(u => u.nom).filter(Boolean), ...all.map(owner).filter(Boolean)])].sort((a, b) => a.localeCompare(b, 'fr'));
+    const arch = SV.f === 'ok' || SV.f === 'ko';
+    box.innerHTML = `<div class="qs-owners"><div class="qs-orow"><span class="qs-olab">Période</span>${[['all', 'Tout'], ['mois', 'Mois en cours'], ['mprec', 'Mois dernier'], ['trim', 'Trimestre'], ['an', 'Année'], ['dates', 'De date à date']].map(([k, l]) => `<button type="button" class="qs-own-b${SV.p === k ? ' on' : ''}" data-qp="${k}">${l}</button>`).join('')}${SV.p === 'dates' ? `<span class="qs-dates">du <input type="date" data-qd="d1" value="${esc(SV.d1)}"> au <input type="date" data-qd="d2" value="${esc(SV.d2)}"></span>` : ''}</div>
+      <div class="qs-orow"><span class="qs-olab">Commercial</span><button type="button" class="qs-own-b${!SV.o ? ' on' : ''}" data-qo="">Tous</button>${owners.map(n => `<button type="button" class="qs-own-b${SV.o === n ? ' on' : ''}" data-qo="${esc(n)}">${esc(n)}</button>`).join('')}<button type="button" class="qs-own-b${SV.o === '—' ? ' on' : ''}" data-qo="—">Non attribués</button></div>
+      <div class="qs-osum"><span><b>${base.length}</b> opportunité${base.length > 1 ? 's' : ''}</span><span><b>${signes.length}</b> signée${signes.length > 1 ? 's' : ''}</span><span><b>${perdus.length}</b> refusée${perdus.length > 1 ? 's' : ''}</span><em>${euros(sum(signes, o => o.montant))} signés</em></div></div>
+      <div class="kpis qk">${kpis.map(([v, l]) => `<div><b>${esc(v)}</b><span>${esc(l)}</span></div>`).join('')}</div>
+      <div class="qs-top"><div class="qs-chips">${arch ? `<button type="button" class="qs-chip" data-qf="all">← Opportunités en cours <b>${cnt('all')}</b></button><span class="qs-title">${SV.f === 'ok' ? 'Opportunités réservées' : 'Opportunités refusées (classées)'}</span>`
+        : [['all', 'En cours'], ['late', '⚠ À relancer'], ['sent', 'Envoyées'], ['acc', 'Attente d’acompte'], ['draft', 'En préparation']].map(([k, l]) => `<button type="button" class="qs-chip${SV.f === k ? ' on' : ''}${k === 'late' && cnt('late') ? ' hot' : ''}" data-qf="${k}">${esc(l)} <b>${cnt(k)}</b></button>`).join('')
+          + `<span class="qs-sp"></span><button type="button" class="qs-arch ok" data-qf="ok">Voir les opportunités réservées <b>${cnt('ok')}</b></button><button type="button" class="qs-arch ko" data-qf="ko">Voir les opportunités refusées <b>${cnt('ko')}</b></button>`}</div>
+        <input class="qs-search" type="search" data-qs placeholder="🔍 Rechercher : nom, société, n° de devis…" aria-label="Rechercher un client" value="${esc(SV.s)}"></div>
+      <div id="qsList">${list.length ? list.map(carte).join('') : `<div class="vide"><p>${all.length ? 'Aucune opportunité ici.' : 'Aucune demande pour l’instant. Les demandes envoyées depuis le site et les devis créés ici apparaissent dans ce suivi.'}</p></div>`}</div>`;
+  }
+  const d1 = x => x ? new Date(x).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : '';
+  const etape = (cls, label, sub, mark) => `<div class="qs-st ${cls}"><div class="qs-dot">${mark || ''}</div><b>${esc(label)}</b><i>${esc(sub || '—')}</i></div>`;
+  const btnEtape = (o, k, html) => o.d.statut === 'refuse' ? html : `<button type="button" class="qs-stb" data-qstep="${k}" data-q="${o.d.id}" title="Cliquer pour mettre à jour">${html}</button>`;
+  function frise(o) {
+    const st = o.d.statut, decided = ['accord', 'reserve', 'termine', 'refuse'].includes(st), sent = !!o.envoyeLe;
+    const out = [etape('done', 'Demande', d1(o.d.createdAt) + (o.d.lignes ? ' · site' : ''), '✓')];
+    out.push(sent ? etape('done', 'Devis envoyé', d1(o.envoyeLe), '✓') : `<button type="button" class="qs-stb" data-qdevis="${o.d.id}" title="Préparer le devis">${etape('now', 'Devis à envoyer', o.main ? 'brouillon' : 'à préparer')}</button>`);
+    const rel = o.relances[o.relances.length - 1];
+    const relB = h => sent && !decided ? `<button type="button" class="qs-stb" data-qrel="${o.d.id}" title="Relancer le client">${h}</button>` : h;
+    out.push(relB(o.late && sent ? etape('warn', 'À relancer', 'depuis ' + (o.late >= 48 ? Math.floor(o.late / 24) + ' jours' : o.late + ' h'), '!')
+      : rel ? etape(decided ? 'done' : 'now', 'Relancé', d1(rel.at) + ' · ' + rel.how, decided ? '✓' : '')
+      : etape(decided ? 'skip' : sent ? 'opt' : '', 'Relance', decided ? 'pas utile' : sent ? '+ relancer' : '—')));
+    if (st === 'refuse') out.push(etape('lost', 'Refusé', 'classé · ' + d1(o.at('refuse')), '✕'));
+    else {
+      const acc = ['accord', 'reserve', 'termine'].includes(st), sig = o.main?.statut === 'accepte' && o.main.signature;
+      out.push(btnEtape(o, 'accord', acc ? etape('done acc', 'Accord client', sig ? 'signé en ligne · ' + d1(o.main.signature.at) : d1(o.at('accord') || o.at('reserve')), '✓') : etape('opt', 'Accord client', '+ en attente d’acompte')));
+      out.push(btnEtape(o, 'reserve', ['reserve', 'termine'].includes(st) ? etape('done', 'Réservé', 'acompte reçu · ' + d1(o.at('reserve')), '✓') : etape('opt', 'Réservé', acc ? 'en attente d’acompte' : '+ réserver')));
+      if (!acc) out.push(btnEtape(o, 'refuse', etape('opt refuse', 'Refusé', 'si le client refuse')));
+    }
+    let lastI = -1; out.forEach((x, i) => { if (/class="qs-st (done|now|warn|lost)/.test(x)) lastI = i; });
+    for (let i = 1; i <= lastI; i++) out[i] = out[i].replace('class="qs-st ', 'class="qs-st reach ');
+    return `<div class="qs-tl">${out.join('')}</div>`;
+  }
+  function badge(o) {
+    if (o.cat === 'ko') return '<span class="qs-tag t-ko">Refusé · classé</span>';
+    if (o.cat === 'ok') return `<span class="qs-tag t-ok">${o.d.statut === 'termine' ? 'Terminé' : 'Réservé'}</span>`;
+    if (o.cat === 'acc') return '<span class="qs-tag t-acc">En attente d’acompte</span>';
+    if (o.late) return `<span class="qs-tag t-late">${o.late >= 48 ? Math.floor(o.late / 24) + ' jours' : o.late + ' h'} sans nouvelles</span>`;
+    if (o.cat === 'draft') return `<span class="qs-tag t-draft">${o.main ? 'Devis en préparation' : 'Nouvelle demande'}</span>`;
+    return `<span class="qs-tag t-sent">${o.relances.length ? 'Relancé' : 'Envoyé'}</span>`;
+  }
+  function carte(o) {
+    const c = o.d.contact || {}, e = o.d.evenement || {}, tel = String(c.tel || '').replace(/[^\d+]/g, ''), first = (c.nom || '').split(' ')[0];
+    const ini = (c.nom || '?').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+    const ouvert = OUVERT.includes(o.d.statut) || o.d.statut === 'accord';
+    const icons = `${tel ? `<a class="qs-ic" href="tel:${esc(tel)}" data-qappel="${o.d.id}" title="Appeler ${esc(c.tel)}" aria-label="Appeler">📞</a>` : ''}${o.envoyeLe && ouvert && c.email ? `<button class="qs-ic" type="button" data-qrel="${o.d.id}" data-canal="mail" title="Relancer par e-mail" aria-label="Relancer par e-mail">✉</button>` : ''}${o.envoyeLe && ouvert && tel ? `<button class="qs-ic" type="button" data-qrel="${o.d.id}" data-canal="sms" title="Relancer par SMS" aria-label="Relancer par SMS">💬</button>` : ''}`;
+    return `<article class="qs-card${o.late ? ' late' : ''}${o.cat === 'ko' ? ' lost' : ''}" data-open="${o.d.id}">
+      <div class="qs-who"><div class="qs-av">${esc(ini)}</div><div><div class="qs-nm">${esc(c.nom || '—')}${badge(o)}</div>
+        <div class="qs-co">${esc([c.societe, c.tel || c.email].filter(Boolean).join(' · '))}</div>
+        <div class="qs-co"><button type="button" class="qs-own-pick${o.d.commercial ? '' : ' none'}" data-qown="${o.d.id}" title="Attribuer ou changer le commercial">👤 ${esc(o.d.commercial || 'Non attribué')} <span aria-hidden="true">▾</span></button></div>
+        <div class="qs-ev">${e.type ? '<b>' + esc(e.type) + '</b> · ' : ''}${esc([e.date ? dateFr(e.date, { day: 'numeric', month: 'short', year: 'numeric' }) : 'date à définir', e.invites ? e.invites + ' pers.' : '', e.ville || ''].filter(Boolean).join(' · '))}</div></div></div>
+      <div class="qs-right"><div class="qs-amt">${o.montant ? euros(o.montant) : '—'}</div><div class="qs-ht">TTC · ${o.main ? 'devis n° ' + esc(o.main.numero) : 'estimation du site'}</div></div>
+      ${frise(o)}
+      <div class="qs-foot"><div class="qs-info">${o.d.notes ? `<div class="qs-note">📝 ${esc(String(o.d.notes).slice(0, 140))}</div>` : ''}</div><div class="qs-acts">${o.late ? '' : icons}${['refuse', 'reserve', 'termine'].includes(o.d.statut) ? `<button class="qs-back" type="button" data-qback="${o.d.id}" title="Remettre dans les opportunités en cours">↺ Remettre en cours</button>` : ''}${o.main && o.main.statut !== 'brouillon' ? `<a class="qs-back" href="/devis/${esc(o.main.token)}" target="_blank" title="Le devis tel que le client le voit">📨 ${o.main.statut === 'accepte' ? 'Devis signé' : 'Devis envoyé'}</a>` : ''}<button class="qs-open" type="button" data-qopen="${o.d.id}">${o.cat === 'draft' ? 'Terminer' : 'Ouvrir'}</button></div></div>
+      ${o.late ? `<div class="qs-alert"><b>⚠ Plus de 24 h sans nouvelles.</b> <span>${o.envoyeLe ? `Rappelez ${esc(first || 'ce client')} ou relancez-le.` : `La demande de ${esc(first || 'ce client')} attend son devis.`}</span><span class="sp"></span>${tel ? `<a class="qs-pill dark" href="tel:${esc(tel)}" data-qappel="${o.d.id}">📞 Appeler</a>` : ''}${o.envoyeLe && c.email ? `<button class="qs-pill" type="button" data-qrel="${o.d.id}" data-canal="mail">✉ Relancer par e-mail</button>` : ''}${o.envoyeLe && tel ? `<button class="qs-pill" type="button" data-qrel="${o.d.id}" data-canal="sms">💬 Relancer par SMS</button>` : ''}${o.envoyeLe ? '' : `<button class="qs-pill dark" type="button" data-qdevis="${o.d.id}">✎ Préparer le devis</button>`}<button class="qs-pill" type="button" data-qfait="${o.d.id}">✓ Relance faite (noter)</button></div>` : ''}
+    </article>`;
+  }
+  async function majDemande(id, f, msg) {
+    const d = await api(`${A}/demandes/${id}`);
+    await api(`${A}/demandes/${id}`, { method: 'PUT', body: f(d) });
+    if (msg) toast(msg);
+    const [dem, devisL] = await Promise.all([api(A + '/demandes'), api(A + '/devis')]);
+    cache.devisL = devisL; cache.opps = dem.filter(x => x.type !== 'contact').map(x => opportunite(x, devisL)); suiviDessin();
   }
   suivi.after = () => {
-    let drag = null;
-    $$('.kcard').forEach(c => c.addEventListener('dragstart', () => { drag = c.dataset.id; }));
-    $$('.kcol').forEach(col => {
-      col.addEventListener('dragover', e => { e.preventDefault(); col.classList.add('over'); });
-      col.addEventListener('dragleave', () => col.classList.remove('over'));
-      col.addEventListener('drop', async e => {
-        e.preventDefault(); col.classList.remove('over'); if (!drag) return;
-        const d = await api(`${A}/demandes/${drag}`);
-        await api(`${A}/demandes/${drag}`, { method: 'PUT', body: { ...d, statut: col.dataset.col } });
-        toast('Étape : ' + STATUTS[col.dataset.col]); render();
-      });
+    suiviDessin();
+    const box = $('#qs');
+    box.addEventListener('input', e => { if (e.target.matches('[data-qs]')) { SV.s = e.target.value; const p = e.target.selectionStart; suiviDessin(); const i = $('[data-qs]'); i.focus(); i.setSelectionRange(p, p); } });
+    box.addEventListener('change', e => { const i = e.target.closest('[data-qd]'); if (i) { SV[i.dataset.qd] = i.value; SV.p = 'dates'; suiviDessin(); } });
+    box.addEventListener('click', async e => {
+      const t = e.target.closest('button,a'); const o = id => (cache.opps || []).find(x => x.d.id === id);
+      if (t?.dataset.qp != null) { SV.p = t.dataset.qp; return suiviDessin(); }
+      if (t?.dataset.qo != null) { SV.o = t.dataset.qo; return suiviDessin(); }
+      if (t?.dataset.qf) { SV.f = t.dataset.qf; return suiviDessin(); }
+      if (t?.dataset.qappel) { majDemande(t.dataset.qappel, d => ({ ...d, relancesNotees: [...(d.relancesNotees || []), { at: new Date().toISOString(), how: 'appel', par: session.nom }] })); return; }
+      if (t?.dataset.qfait) { e.stopPropagation(); return majDemande(t.dataset.qfait, d => ({ ...d, statut: d.statut === 'devis_envoye' ? 'relance' : d.statut, relancesNotees: [...(d.relancesNotees || []), { at: new Date().toISOString(), how: 'noté', par: session.nom }] }), 'Relance notée.'); }
+      if (t?.dataset.qrel) {
+        const x = o(t.dataset.qrel); if (!x?.main) return toast('Pas encore de devis envoyé à relancer.', true);
+        const canal = t.dataset.canal || (x.d.contact?.email ? 'mail' : 'sms');
+        const nom = canal === 'sms' ? 'SMS de relance' : (x.relances.length ? 'Relance à 7 jours' : 'Relance à 3 jours');
+        if (!confirm(`Envoyer « ${nom} » à ${x.d.contact?.nom || 'ce client'} par ${canal === 'sms' ? 'SMS' : 'e-mail'} ?`)) return;
+        try { await api(`${A}/actions/relancer/${x.main.id}`, { method: 'POST', body: { modele: canal === 'sms' ? 'sms-relance' : x.relances.length ? 'relance-j7' : 'relance-j3' } }); await majDemande(x.d.id, d => d, 'Relance envoyée.'); } catch (err) { toast(err.message, true); }
+        return;
+      }
+      if (t?.dataset.qdevis) { const x = o(t.dataset.qdevis); if (x?.main) { location.hash = '#/devis/' + x.main.id; return; } const r = await api(`${A}/actions/devis-depuis-demande/${t.dataset.qdevis}`, { method: 'POST' }); location.hash = '#/devis/' + r.id; return; }
+      if (t?.dataset.qstep) {
+        const k = t.dataset.qstep, x = o(t.dataset.q), cur = x.d.statut;
+        const next = k === cur ? (k === 'reserve' ? 'accord' : x.envoyeLe ? 'devis_envoye' : 'demande') : k;
+        return majDemande(x.d.id, d => ({ ...d, statut: next }), 'Étape : ' + STATUTS[next]);
+      }
+      if (t?.dataset.qback) { const x = o(t.dataset.qback); return majDemande(x.d.id, d => ({ ...d, statut: x.envoyeLe ? 'devis_envoye' : 'demande' }), 'Remis dans les opportunités en cours.'); }
+      if (t?.dataset.qown) {
+        const x = o(t.dataset.qown), noms = (cache.equipe || []).map(u => u.nom).filter(Boolean);
+        const pop = document.createElement('div'); pop.className = 'qs-om';
+        pop.innerHTML = noms.map(n => `<button type="button" data-n="${esc(n)}"${n === x.d.commercial ? ' class="on"' : ''}>${esc(n)}</button>`).join('') + '<button type="button" data-n="">Non attribué</button>';
+        t.after(pop);
+        pop.addEventListener('click', ev => { const b = ev.target.closest('[data-n]'); if (!b) return; ev.stopPropagation(); majDemande(x.d.id, d => ({ ...d, commercial: b.dataset.n }), b.dataset.n ? 'Attribué à ' + b.dataset.n : 'Commercial retiré.'); });
+        setTimeout(() => document.addEventListener('click', () => pop.remove(), { once: true }));
+        return;
+      }
+      if (t?.dataset.qopen) { location.hash = '#/demandes/' + t.dataset.qopen; return; }
+      if (t) return;
+      const card = e.target.closest('[data-open]'); if (card && !e.target.closest('.qs-om')) location.hash = '#/demandes/' + card.dataset.open;
     });
   };
 
