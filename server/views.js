@@ -168,7 +168,7 @@ function home(c) {
   <div class="hero-shade"></div>
   <div class="hero-c wrap">
     <p class="eyebrow light">${esc(A.surtitre || '')}</p>
-    <h1>${esc(A.titre || '')}</h1>
+    <h1>${String(A.titre === 'Vos plus beaux moments ont du goût' ? 'Vos plus beaux moments\nont du goût' : (A.titre || '')).split('\n').map(l => esc(l.trim())).filter(Boolean).join('<br>')}</h1>
     <p class="lead">${esc(A.sousTitre || '')}</p>
     <form class="pave" action="/boutique" data-pave>
       <label><span>Événement</span><select name="evt">${(R.evenements || []).map(e => `<option>${esc(e)}</option>`).join('')}</select></label>
