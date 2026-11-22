@@ -725,6 +725,24 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('site/reglages', { ...(await store.get('site/reglages')), sansBrochure: true });
   }
 
+  /* « Cocktails & buffets français » + paragraphe de présentation (Jean-Luc, 2026-11-22). Une fois : modifiable ensuite dans le back-office. */
+  const RCb = await store.get('site/reglages');
+  if (RCb && !RCb.cocktailsFrancais) {
+    const cb = await store.get('rubriques/cocktails-buffets');
+    if (cb) await store.set('rubriques/cocktails-buffets', { ...cb,
+      nom: !cb.nom || cb.nom === 'Cocktails & buffets' ? 'Cocktails & buffets français' : cb.nom,
+      introTitre: cb.introTitre || INTRO_COCKTAILS[0], introTexte: cb.introTexte || INTRO_COCKTAILS[1] });
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), cocktailsFrancais: true });
+  }
+
+  /* paragraphe de présentation de Saveurs du monde (Jean-Luc, 2026-11-22). Une fois : modifiable ensuite dans le back-office. */
+  const RSdm = await store.get('site/reglages');
+  if (RSdm && !RSdm.introSaveursDuMonde) {
+    const sdm = await store.get('rubriques/saveurs-du-monde');
+    if (sdm && !sdm.introTexte) await store.set('rubriques/saveurs-du-monde', { ...sdm, introTitre: INTRO_SAVEURS[0], introTexte: INTRO_SAVEURS[1] });
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), introSaveursDuMonde: true });
+  }
+
   /* vraies photos à la place des images qui font « IA » (règle de Jean-Luc, 2026-11-22 : 95 % de vraies photos).
      Chaque remplacement est fait une fois, et seulement si la photo n'a pas déjà été changée dans le back-office. */
   const RP = await store.get('site/reglages');
@@ -741,6 +759,10 @@ async function initSousRubriques(store, { log = console } = {}) {
       } else if (x.bandeau) {
         const R = await store.get('site/reglages'); const b = R.bandeaux?.[x.bandeau] || {};
         if (!b.photo || b.photo === x.avant) await store.set('site/reglages', { ...R, bandeaux: { ...(R.bandeaux || {}), [x.bandeau]: { ...b, photo: x.photo } } });
+      } else if (x.produit) {
+        /* photo principale d'une fiche : remplacée seulement si c'est encore l'ancienne */
+        const pr = await store.get('produits/' + x.produit);
+        if (pr && (!pr.photos?.length || pr.photos[0].src === x.avant)) await store.set('produits/' + x.produit, { ...pr, photos: [{ src: x.photo, alt: x.alt || pr.titre }, ...(pr.photos || []).filter(ph => ph.src !== x.avant)] });
       } else if (x.accueil) {
         const R = await store.get('site/reglages');
         if (!R.accueil?.[x.accueil] || R.accueil[x.accueil] === x.avant) await store.set('site/reglages', { ...R, accueil: { ...(R.accueil || {}), [x.accueil]: x.photo } });
@@ -865,6 +887,10 @@ const PHOTOS_SANS_FILIGRANE = {
   '/site/c/libanais-produits/sanbousek.webp.webp': [30168777, 'Sanbousek, chaussons farcis'],
 };
 const PHOTOS_A_RETIRER = ['/site/c/africain-produits/pastels-au-poisson.webp.webp', '/site/c/africain-produits/avocat-aux-crevettes.webp.webp'];
+const INTRO_SAVEURS = ['Toutes les cuisines du monde, sur un seul site',
+  'Magnolia est le seul site d’Île-de-France sur lequel vous pouvez commander, pour un même événement, un buffet libanais, un buffet chinois et des cocktails français. Libanais, chinois, japonais, antillais, africain, indien, italien, espagnol ou oriental : chaque cuisine est préparée par un traiteur spécialiste de sa tradition.\nCes traiteurs, nous les avons choisis et testés ces dernières années sur des centaines de prestations. Vous gardez un seul interlocuteur et un seul devis, et vos invités goûtent le meilleur de chaque cuisine.'];
+const INTRO_COCKTAILS = ['Cocktails et buffets à la française',
+  'Pièces cocktail salées et sucrées, verrines, mini-burgers, plateaux de fromages et de charcuteries, grands buffets froids ou chauds : nos formules sont préparées dans notre laboratoire de Villebon-sur-Yvette, avec des produits frais et de saison.\nSéminaire, afterwork, inauguration, mariage ou anniversaire : choisissez la formule qui vous ressemble, ajustez les quantités au nombre d’invités, puis ajoutez si besoin le personnel de service, la vaisselle et les boissons. Tout arrive prêt à servir, 7 jours sur 7.'];
 const INTROS_SPE = {
   'paella-party': ['La paëlla, la fête à partager',
     'Une grande poêle dorée au milieu des invités, et la fête commence. Notre paëlla royale marie poulet, chorizo, crevettes, calamars et moules sur un riz parfumé au safran ; la paëlla de la mer garde le meilleur de l’océan.\nCuisinée devant vos invités ou livrée prête à servir, elle régale aussi bien un anniversaire au jardin qu’un repas d’entreprise.'],
@@ -896,6 +922,7 @@ const VRAIES_PHOTOS_SITE = [
   { id: 'buffet-antillais-1', sous: 'buffet-antillais', avant: '/site/c/paysages/antilles.webp', photo: pexels(2120356) },
   { id: 'japonais-1', sous: 'specialites-japonaises', avant: '/site/c/paysages/japon.webp', photo: pexels(33368124) },
   { id: 'accueil-maison-1', accueil: 'photoMaison', avant: '/site/c/antilles-menus/buffet-equipe-colombo-20261103-sans-logo-20261106.webp.webp', photo: pexels(34321369) },
+  { id: 'buffet-africain-1', produit: 'buffet-africain-entree-plat-ou-plat-dessert', avant: '/site/c/africain-produits/accras-de-morue.webp.webp', photo: pexels(28736731), alt: 'Buffet africain servi par nos cuisiniers' },
 ];
 const VIGNETTES_UNIVERS = {
   'traiteur-vegetarien-vegan': pexels(41063196),

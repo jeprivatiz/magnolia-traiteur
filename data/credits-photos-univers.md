@@ -65,3 +65,4 @@ Licence Pexels : usage commercial gratuit, sans obligation de citer l'auteur (ht
 | Bulots cuits (à la place de bulots.webp.webp, filigrane d’un autre site) | https://www.pexels.com/photo/37402010/ | 22/11/2026 (sans filigrane) |
 | Crevettes roses cuites (à la place de crevettes-roses.webp.webp, filigrane d’un autre site) | https://www.pexels.com/photo/16561736/ | 22/11/2026 (sans filigrane) |
 | Sanbousek, chaussons farcis (à la place de sanbousek.webp.webp, filigrane d’un autre site) | https://www.pexels.com/photo/30168777/ | 22/11/2026 (sans filigrane) |
+| Fiche « Buffet africain · Entrée + plat ou plat + dessert » (buffet de riz jollof servi par des cuisiniers, à la place de la photo antillaise) | https://www.pexels.com/photo/28736731/ | 22/11/2026 (demande directe) |
