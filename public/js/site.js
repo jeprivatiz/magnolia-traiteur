@@ -116,6 +116,27 @@
     });
   }
 
+  /* bandeau des univers du pavé (téléphone) : défile tout seul, lentement ; s'arrête dès qu'on le touche.
+     Le glissement du doigt ne doit pas changer la vidéo du haut de page. */
+  const univ = $('.pave-univ');
+  if (univ) {
+    let stop = matchMedia('(prefers-reduced-motion: reduce)').matches, pos = 0, sens = 1, pause = 0;
+    ['touchstart', 'touchmove', 'touchend'].forEach(t => univ.addEventListener(t, e => { e.stopPropagation(); stop = true; }, { passive: true }));
+    univ.addEventListener('mousedown', () => { stop = true; });
+    const pas = () => {
+      if (stop) return;
+      if (univ.offsetParent && univ.scrollWidth > univ.clientWidth) {
+        const max = univ.scrollWidth - univ.clientWidth;
+        if (pause > 0) pause--; else {
+          pos += .35 * sens; if (pos >= max || pos <= 0) { pos = Math.max(0, Math.min(max, pos)); sens = -sens; pause = 90; }
+          univ.scrollLeft = pos;
+        }
+      }
+      requestAnimationFrame(pas);
+    };
+    setTimeout(() => requestAnimationFrame(pas), 1500);
+  }
+
   /* ---------- ma sélection (gardée dans le navigateur) ---------- */
   const sel = {
     all: () => store.get('mg_sel', []),

@@ -131,10 +131,18 @@ function card(p, c, { rubNom = true } = {}) {
 }
 const trunc = (s, n) => { s = String(s || ''); return s.length > n ? s.slice(0, n - 1).replace(/\s+\S*$/, '') + '…' : s; };
 
+/* liste des univers dans l'ordre du back-office (Lieux à la place de sa rubrique) : bandeau défilant du pavé de recherche sur téléphone */
+function universListe(c) {
+  const l = c.rubriques.filter(r => r.statut !== 'masque').map(r => r.slug === 'lieux' ? { nom: 'Lieux de réception', href: '/lieux', photo: c.lieux[0]?.photos?.[0] } : { nom: r.nom, href: rubHref(r), photo: r.photoAccueil || r.photo });
+  return l.some(u => u.href === '/lieux') ? l : [...l, { nom: 'Lieux de réception', href: '/lieux', photo: c.lieux[0]?.photos?.[0] }];
+}
 function univers(c) {
-  return c.rubriques.filter(r => r.statut !== 'masque' && r.slug !== 'lieux').map(r => `<a class="tile" href="${rubHref(r)}">
+  /* la vignette Lieux prend la place de la rubrique « lieux » (ordre du back-office) */
+  const lieux = `<a class="tile" href="/lieux">${img(c.lieux[0]?.photos?.[0], '')}<span class="tile-t"><b>Lieux de réception</b><small>${c.lieux.filter(l => l.statut !== 'masque').length} lieux à privatiser</small></span></a>`;
+  const rubs = c.rubriques.filter(r => r.statut !== 'masque');
+  return rubs.map(r => r.slug === 'lieux' ? lieux : `<a class="tile" href="${rubHref(r)}">
     ${img(r.photoAccueil || r.photo, '')}<span class="tile-t"><b>${esc(r.nom)}</b>${r.accroche ? `<small>${esc(r.accroche)}</small>` : `<small>${c.byRub.get(r.slug)?.length || 0} prestations</small>`}</span></a>`).join('')
-    + `<a class="tile" href="/lieux">${img(c.lieux[0]?.photos?.[0], '')}<span class="tile-t"><b>Lieux de réception</b><small>${c.lieux.filter(l => l.statut !== 'masque').length} lieux à privatiser</small></span></a>`;
+    + (rubs.some(r => r.slug === 'lieux') ? '' : lieux);
 }
 
 /* bandeau défilant des logos clients (page Avis clients, et accueil avec lien vers l'avis) */
@@ -188,6 +196,7 @@ function home(c) {
       <label><span>Événement</span><select name="evt">${(R.evenements || []).map(e => `<option>${esc(e)}</option>`).join('')}</select></label>
       <label><span>Date</span><input type="date" name="date" required></label>
       <label><span>Invités</span><input type="number" name="invites" inputmode="numeric" pattern="[0-9]*" min="1" max="5000" step="1" placeholder="30" required aria-label="Nombre exact d’invités"></label>
+      <nav class="pave-univ" aria-label="Nos univers">${universListe(c).map(u => `<a href="${esc(u.href)}">${img(u.photo, '')}<span>${esc(u.nom)}</span></a>`).join('')}</nav>
       <button class="btn btn-or">Composer ${icon.arrow}</button>
     </form>
     <a class="hero-g" href="${esc(R.avisGoogle?.url || '#')}" rel="noopener"><span class="stars">★★★★★</span> ${esc(R.avisGoogle?.note || '')}/5 sur Google · ${esc(R.avisGoogle?.nombre || '')} avis</a>
