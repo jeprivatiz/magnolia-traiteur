@@ -32,6 +32,8 @@ const SUGGESTIONS_ACCUEIL = [
   { label: 'Candy bar', lien: '' },
   { label: 'Fruits de mer', lien: '/grand-large' },
 ];
+/* La maison, à côté de « Une seule maison, une seule demande » : soirée corporate, vraie photo (Unsplash, Jean-Luc 2026-11-22) */
+const PHOTO_MAISON_INTRO = 'https://images.unsplash.com/photo-1768508948849-b2ee9e074ab1?auto=format&fit=crop&w=1600&q=80';
 const REGLAGES_DEFAUT = {
   nom: 'Magnolia Traiteur',
   sousNom: 'Traiteur · Événementiel',
@@ -59,6 +61,7 @@ const REGLAGES_DEFAUT = {
       { valeur: '7 j/7', label: 'livraison en Île-de-France' },
       { valeur: '1 seule', label: 'demande pour tout votre événement' },
     ],
+    photoMaisonIntro: PHOTO_MAISON_INTRO,
     bandeau: ['Saveurs du monde', 'Antillais', 'Chinois', 'Indien', 'Paëlla', 'Libanais', 'Italien', 'Africain', 'Couscous', 'Japonais'],
     suggestions: SUGGESTIONS_ACCUEIL,
     incontournables: ['grand-cocktail-magnolia', 'paella-royale', 'buffet-antillais-entree-plat-dessert', 'buffet-chinois-entrees-plat-dessert', 'buffet-indien-entree-plat-dessert', 'buffet-libanais-6-mezzes-1-plat', 'bar-a-burrata', 'couscous-royal'],
@@ -682,6 +685,20 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('site/reglages', { ...(await store.get('site/reglages')), chinois13Prix: true });
   }
 
+  /* photo de La maison : soirée corporate à la place du flambage (Jean-Luc, 2026-11-22). Une fois ; modifiable ensuite. */
+  const RSm = await store.get('site/reglages');
+  if (RSm && !RSm.photoMaisonCorporate) {
+    await store.set('site/reglages', { ...RSm, accueil: { ...(RSm.accueil || {}), photoMaisonIntro: PHOTO_MAISON_INTRO }, photoMaisonCorporate: true });
+  }
+
+  /* vignette Boissons : barman qui sert un cocktail à la place de la photo du bar (Jean-Luc, 2026-11-22). Une fois. */
+  const RSv = await store.get('site/reglages');
+  if (RSv && !RSv.vignetteBoissonsBarman) {
+    const b = await store.get('rubriques/boissons');
+    if (b && (!b.photoAccueil || String(b.photoAccueil).includes('18853331') || (RSv.vignettesFaites || []).includes('boissons'))) await store.set('rubriques/boissons', { ...b, photoAccueil: VIGNETTES_UNIVERS.boissons });
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), vignetteBoissonsBarman: true });
+  }
+
   /* vraies photos à la place des images qui font « IA » (règle de Jean-Luc, 2026-11-22 : 95 % de vraies photos).
      Chaque remplacement est fait une fois, et seulement si la photo n'a pas déjà été changée dans le back-office. */
   const RP = await store.get('site/reglages');
@@ -811,7 +828,7 @@ const VIGNETTES_UNIVERS = {
   // vraies photos à la place des images qui font « IA » (Jean-Luc, 2026-11-22)
   'cocktails-buffets': pexels(34279947), // plateaux de petits fours, sans verres
   'saveurs-du-monde': pexels(27294729),
-  'boissons': pexels(18853331),
+  'boissons': pexels(5531479), // barman qui sert un cocktail (Jean-Luc ne voulait pas d'un bar)
 };
 
 module.exports = { RANGEMENTS, rangementDe, SPE_TEXTES, initSousRubriques, classerSous, SOUS_DEFAUT, importerAvisAncienSite, dateIso, seed, REGLAGES_DEFAUT, MODELES_DEFAUT, extraireAvis };
