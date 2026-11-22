@@ -96,6 +96,7 @@ ${schema ? `<script type="application/ld+json">${JSON.stringify(schema).replace(
       <button type="button" class="mic" data-dictee aria-label="Dicter ma recherche">${icon.mic}</button>
       <button type="button" class="x" data-close-search aria-label="Fermer">×</button>
     </form>
+    <div class="sugg-lay" data-sugg><p class="eyebrow">Idées de recherche</p>${suggChips(R)}</div>
     <div class="live" data-live-results></div>
   </div>
 </div>
@@ -186,7 +187,7 @@ function home(c) {
   <h2 class="center">Que recherchez-vous ?</h2><p class="eyebrow center sous-titre">Entrez ou dictez votre envie</p>
   <form class="bigsearch inline" action="/boutique" role="search" data-live-search>${icon.search}<input type="search" name="q" placeholder="Paëlla, DJ, huîtres, personnel…" aria-label="Que recherchez-vous ?" autocomplete="off"><button type="button" class="mic" data-dictee aria-label="Dicter ma recherche">${icon.mic}<span>Dicter</span></button></form>
   <div class="live" data-live-results></div>
-  <div class="chips center">${(A.suggestions || []).map(s => `<a class="chip" href="/boutique?q=${encodeURIComponent(s)}">${esc(s)}</a>`).join('')}</div>
+  ${suggChips(R, 'center')}
 </section>
 <section class="wrap"><div class="sec-h"><div><p class="eyebrow">Tout pour le plaisir de recevoir</p><h2>Nos univers</h2></div><p>Cocktails, buffets du monde, animations, personnel et lieux : toute la brochure, avec ses prix.</p></div>
   <div class="tiles">${univers(c)}</div></section>
@@ -228,6 +229,11 @@ function bandeau(c, cle, { fil, titre } = {}) {
   <div class="row land-cta"><a class="btn btn-or" href="${esc(B.ancre || '/boutique')}">${esc(B.bouton || 'Découvrir')}</a><a class="btn btn-ghost-light" href="tel:${esc(tel)}">${icon.phone}<span>${esc(R.telephone || '')}</span></a></div>
   <p class="confiance"><span><span class="etoiles" aria-hidden="true">★★★★★</span> <b>${esc(G.note || '4,9')}/5</b> sur Google${G.nombre ? `, ${esc(G.nombre)} avis` : ''}</span><span>Livraison 7 j/7 en Île-de-France</span><span>Devis gratuit</span></p></div></section>`;
 }
+
+/* suggestions de recherche (petits rectangles) : texte simple ou { label, lien } ; sans lien = recherche du mot */
+const suggestions = R => (R.accueil?.suggestions || []).map(x => typeof x === 'string' ? { label: x, lien: '' } : x).filter(x => x && x.label)
+  .map(x => ({ label: x.label, href: x.lien || '/boutique?q=' + encodeURIComponent(x.label) }));
+const suggChips = (R, cls = '') => `<div class="chips sugg ${cls}">${suggestions(R).map(x => `<a class="chip" href="${esc(x.href)}">${esc(x.label)}</a>`).join('')}</div>`;
 
 function crumbs(list) {
   return `<nav class="crumbs" aria-label="Fil d’Ariane"><a href="/">Accueil</a>${list.map(([t, h]) => h ? ` / <a href="${h}">${esc(t)}</a>` : ` / <span>${esc(t)}</span>`).join('')}</nav>`;

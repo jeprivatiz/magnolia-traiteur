@@ -342,3 +342,8 @@ details[open] summary { margin-bottom: 12px; }
 .catg > *, .plist > *, .prow { min-width: 0; }
 .prow { flex-wrap: wrap; }
 .prow > span:not(.pill) { flex: 1 1 140px; }
+
+/* idées de recherche */
+.sgrow { display: grid; grid-template-columns: 1fr 1.3fr auto auto auto; gap: 6px; align-items: center; margin-bottom: 6px; }
+.sgrow input, .sgrow select { margin: 0; }
+@media (max-width: 640px) { .sgrow { grid-template-columns: 1fr auto auto auto; } .sgrow select { grid-column: 1 / -1; grid-row: 2; } }
