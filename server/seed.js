@@ -188,4 +188,46 @@ async function importerAvisAncienSite(store, { log = console, fichier = path.joi
   return { fait: true, avis: n, logos: logos.length };
 }
 
-module.exports = { importerAvisAncienSite, dateIso, seed, REGLAGES_DEFAUT, MODELES_DEFAUT, extraireAvis };
+/* Sous-rubriques (« spécialités ») d'un univers : Saveurs du monde → Paëlla, Libanais, Chinois…
+   Créées une seule fois au démarrage, avec un premier classement des prestations ; tout se règle ensuite dans le back-office. */
+const SOUS_DEFAUT = {
+  'saveurs-du-monde': [
+    { slug: 'paella-party', nom: 'Paëlla party', pays: 'Espagne', photo: '/site/c/paella-royale/client-1.webp.webp', mots: ['paella'] },
+    { slug: 'buffet-libanais', nom: 'Buffet libanais · 8 mezzés', pays: 'Liban', photo: '/site/v/libanais-boucle.jpg', video: '/site/v/libanais-boucle.mp4', mots: ['libanais'] },
+    { slug: 'buffet-chinois', nom: 'Buffet chinois', pays: 'Chine', photo: '/site/v/chinois-boucle.jpg', video: '/site/v/chinois-boucle.mp4', mots: ['chinois'] },
+    { slug: 'buffet-africain', nom: 'Buffet africain', pays: 'Afrique', photo: '/site/v/africain-boucle.jpg', video: '/site/v/africain-boucle.mp4', mots: ['africain'], dossiers: ['africain-'] },
+    { slug: 'couscous-party', nom: 'Couscous party', pays: 'Maghreb', photo: '/site/c/couscous-menus/couscous-royal-sans-logo-20261106.webp.webp', mots: ['couscous'] },
+    { slug: 'buffet-italien', nom: 'Buffet italien', pays: 'Italie', photo: '/site/v/italien-boucle.jpg', video: '/site/v/italien-boucle.mp4', mots: ['italien'] },
+    { slug: 'buffet-antillais', nom: 'Buffet antillais', pays: 'Antilles', photo: '/site/v/antillais-boucle.jpg', video: '/site/v/antillais-boucle.mp4', mots: ['antill'], dossiers: ['antilles-'] },
+    { slug: 'buffet-indien', nom: 'Buffet indien', pays: 'Inde', photo: '/site/c/indien-menus/menu-client-1.webp.webp', mots: ['indien'] },
+    { slug: 'specialites-japonaises', nom: 'Spécialités japonaises', pays: 'Japon', photo: '/site/c/sushi45.jpg.webp', mots: ['japonais', 'sushi'] },
+  ],
+};
+/* premier classement : mot dans l'adresse de la prestation, sinon dossier de sa photo, sinon voisinage dans la brochure */
+function classerSous(produits, sous) {
+  const res = new Map();
+  const dossier = p => (p.photos?.[0]?.src || '').split('/')[3] || '';
+  let prec = '';
+  for (const p of [...produits].sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0))) {
+    const s = sous.find(x => x.mots.some(m => p.slug.includes(m))) || sous.find(x => (x.dossiers || []).some(d => dossier(p).startsWith(d)));
+    const choix = s ? s.slug : prec;
+    if (choix) res.set(p.slug, choix);
+    prec = choix;
+  }
+  return res;
+}
+async function initSousRubriques(store, { log = console } = {}) {
+  let n = 0;
+  for (const [rub, defs] of Object.entries(SOUS_DEFAUT)) {
+    const r = await store.get('rubriques/' + rub);
+    if (!r || r.sousInit) continue;
+    const sous = defs.map((d, i) => ({ slug: d.slug, nom: d.nom, pays: d.pays, photo: d.photo, video: d.video || '', ordre: i, statut: 'visible' }));
+    const prods = (await store.list('produits')).map(d => ({ id: d.id, ...d.data })).filter(p => p.rubrique === rub);
+    const cls = classerSous(prods, defs);
+    for (const p of prods) if (!p.sous && cls.get(p.slug)) { await store.set('produits/' + p.id, { ...p, sous: cls.get(p.slug) }); n++; }
+    await store.set('rubriques/' + rub, { ...r, sous, sousInit: true });
+  }
+  if (n) log.log?.(`[demarrage] ${n} prestations classées en spécialités`);
+}
+
+module.exports = { initSousRubriques, classerSous, SOUS_DEFAUT, importerAvisAncienSite, dateIso, seed, REGLAGES_DEFAUT, MODELES_DEFAUT, extraireAvis };

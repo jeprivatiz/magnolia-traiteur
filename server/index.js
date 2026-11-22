@@ -11,7 +11,7 @@ const bcrypt = require('bcryptjs');
 const { createStore } = require('./store');
 const { createBrevo, isEmail } = require('./brevo');
 const { createCatalogue } = require('./catalogue');
-const { seed, importerAvisAncienSite } = require('./seed');
+const { seed, importerAvisAncienSite, initSousRubriques } = require('./seed');
 const views = require('./views');
 const { preparerAlerte } = require('./relances');
 const { totaux, controleMarge, prochainNumero, lignesDepuisDemande, estimerLigne } = require('./devis');
@@ -52,6 +52,7 @@ async function createApp(opts = {}) {
   await store.init();
   await seed(store, { log });
   await importerAvisAncienSite(store, { log });
+  await initSousRubriques(store, { log });
   const cat = createCatalogue(store);
   const brevo = opts.brevo || createBrevo({ env, store, log });
   const prod = env.NODE_ENV === 'production';
@@ -705,7 +706,7 @@ async function createApp(opts = {}) {
     res.json({ envoyes: envoyes.sort((a, b) => b.at.localeCompare(a.at)), site });
   }));
   A.post('/actions/reimporter', sameSite, manager, wrap(async (req, res) => {
-    const r = await seed(store, { force: true, log }); await importerAvisAncienSite(store, { log });
+    const r = await seed(store, { force: true, log }); await importerAvisAncienSite(store, { log }); await initSousRubriques(store, { log });
     cat.invalidate(); audit(req.ctx, 'catalogue réimporté depuis le brouillon', '');
     res.json({ ok: true, ...r });
   }));
@@ -730,7 +731,10 @@ async function createApp(opts = {}) {
   for (const [u, t] of [['/cgv', 'Conditions générales de vente'], ['/mentions-legales', 'Mentions légales'], ['/confidentialite', 'Confidentialité'], ['/allergenes', 'Allergènes'], ['/conseils', 'Nos conseils'], ['/references', 'Nos références']]) app.get(u, page(c => views.legal(c, u, t)));
   /* pages spécialités du brouillon : gardées pour le référencement */
   const SPECIALITES = { '/buffet-antillais': ['Buffet antillais', 'antillais'], '/buffet-chinois': ['Buffet chinois', 'chinois'], '/buffet-indien': ['Buffet indien', 'indien'], '/paella': ['Paëlla', 'paella'], '/traiteur-vegetarien-vegan': ['Traiteur végétarien et vegan', 'vegetarien vegan'], '/art-de-surprendre': ['L’art de surprendre', 'magicien'] };
-  app.get(Object.keys(SPECIALITES), page((c, req) => {
+  app.get(Object.keys(SPECIALITES), page((c, req, res) => {
+    const VERS = { '/buffet-antillais': 'buffet-antillais', '/buffet-chinois': 'buffet-chinois', '/buffet-indien': 'buffet-indien', '/paella': 'paella-party' };
+    const sm = c.rubriques.find(x => x.slug === 'saveurs-du-monde');
+    if (VERS[req.path] && views.sousVisibles(sm).some(y => y.slug === VERS[req.path])) { res.redirect(301, '/saveurs-du-monde/' + VERS[req.path]); return; }
     const [titre, q] = SPECIALITES[req.path];
     const r = c.rubriques.find(x => x.slug === req.path.slice(1));
     const liste = r ? c.byRub.get(r.slug) : q.split(" ").flatMap(w => cat.search(c, w, 200)).filter((p, i, a) => a.indexOf(p) === i);
@@ -739,9 +743,16 @@ async function createApp(opts = {}) {
   app.get('/:rub', page((c, req, res, next) => {
     const r = c.rubriques.find(x => x.slug === req.params.rub && x.statut !== 'masque');
     if (!r) return next();
+    if (views.sousVisibles(r).length) return views.univers(c, r);
     return views.boutique(c, { rub: r.slug, titre: r.nom, chapo: r.chapo || r.accroche, photo: r.photoAccueil || r.photo, path: '/' + r.slug, liste: c.byRub.get(r.slug) });
   }));
   app.get('/:rub/:slug', page((c, req, res, next) => {
+    const ru = c.rubriques.find(x => x.slug === req.params.rub && x.statut !== 'masque');
+    if (ru && views.sousVisibles(ru).length) {
+      if (req.params.slug === 'tout') return views.specialite(c, ru, null);
+      const x = views.sousVisibles(ru).find(y => y.slug === req.params.slug);
+      if (x) return views.specialite(c, ru, x);
+    }
     const p = c.bySlug.get(req.params.slug);
     if (!p || p.statut === 'masque') return next();
     if (p.rubrique !== req.params.rub && !(p.autresRubriques || []).includes(req.params.rub)) { res.redirect(301, `/${p.rubrique}/${p.slug}`); return; }
