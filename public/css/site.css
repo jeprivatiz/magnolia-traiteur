@@ -558,3 +558,6 @@ textarea:focus, input:focus, select:focus { outline: 2px solid color-mix(in srgb
 .spe-chips { margin-bottom: 4px; }
 @media (max-width: 980px) { .tiles.specialites { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 640px) { .tile.spe { aspect-ratio: 4 / 5; } .tile-t .voir { display: none; } }
+
+/* pages de texte (La maison…) : de l'air entre le texte et les blocs suivants */
+.prose ~ section:not(:empty) { margin-top: clamp(56px, 7vw, 96px); }
