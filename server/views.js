@@ -22,6 +22,8 @@ const icon = {
 
 const rubHref = r => '/' + r.slug;
 const prodHref = p => '/' + p.rubrique + '/' + p.slug;
+/* effet « vidéo » (zoom lent) sur les photos des grands bandeaux ; 3 mouvements différents selon la page. Réglage : Photos & textes du site */
+const kb = (c, photo, cle = '') => photo && c.reglages?.effetBandeaux !== false ? ` kb kb${[...String(cle)].reduce((n, ch) => n + ch.charCodeAt(0), 0) % 3 + 1}` : '';
 const img = (src, alt = '', cls = '', attrs = '') => src ? `<img src="${esc(src)}" alt="${esc(alt)}" loading="lazy" decoding="async"${cls ? ` class="${cls}"` : ''} ${attrs}>` : `<div class="noimg ${cls}" aria-hidden="true">${MONO}</div>`;
 
 /* Google Ads : balise chargée seulement si le compte est renseigné, et en mode consentement (rien n'est mesuré avant l'accord du visiteur) */
@@ -131,10 +133,14 @@ function card(p, c, { rubNom = true } = {}) {
 }
 const trunc = (s, n) => { s = String(s || ''); return s.length > n ? s.slice(0, n - 1).replace(/\s+\S*$/, '') + '…' : s; };
 
-/* liste des univers dans l'ordre du back-office (Lieux à la place de sa rubrique) : bandeau défilant du pavé de recherche sur téléphone */
+/* liste des univers dans l'ordre du back-office (Lieux à la place de sa rubrique) : choix « Nos univers » du pavé de recherche sur téléphone */
 function universListe(c) {
-  const l = c.rubriques.filter(r => r.statut !== 'masque').map(r => r.slug === 'lieux' ? { nom: 'Lieux de réception', href: '/lieux', photo: c.lieux[0]?.photos?.[0] } : { nom: r.nom, href: rubHref(r), photo: r.photoAccueil || r.photo });
-  return l.some(u => u.href === '/lieux') ? l : [...l, { nom: 'Lieux de réception', href: '/lieux', photo: c.lieux[0]?.photos?.[0] }];
+  const lieux = { slug: 'lieux', nom: 'Lieux de réception', href: '/lieux', photo: c.lieux[0]?.photos?.[0] };
+  /* un univers à spécialités (Saveurs du monde) est remplacé par ses spécialités : Paëlla party, Buffet libanais… (un seul clic pour le client) */
+  const l = c.rubriques.filter(r => r.statut !== 'masque').flatMap(r => r.slug === 'lieux' ? [lieux]
+    : sousVisibles(r).length ? sousVisibles(r).map(x => ({ slug: r.slug + '/' + x.slug, nom: String(x.nom || '').split(' · ')[0], href: `/${r.slug}/${x.slug}`, photo: x.photo, prods: prodsDeSous(c, r, x.slug) }))
+    : [{ slug: r.slug, nom: r.nom, href: rubHref(r), photo: r.photoAccueil || r.photo, prods: c.byRub.get(r.slug) || [] }]);
+  return l.some(u => u.slug === 'lieux') ? l : [...l, lieux];
 }
 function univers(c) {
   /* la vignette Lieux prend la place de la rubrique « lieux » (ordre du back-office) */
@@ -195,8 +201,9 @@ function home(c) {
     <form class="pave" action="/boutique" data-pave>
       <label><span>Événement</span><select name="evt">${(R.evenements || []).map(e => `<option>${esc(e)}</option>`).join('')}</select></label>
       <label><span>Date</span><input type="date" name="date" required></label>
-      <label><span>Invités</span><select name="invites">${[10, 15, 20, 25, 30, 40, 50, 60, 80, 100, 120, 150, 200, 250, 300, 400, 500].map(n => `<option${n === 30 ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
-      <nav class="pave-univ" aria-label="Nos univers">${universListe(c).map(u => `<a href="${esc(u.href)}">${img(u.photo, '')}<span>${esc(u.nom)}</span></a>`).join('')}</nav>
+      <label><span>Invités</span><input type="number" name="invites" inputmode="numeric" pattern="[0-9]*" min="1" max="5000" step="1" placeholder="30" required aria-label="Nombre exact d’invités"></label>
+      <details class="pave-u" data-pave-u><summary><span>Nos univers</span><b data-pave-u-txt>Choisir (plusieurs possibles)</b></summary>
+        <div class="pave-u-l">${universListe(c).map(u => `<label><input type="checkbox" name="u" value="${esc(u.slug)}">${img(u.photo, '')}<span>${esc(u.nom)}</span></label>`).join('')}</div></details>
       <button class="btn btn-or">Composer ${icon.arrow}</button>
     </form>
     <a class="hero-g" href="${esc(R.avisGoogle?.url || '#')}" rel="noopener"><span class="stars">★★★★★</span> ${esc(R.avisGoogle?.note || '')}/5 sur Google · ${esc(R.avisGoogle?.nombre || '')} avis</a>
@@ -258,7 +265,7 @@ function bandeauHtml(c, B, fil) {
   const media = B.video
     ? `<video src="${esc(B.video)}" poster="${esc(B.photo || '')}" autoplay muted loop playsinline preload="metadata" aria-hidden="true" data-autoplay></video>`
     : img(B.photo, '', '', 'fetchpriority="high"').replace(' loading="lazy"', '');
-  return `<section class="phero land">${media}<div class="phero-c wrap">${crumbs(fil || [[B.titre]])}<h1>${esc(B.titre)}</h1>${B.chapo ? `<p class="lead">${esc(B.chapo)}</p>` : ''}
+  return `<section class="phero land${kb(c, B.video ? '' : B.photo, B.titre)}">${media}<div class="phero-c wrap">${crumbs(fil || [[B.titre]])}<h1>${esc(B.titre)}</h1>${B.chapo ? `<p class="lead">${esc(B.chapo)}</p>` : ''}
   <div class="row land-cta"><a class="btn btn-or" href="${esc(B.ancre || '/boutique')}">${esc(B.bouton || 'Découvrir')}</a><a class="btn btn-ghost-light" href="tel:${esc(tel)}">${icon.phone}<span>${esc(R.telephone || '')}</span></a></div>
   <p class="confiance"><span><span class="etoiles" aria-hidden="true">★★★★★</span> <b>${esc(G.note || '4,9')}/5</b> sur Google${G.nombre ? `, ${esc(G.nombre)} avis` : ''}</span><span>Livraison 7 j/7</span></p></div></section>`;
 }
@@ -266,7 +273,7 @@ function bandeauHtml(c, B, fil) {
 /* suggestions de recherche (petits rectangles) : texte simple ou { label, lien } ; sans lien = recherche du mot */
 const suggestions = R => (R.accueil?.suggestions || []).map(x => typeof x === 'string' ? { label: x, lien: '' } : x).filter(x => x && x.label)
   .map(x => ({ label: x.label, href: x.lien || '/boutique?q=' + encodeURIComponent(x.label) }));
-const AIDE_RECH = 'Dites un mot ou deux pour trouver ce que vous voulez. Exemples : paëlla, couscous, libanais.';
+const AIDE_RECH = 'Écrivez ou dites un mot ou deux pour trouver ce que vous voulez. Exemples : paëlla, couscous, libanais.';
 const aideRech = (R, cls = '') => { const t = R.accueil?.aideRecherche ?? AIDE_RECH; return t ? `<p class="aide-rech ${cls}">${esc(t)}</p>` : ''; };
 const suggChips = (R, cls = '') => `<div class="chips sugg ${cls}">${suggestions(R).map(x => `<a class="chip" href="${esc(x.href)}">${esc(x.label)}</a>`).join('')}</div>`;
 /* ---------- pages d'atterrissage des spécialités (publicité Google Ads) ---------- */
@@ -304,7 +311,7 @@ function pageSpecialites(c, r) {
     return `<a class="tile spe" href="/${esc(r.slug)}/${esc(x.slug)}">${img(x.photo, x.nom)}${x.video ? `<video src="${esc(x.video)}" muted loop playsinline preload="none" aria-hidden="true" data-survol></video>` : ''}<span class="tile-t">${x.pays ? `<i class="pays">${esc(x.pays)}</i>` : ''}<b>${esc(x.nom)}</b><small>${n} prestation${n > 1 ? 's' : ''}</small><span class="voir">Voir nos propositions ${icon.arrow}</span></span></a>`;
   };
   const body = `${bandeauHtml(c, { photo: r.bandeauPhoto || r.photoAccueil || r.photo, video: r.bandeauVideo || '', titre: r.titrePage || r.nom, chapo: r.chapo || r.accroche || 'Choisissez votre spécialité : chaque cuisine a ses buffets, ses plats et ses douceurs.', bouton: 'Choisir ma spécialité', ancre: '#specialites' }, [['La boutique', '/boutique'], [r.nom]])}
-  <section class="wrap" id="specialites"><p class="eyebrow">Un voyage à votre table</p><h2>Choisissez votre spécialité</h2>
+  <section class="wrap apres-bandeau" id="specialites"><p class="eyebrow">Un voyage à votre table</p><h2>Choisissez votre spécialité</h2>
   <div class="tiles specialites">${S.map(tuile).join('')}${autres.length ? `<a class="tile spe autres" href="/${esc(r.slug)}/tout"><span class="tile-t"><b>Autres saveurs</b><small>${autres.length} prestation${autres.length > 1 ? 's' : ''}</small><span class="voir">Voir ${icon.arrow}</span></span></a>` : ''}</div>
   <p class="center tout-voir"><a class="lnk" href="/${esc(r.slug)}/tout">Voir les ${tous.length} prestations ${esc(r.nom.toLowerCase())} ensemble</a></p></section>`;
   return layout(c, { title: r.seoTitre || r.titrePage || r.nom, description: r.seoDescription || r.chapo || '', body, path: '/' + r.slug, image: r.bandeauPhoto || r.photoAccueil || r.photo });
@@ -326,6 +333,7 @@ function pageSections(c, r, x, chips, hero) {
   const body = `${hero}
 <section class="wrap shop spe-sections" id="prestations">
   <div class="shop-bar">${chips}</div>
+  ${x.introTexte ? `<div class="spe-intro">${x.introTitre ? `<h2>${esc(x.introTitre)}</h2>` : ''}${String(x.introTexte).split(/\n+/).map(l => l.trim()).filter(Boolean).map(l => `<p>${esc(l)}</p>`).join("")}</div>` : ''}
   ${blocs.map(([k, t, L]) => `<div class="spe-bloc" id="${k}"><h2>${esc(t)}</h2><p class="count">${L.length} prestation${L.length > 1 ? 's' : ''} · tarifs TTC</p><div class="cards grid">${L.map(p => card(p, c, { rubNom: false })).join('')}</div></div>`).join('')}
 </section>`;
   return layout(c, { title: x.seoTitre || speTitre(x), description: x.seoDescription || speChapo(x), body, path: `/${r.slug}/${x.slug}`, image: x.bandeauPhoto || x.photo });
@@ -446,7 +454,7 @@ function selection(c) {
       <h2>Votre événement</h2>
       <div class="f2"><label>Type d’événement<select name="evenement" required>${(R.evenements || []).map(e => `<option>${esc(e)}</option>`).join('')}</select></label>
       <label>Date<input type="date" name="date" required></label></div>
-      <div class="f2"><label>Nombre d’invités<select name="invites" required><option value="">Choisir…</option>${[10, 15, 20, 25, 30, 35, 40, 50, 60, 70, 80, 100, 120, 150, 200, 250, 300, 400, 500, 750, 1000].map(n => `<option>${n}</option>`).join('')}</select></label>
+      <div class="f2"><label>Nombre d’invités<input type="number" name="invites" inputmode="numeric" pattern="[0-9]*" min="1" max="10000" step="1" placeholder="Ex. : 35" required></label>
       <label>Horaire de livraison<select name="horaire">${['Matin (8 h – 12 h)', 'Midi (11 h – 13 h)', 'Après-midi (13 h – 17 h)', 'Soir (17 h – 20 h)', 'À préciser avec l’équipe'].map(h => `<option>${h}</option>`).join('')}</select></label></div>
       <div class="f2"><label>Code postal du lieu<input name="cp" inputmode="numeric" maxlength="5" pattern="\\d{5}" required data-cp></label>
       <label>Ville<select name="ville" required data-ville><option value="">D’abord le code postal</option></select></label></div>
@@ -466,9 +474,9 @@ function selection(c) {
   return layout(c, { title: 'Ma sélection', body, path: '/ma-selection', bodyClass: 'p-sel' });
 }
 
-function texte(c, { titre, chapo = '', html, path, photo = '', land = '', image = '' }) {
-  const body = `${land ? bandeau(c, land) : photo ? `<section class="phero">${img(photo, '')}<div class="phero-c wrap">${crumbs([[titre]])}<h1>${esc(titre)}</h1>${chapo ? `<p class="lead">${esc(chapo)}</p>` : ''}</div></section>` : `<section class="wrap page-h">${crumbs([[titre]])}<h1>${esc(titre)}</h1>${chapo ? `<p class="lead">${esc(chapo)}</p>` : ''}</section>`}
-  <section class="wrap prose">${html}</section>`;
+function texte(c, { titre, chapo = '', html, path, photo = '', land = '', image = '', large = false }) {
+  const body = `${land ? bandeau(c, land) : photo ? `<section class="phero${kb(c, photo, titre)}">${img(photo, '')}<div class="phero-c wrap">${crumbs([[titre]])}<h1>${esc(titre)}</h1>${chapo ? `<p class="lead">${esc(chapo)}</p>` : ''}</div></section>` : `<section class="wrap page-h">${crumbs([[titre]])}<h1>${esc(titre)}</h1>${chapo ? `<p class="lead">${esc(chapo)}</p>` : ''}</section>`}
+  <section class="wrap prose${large ? ' prose-l' : ''}">${html}</section>`;
   return layout(c, { title: titre, description: chapo, body, path, image: image || photo });
 }
 
@@ -479,10 +487,10 @@ function textToHtml(t) {
 
 function maison(c) {
   const R = c.reglages;
-  const html = `<div class="cols2"><div><h2>Une seule maison, une seule demande</h2><p>Anniversaire, mariage, fête de famille ou réception professionnelle : Magnolia Traiteur vous propose des idées et des prestations pour construire votre événement à Paris et en Île-de-France.</p><p>Cocktails, buffets, spécialités du monde, repas à composer, animations culinaires, boissons et douceurs ; mais aussi le personnel, le matériel, les artistes et les lieux de la brochure.</p><p>Tout est préparé dans notre laboratoire de Villebon-sur-Yvette et livré 7 jours sur 7.</p><p class="row"><a class="btn btn-vert" href="/boutique">Découvrir nos propositions</a></p></div>${img(R.accueil?.photoCommande, 'Personnel de réception Magnolia')}</div>
+  const html = `<div class="cols2"><div><h2>Une seule maison, une seule demande</h2><p>Anniversaire, mariage, fête de famille ou réception professionnelle : Magnolia Traiteur vous propose des idées et des prestations pour construire votre événement à Paris et en Île-de-France.</p><p>Cocktails, buffets, spécialités du monde, repas à composer, animations culinaires, boissons et douceurs ; mais aussi le personnel, le matériel, les artistes et les lieux de la brochure.</p><p>Tout est préparé dans notre laboratoire de Villebon-sur-Yvette et livré 7 jours sur 7.</p><p class="row"><a class="btn btn-vert" href="/boutique">Découvrir nos propositions</a></p></div>${img(R.accueil?.photoMaisonIntro || '/site/c/staff81/maitre-hotel.webp.webp', 'Maître d’hôtel Magnolia')}</div>
   <h2>Vos interlocuteurs</h2><div class="equipe">${(R.equipe || []).map(e => `<figure class="membre">${e.photo ? img(e.photo, e.nom) : `<div class="avatar">${esc((e.nom || '?')[0])}</div>`}<figcaption><b>${esc(e.nom)}</b><span>${esc(e.role)}</span>${e.citation ? `<blockquote>${esc(e.citation)}<cite>${esc(e.auteur || '')}</cite></blockquote>` : ''}</figcaption></figure>`).join('')}</div>`;
   const B = bandeauDe(c, 'maison');
-  return texte(c, { titre: B.titre, chapo: B.chapo, html: html + '</section>' + etapes(c) + avisBloc(c) + '<section>', path: '/maison', land: 'maison', image: B.photo });
+  return texte(c, { titre: B.titre, chapo: B.chapo, html: html + '</section>' + etapes(c) + avisBloc(c) + '<section>', path: '/maison', land: 'maison', image: B.photo, large: true });
 }
 
 function livraison(c) {
@@ -630,4 +638,4 @@ function facturePage(c, f, t) {
   return layout(c, { title: 'Facture ' + f.numero, body, bodyClass: 'p-doc' }).replace('<head>', '<head><meta name="robots" content="noindex">');
 }
 
-module.exports = { RANGEMENTS, pageSpecialites, specialite, sousVisibles, layout, home, boutique, produit, lieux, lieu, selection, texte, maison, livraison, commander, temoignages, contact, legal, erreur, espaceConnexion, espace, devisPage, facturePage, textToHtml, V, BANDEAUX_DEFAUT };
+module.exports = { universListe, RANGEMENTS, pageSpecialites, specialite, sousVisibles, layout, home, boutique, produit, lieux, lieu, selection, texte, maison, livraison, commander, temoignages, contact, legal, erreur, espaceConnexion, espace, devisPage, facturePage, textToHtml, V, BANDEAUX_DEFAUT };

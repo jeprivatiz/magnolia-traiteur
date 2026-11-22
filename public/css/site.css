@@ -157,7 +157,7 @@ section { margin: clamp(56px, 8vw, 110px) auto; }
 .pave input[type=date] { border: 0 !important; box-shadow: none !important; padding: 4px 0 !important; min-height: 0; border-radius: 0; background: none !important; }
 .pave input[type=date]::-webkit-calendar-picker-indicator { opacity: .5; cursor: pointer; }
 .pave .btn { border-radius: 12px; min-height: 56px; }
-.pave-univ { display: none; }
+.pave-u { display: none; }
 .hero-g { display: inline-block; margin-top: 18px; color: rgba(255, 255, 255, .9); font-size: .8rem; letter-spacing: .14em; text-transform: uppercase; text-decoration: none; }
 .stars { color: #e6b84d; letter-spacing: .1em; }
 .hero-dots { display: none; }
@@ -175,14 +175,24 @@ section { margin: clamp(56px, 8vw, 110px) auto; }
   .pave input[type=date] { padding: 0 !important; height: 2.08em; line-height: 2.08em; font-size: .82rem; display: block; }
   .pave input[type=date]::-webkit-calendar-picker-indicator { display: none; }
   .pave .btn { grid-column: 1 / -1; min-height: 44px; }
-  /* bandeau défilant des univers, sous Date et Invités : on le fait glisser au doigt */
-  .pave-univ { grid-column: 1 / -1; display: flex; gap: 6px; overflow-x: auto; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; scrollbar-width: none; margin: 1px -7px; padding: 1px 7px; mask-image: linear-gradient(90deg, transparent 0, #000 8px, #000 calc(100% - 22px), transparent); }
-  .pave-univ { width: 0; min-width: 100%; }
-  .pave-univ::-webkit-scrollbar { display: none; }
-  .pave-univ .noimg { display: none; }
-  .pave-univ a { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; padding: 3px 10px 3px 3px; border: 1px solid #e6e0d5; border-radius: 999px; background: #faf7f1; color: #1b211e; text-decoration: none; font: 500 .74rem/1.1 var(--sans); white-space: nowrap; scroll-snap-align: start; }
-  .pave-univ a:active { background: #efe6d3; }
-  .pave-univ img { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; flex: none; }
+  /* « Nos univers » sous Date et Invités : on touche, la liste s'ouvre, on coche un ou plusieurs univers */
+  .pave-u { display: block; grid-column: 1 / -1; border: 1px solid #e6e0d5; border-radius: 9px; width: 0; min-width: 100%; }
+  .pave-u summary { list-style: none; cursor: pointer; padding: 5px 8px; display: flex; flex-direction: column; position: relative; }
+  .pave-u summary::-webkit-details-marker { display: none; }
+  .pave-u summary span { font-size: .58rem; letter-spacing: .08em; text-transform: uppercase; color: #8a8f8b; font-weight: 500; }
+  .pave-u summary b { font: 500 .9rem/1.9em var(--sans); color: #8a8f8b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 18px; }
+  .pave-u.on summary b { color: #1b211e; }
+  .pave-u summary::after { content: ''; position: absolute; right: 12px; top: 50%; width: 7px; height: 7px; border: solid #8a8f8b; border-width: 0 1.5px 1.5px 0; transform: translateY(-70%) rotate(45deg); transition: transform .2s; }
+  .pave-u[open] summary::after { transform: translateY(-20%) rotate(-135deg); }
+  .pave-u-l { display: flex; flex-wrap: wrap; gap: 6px; padding: 2px 7px 9px; }
+  .pave-u-l label { display: flex; flex-direction: row; align-items: center; gap: 6px; padding: 3px 11px 3px 3px; border: 1px solid #e6e0d5 !important; border-radius: 999px; background: #faf7f1; font: 500 .78rem/1.1 var(--sans); color: #1b211e; cursor: pointer; }
+  .pave-u-l input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .pave-u-l label:has(input:checked) { background: #1f3a2e; border-color: #1f3a2e !important; color: #fff; }
+  .pave-u-l label:has(input:focus-visible) { outline: 2px solid #b48c4f; outline-offset: 1px; }
+  .pave-u-l img { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; flex: none; }
+  .pave-u-l .noimg { display: none; }
+  .pave-u-l label span { font-size: .78rem; letter-spacing: 0; text-transform: none; color: inherit; font-weight: 500; }
+  .pave-u-l label:not(:has(img)) { padding: 3px 11px; min-height: 34px; }
   .hero-c { position: relative; bottom: auto; padding-top: 168px; padding-bottom: 28px; }
   .hero-c h1 { font-size: min(2.3rem, 8.6vw); text-shadow: 0 2px 18px rgba(0,0,0,.45); }
   .hero-shade { background: linear-gradient(180deg, rgba(10,14,12,.55) 0%, rgba(10,14,12,.45) 30%, rgba(10,14,12,.6) 60%, rgba(10,14,12,.85) 100%); }
@@ -589,6 +599,10 @@ textarea:focus, input:focus, select:focus { outline: 2px solid color-mix(in srgb
 .spe-bloc { margin-top: clamp(36px, 5vw, 64px); scroll-margin-top: 90px; }
 .spe-bloc:first-of-type { margin-top: 18px; }
 .spe-bloc h2 { margin-bottom: 4px; }
+.spe-intro { max-width: 760px; margin: 22px auto 8px; text-align: center; }
+.spe-intro h2 { margin-bottom: 10px; }
+.spe-intro p { color: var(--gris); font-size: 1.05rem; line-height: 1.7; margin: 0 0 8px; }
+.spe-intro::after { content: ""; display: block; width: 56px; height: 2px; background: var(--or); margin: 18px auto 0; }
 .spe-bloc .count { margin-top: 0; }
 /* pages de texte (La maison…) : de l'air entre le texte et les blocs suivants */
 .prose ~ section:not(:empty) { margin-top: clamp(56px, 7vw, 96px); }
@@ -622,3 +636,33 @@ textarea:focus, input:focus, select:focus { outline: 2px solid color-mix(in srgb
 .allerg-f .small { margin: 0; }
 .allerg-f .small + .small { margin-top: 6px; }
 .allerg-f .allerg-contact { margin: 8px 0 0; font-weight: 600; font-size: .86rem; color: #1b211e; }
+/* choix avec quantités (ex. parfums du lassi : au moins 5 par parfum) */
+.opts-q { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.optq { display: flex; align-items: center; gap: 10px; background: var(--carte); border: 1px solid var(--ligne); border-radius: 10px; padding: 8px 10px; font-size: .92rem; }
+.optq span { flex: 1; }
+.optq input { width: 4.2em; text-align: center; padding: 6px; border: 1px solid var(--ligne); border-radius: 8px; font: inherit; }
+.optq img { width: 40px; height: 40px; object-fit: cover; border-radius: 6px; }
+/* effet « vidéo » sur les photos des grands bandeaux : zoom et glissement lents, en boucle */
+.phero.kb > img { animation: kb1 24s ease-in-out infinite alternate; will-change: transform; transform-origin: 50% 50%; }
+.phero.kb2 > img { animation-name: kb2; }
+.phero.kb3 > img { animation-name: kb3; }
+@keyframes kb1 { from { transform: scale(1.03) translate3d(0, 0, 0); } to { transform: scale(1.16) translate3d(-2.5%, -1.5%, 0); } }
+@keyframes kb2 { from { transform: scale(1.16) translate3d(2%, 1%, 0); } to { transform: scale(1.03) translate3d(-1%, 0, 0); } }
+@keyframes kb3 { from { transform: scale(1.05) translate3d(1.5%, -1%, 0); } to { transform: scale(1.15) translate3d(-1.5%, 1.5%, 0); } }
+@media (prefers-reduced-motion: reduce) { .phero.kb > img { animation: none; } }
+/* nombre d'invités : un chiffre exact tapé au clavier (pas de flèches), 30 en exemple grisé */
+.pave input[type=number] { -moz-appearance: textfield; border: 0 !important; box-shadow: none !important; background: none !important; border-radius: 0; padding: 4px 0 !important; min-height: 0; text-align: left; }
+@media (max-width: 760px) { .pave input[type=number] { padding: 0 !important; } }
+.pave input[type=number]::-webkit-inner-spin-button, .pave input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.pave input::placeholder { color: #b3b6b2; opacity: 1; }
+
+/* espace entre un grand bandeau photo et la section qui le suit (ex. « Un voyage à votre table ») */
+.apres-bandeau { padding-top: clamp(40px, 5vw, 60px); }
+/* La Maison Magnolia : même largeur de haut en bas (Jean-Luc, 2026-11-22) */
+.prose.prose-l { max-width: var(--max); }
+.prose-l .cols2 { gap: clamp(28px, 5vw, 64px); }
+.prose-l .cols2 p { font-size: 1.05rem; line-height: 1.7; }
+.prose-l .equipe { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; }
+.prose-l .membre { padding: 22px; }
+.prose-l .membre img, .prose-l .avatar { width: 110px; height: 110px; }
+.prose-l .cols2 img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }

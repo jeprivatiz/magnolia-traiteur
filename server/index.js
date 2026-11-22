@@ -199,7 +199,7 @@ async function createApp(opts = {}) {
       const p = c.bySlug.get(s(l.slug, 120));
       const est = estimerLigne(l, p, T);
       const choix = {};
-      for (const g of p?.groupes || []) { const ids = (l.choix?.[g.id] || []).filter(id => (g.options || []).some(o => o.id === id)).slice(0, 30); if (ids.length) choix[g.id] = ids; }
+      for (const g of p?.groupes || []) { const ids = (l.choix?.[g.id] || []).filter(id => (g.options || []).some(o => o.id === String(id).replace(/:\d+$/, ''))).slice(0, 30); if (ids.length) choix[g.id] = ids; }
       return {
         slug: p ? p.slug : s(l.slug, 120), titre: p ? p.titre : s(l.titre, 160), rubrique: p?.rubrique || s(l.rubrique, 60), unite: p?.unite || s(l.unite, 40),
         qte: est.qte, prixCents: p?.prixCents ?? null, supCents: est.supCents, totalCents: est.totalCents, surDevis: est.surDevis,
@@ -719,7 +719,17 @@ async function createApp(opts = {}) {
   /* ---------- pages du site ---------- */
   const page = fn => wrap(async (req, res, next) => { const c = await cat.get(); const html = await fn(c, req, res, next); if (html) res.send(html); });
   app.get('/', page(c => views.home(c)));
-  app.get('/boutique', page((c, req) => views.boutique(c, { q: s(req.query.q, 80), titre: req.query.q ? 'Recherche' : 'La boutique' })));
+  app.get('/boutique', page((c, req) => {
+    /* plusieurs univers choisis dans le pavé de recherche de l'accueil : /boutique?u=carte-magnolia,douceurs */
+    const choix = String(req.query.u || '').split(',').map(x => x.trim()).filter(Boolean);
+    const us = views.universListe(c).filter(u => choix.includes(u.slug));
+    if (us.length) {
+      const liste = us.flatMap(u => u.prods || []).filter((p, i, a) => a.indexOf(p) === i);
+      const chips = `<div class="chips scroll-x">${us.map(u => `<a class="chip on" href="${u.href}">${esc(u.nom)}${u.prods ? ` <small>${u.prods.length}</small>` : ''}</a>`).join('')}</div>`;
+      return views.boutique(c, { titre: 'Vos univers', chapo: us.map(u => u.nom).join(', '), liste, chips, path: '/boutique?u=' + us.map(u => u.slug).join(','), photo: us[0].photo });
+    }
+    return views.boutique(c, { q: s(req.query.q, 80), titre: req.query.q ? 'Recherche' : 'La boutique' });
+  }));
   app.get('/lieux', page(c => views.lieux(c)));
   app.get('/lieux/:slug', page((c, req, res, next) => { const l = c.lieux.find(x => x.slug === req.params.slug && x.statut !== 'masque'); return l ? views.lieu(c, l) : next(); }));
   app.get('/ma-selection', page(c => views.selection(c)));

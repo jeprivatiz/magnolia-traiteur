@@ -25,5 +25,8 @@ test('pages publiques principales en 200', async () => {
       const r = await fetch(base + u, { redirect: 'manual' });
       assert.ok(r.status === 200 || r.status === 301, `${u} → ${r.status}`);
     }
+    /* le sur-titre « Un voyage à votre table » ne doit pas être collé au bandeau photo */
+    const sm = await (await fetch(base + '/saveurs-du-monde')).text();
+    if (sm.includes('id="specialites"')) assert.match(sm, /class="[^"]*apres-bandeau[^"]*" id="specialites"/, 'espace sous le bandeau de Saveurs du monde');
   } finally { srv.close(); }
 });
