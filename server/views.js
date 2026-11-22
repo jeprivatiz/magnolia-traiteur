@@ -251,7 +251,7 @@ function bandeauHtml(c, B, fil) {
 }
 
 /* ---------- pages d'atterrissage des spécialités (publicité Google Ads) ---------- */
-const { SPE_TEXTES } = require('./seed');
+const { SPE_TEXTES, RANGEMENTS, rangementDe } = require('./seed');
 const speTitre = x => x.titrePage || SPE_TEXTES[x.slug]?.[0] || `${x.nom} à Paris et en Île-de-France`;
 const speChapo = x => x.chapo || SPE_TEXTES[x.slug]?.[1] || `${x.pays ? x.pays + ' : ' : ''}toutes nos propositions, préparées par Magnolia Traiteur et livrées 7 jours sur 7 en Île-de-France. Prix TTC, devis gratuit.`;
 /* mots du bandeau défilant de l'accueil → page de la spécialité (ou de l'univers), sinon recherche */
@@ -297,8 +297,6 @@ function specialite(c, r, x) {
 }
 
 /* ---------- page de spécialité présentée en sections (modèle : Buffet chinois) ---------- */
-const RANGEMENTS = [['buffets', 'Nos buffets'], ['entrees', 'Nos entrées à l’unité'], ['plats', 'Nos plats à l’unité'], ['desserts', 'Nos desserts à l’unité'], ['divers', 'Produits divers à l’unité']];
-const rangementDe = p => RANGEMENTS.some(([k]) => k === p.rangement) ? p.rangement : ((p.groupes || []).length || p.unite === 'personne' ? 'buffets' : 'divers');
 function pageSections(c, r, x, chips, hero) {
   const liste = prodsDeSous(c, r, x.slug).slice().sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
   const blocs = RANGEMENTS.map(([k, t]) => [k, (x.titresSections || {})[k] || t, liste.filter(p => rangementDe(p) === k)]).filter(b => b[2].length);
