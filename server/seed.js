@@ -699,6 +699,30 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('site/reglages', { ...(await store.get('site/reglages')), vignetteBoissonsBarman: true });
   }
 
+  /* vraies photos à la place des images qui font « IA » (règle de Jean-Luc, 2026-11-22 : 95 % de vraies photos).
+     Chaque remplacement est fait une fois, et seulement si la photo n'a pas déjà été changée dans le back-office. */
+  const RP = await store.get('site/reglages');
+  const fait = new Set(RP?.vraiesPhotosSite || []);
+  const aFaire = VRAIES_PHOTOS_SITE.filter(x => !fait.has(x.id));
+  if (RP && aFaire.length) {
+    for (const x of aFaire) {
+      if (x.sous) {
+        const r = await store.get('rubriques/saveurs-du-monde');
+        if (r) await store.set('rubriques/saveurs-du-monde', { ...r, sous: (r.sous || []).map(s => s.slug === x.sous && (!s.bandeauPhoto || s.bandeauPhoto === x.avant) ? { ...s, bandeauPhoto: x.photo, bandeauVideo: '' } : s) });
+      } else if (x.rubrique) {
+        const r = await store.get('rubriques/' + x.rubrique);
+        if (r && (!r.photoAccueil || r.photoAccueil === x.avant)) await store.set('rubriques/' + x.rubrique, { ...r, photoAccueil: x.photo });
+      } else if (x.bandeau) {
+        const R = await store.get('site/reglages'); const b = R.bandeaux?.[x.bandeau] || {};
+        if (!b.photo || b.photo === x.avant) await store.set('site/reglages', { ...R, bandeaux: { ...(R.bandeaux || {}), [x.bandeau]: { ...b, photo: x.photo } } });
+      } else if (x.accueil) {
+        const R = await store.get('site/reglages');
+        if (!R.accueil?.[x.accueil] || R.accueil[x.accueil] === x.avant) await store.set('site/reglages', { ...R, accueil: { ...(R.accueil || {}), [x.accueil]: x.photo } });
+      }
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), vraiesPhotosSite: [...fait, ...aFaire.map(x => x.id)] });
+  }
+
   /* photos des vignettes « Nos univers » choisies par Jean-Luc (2026-11-22, sources dans data/credits-photos.md).
      Appliquées une fois par univers : modifiables ensuite dans le back-office. */
   const RV = await store.get('site/reglages');
@@ -789,6 +813,15 @@ const INTROS_SPE = {
 /* lassi sans texte incrusté (Pexels 18142603, licence Pexels) */
 const PHOTO_LASSI = 'https://images.pexels.com/photos/18142603/pexels-photo-18142603.jpeg?auto=compress&cs=tinysrgb&w=1200';
 const pexels = id => `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&w=1600`;
+/* lot 1 des vraies photos (Pexels, licence libre ; sources dans data/credits-photos-univers.md) */
+const VRAIES_PHOTOS_SITE = [
+  { id: 'bandeau-boutique-1', bandeau: 'boutique', avant: '/site/c/accueil/website-home-cocktail-20261110.webp', photo: pexels(8252824) },
+  { id: 'animations-salees-1', rubrique: 'animations-salees', avant: '/site/c/barbecue40-client-20261031.jpg.webp', photo: pexels(34027185) },
+  { id: 'couscous-party-1', sous: 'couscous-party', avant: '', photo: pexels(36984667) },
+  { id: 'buffet-antillais-1', sous: 'buffet-antillais', avant: '/site/c/paysages/antilles.webp', photo: pexels(2120356) },
+  { id: 'japonais-1', sous: 'specialites-japonaises', avant: '/site/c/paysages/japon.webp', photo: pexels(33368124) },
+  { id: 'accueil-maison-1', accueil: 'photoMaison', avant: '/site/c/antilles-menus/buffet-equipe-colombo-20261103-sans-logo-20261106.webp.webp', photo: pexels(34321369) },
+];
 const VIGNETTES_UNIVERS = {
   'traiteur-vegetarien-vegan': pexels(41063196),
   'grand-large': pexels(39143859),
