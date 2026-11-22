@@ -130,8 +130,11 @@
         style: { version: 8, projection: { type: 'globe' }, sources: {}, layers: [{ id: 'mer', type: 'background', paint: { 'background-color': '#10261c' } }],
           sky: { 'atmosphere-blend': ['interpolate', ['linear'], ['zoom'], 0, .9, 4, .3], 'sky-color': '#ffffff', 'horizon-color': '#e2c495', 'fog-color': '#ffffff', 'sky-horizon-blend': .6, 'horizon-fog-blend': .8, 'fog-ground-blend': 1 } },
         cooperativeGestures: false, dragRotate: false, pitchWithRotate: false, touchPitch: false,
+        /* taille du globe fixe (Jean-Luc) : on le fait tourner, on ne zoome pas */
+        scrollZoom: false, boxZoom: false, doubleClickZoom: false, touchZoomRotate: false, keyboard: false,
       });
     } catch (e) { return; }
+    root.smMap = map;
     map.on('error', () => {});
     map.on('load', async () => {
       try { [geo] = await Promise.all([fetch('/data/monde.json').then(r => r.json())]); } catch (e) { return; }
@@ -176,7 +179,7 @@
       /* rotation lente au repos */
       const tourner = () => { if (!tour) return; const c = map.getCenter(); map.easeTo({ center: [c.lng + 25, c.lat], duration: 7000, easing: t => t }); };
       map.on('moveend', () => { if (tour) tourId = setTimeout(tourner, 0); });
-      ['mousedown', 'touchstart', 'wheel'].forEach(ev => box.addEventListener(ev, arreterTour, { passive: true }));
+      ['mousedown', 'touchstart'].forEach(ev => box.addEventListener(ev, arreterTour, { passive: true }));
 
       /* boutons */
       const ctrl = $('[data-sm-ctrl]'); ctrl.hidden = false;
