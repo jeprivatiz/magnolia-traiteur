@@ -32,10 +32,24 @@ jobs:
           node-version: 20
       - name: Récupération
         run: node scripts/recuperer-avis.js "${{ github.event.inputs.url || 'https://www.magnoliatraiteur.fr' }}"
-      - name: Réduire les photos (1200 px, logos inclus)
+      - name: Réduire les photos (1200 px)
         run: |
-          find public/site/avis -type f \( -iname '*.jpg' -o -iname '*.jpeg' \) -size +400k -exec mogrify -auto-orient -resize '1200x1200>' -quality 80 -strip {} +
-          find public/site/avis -type f -iname '*.png' -size +800k -exec mogrify -resize '1200x1200>' {} +
+          pip install --quiet pillow
+          python3 - <<'PY'
+          import os
+          from PIL import Image, ImageOps
+          d = 'public/site/avis'
+          for f in os.listdir(d):
+              p = os.path.join(d, f)
+              if os.path.getsize(p) < 400_000: continue
+              try:
+                  im = Image.open(p); fmt = im.format
+                  if fmt not in ('JPEG', 'MPO', 'PNG') or (fmt != 'MPO' and max(im.size) <= 1200): continue
+                  im = ImageOps.exif_transpose(im); im.thumbnail((1200, 1200))
+                  if fmt == 'PNG': im.save(p, 'PNG', optimize=True)
+                  else: im.convert('RGB').save(p, 'JPEG', quality=80, optimize=True, progressive=True)
+              except Exception as e: print(f, e)
+          PY
       - name: Enregistrer dans le dépôt
         run: |
           git config user.name "magnolia-bot"
