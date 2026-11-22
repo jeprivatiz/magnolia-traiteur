@@ -634,6 +634,24 @@ async function initSousRubriques(store, { log = console } = {}) {
     }
     await store.set('site/reglages', { ...(await store.get('site/reglages')), sushisSiteActuel: true });
   }
+  /* photos de sushis : on remplace celles encore prises sur l'ancien site par les copies sans logo (une fois) */
+  const RSp = await store.get('site/reglages');
+  if (RSp && !RSp.sushisSansLogo) {
+    for (const x of PLATEAUX_SUSHIS) {
+      const p = await store.get('produits/' + x.slug);
+      if (p && (p.photos || []).some(ph => String(ph.src || '').startsWith(SUSHI_ANCIENNE_ADRESSE))) {
+        await store.set('produits/' + x.slug, { ...p, photos: p.photos.map(ph => String(ph.src || '').startsWith(SUSHI_ANCIENNE_ADRESSE) ? { ...ph, src: x.photo } : ph) });
+      }
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), sushisSansLogo: true });
+  }
+  /* prix corrigé par Jean-Luc (2026-11-22) : le brouillon avait repris le prix de « Entrées + plat » (21,90 €). Une fois. */
+  const RSc = await store.get('site/reglages');
+  if (RSc && !RSc.chinois13Prix) {
+    const p = await store.get('produits/buffet-chinois-assortiment-13-pieces-salees');
+    if (p && p.prixCents === 2190) await store.set('produits/buffet-chinois-assortiment-13-pieces-salees', { ...p, prixCents: 1490 });
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), chinois13Prix: true });
+  }
 
   /* photos des vignettes « Nos univers » choisies par Jean-Luc (2026-11-22, sources dans data/credits-photos.md).
      Appliquées une fois par univers : modifiables ensuite dans le back-office. */
@@ -680,25 +698,26 @@ const PHOTOS_FICHES = [
   [/^air hockey/i, 'https://images.pexels.com/photos/5780929/pexels-photo-5780929.jpeg?auto=compress&cs=tinysrgb&w=1200', 'Table d’air hockey lumineuse'],
 ];
 /* plateaux de sushis du site actuel (prix TTC, TVA 10 %) */
-const SUSHI_IMG = f => 'https://www.magnoliatraiteur.fr/wp-content/uploads/2024/01/' + f;
+/* photos du site actuel, copiées dans le site et sans le logo « Magnolia For Event » (Jean-Luc, 2026-11-22) */
+const SUSHI_ANCIENNE_ADRESSE = 'https://www.magnoliatraiteur.fr/wp-content/uploads/2024/01/';
 const PLATEAUX_SUSHIS = [
   { slug: 'plateau-japonais-75-pieces', titre: 'Grand plateau de sushis en assortiment', pieces: 75, prixCents: 9790, pour: 'pour 15 à 20 personnes en cocktail (3 à 4 pièces par personne)',
-    photo: SUSHI_IMG('capture-decran-2024-01-05-a-073616.png'),
+    photo: '/site/sushis/grand-plateau-75.webp',
     compo: ['9 sushis saumon', '9 sushis crevette', '9 sushis saumon laqué sésame', '4 makis saumon', '8 makis concombre', '8 makis avocat', '8 makis thon cuit mayonnaise', '8 cristal saumon', '8 californias saumon', '4 californias thon cuit mayonnaise oignons frits'] },
   { slug: 'plateau-japonais-38-pieces', titre: 'Plateau de sushis gourmet en assortiment', pieces: 38, prixCents: 6590, pour: 'pour 8 à 9 personnes en cocktail (3 à 4 pièces par personne)',
-    photo: SUSHI_IMG('5-ambiance-menu-love-vdh-bis1-1.jpg'),
+    photo: '/site/sushis/plateau-gourmet-38.webp',
     compo: ['4 sushis saumon', '4 sushis thon', '6 californias saumon', '6 makis thon mayonnaise', '6 cristal végétarien', '6 crunch thon mayonnaise', '6 rolls saumon'] },
   { slug: 'plateau-californias-et-makis-40-pieces', titre: 'Plateau californias & makis en assortiment', pieces: 40, prixCents: 4720, pour: 'pour 8 à 9 personnes en cocktail (4 à 5 pièces par personne)',
-    photo: SUSHI_IMG('11-ambiance-plateau-a-partager-vdh-bis1-1.jpg'),
+    photo: '/site/sushis/plateau-californias-makis-40.webp',
     compo: ['8 rolls saumon', '4 californias saumon', '4 cristal saumon', '4 cristal thon cuit mayonnaise', '4 californias thon cuit mayonnaise oignons frits', '4 makis saumon', '4 makis thon cuit mayonnaise', '4 makis avocat', '4 makis concombre'] },
   { slug: 'plateau-japonais-36-pieces', titre: 'Plateau premium', pieces: 36, prixCents: 5270, pour: 'pour 8 à 9 personnes en cocktail (4 à 5 pièces par personne)',
-    photo: SUSHI_IMG('10-ambiance-plateau-premium-a-partager-36p-vdh-bis1-1-1.jpg'),
+    photo: '/site/sushis/plateau-premium-36.webp',
     compo: ['4 sushis thon', '4 sushis saumon', '4 rolls saumon', '8 californias saumon', '8 californias végétariens oignons frits', '4 makis concombre', '4 makis avocat'] },
   { slug: 'plateau-sushi-tout-cuit-20-pieces', titre: 'Plateau sushi tout cuit', pieces: 20, prixCents: 2850, pour: 'pour 4 à 5 personnes en cocktail (4 à 5 pièces par personne)',
-    photo: SUSHI_IMG('capture-decran-2024-01-05-a-072013.png'),
+    photo: '/site/sushis/plateau-tout-cuit-20.webp',
     compo: ['4 californias thon cuit mayonnaise', '4 californias végétariens', '4 cristal surimi', '4 cristal crevette ebi', '4 californias thon cuit mayonnaise oignons frits'] },
   { slug: 'plateau-de-luxe-42-pieces', titre: 'Plateau de luxe', pieces: 42, prixCents: 6590, pour: 'pour 8 à 9 personnes en cocktail (5 à 6 pièces par personne)',
-    photo: SUSHI_IMG('capture-decran-2024-01-05-a-073015.png'),
+    photo: '/site/sushis/plateau-de-luxe-42.webp',
     compo: ['7 sushis saumon laqué sésame', '7 sushis thon laqué sésame', '4 levana tartare de saumon, topping avocat', '4 dragons saumon oignons frits', '4 cristal saumon', '8 californias thon cuit mayonnaise oignons frits', '4 makis concombre', '4 makis saumon'] },
 ];
 const INTROS_SPE = {
