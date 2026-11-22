@@ -699,6 +699,32 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('site/reglages', { ...(await store.get('site/reglages')), vignetteBoissonsBarman: true });
   }
 
+  /* plus aucune page de brochure ni photo avec filigrane dans les fiches (Jean-Luc, 2026-11-22).
+     Une fois : retire les pages de brochure (/pages-digital/) ; une fiche qui n'avait que ça reçoit une vraie photo du sujet ;
+     les photos avec la marque d'un autre site sont remplacées. Les photos ajoutées ensuite dans le back-office ne sont pas touchées. */
+  const RSbr = await store.get('site/reglages');
+  if (RSbr && !RSbr.sansBrochure) {
+    for (const { id, data: pr } of await store.list('produits')) {
+      const avant = pr.photos || [];
+      let ph = avant.map(x => PHOTOS_SANS_FILIGRANE[x.src] ? { src: pexels(PHOTOS_SANS_FILIGRANE[x.src][0]), alt: PHOTOS_SANS_FILIGRANE[x.src][1] } : x)
+        .filter(x => !/\/pages-digital\/|\/c\/pages\//.test(String(x.src || '')));
+      if (ph.length > 1) ph = ph.filter(x => !PHOTOS_A_RETIRER.includes(x.src));
+      const vraie = PHOTOS_SANS_BROCHURE[pr.slug || id];
+      if (vraie && !ph.some(x => x.src === pexels(vraie[0]))) ph = [{ src: pexels(vraie[0]), alt: vraie[1] }, ...ph];
+      if (!ph.length) continue; /* jamais de fiche vidée : on garde l'ancienne photo plutôt que rien */
+      if (JSON.stringify(ph) !== JSON.stringify(avant)) await store.set('produits/' + id, { ...pr, photos: ph });
+    }
+    const brochure = x => /\/pages-digital\/|\/c\/pages\//.test(String((x && x.src) || x || ''));
+    for (const { id, data: l } of await store.list('lieux')) {
+      const ph = (l.photos || []).filter(x => !brochure(x));
+      if (ph.length && ph.length !== (l.photos || []).length) await store.set('lieux/' + id, { ...l, photos: ph });
+    }
+    for (const { id, data: r } of await store.list('rubriques')) {
+      if (brochure(r.photo) && r.photoAccueil && !brochure(r.photoAccueil)) await store.set('rubriques/' + id, { ...r, photo: r.photoAccueil });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), sansBrochure: true });
+  }
+
   /* « Cocktails & buffets français » + paragraphe de présentation (Jean-Luc, 2026-11-22). Une fois : modifiable ensuite dans le back-office. */
   const RCb = await store.get('site/reglages');
   if (RCb && !RCb.cocktailsFrancais) {
@@ -836,6 +862,55 @@ const INTROS_RUBRIQUES = {
   'petits-dejeuners': ['Bien commencer la journée', 'Viennoiseries, café, thé, jus de fruits frais : nos pauses café et petits-déjeuners accueillent vos équipes, vos clients ou vos invités dès le matin.\nIdéals pour un séminaire, une réunion, une formation ou un lendemain de mariage, ils sont livrés tôt et prêts à servir.'],
   'lieux': ['Le lieu idéal pour votre événement', 'Lofts, péniches sur la Seine, manoir, demeures avec jardin, salles de réception : nous avons sélectionné des lieux où nous avons l’habitude de travailler, de Paris à Versailles, en passant par Boulogne et Sèvres.\nRéservez le lieu et le traiteur ensemble, avec un seul interlocuteur : nous connaissons les cuisines, les accès et les contraintes de chaque endroit, pour que tout se passe bien le jour J.'],
 };
+const PHOTOS_SANS_BROCHURE = {
+  'pizzaiolo-a-domicile': [38539266, 'Pizzaiolo devant son four à bois'],
+  'champagne-andre-diligent': [2259243, 'Bouteille de champagne dans un seau à glace'],
+  'la-cave-de-magnolia': [11851422, 'Bouteilles de vin et verres'],
+  'pack-softs-en-individuel': [7414290, 'Bouteilles de jus et de sodas individuelles'],
+  'plateau-de-20-mini-cheeseburgers': [18354206, 'Plateau de mini-burgers'],
+  'jeux-de-lumiere': [33539320, 'Jeux de lumière colorés sur une piste de danse'],
+  'ambiance-lumiere-et-sonorisation': [39204572, 'Scène décorée avec enceintes et projecteurs'],
+  'formule-live-band': [3984822, 'Groupe de musiciens en live'],
+  'ecran-led': [30169356, 'Murs d’écrans LED sur scène'],
+  'ecran-videoprojecteur': [18999470, 'Présentation projetée sur grand écran devant le public'],
+  'animation-drag-queen': [4722585, 'Drag queen en spectacle au micro'],
+  'stand-de-churros': [36361401, 'Churros et sauce chocolat'],
+  'pause-cafe': [30183083, 'Pause café : boissons chaudes et jus en libre-service'],
+  'petit-dejeuner-classique': [27846221, 'Petit-déjeuner : croissants et café'],
+  'petit-dejeuner-luxe': [34307858, 'Buffet de petit-déjeuner avec viennoiseries'],
+  'saxophoniste-2-heures': [9002848, 'Saxophoniste en concert'],
+  'pianiste': [18238124, 'Pianiste au piano à queue'],
+  'chanteurs-et-chanteuses': [8041085, 'Chanteuse au micro sur scène'],
+  'duo-guitare-voix-2-45-min': [10970319, 'Duo guitare et voix'],
+  'jazz-soliste': [8044219, 'Guitariste de jazz'],
+  'jazz-trio': [8040897, 'Trio de jazz en concert'],
+  'jazz-quatuor': [3984817, 'Quatuor de jazz'],
+  'duo-flaming-soul': [9002786, 'Duo de chanteuses soul'],
+  'magicien-1-h-30': [35176748, 'Magicien et ses cartes'],
+  'faux-serveur': [13375022, 'Serveur avec un plateau de coupes de champagne'],
+  'mentaliste-2-30-min': [6254935, 'Mentaliste et jeu de cartes'],
+  'caricaturiste-1-h-30': [13541687, 'Caricaturiste en train de dessiner'],
+  'ventriloque-2-30-min': [30218072, 'Artiste avec sa marionnette'],
+  'contorsionniste-2-4-min': [11496079, 'Contorsionniste'],
+  'diseuse-de-bonne-aventure-1-heure': [7181711, 'Tirage de cartes de tarot'],
+  'animations-pour-enfants': [8385870, 'Animation d’anniversaire pour enfants'],
+  'casino': [7594343, 'Table de roulette de casino'],
+  'blind-test': [8763175, 'Amis en plein jeu'],
+  'karaoke': [30489716, 'Karaoké entre amis'],
+  'escape-game': [5427434, 'Ambiance d’escape game'],
+  'mise-en-lumiere-du-lieu': [12689021, 'Salle de réception mise en lumière'],
+};
+const PHOTOS_SANS_FILIGRANE = {
+  '/site/c/tireuse56.jpg.webp': [5858056, 'Bière servie à la tireuse'],
+  '/site/c/page40-chocolat.jpg.webp': [38431059, 'Fontaine à chocolat'],
+  '/site/c/popcorn55-nouveau-20261030.jpg.webp': [36784776, 'Stand de pop-corn'],
+  '/site/c/indien-menus/entrees-samossas-portrait-20261102.webp.webp': [29037272, 'Samossas dorés'],
+  '/site/c/indien-menus/chicken-tikka-massala.webp.webp': [6522616, 'Poulet tikka'],
+  '/site/c/seafood30/bulots.webp.webp': [37402010, 'Bulots cuits'],
+  '/site/c/seafood30/crevettes-roses.webp.webp': [16561736, 'Crevettes roses cuites'],
+  '/site/c/libanais-produits/sanbousek.webp.webp': [30168777, 'Sanbousek, chaussons farcis'],
+};
+const PHOTOS_A_RETIRER = ['/site/c/africain-produits/pastels-au-poisson.webp.webp', '/site/c/africain-produits/avocat-aux-crevettes.webp.webp'];
 const INTRO_SAVEURS = ['Toutes les cuisines du monde, sur un seul site',
   'Magnolia est le seul site d’Île-de-France sur lequel vous pouvez commander, pour un même événement, un buffet libanais, un buffet chinois et des cocktails français. Libanais, chinois, japonais, antillais, africain, indien, italien, espagnol ou oriental : chaque cuisine est préparée par un traiteur spécialiste de sa tradition.\nCes traiteurs, nous les avons choisis et testés ces dernières années sur des centaines de prestations. Vous gardez un seul interlocuteur et un seul devis, et vos invités goûtent le meilleur de chaque cuisine.'];
 const INTRO_COCKTAILS = ['Cocktails et buffets à la française',
@@ -872,6 +947,8 @@ const VRAIES_PHOTOS_SITE = [
   { id: 'japonais-1', sous: 'specialites-japonaises', avant: '/site/c/paysages/japon.webp', photo: pexels(33368124) },
   { id: 'accueil-maison-1', accueil: 'photoMaison', avant: '/site/c/antilles-menus/buffet-equipe-colombo-20261103-sans-logo-20261106.webp.webp', photo: pexels(34321369) },
   { id: 'buffet-africain-1', produit: 'buffet-africain-entree-plat-ou-plat-dessert', avant: '/site/c/africain-produits/accras-de-morue.webp.webp', photo: pexels(28736731), alt: 'Buffet africain servi par nos cuisiniers' },
+  { id: 'escape-game-2', produit: 'escape-game', avant: pexels(5427434), photo: pexels(29483111), alt: 'Énigme à résoudre contre la montre' },
+  { id: 'blind-test-2', produit: 'blind-test', avant: pexels(8763175), photo: pexels(15880877), alt: 'Équipe qui célèbre une bonne réponse' },
 ];
 const VIGNETTES_UNIVERS = {
   'traiteur-vegetarien-vegan': pexels(41063196),
