@@ -68,3 +68,4 @@ Licence Pexels : usage commercial gratuit, sans obligation de citer l'auteur (ht
 | Fiche « Buffet africain · Entrée + plat ou plat + dessert » (buffet de riz jollof servi par des cuisiniers, à la place de la photo antillaise) | https://www.pexels.com/photo/28736731/ | 22/11/2026 (demande directe) |
 | Fiche « Escape game » (énigme à résoudre contre la montre, meilleure photo) | https://www.pexels.com/photo/29483111/ | 22/11/2026 (demande directe) |
 | Fiche « Blind test » (équipe qui célèbre une bonne réponse, meilleure photo) | https://www.pexels.com/photo/15880877/ | 22/11/2026 (demande directe) |
+| Fiches « Le trio affiné » et « Plateau de fromages » (plateau de fromages, noix et fruits, à la place d’une photo avec filigrane) | https://www.pexels.com/photo/2992308/ | 22/11/2026 (sans filigrane) |

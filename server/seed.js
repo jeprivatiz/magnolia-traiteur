@@ -979,6 +979,8 @@ const VRAIES_PHOTOS_SITE = [
   { id: 'buffet-africain-1', produit: 'buffet-africain-entree-plat-ou-plat-dessert', avant: '/site/c/africain-produits/accras-de-morue.webp.webp', photo: pexels(28736731), alt: 'Buffet africain servi par nos cuisiniers' },
   { id: 'escape-game-2', produit: 'escape-game', avant: pexels(5427434), photo: pexels(29483111), alt: 'Énigme à résoudre contre la montre' },
   { id: 'blind-test-2', produit: 'blind-test', avant: pexels(8763175), photo: pexels(15880877), alt: 'Équipe qui célèbre une bonne réponse' },
+  { id: 'fromages-1', produit: 'le-trio-affine', avant: '/site/c/plateaux35-fromages.jpg.webp', photo: pexels(2992308), alt: 'Plateau de fromages affinés, noix et fruits' },
+  { id: 'fromages-2', produit: 'plateau-de-fromages', avant: '/site/c/cocktail7-photos/mini-clubs.webp.webp', photo: pexels(2992308), alt: 'Plateau de fromages, noix et fruits' },
 ];
 const VIGNETTES_UNIVERS = {
   'traiteur-vegetarien-vegan': pexels(41063196),
