@@ -239,6 +239,8 @@ const PRIX_INDIEN = [
 ];
 const BANDEAUX_SPE = {
   'specialites-japonaises': '/site/c/paysages/japon.webp',
+  /* table de mezzés (Pexels 39018407, licence Pexels) à la place de la vidéo de l'huile versée : Jean-Luc, 2026-11-22 */
+  'buffet-libanais': 'https://images.pexels.com/photos/39018407/pexels-photo-39018407.jpeg?auto=compress&cs=tinysrgb&w=2400',
 };
 /* prestations de l'univers Petits-déjeuners (séparé de Boissons le 2026-11-22) */
 const PDJ = /petit-d[ée]jeuner|pause caf[ée]|accueil caf[ée]/i;
@@ -463,6 +465,14 @@ async function initSousRubriques(store, { log = console } = {}) {
     });
   }
 
+  /* paragraphe de présentation avant « Nos buffets » (essai demandé par Jean-Luc sur le buffet libanais, 2026-11-22).
+     Posé une fois par spécialité, modifiable ensuite dans le back-office. */
+  const RI2 = await store.get('rubriques/saveurs-du-monde');
+  if (RI2 && (RI2.sous || []).some(x => INTROS_SPE[x.slug] && !x.introPosee)) {
+    const sous = RI2.sous.map(x => INTROS_SPE[x.slug] && !x.introPosee ? { ...x, introTitre: x.introTitre || INTROS_SPE[x.slug][0], introTexte: x.introTexte || INTROS_SPE[x.slug][1], introPosee: true } : x);
+    await store.set('rubriques/saveurs-du-monde', { ...RI2, sous });
+  }
+
   /* photos des vignettes « Nos univers » choisies par Jean-Luc (2026-11-22, sources dans data/credits-photos.md).
      Appliquées une fois par univers : modifiables ensuite dans le back-office. */
   const RV = await store.get('site/reglages');
@@ -479,6 +489,10 @@ async function initSousRubriques(store, { log = console } = {}) {
   }
 }
 
+const INTROS_SPE = {
+  'buffet-libanais': ['Le Liban, l’art de recevoir à partager',
+    'Au Liban, un bon repas se partage : on pose les mezzés au milieu de la table et chacun se sert. Houmous onctueux, moutabal fumé, taboulé bien frais, falafels croustillants et petits feuilletés chauds ouvrent le bal, avant les grillades marinées et les douceurs orientales.\nTout est préparé dans notre laboratoire avec des produits frais, puis livré prêt à servir pour votre soirée, votre séminaire ou votre mariage. Une cuisine généreuse et colorée, qui met tout le monde d’accord, végétariens compris.'],
+};
 const pexels = id => `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&w=1600`;
 const VIGNETTES_UNIVERS = {
   'traiteur-vegetarien-vegan': pexels(41063196),

@@ -589,6 +589,10 @@ textarea:focus, input:focus, select:focus { outline: 2px solid color-mix(in srgb
 .spe-bloc { margin-top: clamp(36px, 5vw, 64px); scroll-margin-top: 90px; }
 .spe-bloc:first-of-type { margin-top: 18px; }
 .spe-bloc h2 { margin-bottom: 4px; }
+.spe-intro { max-width: 760px; margin: 22px auto 8px; text-align: center; }
+.spe-intro h2 { margin-bottom: 10px; }
+.spe-intro p { color: var(--gris); font-size: 1.05rem; line-height: 1.7; margin: 0 0 8px; }
+.spe-intro::after { content: ""; display: block; width: 56px; height: 2px; background: var(--or); margin: 18px auto 0; }
 .spe-bloc .count { margin-top: 0; }
 /* pages de texte (La maison…) : de l'air entre le texte et les blocs suivants */
 .prose ~ section:not(:empty) { margin-top: clamp(56px, 7vw, 96px); }
