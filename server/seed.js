@@ -259,6 +259,20 @@ const PRIX_INDIEN = [
   [/^riz au safran/, 350], [/^riz (cachemiri|kashmiri)/, 500],
   [/^(hot )?gulab jamun/, 550],
 ];
+/* Buffet libanais à l'unité (Jean-Luc, 2026-11-22) : prix d'achat de référence TTC (en centimes) relevés sur la carte en ligne
+   d'un restaurant libanais de l'Essonne ; prix de vente = + 30 %, arrondi aux 10 centimes supérieurs.
+   La source et les équivalences (plat le plus proche quand il n'y a pas le même) sont dans tarifs/prix-buffet-libanais.xlsx
+   (dossier du projet), jamais sur le site. Baklawa : prix de 3 pièces ramené à la pièce. */
+const PRIX_LIBANAIS = [
+  [/^houmous/, 700], [/^feuilles de vigne/, 750], [/^salade de boulgh?our/, 750], [/^salade fattouche/, 800],
+  [/^roulade de fromage/, 400], [/^roulade de zaatar/, 400], [/^moutabal/, 750], [/^taboule/, 750], [/^caviar d.aubergine/, 750],
+  [/^roulade de soujouk/, 400], [/^kebbe/, 400], [/^fatayer/, 400], [/^sanbousek/, 400], [/^falafel/, 400],
+  [/^manakish/, 400], [/^rikakat/, 400],
+  [/^moussake/, 750], [/^(morceaux de )?chich taouk/, 1000], [/^shawarma poulet/, 1000], [/^kefta/, 1000],
+  [/^aubergine fondante/, 1000], [/^daoud bacha/, 1000],
+  [/^(boulgh?our|riz)/, 500],
+  [/^baklawa/, 133], [/^(mohallabiech|meghli|halawet el jibn|osmaliyeh)/, 600],
+];
 const BANDEAUX_SPE = {
   'specialites-japonaises': '/site/c/paysages/japon.webp',
   /* table de mezzés (Pexels 39018407, licence Pexels) à la place de la vidéo de l'huile versée : Jean-Luc, 2026-11-22 */
@@ -404,6 +418,24 @@ async function initSousRubriques(store, { log = console } = {}) {
     }
     await store.set('rubriques/saveurs-du-monde', { ...(await store.get('rubriques/saveurs-du-monde')), indienCarte: true });
     if (nc) log.log?.(`[demarrage] ${nc} plats indiens ajoutés (carte complète)`);
+  }
+  // une fois (2026-11-22, demande de Jean-Luc) : prix des plats libanais à l'unité = prix de référence + 30 %, plus aucun « Sur devis ».
+  // Le prix de référence est rangé dans « coût de revient » (jamais affiché). Un prix déjà saisi dans le back-office n'est pas touché.
+  const RLp = await store.get('rubriques/saveurs-du-monde');
+  if (RLp && !RLp.libanaisPrix) {
+    const net = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    let nl = 0;
+    for (const d of await store.list('produits')) {
+      const p = d.data;
+      if (!p || p.sous !== 'buffet-libanais' || (p.groupes || []).length || p.prixCents) continue;
+      const ligne = PRIX_LIBANAIS.find(([re]) => re.test(net(p.titre).trim()));
+      if (!ligne) continue;
+      const cout = ligne[1];
+      await store.set('produits/' + d.id, { ...p, prixCents: Math.ceil(Math.round(cout * 1.3) / 10) * 10, coutCents: cout, aCompleter: false });
+      nl++;
+    }
+    await store.set('rubriques/saveurs-du-monde', { ...(await store.get('rubriques/saveurs-du-monde')), libanaisPrix: true });
+    if (nl) log.log?.(`[demarrage] ${nl} prix du Buffet libanais posés (référence + 30 %)`);
   }
   // bandeaux photo des spécialités choisis par Jean-Luc (2026-11-22) : appliqués une fois par spécialité, modifiables ensuite dans le back-office
   const RS = await store.get('rubriques/saveurs-du-monde');
