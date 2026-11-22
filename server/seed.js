@@ -205,7 +205,7 @@ const SPE_TEXTES = {
 const SOUS_DEFAUT = {
   'saveurs-du-monde': [
     { slug: 'paella-party', nom: 'Paëlla party', pays: 'Espagne', photo: '/site/c/paella-royale/client-1.webp.webp', mots: ['paella'] },
-    { slug: 'buffet-libanais', nom: 'Buffet libanais · 8 mezzés', pays: 'Liban', photo: '/site/v/libanais-boucle.jpg', video: '/site/v/libanais-boucle.mp4', mots: ['libanais'] },
+    { slug: 'buffet-libanais', nom: 'Buffet libanais', pays: 'Liban', photo: '/site/v/libanais-boucle.jpg', video: '/site/v/libanais-boucle.mp4', mots: ['libanais'] },
     { slug: 'buffet-chinois', nom: 'Buffet chinois', pays: 'Chine', photo: '/site/v/chinois-boucle.jpg', video: '/site/v/chinois-boucle.mp4', mots: ['chinois'] },
     { slug: 'buffet-africain', nom: 'Buffet africain', pays: 'Afrique', photo: '/site/v/africain-boucle.jpg', video: '/site/v/africain-boucle.mp4', mots: ['africain'], dossiers: ['africain-'] },
     { slug: 'couscous-party', nom: 'Couscous party', pays: 'Maghreb', photo: '/site/c/couscous-menus/couscous-royal-sans-logo-20261106.webp.webp', mots: ['couscous'] },
@@ -552,6 +552,13 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('site/reglages', { ...REq, equipe, photoRomain: true });
   }
 
+  /* « Buffet libanais · 8 mezzés » devient « Buffet libanais » (Jean-Luc, 2026-11-22). Une fois. */
+  const RLb = await store.get('rubriques/saveurs-du-monde');
+  if (RLb && !RLb.libanaisCourt) {
+    const sous = (RLb.sous || []).map(x => x.slug === 'buffet-libanais' && /mezz/i.test(x.nom || '') ? { ...x, nom: 'Buffet libanais' } : x);
+    await store.set('rubriques/saveurs-du-monde', { ...RLb, sous, libanaisCourt: true });
+  }
+
   /* photos des vignettes « Nos univers » choisies par Jean-Luc (2026-11-22, sources dans data/credits-photos.md).
      Appliquées une fois par univers : modifiables ensuite dans le back-office. */
   const RV = await store.get('site/reglages');
@@ -569,6 +576,22 @@ async function initSousRubriques(store, { log = console } = {}) {
 }
 
 const INTROS_SPE = {
+  'paella-party': ['La paëlla, la fête à partager',
+    'Une grande poêle dorée au milieu des invités, et la fête commence. Notre paëlla royale marie poulet, chorizo, crevettes, calamars et moules sur un riz parfumé au safran ; la paëlla de la mer garde le meilleur de l’océan.\nCuisinée devant vos invités ou livrée prête à servir, elle régale aussi bien un anniversaire au jardin qu’un repas d’entreprise.'],
+  'buffet-chinois': ['La Chine en bouchées à partager',
+    'Nems croustillants, bouchées vapeur et hacao aux crevettes, raviolis, brochettes yakitori : un buffet chinois, c’est d’abord une ribambelle de petites gourmandises à picorer. Viennent ensuite les plats qui ont fait la réputation de cette cuisine : canard laqué, porc au caramel, poulet à la citronnelle, riz cantonais et nouilles sautées.\nPour finir en douceur, perles coco, mochis et litchis. Tout est préparé dans notre laboratoire et livré prêt à servir, pour une soirée conviviale comme pour un cocktail d’entreprise.'],
+  'buffet-africain': ['L’Afrique généreuse, en couleurs et en saveurs',
+    'Acras de morue, pastels, samoussas et puff-puff pour commencer, puis les grands classiques mijotés longuement : mafé, yassa, thiéboudienne, ndolé, kédjénou ou poulet braisé. Alloco, attiéké, bananes plantains et foutou les accompagnent, comme à la maison.\nUne cuisine chaleureuse et parfumée, servie en buffet pour vos mariages, baptêmes, anniversaires et fêtes de famille, avec des fruits frais et des douceurs coco pour le dessert.'],
+  'couscous-party': ['Le couscous, le plat qui rassemble',
+    'Semoule légère, légumes fondants, bouillon parfumé aux épices : le couscous est le plat de fête par excellence. Notre couscous royal réunit trois viandes, et le couscous végétarien fait la part belle aux légumes et aux pois chiches.\nPréparé le jour de votre événement et livré bien chaud, il régale facilement un grand nombre d’invités, du mariage à l’anniversaire.'],
+  'buffet-italien': ['La dolce vita à votre table',
+    'Charcuterie italienne, fromages, salades de pâtes fraîches comme la Belle Toscane ou les mini-pennes à l’italienne, lasagnes à la bolognaise au parmigiano reggiano : notre buffet italien, c’est le goût simple et généreux de l’Italie.\nEt pour finir, un tiramisu fait maison. Une cuisine qui plaît à tous, à partager entre amis, en famille ou entre collègues.'],
+  'buffet-antillais': ['Les Antilles, le soleil dans l’assiette',
+    'Acras de morue, boudins créoles et samoussas pour l’apéritif, puis colombo de poulet ou de cabri, fricassée de chatrou, rougail saucisse ou vivaneau au court-bouillon : la cuisine antillaise est pleine d’épices et de bonne humeur.\nGratins de bananes plantains ou de christophines, riz et haricots rouges accompagnent les plats, et le flan coco ou le blanc-manger terminent le repas. De quoi faire voyager vos invités, d’un anniversaire à un repas d’entreprise.'],
+  'buffet-indien': ['L’Inde, ses épices et ses couleurs',
+    'Samossas, bhajias d’oignon et pakoras pour commencer, puis les grands classiques : chicken tikka massala, korma à la crème d’amande, agneau madras ou crevettes massala, servis avec un riz au safran et des naans au fromage.\nPour le dessert, gulab jamun et lassi au parfum de votre choix. Une cuisine parfumée sans être forcément piquante, idéale pour surprendre vos invités.'],
+  'specialites-japonaises': ['Le Japon en plateaux à partager',
+    'Sushis, makis et californias préparés avec soin et présentés en plateaux prêts à poser sur la table. De 36 à 80 pièces, il y en a pour un apéritif entre amis comme pour un grand cocktail.\nFrais, légers et élégants, nos plateaux japonais se partagent facilement et plaisent à tous les âges.'],
   'buffet-libanais': ['Le Liban, l’art de recevoir à partager',
     'Au Liban, un bon repas se partage : on pose les mezzés au milieu de la table et chacun se sert. Houmous onctueux, moutabal fumé, taboulé bien frais, falafels croustillants et petits feuilletés chauds ouvrent le bal, avant les grillades marinées et les douceurs orientales.\nTout est préparé dans notre laboratoire avec des produits frais, puis livré prêt à servir pour votre soirée, votre séminaire ou votre mariage. Une cuisine généreuse et colorée, qui met tout le monde d’accord, végétariens compris.'],
 };
