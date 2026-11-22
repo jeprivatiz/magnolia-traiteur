@@ -225,7 +225,7 @@ ${avisBloc(c)}
 /* Grand bandeau photo en haut des pages d'arrivée (publicité Google Ads) : photo ou vidéo, titre, texte, boutons, ligne de confiance.
    Tout se change dans le back-office › Photos & textes du site › Bandeaux des pages. */
 const BANDEAUX_DEFAUT = {
-  boutique: { photo: '/site/c/cocktail10-client-20261104.jpg.webp', video: '', titre: 'La boutique Magnolia', chapo: 'Buffets, cocktails, spécialités du monde, boissons, personnel et animations : plus de 350 prestations, prix TTC, livrées 7 jours sur 7.', bouton: 'Voir les prestations', ancre: '#prestations',
+  boutique: { photo: '/site/c/cocktail10-client-20261104.jpg.webp', video: '', titre: 'La boutique Magnolia', chapo: 'Buffets, cocktails, spécialités du monde, boissons, personnel et animations : plus de 350 prestations, livrées 7 jours sur 7.', bouton: 'Voir les prestations', ancre: '#prestations',
     introTitre: 'Toutes nos idées pour votre événement', introTexte: 'Sur cette page, vous retrouvez tous les produits de Magnolia : buffets, cocktails, spécialités du monde, plateaux, boissons, personnel et animations. C’est une source d’idées pour composer la partie traiteur de votre événement. Classez-les par ordre alphabétique ou par prix, choisissez un univers ou cherchez un plat, puis ajoutez vos choix à votre sélection pour recevoir votre devis.' },
   lieux: { photo: '/site/v/lieux-ambiances.jpg', video: '', titre: 'Lieux de réception', chapo: 'Lofts, péniches, demeures et salons à privatiser. Associez votre lieu et votre traiteur dans une seule demande.', bouton: 'Voir les lieux', ancre: '#lieux' },
   temoignages: { photo: '/site/v/temoignages-table.jpg', video: '/site/v/temoignages-table.mp4', titre: 'Avis clients', chapo: 'Mariages, anniversaires, séminaires, fêtes de famille : ils nous ont confié leur événement et le racontent.', bouton: 'Lire les avis', ancre: '#avis' },
@@ -251,7 +251,7 @@ function bandeauHtml(c, B, fil) {
     : img(B.photo, '', '', 'fetchpriority="high"').replace(' loading="lazy"', '');
   return `<section class="phero land">${media}<div class="phero-c wrap">${crumbs(fil || [[B.titre]])}<h1>${esc(B.titre)}</h1>${B.chapo ? `<p class="lead">${esc(B.chapo)}</p>` : ''}
   <div class="row land-cta"><a class="btn btn-or" href="${esc(B.ancre || '/boutique')}">${esc(B.bouton || 'Découvrir')}</a><a class="btn btn-ghost-light" href="tel:${esc(tel)}">${icon.phone}<span>${esc(R.telephone || '')}</span></a></div>
-  <p class="confiance"><span><span class="etoiles" aria-hidden="true">★★★★★</span> <b>${esc(G.note || '4,9')}/5</b> sur Google${G.nombre ? `, ${esc(G.nombre)} avis` : ''}</span><span>Livraison 7 j/7</span><span>Devis gratuit</span></p></div></section>`;
+  <p class="confiance"><span><span class="etoiles" aria-hidden="true">★★★★★</span> <b>${esc(G.note || '4,9')}/5</b> sur Google${G.nombre ? `, ${esc(G.nombre)} avis` : ''}</span><span>Livraison 7 j/7</span></p></div></section>`;
 }
 
 /* suggestions de recherche (petits rectangles) : texte simple ou { label, lien } ; sans lien = recherche du mot */
@@ -264,7 +264,7 @@ const suggChips = (R, cls = '') => `<div class="chips sugg ${cls}">${suggestions
 const { SPE_TEXTES, RANGEMENTS, rangementDe } = require('./seed');
 const { carteSvg } = require('./cartes');
 const speTitre = x => x.titrePage || SPE_TEXTES[x.slug]?.[0] || x.nom;
-const speChapo = x => x.chapo || SPE_TEXTES[x.slug]?.[1] || `${x.pays ? x.pays + ' : ' : ''}toutes nos propositions, préparées par Magnolia Traiteur et livrées 7 jours sur 7. Prix TTC, devis gratuit.`;
+const speChapo = x => x.chapo || SPE_TEXTES[x.slug]?.[1] || `${x.pays ? x.pays + ' : ' : ''}toutes nos propositions, préparées par Magnolia Traiteur et livrées 7 jours sur 7.`;
 /* mots du bandeau défilant de l'accueil → page de la spécialité (ou de l'univers), sinon recherche */
 const sansAccent = t => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
 function lienMot(c, t) {
