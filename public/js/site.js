@@ -122,7 +122,11 @@
       const txt = $('[data-pave-u-txt]', ub), vide = txt.textContent;
       const maj = () => { const n = $$('[name=u]:checked', ub).map(x => x.closest('label').textContent.trim()); txt.textContent = n.length ? (n.length > 1 ? `${n[0]} + ${n.length - 1}` : n[0]) : vide; ub.classList.toggle('on', n.length > 0); };
       (evt.univers || []).forEach(v => { const x = $(`[name=u][value="${v}"]`, ub); if (x) x.checked = true; });
-      ub.addEventListener('change', maj); maj();
+      /* chaque case cochée ou décochée est gardée tout de suite : un univers retiré ne revient plus au retour sur l'accueil */
+      const garder = () => store.set('mg_evt', { ...store.get('mg_evt', {}), univers: $$('[name=u]:checked', ub).map(x => x.value) });
+      const relire = () => { const u = store.get('mg_evt', {}).univers || []; $$('[name=u]', ub).forEach(x => { x.checked = u.includes(x.value); }); maj(); };
+      ub.addEventListener('change', () => { maj(); garder(); }); maj();
+      addEventListener('pageshow', relire);
       document.addEventListener('click', e => { if (ub.open && !ub.contains(e.target)) ub.open = false; });
     }
   }
