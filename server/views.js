@@ -292,7 +292,22 @@ function specialite(c, r, x) {
   const chips = `<div class="chips scroll-x spe-chips">${S.map(y => `<a class="chip${x && y.slug === x.slug ? ' on' : ''}" href="/${esc(r.slug)}/${esc(y.slug)}">${esc(y.nom)}</a>`).join('')}<a class="chip${!x ? ' on' : ''}" href="/${esc(r.slug)}/tout">Tout</a></div>`;
   const fil = [['La boutique', '/boutique'], [r.nom, '/' + r.slug], [x ? x.nom : 'Tout']];
   const hero = x ? bandeauHtml(c, { photo: x.bandeauPhoto || x.photo, video: x.bandeauVideo ?? x.video ?? '', titre: speTitre(x), chapo: speChapo(x), bouton: x.bouton || 'Voir les propositions', ancre: '#prestations' }, fil) : '';
+  if (x && x.parSections) return pageSections(c, r, x, chips, hero);
   return boutique(c, { rub: r.slug, titre: x ? speTitre(x) : r.nom, chapo: x ? speChapo(x) : r.chapo, photo: x ? (x.bandeauPhoto || x.photo) : (r.photoAccueil || r.photo), path: `/${r.slug}/${x ? x.slug : 'tout'}`, liste, fil, chips, hero, seo: x ? { title: x.seoTitre || speTitre(x), description: x.seoDescription || speChapo(x) } : null });
+}
+
+/* ---------- page de spécialité présentée en sections (modèle : Buffet chinois) ---------- */
+const RANGEMENTS = [['buffets', 'Nos buffets'], ['entrees', 'Nos entrées à l’unité'], ['plats', 'Nos plats à l’unité'], ['desserts', 'Nos desserts à l’unité'], ['divers', 'Produits divers à l’unité']];
+const rangementDe = p => RANGEMENTS.some(([k]) => k === p.rangement) ? p.rangement : ((p.groupes || []).length || p.unite === 'personne' ? 'buffets' : 'divers');
+function pageSections(c, r, x, chips, hero) {
+  const liste = prodsDeSous(c, r, x.slug).slice().sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
+  const blocs = RANGEMENTS.map(([k, t]) => [k, (x.titresSections || {})[k] || t, liste.filter(p => rangementDe(p) === k)]).filter(b => b[2].length);
+  const body = `${hero}
+<section class="wrap shop spe-sections" id="prestations">
+  <div class="shop-bar">${chips}</div>
+  ${blocs.map(([k, t, L]) => `<div class="spe-bloc" id="${k}"><h2>${esc(t)}</h2><p class="count">${L.length} prestation${L.length > 1 ? 's' : ''} · tarifs TTC</p><div class="cards grid">${L.map(p => card(p, c, { rubNom: false })).join('')}</div></div>`).join('')}
+</section>`;
+  return layout(c, { title: x.seoTitre || speTitre(x), description: x.seoDescription || speChapo(x), body, path: `/${r.slug}/${x.slug}`, image: x.bandeauPhoto || x.photo });
 }
 
 function crumbs(list) {
@@ -583,4 +598,4 @@ function facturePage(c, f, t) {
   return layout(c, { title: 'Facture ' + f.numero, body, bodyClass: 'p-doc' }).replace('<head>', '<head><meta name="robots" content="noindex">');
 }
 
-module.exports = { pageSpecialites, specialite, sousVisibles, layout, home, boutique, produit, lieux, lieu, selection, texte, maison, livraison, commander, temoignages, contact, legal, erreur, espaceConnexion, espace, devisPage, facturePage, textToHtml, V, BANDEAUX_DEFAUT };
+module.exports = { RANGEMENTS, pageSpecialites, specialite, sousVisibles, layout, home, boutique, produit, lieux, lieu, selection, texte, maison, livraison, commander, temoignages, contact, legal, erreur, espaceConnexion, espace, devisPage, facturePage, textToHtml, V, BANDEAUX_DEFAUT };
