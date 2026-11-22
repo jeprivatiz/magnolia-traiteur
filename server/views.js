@@ -358,6 +358,15 @@ ${hero || (path === '/boutique' && !q ? bandeau(c, 'boutique') : photo ? bandeau
   return layout(c, { title: seo?.title || (r && path === '/' + r.slug && r.seoTitre) || titre, description: seo?.description || (r && path === '/' + r.slug && r.seoDescription) || chapo || (path === '/boutique' && !q ? bandeauDe(c, 'boutique').chapo : ''), body, path, image: path === '/boutique' && !q ? bandeauDe(c, 'boutique').photo : photo });
 }
 
+/* bloc « Allergènes » de la fiche : les cases cochées dans le back-office (fiche › Allergènes), en pastilles ;
+   rien de coché sur un produit alimentaire = « sur demande ». Les services (personnel, musique, lieux, matériel à 20 %) n'ont pas ce bloc. */
+function allergenesHtml(p) {
+  const l = p.allergenes || [];
+  if (!l.length && (p.tva || 10) !== 10) return '';
+  return `<section class="allerg-f" aria-label="Allergènes"><h2>Allergènes</h2>${l.length
+    ? `<p class="pastilles">${l.map(a => `<span>${esc(a)}</span>`).join('')}</p>`
+    : '<p class="small">Liste détaillée sur simple demande.</p>'}<p class="small">Préparé dans un laboratoire qui travaille aussi les 14 allergènes réglementaires : des traces sont possibles. Signalez toute allergie dans votre demande. <a href="/allergenes">En savoir plus</a></p></section>`;
+}
 function produit(c, p) {
   const r = c.rubriques.find(x => x.slug === p.rubrique) || { nom: '', slug: p.rubrique };
   const R = c.reglages, T = R.tarifs || {};
@@ -391,6 +400,7 @@ function produit(c, p) {
         <div class="conf-act"><button class="btn btn-line" type="submit" name="go" value="add">Ajouter à ma sélection</button><button class="btn btn-vert" type="submit" name="go" value="devis">Ajouter et demander mon devis</button></div>
       </form>
       ${(p.details || []).length ? `<ul class="details">${p.details.map(d => `<li>${esc(d)}</li>`).join('')}</ul>` : ''}
+      ${allergenesHtml(p)}
       <p class="aide">${icon.phone} Une question ? <a href="tel:${esc((R.telephone || '').replace(/\s/g, ''))}">${esc(R.telephone)}</a></p>
     </div>
   </div>
