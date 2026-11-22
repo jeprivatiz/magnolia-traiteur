@@ -306,6 +306,14 @@ async function initSousRubriques(store, { log = console } = {}) {
     const sous = (r.sous || []).map(x => ({ ...x, titrePage: net(x.titrePage), chapo: net(x.chapo), seoTitre: net(x.seoTitre), seoDescription: net(x.seoDescription) }));
     await store.set('rubriques/' + d.id, { ...r, titrePage: net(r.titrePage), chapo: net(r.chapo), seoTitre: net(r.seoTitre), seoDescription: net(r.seoDescription), sous, sansIdf: true });
   }
+  // une fois (2026-11-22, choix de Jean-Luc) : nouvelles photos des bandeaux Boutique (coupes qu'on remplit) et La maison (maître d'hôtel)
+  const RB = await store.get('site/reglages');
+  if (RB && !RB.bandeaux2) {
+    const bx = { ...(RB.bandeaux || {}) };
+    if (!bx.boutique?.photo || bx.boutique.photo === '/site/c/cocktail10-client-20261104.jpg.webp') bx.boutique = { ...(bx.boutique || {}), photo: '/site/c/accueil/website-home-cocktail-20261110.webp' };
+    if (!bx.maison?.photo || bx.maison.photo === RB.accueil?.photoMaison) bx.maison = { ...(bx.maison || {}), photo: '/site/c/personnel80-client-20261102.webp.webp' };
+    await store.set('site/reglages', { ...RB, bandeaux: bx, bandeaux2: true });
+  }
   const R = await store.get('site/reglages');
   if (R && !R.sansIdf) {
     const bandeaux = Object.fromEntries(Object.entries(R.bandeaux || {}).map(([k, b]) => [k, { ...b, titre: net(b.titre), chapo: net(b.chapo) }]));
