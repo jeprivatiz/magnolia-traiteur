@@ -99,8 +99,12 @@ async function pool(items, n, fn) {
   if (!boutique) throw new Error('La boutique du brouillon est inaccessible.');
   html['/boutique'] = boutique;
   const rsc0 = rscText(boutique);
-  const rubriques = (objectAfter(rsc0, '{"rubriques"') || {}).rubriques || [];
-  const evenements = (() => { const i = rsc0.indexOf('"evenements":['); if (i < 0) return []; try { const j = rsc0.indexOf('[', i); let d = 0; for (let k = j; k < rsc0.length; k++) { if (rsc0[k] === '[') d++; else if (rsc0[k] === ']' && --d === 0) return JSON.parse(rsc0.slice(j, k + 1)); } } catch { /* */ } return []; })();
+  let rubriques = [];
+  for (const src of [rsc0, rscText((await get('/')) || ''), rscText((await get('/saveurs-du-monde/couscous-royal')) || '')]) {
+    const o = objectAfter(src, '{"rubriques":[{');
+    if (o && Array.isArray(o.rubriques)) { rubriques = o.rubriques; break; }
+  }
+  const evenements = (() => { const i = rsc0.indexOf('"evenements":[{'); if (i < 0) return []; try { const j = rsc0.indexOf('[', i); let d = 0; for (let k = j; k < rsc0.length; k++) { if (rsc0[k] === '[') d++; else if (rsc0[k] === ']' && --d === 0) return JSON.parse(rsc0.slice(j, k + 1)); } } catch { /* */ } return []; })();
   console.log(rubriques.length, 'rubriques');
   const slugs = new Set(['lieux', ...rubriques.map(r => r.slug), ...rubriques.map(r => r.slugLisible)]);
   const links = [...new Set([...boutique.matchAll(/href="(\/[a-z0-9-]+\/[a-z0-9-]+)"/g)].map(m => m[1]).filter(h => slugs.has(h.split('/')[1])))];
