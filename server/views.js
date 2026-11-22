@@ -319,7 +319,7 @@ function pageSpecialites(c, r) {
 function specialite(c, r, x) {
   const S = sousVisibles(r);
   const liste = x ? prodsDeSous(c, r, x.slug) : (c.byRub.get(r.slug) || []);
-  const chips = `<div class="chips scroll-x spe-chips">${S.map(y => `<a class="chip${x && y.slug === x.slug ? ' on' : ''}" href="/${esc(r.slug)}/${esc(y.slug)}">${esc(y.nom)}</a>`).join('')}<a class="chip${!x ? ' on' : ''}" href="/${esc(r.slug)}/tout">Tout</a></div>`;
+  const chips = `<div class="chips scroll-x spe-chips">${S.map(y => `<a class="chip${x && y.slug === x.slug ? ' on' : ''}" href="/${esc(r.slug)}/${esc(y.slug)}">${esc(y.nom)}</a>`).join('')}${(() => { const m = r.slug === 'saveurs-du-monde' && c.rubriques.find(z => z.slug === 'grand-large' && z.statut !== 'masque'); return m ? `<a class="chip" href="/${esc(m.slug)}">${esc(m.nom)}</a>` : ''; })()}<a class="chip${!x ? ' on' : ''}" href="/${esc(r.slug)}/tout">Tout</a></div>`;
   const fil = [['La boutique', '/boutique'], [r.nom, '/' + r.slug], [x ? x.nom : 'Tout']];
   const hero = x ? bandeauHtml(c, { photo: x.bandeauPhoto || x.photo, video: x.bandeauVideo ?? x.video ?? '', titre: speTitre(x), chapo: speChapo(x), bouton: x.bouton || 'Voir les propositions', ancre: '#prestations' }, fil) : '';
   if (x && x.parSections) return pageSections(c, r, x, chips, hero);
