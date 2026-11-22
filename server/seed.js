@@ -448,6 +448,41 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('rubriques/boissons', { ...RBo, nom: RBo.nom === 'Boissons & petits-déjeuners' ? 'Boissons' : RBo.nom, petitsDejInit: true });
     if (np) log.log?.(`[demarrage] ${np} prestations rangées dans « Petits-déjeuners »`);
   }
+
+  /* « Saveurs du grand large » devient « Plateaux de fruits de mer » (demande de Jean-Luc, 2026-11-22).
+     L'adresse /grand-large ne change pas (liens et publicités déjà en place). Une seule fois. */
+  const RGL = await store.get('rubriques/grand-large');
+  if (RGL && !RGL.nomFruitsDeMer) {
+    const vieux = t => !t || /grand large/i.test(t);
+    await store.set('rubriques/grand-large', {
+      ...RGL,
+      nom: vieux(RGL.nom) ? 'Plateaux de fruits de mer' : RGL.nom,
+      titrePage: RGL.titrePage && !vieux(RGL.titrePage) ? RGL.titrePage : '',
+      seoTitre: RGL.seoTitre && !vieux(RGL.seoTitre) ? RGL.seoTitre : '',
+      nomFruitsDeMer: true,
+    });
+  }
+
+  /* photos des vignettes « Nos univers » choisies par Jean-Luc (2026-11-22, sources dans data/credits-photos.md).
+     Appliquées une fois par univers : modifiables ensuite dans le back-office. */
+  const RV = await store.get('site/reglages');
+  const faites = new Set(RV?.vignettesFaites || []);
+  const nouvelles = Object.keys(VIGNETTES_UNIVERS).filter(k => !faites.has(k));
+  if (RV && nouvelles.length) {
+    for (const slug of nouvelles) {
+      const r = await store.get('rubriques/' + slug);
+      if (!r) continue;
+      const photo = VIGNETTES_UNIVERS[slug];
+      await store.set('rubriques/' + slug, { ...r, photoAccueil: photo, ...(r.bandeauPhoto !== undefined || slug === 'grand-large' ? { bandeauPhoto: photo, bandeauVideo: '' } : {}) });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), vignettesFaites: [...faites, ...nouvelles] });
+  }
 }
+
+const pexels = id => `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&w=1600`;
+const VIGNETTES_UNIVERS = {
+  'traiteur-vegetarien-vegan': pexels(41063196),
+  'grand-large': pexels(39143859),
+};
 
 module.exports = { RANGEMENTS, rangementDe, SPE_TEXTES, initSousRubriques, classerSous, SOUS_DEFAUT, importerAvisAncienSite, dateIso, seed, REGLAGES_DEFAUT, MODELES_DEFAUT, extraireAvis };
