@@ -386,7 +386,7 @@ function pageSections(c, r, x, chips, hero) {
 <section class="wrap shop spe-sections" id="prestations">
   <div class="shop-bar">${chips}</div>
   ${x.introTexte ? `<div class="spe-intro">${x.introTitre ? `<h2>${esc(x.introTitre)}</h2>` : ''}${String(x.introTexte).split(/\n+/).map(l => l.trim()).filter(Boolean).map(l => `<p>${esc(l)}</p>`).join("")}</div>` : ''}
-  ${blocs.map(([k, t, L]) => `<div class="spe-bloc" id="${k}"><h2>${esc(t)}</h2><p class="count">${L.length} prestation${L.length > 1 ? 's' : ''} · tarifs TTC · photos non contractuelles</p><div class="cards grid">${L.map(p => card(p, c, { rubNom: false })).join('')}</div></div>`).join('')}
+  ${blocs.map(([k, t, L]) => `<div class="spe-bloc" id="${k}"><h2>${esc(t)}</h2><p class="count">${L.length} prestation${L.length > 1 ? 's' : ''} · tarifs TTC</p><div class="cards grid">${L.map(p => card(p, c, { rubNom: false })).join('')}</div></div>`).join('')}
 </section>`;
   return layout(c, { title: x.seoTitre || speTitre(x), description: x.seoDescription || speChapo(x), body, path: `/${r.slug}/${x.slug}`, image: x.bandeauPhoto || x.photo });
 }
@@ -418,7 +418,7 @@ ${hero || (path === '/boutique' && !q ? bandeau(c, 'boutique') : photo ? bandeau
       <label class="tri"><span class="sr">Trier</span><select data-sort><option value="ordre">Classement</option><option value="az">Ordre alphabétique (A à Z)</option><option value="asc">Prix croissant</option><option value="desc">Prix décroissant</option></select></label>
     </div>
   </div>
-  <p class="count"><span data-count>${prods.length}</span> prestations · tarifs TTC · photos non contractuelles${q ? ` pour « ${esc(q)} »` : ''}</p>
+  <p class="count"><span data-count>${prods.length}</span> prestations · tarifs TTC${q ? ` pour « ${esc(q)} »` : ''}</p>
   ${sections ? sections.map(([k, t, L]) => `<div class="spe-bloc" id="${k}" data-bloc><h2>${esc(t)}</h2><div class="cards grid" data-grid>${L.map(p => card(p, c, { rubNom: false })).join('')}</div></div>`).join('')
     : `<div class="cards grid" data-grid>${prods.map(p => card(p, c, { rubNom: !rub })).join('')}</div>`}
   ${!prods.length ? `<div class="empty"><p>Aucune prestation ne correspond à « ${esc(q)} ».</p><p>Appelez-nous au <a href="tel:${esc(c.reglages.telephone)}">${esc(c.reglages.telephone)}</a> : nous trouvons toujours une solution.</p></div>` : ''}
@@ -640,7 +640,6 @@ function livraison(c) {
     <p>Fourgons, camions réfrigérés, véhicules du Traiteur Antillais : nos livreurs chargent au laboratoire, respectent la chaîne du froid et installent tout sur place. Vous n’avez rien à transporter.</p></div>
     <ul class="zl-chiffres"><li><b data-zl-count="800">800</b><span>prestations par an</span></li><li><b>7 j/7</b><span>y compris le week-end</span></li><li><b data-zl-count="8">8</b><span>départements livrés</span></li><li><b>${seuil > 0 ? '0 €' : esc(euros(km))}</b><span>${seuil > 0 ? `de livraison dès ${esc(euros(seuil))}` : 'TTC du km'}</span></li></ul>
     <div class="zl-photos">${flotte.map(([src, alt, t, d], i) => `<figure class="zl-ph${i === 0 ? ' big' : ''}">${img(src, alt)}<figcaption><b>${esc(t)}</b><span>${esc(d)}</span></figcaption></figure>`).join('')}</div>
-    <p class="small zl-nc">Photos non contractuelles.</p>
   </div>
 </section>
 
