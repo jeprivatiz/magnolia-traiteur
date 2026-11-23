@@ -815,7 +815,7 @@ async function initSousRubriques(store, { log = console } = {}) {
   }
 
   /* « Cocktails & buffets français » + paragraphe de présentation (Jean-Luc, 2026-11-22). Une fois : modifiable ensuite dans le back-office. */
-  const RCb = await store.get('site/reglages');
+  const RCbc = await store.get('site/reglages');
   if (RCb && !RCb.cocktailsFrancais) {
     const cb = await store.get('rubriques/cocktails-buffets');
     if (cb) await store.set('rubriques/cocktails-buffets', { ...cb,
@@ -976,8 +976,8 @@ async function initSousRubriques(store, { log = console } = {}) {
   }
 
   /* Carte Magnolia : le bandeau du chef doit se voir même si une autre photo avait été réglée au back-office (Jean-Luc, 2026-11-23). */
-  const RCb = await store.get('site/reglages');
-  if (RCb && !RCb.carteBandeauChef2) {
+  const RCbc = await store.get('site/reglages');
+  if (RCbc && !RCbc.carteBandeauChef2) {
     const cm = await store.get('rubriques/carte-magnolia');
     if (cm) await store.set('rubriques/carte-magnolia', { ...cm, photo: '/site/c/carte-magnolia-bandeau-chef.webp', bandeauPhoto: '', photoAccueil: '' });
     await store.set('site/reglages', { ...(await store.get('site/reglages')), carteBandeauChef2: true });
