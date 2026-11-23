@@ -148,7 +148,7 @@
     const s = await api(A + '/stats');
     cache.nouvelles = s.nouvelles;
     const kpi = (v, l, href) => `<a class="kpi" href="${href || '#/'}"><b>${v}</b><span>${l}</span></a>`;
-    return page(`Bonjour ${esc((session.nom || '').split(' ')[0])}`, `<a class="btn" href="#/devis/nouveau">+ Nouveau devis</a>`, `
+    return page(`Bonjour ${esc((session.nom || '').split(' ')[0])}`, `<button type="button" class="btn ghost aq-btn" data-aiq>✨ Devis avec l’IA</button><a class="btn" href="#/devis/nouveau">+ Nouveau devis</a>`, `
       <div class="kpis">${kpi(s.nouvelles, 'nouvelles demandes', '#/demandes')}${kpi(euros(s.caSigneMoisCents), 'signé ce mois-ci', '#/devis')}${kpi(euros(s.devisEnAttenteCents), 'devis en attente de signature', '#/suivi')}${kpi(euros(s.facturesImpayeesCents), 'factures à encaisser', '#/factures')}${kpi(s.tauxSignature == null ? '—' : s.tauxSignature + ' %', 'taux de signature', '#/suivi')}</div>
       <div class="cols">
         <section class="box"><h2>Suivi client</h2><div class="pipe">${Object.entries(STATUTS).filter(([k]) => k !== 'termine').map(([k, l]) => `<a href="#/suivi" class="pipe-i st-${k}"><b>${s.parStatut[k] || 0}</b><span>${l}</span></a>`).join('')}</div></section>
@@ -183,7 +183,7 @@
       <td>${(d.lignes || []).length ? `<b>${d.lignes.length} prestation${d.lignes.length > 1 ? 's' : ''}</b> · ${euros(d.totalEstimeCents)}<small>${esc(d.lignes.slice(0, 3).map(l => l.titre).join(', '))}${d.lignes.length > 3 ? '…' : ''}</small>` : ''}${d.message ? `<small class="msg">${esc(String(d.message).slice(0, 160))}${String(d.message).length > 160 ? '…' : ''}</small>` : ''}</td>
       <td class="act">${action(d)}</td></tr>`;
     const onglet = (k, l, n) => `<button type="button" class="qs-chip${voir === k ? ' on' : ''}" data-voir="${k}">${l} <b>${n}</b></button>`;
-    return page('Demandes de devis', '<a class="btn" href="#/devis/nouveau">+ Nouveau devis</a>', `
+    return page('Demandes de devis', '<button type="button" class="btn ghost aq-btn" data-aiq>✨ Devis avec l’IA</button><a class="btn" href="#/devis/nouveau">+ Nouveau devis</a>', `
       <p class="muted intro">Les demandes envoyées depuis « Ma sélection » arrivent ici, avec une alerte par e-mail. Dès que leur devis est parti, elles passent dans « Suivi client ».</p>
       <div class="qs-top"><div class="qs-chips">${onglet('todo', 'À traiter', todo.length)}${onglet('msg', 'Messages', msgs.length)}${onglet('done', 'Déjà traitées', done.length)}</div></div>
       ${shown.length ? `<div class="table jp"><table><thead><tr><th>Reçue</th><th>Client</th><th>Événement</th><th>Date</th><th class="n">Invités</th><th>Sélection et message</th><th></th></tr></thead><tbody>${shown.map(row).join('')}</tbody></table></div>`
@@ -239,7 +239,7 @@
     const [dem, devisL, eq] = await Promise.all([api(A + '/demandes'), api(A + '/devis'), api(A + '/actions/equipe').catch(() => [])]);
     cache.devisL = devisL; cache.equipe = eq.filter(u => !u.desactive);
     cache.opps = dem.filter(d => d.type !== 'contact').map(d => opportunite(d, devisL));
-    return page('Suivi client', '<button type="button" class="btn ghost aq-btn" data-aiq>✨ Commande avec l’IA</button><a class="btn" href="#/devis/nouveau">+ Nouveau devis</a>', '<p class="muted intro">Vos opportunités en cours, d’un coup d’œil. Une commande prise au téléphone ? « ✨ Commande avec l’IA » : tapez ou dictez tout en vrac, l’IA prépare la fiche client et le devis avec le catalogue.</p><div id="qs"></div>');
+    return page('Suivi client', '<button type="button" class="btn ghost aq-btn" data-aiq>✨ Devis avec l’IA</button><a class="btn" href="#/devis/nouveau">+ Nouveau devis</a>', '<p class="muted intro">Vos opportunités en cours, d’un coup d’œil. Une commande prise au téléphone ? Bouton « ✨ Devis avec l’IA » : tapez ou dictez tout en vrac, l’IA prépare la fiche client et le devis avec le catalogue.</p><div id="qs"></div>');
   }
   const SV = { p: 'all', o: '', f: 'all', s: '', d1: '', d2: '' };
   function suiviDessin() {
@@ -398,7 +398,7 @@
     const T = conf.tarifs || {}, O = conf.origine || { lat: 48.692674, lon: 2.212317 };
     const st = { step: 1, texte: '', f: null, art: [], km: '', villes: [] };
     const m = document.createElement('div'); m.className = 'modal aq-modal'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-modal', 'true');
-    const tete = (h, sub) => `<div class="aq-h"><div><p class="aq-eye">✨ Commande avec l’IA</p><h2>${h}</h2>${sub ? `<p class="muted">${sub}</p>` : ''}</div><button type="button" class="x" data-aqx aria-label="Fermer">×</button></div>
+    const tete = (h, sub) => `<div class="aq-h"><div><p class="aq-eye">✨ Devis avec l’IA</p><h2>${h}</h2>${sub ? `<p class="muted">${sub}</p>` : ''}</div><button type="button" class="x" data-aqx aria-label="Fermer">×</button></div>
       <ol class="aq-steps">${['Infos du client', 'Fiche client', 'Commande'].map((t, i) => `<li class="${st.step === i + 1 ? 'on' : st.step > i + 1 ? 'done' : ''}">${st.step > i + 1 ? '✓' : i + 1} ${t}</li>`).join('')}</ol>`;
     const opt = (list, cur, first) => `<option value="">${first}</option>${list.map(x => { const [v, l] = Array.isArray(x) ? x : [x, x]; return `<option value="${esc(v)}"${String(v) === String(cur) ? ' selected' : ''}>${esc(l)}</option>`; }).join('')}`;
     const kmAR = (lat, lon) => { const r = x => x * Math.PI / 180, d = 2 * 6371 * Math.asin(Math.sqrt(Math.sin(r(lat - O.lat) / 2) ** 2 + Math.cos(r(O.lat)) * Math.cos(r(lat)) * Math.sin(r(lon - O.lon) / 2) ** 2)); return Math.max(10, Math.round(d * 1.3 * 2)); };
@@ -498,7 +498,7 @@
     if (id === 'nouveau') { const r = await api(A + '/actions/devis-vierge', { method: 'POST', body: {} }); location.replace('#/devis/' + r.id); return ''; }
     if (id) return devisEdit(id);
     const list = (await api(A + '/devis')).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-    return page('Devis', '<button type="button" class="btn ghost aq-btn" data-aiq>✨ Commande avec l’IA</button><a class="btn" href="#/devis/nouveau">+ Nouveau devis</a>', list.length ? `<div class="table"><table><thead><tr><th>N°</th><th>Client</th><th>Événement</th><th class="n">Total TTC</th><th>Statut</th><th>Vu par le client</th></tr></thead><tbody>
+    return page('Devis', '<button type="button" class="btn ghost aq-btn" data-aiq>✨ Devis avec l’IA</button><a class="btn" href="#/devis/nouveau">+ Nouveau devis</a>', list.length ? `<div class="table"><table><thead><tr><th>N°</th><th>Client</th><th>Événement</th><th class="n">Total TTC</th><th>Statut</th><th>Vu par le client</th></tr></thead><tbody>
       ${list.map(d => `<tr data-href="#/devis/${d.id}"><td><b>${esc(d.numero)}</b></td><td>${esc(d.clientNom)}</td><td>${esc(d.evenement?.type || '')} ${dateFr(d.evenement?.date)}</td><td class="n">${euros(tot(d).ttc)}</td><td><span class="pill d-${d.statut}">${DSTAT[d.statut]}</span></td><td>${d.vuLe ? dateH(d.vuLe) : '—'}</td></tr>`).join('')}</tbody></table></div>` : '<div class="vide"><p>Aucun devis.</p><p class="muted">Créez un devis depuis une demande (les lignes sont reprises) ou partez d’un devis vierge.</p></div>');
   }
   devis.after = id => { if (id && id !== 'nouveau') return devisEdit.after(id); $$('tr[data-href]').forEach(tr => tr.addEventListener('click', () => { location.hash = tr.dataset.href; })); };
