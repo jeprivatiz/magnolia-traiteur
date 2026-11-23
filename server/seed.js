@@ -954,6 +954,17 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('site/reglages', { ...(await store.get('site/reglages')), carteChinoise1: true });
   }
 
+  /* Paëlla royale : retirer de la galerie les 3 photos d'ingrédients seuls (poulet, chorizo, crevettes) (Jean-Luc, 2026-11-23). */
+  const RPr = await store.get('site/reglages');
+  if (RPr && !RPr.paellaSansIngredients) {
+    const p = await store.get('produits/paella-royale');
+    if (p && Array.isArray(p.photos)) {
+      const photos = p.photos.filter(ph => !String(ph && ph.src || '').includes('/paella-ingredients/'));
+      if (photos.length !== p.photos.length) await store.set('produits/paella-royale', { ...p, photos });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), paellaSansIngredients: true });
+  }
+
   /* paragraphe de présentation de chaque rubrique et de la page Lieux (Jean-Luc, 2026-11-22). Posé une fois, seulement si vide. */
   const RIr = await store.get('site/reglages');
   if (RIr && !RIr.introsRubriques) {
