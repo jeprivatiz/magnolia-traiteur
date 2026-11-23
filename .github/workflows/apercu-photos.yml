@@ -1,6 +1,6 @@
 name: Aperçu de photos libres (temporaire)
 
-# (matériel, 2e série bis) Outil temporaire, accepté par Jean-Luc le 2026-11-23 : télécharge en petit des photos libres candidates
+# (matériel, 3e série) Outil temporaire, accepté par Jean-Luc le 2026-11-23 : télécharge en petit des photos libres candidates
 # pour que Claude puisse les regarder avant de les choisir (le cloud ne joint pas ces sites). Retiré avant la fusion.
 on:
   push:

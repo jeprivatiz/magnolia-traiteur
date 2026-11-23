@@ -1,25 +1,10 @@
-chaisev	gold folding chair red velvet
-chaisevb	chiavari chair red cushion
-chaisevc	gold banquet chair red
-table	folding table plastic white
-tableb	white folding table
-nappeb	white tablecloth
-mangec	bistro high table
-verres	wine glasses champagne coupes
-verresb	champagne coupe glasses
-verresc	wine glasses table
-reut	reusable plastic wine glass
-reutb	polycarbonate glasses
-set	place setting plate cutlery glass
-setb	dinner plates cutlery napkin
-dessert	dessert plate spoon fork
-etuve	holding cabinet catering
-etuveb	food warmer cabinet
-chafing	chafing dish
-chafingb	chafing dishes buffet
-riz	rice cooker commercial
-rizb	large rice cooker
-pizza	portable pizza oven
-pizzab	outdoor pizza oven small
-chauffeur	chauffeur opening car door
-chauffeurb	chauffeur limousine door
+g1	Stehtisch
+g2	Gläserkorb
+g3	Spülkorb Gläser
+g4	Mehrwegbecher
+g5	Wärmeschrank Gastronomie
+g6	Chiavari chair
+g7	Stehtische Veranstaltung
+g8	banquet chair gold red
+g9	Cateringausstattung Geschirr
+g10	Heißluftdämpfer Hordenwagen
