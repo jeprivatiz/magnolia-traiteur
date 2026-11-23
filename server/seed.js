@@ -16,21 +16,23 @@ const ALCOOL = /champagne|\bvins?\b|cave|bi[eè]re|open ?bars?|alcool|cidre|whis
 const tvaProduit = p => (p.rubrique === 'boissons' && ALCOOL.test(p.titre) && !/softs?|caf[ée]|d[ée]jeuner|gla[cç]ons/i.test(p.titre)) ? 20 : (TVA_RUBRIQUE[p.rubrique] || 10);
 const TVA_RUBRIQUE = { 'personnel': 20, 'musique-animations': 20, 'lieux': 20, 'indispensables': 20 };
 
-/* bulles sous la recherche de l'accueil, dans l'ordre choisi par Jean-Luc (2026-11-22) ; sans lien = recherche du mot */
+/* bulles sous la recherche de l'accueil, dans l'ordre choisi par Jean-Luc (2026-11-23) :
+   toute la nourriture d'abord, puis les options, « Lieu à privatiser » en dernier ; sans lien = recherche du mot */
 const SUGGESTIONS_ACCUEIL = [
   { label: 'Buffet & cocktail français', lien: '/cocktails-buffets' },
-  { label: 'Paëlla', lien: '/saveurs-du-monde/paella-party' },
   { label: 'Buffet antillais', lien: '/saveurs-du-monde/buffet-antillais' },
-  { label: 'DJ', lien: '' },
+  { label: 'Paëlla', lien: '/saveurs-du-monde/paella-party' },
+  { label: 'Couscous party', lien: '/saveurs-du-monde/couscous-party' },
   { label: 'Huîtres', lien: '' },
-  { label: 'Louer des verres', lien: '/boutique?q=verres' },
-  { label: 'Personnel de service', lien: '/personnel' },
-  { label: 'Lieu', lien: '/lieux' },
   { label: 'Barbecue party', lien: '/boutique?q=barbecue' },
   { label: 'Fontaine à chocolat', lien: '' },
   { label: 'Pièces montées', lien: '' },
   { label: 'Candy bar', lien: '' },
-  { label: 'Fruits de mer', lien: '/grand-large' },
+  { label: 'Plateau de fruits de mer', lien: '/grand-large' },
+  { label: 'DJ', lien: '' },
+  { label: 'Louer des verres', lien: '/boutique?q=verres' },
+  { label: 'Personnel de service', lien: '/personnel' },
+  { label: 'Lieu à privatiser', lien: '/lieux' },
 ];
 /* La maison, à côté de « Une seule maison, une seule demande » : soirée corporate, vraie photo (Unsplash, Jean-Luc 2026-11-22) */
 const PHOTO_MAISON_INTRO = 'https://images.unsplash.com/photo-1768508948849-b2ee9e074ab1?auto=format&fit=crop&w=1600&q=80';
@@ -734,10 +736,10 @@ async function initSousRubriques(store, { log = console } = {}) {
     const ag = RSh.avisGoogle && /800/.test(RSh.avisGoogle.nombre || '') ? { ...RSh.avisGoogle, nombre: 'plus de 650' } : RSh.avisGoogle;
     await store.set('site/reglages', { ...RSh, avisGoogle: ag, accueil: { ...(RSh.accueil || {}), chiffres: ch }, chiffre800: true });
   }
-  /* bulles de l'accueil : nouvel ordre de Jean-Luc (2026-11-22). Une fois ; modifiables ensuite dans Photos & textes. */
+  /* bulles de l'accueil : nouvel ordre de Jean-Luc (2026-11-23). Une fois ; modifiables ensuite dans Photos & textes. */
   const RSb = await store.get('site/reglages');
-  if (RSb && !RSb.bullesAccueil2) {
-    await store.set('site/reglages', { ...RSb, accueil: { ...(RSb.accueil || {}), suggestions: SUGGESTIONS_ACCUEIL }, bullesAccueil2: true });
+  if (RSb && !RSb.bullesAccueil3) {
+    await store.set('site/reglages', { ...RSb, accueil: { ...(RSb.accueil || {}), suggestions: SUGGESTIONS_ACCUEIL }, bullesAccueil3: true });
   }
   /* prix corrigé par Jean-Luc (2026-11-22) : le brouillon avait repris le prix de « Entrées + plat » (21,90 €). Une fois. */
   const RSc = await store.get('site/reglages');
