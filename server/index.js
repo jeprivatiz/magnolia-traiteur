@@ -153,7 +153,7 @@ async function createApp(opts = {}) {
   /* pages du site trouvées par la recherche (ex. « zone de livraison » sur téléphone → la page, pas la boutique) */
   const norm = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(' ').map(w => w.length > 3 ? w.replace(/s$/, '') : w).join(' '); /* « livraisons » = « livraison » */
   const PAGES_RECHERCHE = [
-    { titre: 'Zone de livraison', href: '/zone-de-livraison', info: 'Carte, frais de livraison, livraison offerte dès 700 € TTC', mots: ['zone de livraison', 'zones de livraison', 'livraison', 'livrer', 'livrez', 'frais de livraison', 'tarif livraison', 'prix livraison', 'zone', 'livraison offerte', 'livraison gratuite', 'flotte', 'camion', 'vehicule'] },
+    { titre: 'Nos zones de livraison', href: '/zone-de-livraison', info: 'Carte, frais de livraison, livraison offerte dès 700 € TTC', mots: ['zone de livraison', 'zones de livraison', 'livraison', 'livrer', 'livrez', 'frais de livraison', 'tarif livraison', 'prix livraison', 'zone', 'livraison offerte', 'livraison gratuite', 'flotte', 'camion', 'vehicule'] },
     { titre: 'Avis clients', href: '/temoignages', info: 'Ce que disent nos clients', mots: ['avis', 'avis clients', 'temoignages', 'temoignage', 'note google'] },
     { titre: 'La maison', href: '/maison', info: 'Qui sommes-nous', mots: ['la maison', 'maison', 'qui sommes nous'] },
     { titre: 'Comment commander', href: '/comment-commander', info: 'Les étapes de votre demande', mots: ['comment commander', 'commander', 'commande', 'devis'] },
@@ -754,6 +754,9 @@ async function createApp(opts = {}) {
     /* plusieurs univers choisis dans le pavé de recherche de l'accueil : /boutique?u=carte-magnolia,douceurs */
     const choix = String(req.query.u || '').split(',').map(x => x.trim()).filter(Boolean);
     const us = views.universListe(c).filter(u => choix.includes(u.slug));
+    /* un seul univers présenté en sections (La carte Magnolia) → sa vraie page, avec ses titres Nos entrées, Nos plats… */
+    const r1 = us.length === 1 && c.rubriques.find(r => r.slug === us[0].slug && r.parSections);
+    if (r1) { const q = new URLSearchParams(req.query); q.delete('u'); return res.redirect(302, '/' + r1.slug + (q.toString() ? '?' + q : '')); }
     if (us.length) {
       const liste = us.flatMap(u => u.prods || []).filter((p, i, a) => a.indexOf(p) === i);
       const chips = `<div class="chips scroll-x">${us.map(u => `<a class="chip on" href="${u.href}">${esc(u.nom)}${u.prods ? ` <small>${u.prods.length}</small>` : ''}</a>`).join('')}</div>`;

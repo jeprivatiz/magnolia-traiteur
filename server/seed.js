@@ -335,7 +335,7 @@ async function initUniteSpecialites(store, log) {
   if (!r || r.uniteInit || !(r.sous || []).length) return;
   const prods = (await store.list('produits')).map(d => ({ id: d.id, ...d.data }));
   const RANG = { entrees: 'entrees', mezzes: 'entrees', brochettes: 'entrees', salades: 'entrees', plats: 'plats', accompagnements: 'accompagnements', desserts: 'desserts' };
-  const UNITE = { entrees: ['pièce', 20], mezzes: ['portion', 10], brochettes: ['brochette', 10], salades: ['portion', 10], plats: ['portion', 10], accompagnements: ['portion', 10], desserts: ['pièce', 10] };
+  const UNITE = { entrees: ['pièce', 5], mezzes: ['portion', 5], brochettes: ['brochette', 5], salades: ['portion', 5], plats: ['portion', 5], accompagnements: ['portion', 5], desserts: ['pièce', 5] }; /* minimum 5 à l'unité (Jean-Luc, 2026-11-23) */
   const vus = new Set(prods.map(p => p.slug)); let ordre = Math.max(0, ...prods.map(p => p.ordre || 0)) + 1, n = 0;
   for (const x of r.sous) {
     const dans = prods.filter(p => p.sous === x.slug);
@@ -393,7 +393,7 @@ async function initSousRubriques(store, { log = console } = {}) {
       const ligne = PRIX_INDIEN.find(([re]) => re.test(nom));
       if (!ligne) continue;
       const cout = ligne[1];
-      await store.set('produits/' + d.id, { ...p, prixCents: Math.ceil(cout * 1.3 / 10) * 10, coutCents: cout, unite: 'portion', min: 10, aCompleter: false });
+      await store.set('produits/' + d.id, { ...p, prixCents: Math.ceil(cout * 1.3 / 10) * 10, coutCents: cout, unite: 'portion', min: 5, aCompleter: false });
       ni++;
     }
     await store.set('rubriques/saveurs-du-monde', { ...(await store.get('rubriques/saveurs-du-monde')), indienPrix: true });
@@ -408,7 +408,7 @@ async function initSousRubriques(store, { log = console } = {}) {
       const slug = slugify(titre + ' indien');
       if (vus.has(slug)) continue; vus.add(slug);
       const src = photo || AMBIANCE_INDIEN[nc % AMBIANCE_INDIEN.length];
-      await store.set('produits/' + slug, { id: slug, slug, rubrique: 'saveurs-du-monde', autresRubriques: [], sous: 'buffet-indien', rangement, titre, prixCents: Math.ceil(cout * 1.3 / 10) * 10, coutCents: cout, unite, min: 10, extrait: `${titre} : spécialité indienne préparée par notre chef et livrée prête à servir.`, description: [], photos: [{ src, alt: titre }], photoAmbiance: !photo, video: null, groupes: [], variantes: [], sections: [], details: [], regles: { personnel: 'service', packs: true }, ordre: ordre++, statut: 'visible', maison: true, tva: 10, allergenes: [], aCompleter: false });
+      await store.set('produits/' + slug, { id: slug, slug, rubrique: 'saveurs-du-monde', autresRubriques: [], sous: 'buffet-indien', rangement, titre, prixCents: Math.ceil(cout * 1.3 / 10) * 10, coutCents: cout, unite, min: 5, extrait: `${titre} : spécialité indienne préparée par notre chef et livrée prête à servir.`, description: [], photos: [{ src, alt: titre }], photoAmbiance: !photo, video: null, groupes: [], variantes: [], sections: [], details: [], regles: { personnel: 'service', packs: true }, ordre: ordre++, statut: 'visible', maison: true, tva: 10, allergenes: [], aCompleter: false });
       nc++;
     }
     // titres trop longs (« Chicken tikka massala : poulet mariné… ») : le nom en titre, la description en texte
@@ -699,6 +699,24 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('produits/' + slug, { ...x, photos: photos.map(([src, alt]) => ({ src, alt })), vraiesPhotos: [...(x.vraiesPhotos || []), ver] });
   }
 
+  /* Buffet antillais — Plat seul (Jean-Luc, 2026-11-23) : plus de vidéo dans la galerie, la photo du colombo de poulet en premier. Une fois. */
+  {
+    const x = await store.get('produits/buffet-antillais-plat-seul');
+    if (x && !x.sansVideo) {
+      const COLOMBO = '/site/c/antilles-site/colombo-de-poulet-1-20261101.webp.webp';
+      const photos = x.photos || [];
+      const c = photos.find(ph => ph.src === COLOMBO);
+      const { video, ...reste } = x;
+      await store.set('produits/buffet-antillais-plat-seul', { ...reste, photos: c ? [c, ...photos.filter(ph => ph !== c)] : photos, sansVideo: true });
+    }
+  }
+
+  for (const [slug, src, alt] of PHOTOS_BUFFETS_EN_TETE) {
+    const x = await store.get('produits/' + slug);
+    if (!x || (x.photoBuffet || '') === src) continue;
+    await store.set('produits/' + slug, { ...x, photos: [{ src, alt }, ...(x.photos || []).filter(ph => ph.src !== src)], photoBuffet: src });
+  }
+
   /* plateaux de sushis : compositions, prix et photos du site actuel magnoliatraiteur.fr/plateaux-de-sushis (Jean-Luc, 2026-11-22).
      Une fois. Le plateau 80 pièces n'existe plus et le « Plateau de 75 sushis » des coffrets faisait doublon : masqués, leur adresse renvoie au grand plateau. */
   const RSu = await store.get('site/reglages');
@@ -833,7 +851,7 @@ async function initSousRubriques(store, { log = console } = {}) {
   const RCm = await store.get('site/reglages');
   if (RCm && !RCm.carteSections) {
     const cm = await store.get('rubriques/carte-magnolia');
-    if (cm) await store.set('rubriques/carte-magnolia', { ...cm, parSections: true, titresSections: { entrees: 'Les entrées', plats: 'Les plats', fromages: 'Plateau de fromages', desserts: 'Les desserts', divers: 'Menus et service à table', ...(cm.titresSections || {}) } });
+    if (cm) await store.set('rubriques/carte-magnolia', { ...cm, parSections: true, titresSections: { entrees: 'Nos entrées', plats: 'Nos plats', fromages: 'Nos fromages', desserts: 'Nos desserts', divers: 'Menus et service à table', ...(cm.titresSections || {}) } });
     const sans = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     for (const { id, data: p } of await store.list('produits')) {
       if (p.rubrique !== 'carte-magnolia' || p.rangement) continue;
@@ -843,6 +861,71 @@ async function initSousRubriques(store, { log = console } = {}) {
       await store.set('produits/' + id, { ...p, rangement: k });
     }
     await store.set('site/reglages', { ...(await store.get('site/reglages')), carteSections: true });
+  }
+
+  /* La carte Magnolia : titres « Nos entrées, Nos plats, Nos fromages, Nos desserts » (Jean-Luc, 2026-11-23).
+     Une fois ; on ne remplace que les anciens titres par défaut, un titre changé au back-office reste. */
+  const RCm2 = await store.get('site/reglages');
+  if (RCm2 && !RCm2.carteSections2) {
+    const cm = await store.get('rubriques/carte-magnolia');
+    if (cm) {
+      const T = { ...(cm.titresSections || {}) }, anciens = { entrees: 'Les entrées', plats: 'Les plats', fromages: 'Plateau de fromages', desserts: 'Les desserts' };
+      const nouveaux = { entrees: 'Nos entrées', plats: 'Nos plats', fromages: 'Nos fromages', desserts: 'Nos desserts' };
+      for (const k in nouveaux) if (!T[k] || T[k] === anciens[k]) T[k] = nouveaux[k];
+      await store.set('rubriques/carte-magnolia', { ...cm, parSections: true, titresSections: T });
+    }
+    for (const { id, data: p } of await store.list('produits')) {
+      if (p.rubrique === 'carte-magnolia' && /fromage|trio affin/i.test(String(p.titre || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')) && p.rangement !== 'fromages') await store.set('produits/' + id, { ...p, rangement: 'fromages' });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), carteSections2: true });
+  }
+
+  /* Ordre des vignettes d'univers de l'accueil (Jean-Luc, 2026-11-23) : la nourriture d'abord, « Traiteur végétarien et vegan »
+     juste après « Coffrets & plateaux », « Petits-déjeuners » juste après « Animations sucrées », puis ce qui n'est pas de la
+     nourriture (indispensables, personnel, musique, lieux) à la fin. Le reste garde son ordre. Une fois : réglable ensuite au back-office (champ « Ordre »). */
+  const ROv = await store.get('site/reglages');
+  if (ROv && !ROv.ordreUnivers2) {
+    const rubs = (await store.list('rubriques')).sort((a, b) => (a.data.ordre ?? 99) - (b.data.ordre ?? 99));
+    const APRES = { 'traiteur-vegetarien-vegan': 'coffrets-plateaux', 'petits-dejeuners': 'douceurs' };
+    const FIN = ['indispensables', 'personnel', 'musique-animations', 'lieux'];
+    let L = rubs.filter(r => !APRES[r.id] && !FIN.includes(r.id));
+    for (const [slug, apres] of Object.entries(APRES)) {
+      const r = rubs.find(x => x.id === slug); if (!r) continue;
+      const i = L.findIndex(x => x.id === apres); L.splice(i < 0 ? L.length : i + 1, 0, r);
+    }
+    L = [...L, ...FIN.map(f => rubs.find(x => x.id === f)).filter(Boolean)];
+    for (const [i, r] of L.entries()) if (r.data.ordre !== i + 1) await store.set('rubriques/' + r.id, { ...r.data, ordre: i + 1 });
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), ordreUnivers2: true });
+  }
+
+  /* Buffet chinois à l'unité : minimum 5 (Jean-Luc, 2026-11-23, « 20 c'est impossible »). Le 20 venait de la valeur par défaut
+     (UNITE.entrees = 20 pièces) posée quand les fiches à l'unité ont été créées à partir des options des buffets.
+     Une fois ; modifiable ensuite au back-office. La quantité de départ d'une fiche reste son minimum. */
+  const RCh = await store.get('site/reglages');
+  if (RCh && !RCh.chinoisMin5) {
+    for (const { id, data: p } of await store.list('produits')) {
+      if (p.sous !== 'buffet-chinois' || !['entrees', 'plats', 'accompagnements', 'desserts'].includes(rangementDe(p)) || p.min === 5) continue;
+      await store.set('produits/' + id, { ...p, min: 5, ...(p.minimumTexte ? { minimumTexte: `Minimum de commande : 5 ${p.unite === 'pièce' ? 'pièces' : p.unite === 'portion' ? 'portions' : p.unite + 's'}` } : {}) });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), chinoisMin5: true });
+  }
+
+  /* Toutes les fiches à l'unité des spécialités (Saveurs du monde) : minimum 5 (accord de Jean-Luc, 2026-11-23).
+     Seulement les unités « pièce / portion / brochette » au-dessus de 5 ; les coffrets, plateaux, corbeilles (minimum 1) et les
+     formules « personne » ne bougent pas, sauf « Buffet indien · Entrée + plat ou plat + dessert » : 20 → 10 personnes comme les autres buffets. */
+  const RU5 = await store.get('site/reglages');
+  if (RU5 && !RU5.unitesMin5) {
+    const pl = u => u === 'pièce' ? 'pièces' : u === 'portion' ? 'portions' : u + 's';
+    for (const { id, data: p } of await store.list('produits')) {
+      if (!p.sous) continue;
+      if (/^buffet-indien/.test(id) && p.unite === 'personne' && p.min === 20 && /plat ou plat/i.test(p.titre || '')) {
+        await store.set('produits/' + id, { ...p, min: 10, ...(p.minimumTexte ? { minimumTexte: 'Minimum : 10 personnes' } : {}) });
+        continue;
+      }
+      if (!['pièce', 'portion', 'brochette'].includes(p.unite) || !(p.min > 5) || rangementDe(p) === 'buffets') continue;
+      await store.set('produits/' + id, { ...p, min: 5, ...(p.minimumTexte ? { minimumTexte: `Minimum de commande : 5 ${pl(p.unite)}` } : {}) });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), unitesMin5: true });
   }
 
   /* paragraphe de présentation de chaque rubrique et de la page Lieux (Jean-Luc, 2026-11-22). Posé une fois, seulement si vide. */
@@ -937,7 +1020,42 @@ const DOUBLONS = [
 ];
 /* [titre, photo, texte alternatif] ; sources dans data/credits-photos-univers.md */
 /* [fiche, version, [[photo, description]…]] */
+/* « Nos buffets » des spécialités (Jean-Luc, 2026-11-23) : une photo de buffet en tête de chaque formule, choisie d'après son contenu
+   (jamais une pièce à l'unité). Les autres photos de la fiche restent dans sa galerie. Sources dans data/credits-photos-univers.md. */
+const PHOTOS_BUFFETS_EN_TETE = [
+  ['buffet-antillais-entrees-seules', 'https://images.pexels.com/photos/16868526/pexels-photo-16868526.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Plateau d’entrées : beignets, bouchées frites et crevettes'],
+  ['buffet-antillais-entree-et-plat-ou-plat-et-dessert', 'https://images.pexels.com/photos/9638804/pexels-photo-9638804.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Repas antillais : riz aux haricots rouges, plats en sauce et dessert'],
+  ['buffet-antillais-entree-plat-dessert', '/site/c/antilles-menus/buffet-complet.jpg.webp', 'Buffet antillais complet servi en chafing dishes'],
+  ['buffet-indien-entrees-a-l-unite', 'https://images.pexels.com/photos/958547/pexels-photo-958547.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Entrées indiennes : pakoras, naans et chutneys'],
+  ['buffet-indien-entree-plat-ou-plat-dessert', 'https://images.pexels.com/photos/7182077/pexels-photo-7182077.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Table indienne : currys, riz et accompagnements'],
+  ['buffet-indien-entree-plat-dessert', 'https://images.unsplash.com/photo-1682862279256-b2a9e4f3d22c?auto=format&fit=crop&w=1600&q=80', 'Grand buffet indien : entrées, currys, naans et desserts'],
+];
 const VRAIES_PHOTOS = [
+  /* Traiteur végétarien (Jean-Luc, 2026-11-23) : vraies photos libres Pexels choisies d'après le contenu de chaque formule,
+     regardées une à une, sans viande ni poisson visibles. Sources dans data/credits-photos-univers.md */
+  ['buffet-vegetarien', 'veg1', [['https://images.pexels.com/photos/2291344/pexels-photo-2291344.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Saladier de salade grecque sur un buffet'], ['https://images.pexels.com/photos/29050581/pexels-photo-29050581.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Tarte aux fromages et aux légumes'], ['https://images.pexels.com/photos/6660071/pexels-photo-6660071.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Plateau de fromages, raisins, fruits secs et pain']]],
+  ['petit-cocktail-vegetarien-14-pieces-salees', 'veg1', [['https://images.pexels.com/photos/25916399/pexels-photo-25916399.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Plateau de mini-tartelettes salées végétariennes'], ['https://images.pexels.com/photos/1239312/pexels-photo-1239312.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Toasts tomate, fromage frais et basilic']]],
+  ['grand-cocktail-dinatoire-vegetarien-sale-et-sucre', 'veg1', [['https://images.pexels.com/photos/4374578/pexels-photo-4374578.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Plateau de cocktail végétarien : tartinables, crudités, olives et crackers'], ['https://images.pexels.com/photos/5852251/pexels-photo-5852251.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Houmous, crudités, tomates cerises et crackers'], ['https://images.pexels.com/photos/6606003/pexels-photo-6606003.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Tarte au citron meringuée']]],
+  /* Toasts à l'avocat et aux crevettes : photo envoyée par Jean-Luc (2026-11-23), sur la fiche et son doublon antillais */
+  ['toasts-a-l-avocat-et-aux-crevettes', 'jl1', [['/site/c/antilles-unit/toast-avocat-crevettes-jean-luc-20261123.webp', 'Toasts à l’avocat et aux crevettes']]],
+  ['toasts-a-l-avocat-et-aux-crevettes-antilles', 'jl1', [['/site/c/antilles-unit/toast-avocat-crevettes-jean-luc-20261123.webp', 'Toasts à l’avocat et aux crevettes']]],
+  /* Buffet chinois, section « Nos buffets » (Jean-Luc, 2026-11-23) : des photos de buffet en chafing dishes, jamais de pièce à l'unité.
+     Images tirées de sa vidéo chinois-boucle.mp4 (ses médias). */
+  ['buffet-chinois-entrees-plat', 'buffet1', [['/site/c/chinois-menus/buffet-chafing-1.webp', 'Buffet chinois servi en chafing dishes'], ['/site/c/chinois-menus/buffet-chafing-2.webp', 'Rangée de chafing dishes ouverts sur un buffet asiatique'], ['/site/c/chinois-menus/buffet-chafing-3.webp', 'Buffet asiatique : plusieurs plats chauds en chafing dishes']]],
+  ['buffet-chinois-assortiment-13-pieces-salees', 'buffet1', [['/site/c/chinois-menus/buffet-chafing-3.webp', 'Buffet asiatique : plusieurs plats chauds en chafing dishes'], ['/site/c/chinois-menus/buffet-chafing-1.webp', 'Buffet chinois servi en chafing dishes'], ['/site/c/chinois-menus/buffet-chafing-2.webp', 'Rangée de chafing dishes ouverts sur un buffet asiatique']]],
+  ['buffet-chinois-entrees-plat-dessert', 'buffet1', [['/site/c/chinois-menus/buffet-chafing-2.webp', 'Rangée de chafing dishes ouverts sur un buffet asiatique'], ['/site/c/chinois-menus/buffet-chafing-3.webp', 'Buffet asiatique : plusieurs plats chauds en chafing dishes'], ['/site/c/chinois-menus/buffet-chafing-1.webp', 'Buffet chinois servi en chafing dishes']]],
+  /* Buffet libanais, section « Nos buffets » (Jean-Luc, 2026-11-23) : photos de buffets et de grands plateaux selon le texte de chaque fiche,
+     jamais de pièce à l'unité. Pexels et Unsplash, licences libres, vérifiées une à une ; sources dans data/credits-photos-univers.md */
+  ['buffet-libanais-8-mezzes-au-choix', 'buffet1', [['https://images.pexels.com/photos/19386650/pexels-photo-19386650.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Grande table de mezzés libanais'], ['https://images.unsplash.com/photo-1777891257688-cdf5c386bbb2?auto=format&fit=crop&w=1600&q=80', 'Mezzés et dessert oriental aux noix']]],
+  ['buffet-libanais-plat-seul', 'buffet1', [['https://images.unsplash.com/photo-1771285119318-b342c3ecc51c?auto=format&fit=crop&w=1600&q=80', 'Grand plateau de grillades libanaises'], ['https://images.pexels.com/photos/23025180/pexels-photo-23025180.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Kafta, kebbé et mezzés servis à partager']]],
+  ['buffet-libanais-6-mezzes-1-plat', 'buffet1', [['https://images.unsplash.com/photo-1786174045055-1eb50942e273?auto=format&fit=crop&w=1600&q=80', 'Plateau de mezzés et de grillades'], ['https://images.pexels.com/photos/19386650/pexels-photo-19386650.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Grande table de mezzés libanais']]],
+  ['buffet-libanais-6-mezzes-1-plat-1-dessert', 'buffet1', [['https://images.pexels.com/photos/29177219/pexels-photo-29177219.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Table de buffet libanais : mezzés et plats chauds'], ['https://images.unsplash.com/photo-1777891257688-cdf5c386bbb2?auto=format&fit=crop&w=1600&q=80', 'Mezzés et dessert oriental aux noix']]],
+  ['buffet-libanais-8-mezzes-1-plat', 'buffet1', [['https://images.pexels.com/photos/23025180/pexels-photo-23025180.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Kafta, kebbé et mezzés servis à partager'], ['https://images.pexels.com/photos/19386650/pexels-photo-19386650.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Grande table de mezzés libanais']]],
+  ['buffet-libanais-8-mezzes-1-plat-1-dessert', 'buffet1', [['https://images.unsplash.com/photo-1777891257688-cdf5c386bbb2?auto=format&fit=crop&w=1600&q=80', 'Mezzés et dessert oriental aux noix'], ['https://images.pexels.com/photos/29177219/pexels-photo-29177219.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Table de buffet libanais : mezzés et plats chauds']]],
+  /* Buffet chinois : une vraie photo de buffet en chafing dishes différente par fiche (Pexels), puis les images de sa vidéo */
+  ['buffet-chinois-entrees-plat', 'buffet2', [['https://images.pexels.com/photos/39388375/pexels-photo-39388375.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Buffet asiatique en chafing dishes'], ['/site/c/chinois-menus/buffet-chafing-1.webp', 'Buffet chinois servi en chafing dishes']]],
+  ['buffet-chinois-assortiment-13-pieces-salees', 'buffet2', [['https://images.pexels.com/photos/2291367/pexels-photo-2291367.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Rangée de chafing dishes ouverts'], ['/site/c/chinois-menus/buffet-chafing-3.webp', 'Buffet asiatique : plats chauds en chafing dishes']]],
+  ['buffet-chinois-entrees-plat-dessert', 'buffet2', [['https://images.pexels.com/photos/39388382/pexels-photo-39388382.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Invités qui se servent au buffet asiatique'], ['/site/c/chinois-menus/buffet-chafing-2.webp', 'Rangée de chafing dishes sur un buffet asiatique']]],
   /* Jeux et animations sans photo (Jean-Luc, 2026-11-22) : Pexels et Unsplash, licences libres ; sources dans data/credits-photos-univers.md */
   ['puissance-4-geant', 'v1', [['https://images.pexels.com/photos/3009788/pexels-photo-3009788.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Puissance 4 géant bleu joué en soirée']]],
   ['taureau-mecanique', 'v1', [['https://images.unsplash.com/photo-1539070519374-cd87b6cf7624?auto=format&fit=crop&w=1600&q=80', 'Taureau mécanique sur son matelas gonflable']]],
@@ -1084,6 +1202,8 @@ const VRAIES_PHOTOS_SITE = [
   { id: 'animations-salees-1', rubrique: 'animations-salees', avant: '/site/c/barbecue40-client-20261031.jpg.webp', photo: pexels(34027185) },
   { id: 'couscous-party-1', sous: 'couscous-party', avant: '', photo: pexels(36984667) },
   { id: 'buffet-antillais-1', sous: 'buffet-antillais', avant: '/site/c/paysages/antilles.webp', photo: pexels(2120356) },
+  /* Jean-Luc (2026-11-23) préfère finalement l'ancien bandeau antillais : les îles et l'océan, grandes feuilles tropicales devant (photo de son brouillon) */
+  { id: 'buffet-antillais-2', sous: 'buffet-antillais', avant: pexels(2120356), photo: '/site/c/paysages/antilles.webp' },
   { id: 'japonais-1', sous: 'specialites-japonaises', avant: '/site/c/paysages/japon.webp', photo: pexels(33368124) },
   { id: 'accueil-maison-1', accueil: 'photoMaison', avant: '/site/c/antilles-menus/buffet-equipe-colombo-20261103-sans-logo-20261106.webp.webp', photo: pexels(34321369) },
   { id: 'buffet-africain-1', produit: 'buffet-africain-entree-plat-ou-plat-dessert', avant: '/site/c/africain-produits/accras-de-morue.webp.webp', photo: pexels(28736731), alt: 'Buffet africain servi par nos cuisiniers' },

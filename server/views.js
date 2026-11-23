@@ -82,7 +82,7 @@ ${schema ? `<script type="application/ld+json">${JSON.stringify(schema).replace(
       <a class="nav-l" href="/lieux">Lieux</a>
       <a class="nav-l" href="/maison">La maison</a>
       <a class="nav-l" href="/temoignages">Avis clients</a>
-      <a class="nav-l" href="/zone-de-livraison">Zone de livraison</a>
+      <a class="nav-l" href="/zone-de-livraison">Nos zones de livraison</a>
       <a class="nav-l" href="/espace-client" aria-label="Mon espace">${icon.user}<span>Mon espace</span></a>
       <a class="nav-sel" href="/ma-selection">${icon.bag}<span>Ma sélection</span><b class="badge" data-sel-count hidden>0</b></a>
     </nav>
@@ -95,7 +95,7 @@ ${schema ? `<script type="application/ld+json">${JSON.stringify(schema).replace(
     <p class="eyebrow">Nos univers</p>
     <ul class="drawer-l">${rubs.map(r => `<li><a href="${rubHref(r)}">${esc(r.nom)}<span>${c.byRub.get(r.slug)?.length || ''}</span></a></li>`).join('')}<li><a href="/lieux">Lieux de réception<span>${c.lieux.filter(l => l.statut !== 'masque').length}</span></a></li></ul>
     <p class="eyebrow">Magnolia</p>
-    <ul class="drawer-l small"><li><a href="/maison">La maison</a></li><li><a href="/comment-commander">Comment commander</a></li><li><a href="/temoignages">Avis clients</a></li><li><a href="/zone-de-livraison">Zone de livraison</a></li><li><a href="/contact">Contact</a></li><li><a href="/espace-client">Mon espace client</a></li></ul>
+    <ul class="drawer-l small"><li><a href="/maison">La maison</a></li><li><a href="/comment-commander">Comment commander</a></li><li><a href="/temoignages">Avis clients</a></li><li><a href="/zone-de-livraison">Nos zones de livraison</a></li><li><a href="/contact">Contact</a></li><li><a href="/espace-client">Mon espace client</a></li></ul>
     <a class="btn btn-or wide" href="tel:${esc((R.telephone || '').replace(/\s/g, ''))}">${icon.phone} ${esc(R.telephone)}</a>
   </div>
 </div>
@@ -117,7 +117,7 @@ ${schema ? `<script type="application/ld+json">${JSON.stringify(schema).replace(
     <div class="foot-brand"><a class="brand foot-logo" href="/" aria-label="${esc(R.nom)}, accueil">${MONO}<span class="brand-txt">Magnolia<small>${esc(R.sousNom || 'Traiteur · Événementiel')}</small></span></a><p class="slogan">${esc(R.slogan || '')}</p>
       <a class="btn btn-ghost-light" href="/ma-selection">Composer mon événement</a></div>
     <div><h2>Nos univers</h2><ul>${rubs.map(r => `<li><a href="${rubHref(r)}">${esc(r.nom)}</a></li>`).join('')}<li><a href="/lieux">Lieux de réception</a></li></ul></div>
-    <div><h2>Magnolia</h2><ul><li><a href="/boutique">La boutique</a></li><li><a href="/ma-selection">Ma sélection</a></li><li><a href="/comment-commander">Comment commander</a></li><li><a href="/zone-de-livraison">Zone de livraison</a></li><li><a href="/temoignages">Témoignages</a></li><li><a href="/maison">La maison Magnolia</a></li><li><a href="/contact">Contact</a></li><li><a href="/espace-client">Mon espace client</a></li></ul></div>
+    <div><h2>Magnolia</h2><ul><li><a href="/boutique">La boutique</a></li><li><a href="/ma-selection">Ma sélection</a></li><li><a href="/comment-commander">Comment commander</a></li><li><a href="/zone-de-livraison">Nos zones de livraison</a></li><li><a href="/temoignages">Témoignages</a></li><li><a href="/maison">La maison Magnolia</a></li><li><a href="/contact">Contact</a></li><li><a href="/espace-client">Mon espace client</a></li></ul></div>
     <div><h2>Nous joindre</h2><ul class="contact"><li><a href="tel:${esc((R.telephone || '').replace(/\s/g, ''))}">${esc(R.telephone)}</a></li><li><a href="mailto:${esc(R.email)}">${esc(R.email)}</a></li><li>${esc(R.adresse)}</li><li>${esc(R.horaires)}</li>${R.instagram ? `<li><a href="${esc(R.instagram)}" rel="noopener">Instagram</a></li>` : ''}</ul></div>
   </div>
   <div class="foot-bas"><p>${esc(R.mentionPied || '')}</p><p><a href="/mentions-legales">Mentions légales</a> · <a href="/confidentialite">Confidentialité</a> · <a href="/cgv">CGV</a> · <a href="/allergenes">Allergènes</a><span data-cookies> · <a href="#cookies">Gérer mes cookies</a></span> · © ${new Date().getFullYear()} ${esc(R.nom)}</p></div>
@@ -276,7 +276,7 @@ function bandeauHtml(c, B, fil) {
     : img(B.photo, '', '', 'fetchpriority="high"').replace(' loading="lazy"', '');
   return `<section class="phero land${kb(c, B.video ? '' : B.photo, B.titre)}">${media}<div class="phero-c wrap">${crumbs(fil || [[B.titre]])}<h1>${esc(B.titre)}</h1>${B.chapo ? `<p class="lead">${esc(B.chapo)}</p>` : ''}
   <div class="row land-cta"><a class="btn btn-or" href="${esc(B.ancre || '/boutique')}">${esc(B.bouton || 'Découvrir')}</a><a class="btn btn-ghost-light" href="tel:${esc(tel)}">${icon.phone}<span>${esc(R.telephone || '')}</span></a></div>
-  <p class="confiance"><span><span class="etoiles" aria-hidden="true">★★★★★</span> <b>${esc(G.note || '4,9')}/5</b> sur Google${G.nombre ? `, ${esc(G.nombre)} avis` : ''}</span><span>Livraison 7 j/7</span></p></div></section>`;
+  <p class="confiance"><span><span class="etoiles" aria-hidden="true">★★★★★</span> <b>${esc(G.note || '4,9')}/5</b> sur Google${G.nombre ? `, ${esc(G.nombre)} avis` : ''}</span><span>Livraison 7 j/7 sur Paris et toute l’Île-de-France</span></p></div></section>`;
 }
 
 /* suggestions de recherche (petits rectangles) : texte simple ou { label, lien } ; sans lien = recherche du mot */
@@ -429,7 +429,7 @@ ${hero || (path === '/boutique' && !q ? bandeau(c, 'boutique') : photo ? bandeau
   ${intro ? introHtml(intro.titre, intro.texte) : ''}
   ${path === '/boutique' && !q ? (B => B.introTitre || B.introTexte ? `<div class="shop-intro">${B.introTitre ? `<h2>${esc(B.introTitre)}</h2>` : ''}${B.introTexte ? `<p>${esc(B.introTexte)}</p>` : ''}</div>` : '')(bandeauDe(c, 'boutique')) : ''}
   <div class="shop-bar">
-    ${chips}<div class="chips scroll-x" role="tablist"${chips ? ' hidden' : ''}>${liste ? '' : `<a class="chip${!rub ? ' on' : ''}" href="/boutique" data-filter="">Tout <small>${c.produits.filter(p => p.statut !== 'masque').length}</small></a>`}${liste ? '' : rubs.map(x => `<a class="chip${x.slug === rub ? ' on' : ''}" href="/${x.slug}"${x.slug === 'saveurs-du-monde' ? ' data-lien' : ` data-filter="${x.slug}"`}>${esc(x.nom)} <small>${c.byRub.get(x.slug)?.length || 0}</small></a>`).join('')}</div>
+    ${chips}<div class="chips scroll-x" role="tablist"${chips ? ' hidden' : ''}>${liste ? '' : `<a class="chip${!rub ? ' on' : ''}" href="/boutique" data-filter="">Tout <small>${c.produits.filter(p => p.statut !== 'masque').length}</small></a>`}${liste ? '' : rubs.map(x => `<a class="chip${x.slug === rub ? ' on' : ''}" href="/${x.slug}"${x.slug === 'saveurs-du-monde' || x.parSections ? ' data-lien' : ` data-filter="${x.slug}"`}>${esc(x.nom)} <small>${c.byRub.get(x.slug)?.length || 0}</small></a>`).join('')}</div>
     <div class="shop-tools">
       <form class="shop-q" action="/boutique" role="search">${icon.search}<input type="search" name="q" value="${esc(q)}" placeholder="Paëlla, DJ, huîtres…" aria-label="Rechercher dans la boutique" data-shop-q></form>
       <label class="tri"><span class="sr">Trier</span><select data-sort><option value="ordre">Classement</option><option value="az">Ordre alphabétique (A à Z)</option><option value="asc">Prix croissant</option><option value="desc">Prix décroissant</option></select></label>
@@ -616,20 +616,20 @@ function livraison(c) {
   ];
   const faq = [
     ['Comment les frais sont-ils calculés ?', `Par la distance aller-retour entre notre laboratoire de ${o.nom} et la commune de votre événement, à ${euros(km)} TTC du kilomètre. L’estimation en ligne est confirmée dans votre devis.`],
-    ['À partir de quel montant la livraison est-elle offerte ?', seuil > 0 ? `Dès ${euros(seuil)} TTC de commande, la livraison et la reprise sont offertes, partout dans notre zone de livraison.` : 'Les frais de livraison sont indiqués dans votre devis.'],
+    ['À partir de quel montant la livraison est-elle offerte ?', seuil > 0 ? `Dès ${euros(seuil)} TTC de commande, la livraison et la reprise sont offertes, partout dans nos zones de livraison.` : 'Les frais de livraison sont indiqués dans votre devis.'],
     ['Livrez-vous le week-end et les jours fériés ?', 'Oui, 7 jours sur 7. Indiquez l’horaire souhaité dans votre demande : nous convenons ensemble du créneau exact.'],
-    ['Et en dehors de notre zone de livraison ?', `C’est souvent possible, selon votre événement : contactez-nous au ${R.telephone} ou par le formulaire de contact, nous vous faisons une proposition.`],
+    ['Et en dehors de nos zones de livraison ?', `C’est souvent possible, selon votre événement : contactez-nous au ${R.telephone} ou par le formulaire de contact, nous vous faisons une proposition.`],
     ['La reprise du matériel est-elle comprise ?', 'Oui, le prix au kilomètre comprend l’aller et le retour. Le devis précise la livraison et la récupération pour chaque prestation (matériel, animations, packs).'],
   ];
   const schema = { '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: faq.map(([q, a]) => ({ '@type': 'Question', name: q, acceptedAnswer: { '@type': 'Answer', text: a } })) };
   const body = `
 <section class="zl-hero" data-zl data-zl-origine="${esc(JSON.stringify({ lat: o.lat, lon: o.lon, nom: o.nom }))}" data-zl-km="${km}" data-zl-seuil="${seuil}">
-  <div class="zl-map" data-zl-map aria-label="Carte 3D de notre zone de livraison : faites-la tourner, cliquez sur une ville">${carteSecours(o)}</div>
+  <div class="zl-map" data-zl-map aria-label="Carte 3D de nos zones de livraison : faites-la tourner, cliquez sur une ville">${carteSecours(o)}</div>
   <div class="zl-glow" aria-hidden="true"></div>
   <div class="zl-panel">
-    ${crumbs([['Zone de livraison']])}
+    ${crumbs([['Nos zones de livraison']])}
     <p class="eyebrow">Livraison 7 jours sur 7</p>
-    <h1>Notre zone de livraison</h1>
+    <h1>Nos zones de livraison</h1>
     <p class="lead">Les huit départements d’Île-de-France, livrés depuis notre laboratoire de ${esc(o.nom)} par nos propres véhicules.</p>
     <ul class="zl-cles"><li><b>${esc(euros(km))}</b><span>TTC du km<br>aller-retour</span></li>${seuil > 0 ? `<li class="or"><b>Offerte</b><span>dès ${esc(euros(seuil))} TTC<br>de commande</span></li>` : ''}<li><b>Hors zone</b><span>nous<br>contacter</span></li></ul>
     <form class="zl-sim" data-zl-form autocomplete="off" onsubmit="return false">
@@ -675,7 +675,7 @@ function livraison(c) {
 <section class="zl-cta"><div class="wrap"><h2>Votre événement, livré là où vous le fêtez</h2><p>Composez votre sélection en quelques clics : la livraison est calculée automatiquement${seuil > 0 ? ` et ${esc(offerteTxt)}` : ''}.</p>
   <p class="row"><a class="btn btn-or" href="/boutique">Composer ma sélection</a><a class="btn btn-ghost-light" href="tel:${esc(tel)}">${icon.phone}<span>${esc(R.telephone)}</span></a></p></div></section>`;
   return layout(c, {
-    title: 'Zone de livraison', path: '/zone-de-livraison', bodyClass: 'zl-page', schema, image: '/site/flotte/fourgon-livraison-paris.jpg',
+    title: 'Nos zones de livraison', path: '/zone-de-livraison', bodyClass: 'zl-page', schema, image: '/site/flotte/fourgon-livraison-paris.jpg',
     description: `Livraison 7 j/7 dans les 8 départements d’Île-de-France depuis Villebon-sur-Yvette : ${euros(km)} TTC du km aller-retour${seuil > 0 ? `, ${offerteTxt}` : ''}. Hors zone : contactez-nous.`,
     body, head: `<link rel="stylesheet" href="/vendor/maplibre/maplibre-gl.css">`, scripts: `<script src="/vendor/maplibre/maplibre-gl.js" defer></script><script src="/js/zone.js?v=${V}" defer></script>`,
   });

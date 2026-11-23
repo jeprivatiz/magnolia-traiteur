@@ -193,7 +193,10 @@
       });
     });
     /* Saveurs du monde : toujours la page du globe, jamais un filtre mélangé dans la boutique (Jean-Luc, 2026-11-23) */
+    /* idem pour une rubrique présentée en sections (La carte Magnolia : entrées, plats, fromages, desserts) */
+    const lien = location.pathname === '/boutique' && location.hash && $(`a[data-lien][href="/${CSS.escape(location.hash.slice(1))}"]`, shop);
     if (location.pathname === '/boutique' && location.hash === '#saveurs-du-monde') { location.replace('/saveurs-du-monde'); }
+    else if (lien) { location.replace(lien.getAttribute('href')); }
     else
     if (location.hash && location.pathname === '/boutique') $(`[data-filter="${CSS.escape(location.hash.slice(1))}"]`, shop)?.click();
     const qi = $('[data-shop-q]', shop);
