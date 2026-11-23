@@ -1084,6 +1084,8 @@ const VRAIES_PHOTOS_SITE = [
   { id: 'animations-salees-1', rubrique: 'animations-salees', avant: '/site/c/barbecue40-client-20261031.jpg.webp', photo: pexels(34027185) },
   { id: 'couscous-party-1', sous: 'couscous-party', avant: '', photo: pexels(36984667) },
   { id: 'buffet-antillais-1', sous: 'buffet-antillais', avant: '/site/c/paysages/antilles.webp', photo: pexels(2120356) },
+  /* Jean-Luc (2026-11-23) préfère finalement l'ancien bandeau antillais : les îles et l'océan, grandes feuilles tropicales devant (photo de son brouillon) */
+  { id: 'buffet-antillais-2', sous: 'buffet-antillais', avant: pexels(2120356), photo: '/site/c/paysages/antilles.webp' },
   { id: 'japonais-1', sous: 'specialites-japonaises', avant: '/site/c/paysages/japon.webp', photo: pexels(33368124) },
   { id: 'accueil-maison-1', accueil: 'photoMaison', avant: '/site/c/antilles-menus/buffet-equipe-colombo-20261103-sans-logo-20261106.webp.webp', photo: pexels(34321369) },
   { id: 'buffet-africain-1', produit: 'buffet-africain-entree-plat-ou-plat-dessert', avant: '/site/c/africain-produits/accras-de-morue.webp.webp', photo: pexels(28736731), alt: 'Buffet africain servi par nos cuisiniers' },
