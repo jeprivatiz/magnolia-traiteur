@@ -189,3 +189,28 @@ Vraies photos libres regardées une à une (sans texte ni logo ; quelques-unes r
 | Fiche | Photo | Auteur | Licence | Source |
 |---|---|---|---|---|
 | Pastel de viande (à la place d'une image IA) | public/site/c/africain-boutique/pastels-viande-vrais.webp | Cheikh cherif | CC BY-SA 4.0 | https://commons.wikimedia.org/wiki/File:Fataya.jpg |
+
+## Les indispensables, matériel + bandeau Carte Magnolia (2026-11-23)
+Photos Pexels : licence Pexels (usage commercial libre, sans attribution obligatoire). Photos Wikimedia Commons et Flickr : licence indiquée.
+| Fiche | Fichier | Source | Licence |
+|---|---|---|---|
+| Bandeau Carte Magnolia (chef au dressage) | public/site/c/carte-magnolia-bandeau-chef.webp | https://www.pexels.com/photo/15671409/ | Pexels |
+| Petit Pack Traiteur éco-responsable | public/site/c/materiel/pack-eco.webp | https://www.pexels.com/photo/4857600/ | Pexels |
+| Vaisselle complète | public/site/c/materiel/vaisselle-complete.webp | https://www.pexels.com/photo/735869/ | Pexels |
+| Décoration | public/site/c/materiel/decoration.webp | https://www.pexels.com/photo/2306281/ | Pexels |
+| Matériel traiteur | public/site/c/materiel/materiel-traiteur.webp | https://www.pexels.com/photo/1561597/ | Pexels |
+| Tente de réception 4 × 4 m | public/site/c/materiel/tente-4x4.webp | https://commons.wikimedia.org/wiki/File:Marquee_tent_for_a_holiday_resort.jpg (Barbieri.wiki) | CC BY-SA 3.0 |
+| Grand Pack Traiteur · vaisselle en dur | public/site/c/materiel/grand-pack.webp | https://www.pexels.com/photo/17057034/ | Pexels |
+| Nappage 170 × 250 cm | public/site/c/materiel/nappage.webp | https://www.pexels.com/photo/4639508/ | Pexels |
+| Mange-debout | public/site/c/materiel/mange-debout.webp | https://www.flickr.com/photos/74708580@N00/4466169977 (glasseyes view) | CC BY-SA 2.0 |
+| Nappe rectangulaire 170 × 250 cm | public/site/c/materiel/nappe-rectangulaire.webp | https://www.pexels.com/photo/8112784/ | Pexels |
+| Chaise pliante de luxe en velours bordeaux | public/site/c/materiel/chaise-velours.webp (recadrée) | https://www.pexels.com/photo/35560665/ | Pexels |
+| Verres en verre (vin, coupes à champagne) | public/site/c/materiel/verres-vin-coupes.webp | https://www.pexels.com/photo/29157921/ | Pexels |
+| Verres réutilisables éco-responsables | public/site/c/materiel/verres-reutilisables.webp (recadrée) | https://www.flickr.com/photos/36976328@N04/54546620525 (re:publica) | CC BY-SA 2.0 |
+| Set de vaisselle complet | public/site/c/materiel/set-complet.webp | https://www.pexels.com/photo/291767/ | Pexels |
+| Set de vaisselle sans verrerie | public/site/c/materiel/set-sans-verrerie.webp | https://www.pexels.com/photo/18977894/ | Pexels |
+| Set de vaisselle dessert | public/site/c/materiel/set-dessert.webp | https://www.pexels.com/photo/1414234/ | Pexels |
+| Bain-marie (chafing dish) | public/site/c/materiel/chafing-dish.webp | https://www.pexels.com/photo/2291367/ | Pexels |
+| Four à pizza (mobile) | public/site/c/materiel/four-pizza-mobile.webp | https://commons.wikimedia.org/wiki/File:Olympic-Sculpture-Pizza-2935.jpg (Vmenkov) | CC BY-SA 3.0 |
+| Chauffeur privé | public/site/c/materiel/chauffeur-prive.webp | https://www.pexels.com/photo/8425027/ | Pexels |
+| Samoussas légumes (Buffet africain), copie locale | public/site/c/materiel/samoussas-legumes.webp | https://www.pexels.com/photo/4449068/ | Pexels |
