@@ -1,0 +1,31 @@
+name: Récupérer la photo de la Lune (NASA)
+
+# Mosaïque de la pleine Lune prise par LRO (NASA Scientific Visualization Studio, domaine public NASA).
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/recuperer-lune.yml
+
+permissions:
+  contents: write
+
+jobs:
+  recuperer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Téléchargement
+        run: |
+          mkdir -p public/site/lune/source
+          curl -fsSL -A "Mozilla/5.0 (magnolia-recuperation)" -o public/site/lune/source/moon_mosaic_print.jpg "https://svs.gsfc.nasa.gov/vis/a000000/a005000/a005001/moon_mosaic_print.jpg"
+          ls -la public/site/lune/source
+      - name: Enregistrer dans le dépôt
+        run: |
+          git config user.name "magnolia-bot"
+          git config user.email "magnolia-bot@users.noreply.github.com"
+          git add public/site/lune
+          if git diff --cached --quiet; then echo "Rien de nouveau."; exit 0; fi
+          git commit -m "Photo de la Lune (NASA SVS, domaine public)"
+          git push

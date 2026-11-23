@@ -39,7 +39,7 @@ function adsConv(R) {
   return ` data-ads="${id}"` + d + k;
 }
 
-function layout(c, { title, description = '', body, path = '/', schema = null, bodyClass = '', image = '', head = '', scripts = '' }) {
+function layout(c, { title, description = '', body, path = '/', schema = null, bodyClass = '', image = '', head = '', scripts = '', partage = '' }) {
   const R = c.reglages;
   const fullTitle = title ? `${title} · ${R.nom || 'Magnolia Traiteur'}` : `${R.nom || 'Magnolia Traiteur'} · Traiteur événementiel`;
   const site = (process.env.SITE_URL || 'https://www.magnoliatraiteur.fr').replace(/\/$/, '');
@@ -53,8 +53,12 @@ function layout(c, { title, description = '', body, path = '/', schema = null, b
 <meta name="description" content="${esc(description || R.accueil?.sousTitre || '')}">
 <link rel="canonical" href="${esc(site + path)}">
 <meta property="og:title" content="${esc(fullTitle)}">
-<meta property="og:description" content="${esc(description)}">
+<meta property="og:description" content="${esc(partage || description)}">
 ${image ? `<meta property="og:image" content="${esc(site + image)}">` : ''}
+<meta name="twitter:card" content="${image ? 'summary_large_image' : 'summary'}">
+<meta name="twitter:title" content="${esc(fullTitle)}">
+<meta name="twitter:description" content="${esc(partage || description)}">
+${image ? `<meta name="twitter:image" content="${esc(site + image)}">` : ''}
 <meta name="theme-color" content="#1d3b2f">
 <link rel="icon" href="/brand/monogramme.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/apple-icon.png">
@@ -321,20 +325,28 @@ const PHRASES_GLOBE = {
   antilles: 'Le goût des Antilles : accras, colombo, boudin créole, poulet boucané et douceurs coco.',
   inde: 'Les mille épices de l’Inde : currys, tandoori, biryanis, naans et samoussas.',
   japon: 'L’élégance japonaise : sushis, makis, sashimis et bouchées délicates, préparés avec précision.',
+  france: 'L’art de recevoir à la française : petits fours, verrines, pièces cocktail, fromages affinés et buffets raffinés.',
 };
-const CENTRES_GLOBE = { antilles: [-61.3, 15.4], afrique: [17, 4], maghreb: [2, 31.5], reunion: [55.5, -21.1], polynesie: [-149.4, -17.6] };
+/* ordre des pavés du globe (Jean-Luc, 2026-11-23) : les autres pays suivent, la France ferme la liste */
+const ORDRE_GLOBE = ['antilles', 'espagne', 'chine', 'maghreb', 'inde', 'liban', 'afrique', 'italie', 'japon'];
+const CENTRES_GLOBE = { france: [2.4, 46.6], antilles: [-61.3, 15.4], afrique: [17, 4], maghreb: [2, 31.5], reunion: [55.5, -21.1], polynesie: [-149.4, -17.6] };
 /* Saveurs du monde : globe 3D interactif (Jean-Luc, 2026-11-22) — pavés des spécialités à gauche, flèche vers le pays, image du pays en fond */
 function pageGlobe(c, r) {
   const S = sousVisibles(r);
   const tous = c.byRub.get(r.slug) || [];
   const R = c.reglages;
-  const items = S.map(x => {
+  const rang = x => { const l = lieuDe(x), k = l ? ORDRE_GLOBE.indexOf(l[0]) : -1; return k < 0 ? 99 : k; };
+  const items = S.slice().sort((a, b) => rang(a) - rang(b)).map(x => {
     const L = prodsDeSous(c, r, x.slug).slice().sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
     const vedette = L.find(p => rangementDe(p) === 'buffets' && p.prixCents != null) || L.find(p => p.prixCents != null) || L[0];
     const lieu = lieuDe(x);
     return { slug: x.slug, nom: x.nom, pays: x.pays || (lieu ? lieu[1] : ''), n: L.length, href: `/${r.slug}/${x.slug}`, photo: x.photoGlobe || (lieu && PHOTOS_PAYS[lieu[0]] ? `/site/pays/${lieu[0]}.jpg` : x.bandeauPhoto || x.photo || ''), vignette: vedette?.photos?.[0]?.src || x.photo || '',
       phrase: x.phraseGlobe || (lieu && PHRASES_GLOBE[lieu[0]]) || speChapo(x), ids: lieu ? lieu[2].map(Number) : [], centre: lieu ? CENTRES_GLOBE[lieu[0]] || null : null };
   });
+  /* la France, en dernier : elle mène au Buffet & cocktail français (Jean-Luc, 2026-11-23) */
+  const fr = c.rubriques.find(x => x.slug === 'cocktails-buffets' && x.statut !== 'masque');
+  if (fr) items.push({ slug: 'france', nom: 'Cocktail et buffet français', pays: 'France', n: (c.byRub.get(fr.slug) || []).filter(p => p.statut !== 'masque').length, href: '/' + fr.slug,
+    photo: fr.photoGlobe || fr.bandeauPhoto || fr.photo || '', vignette: fr.photo || '', phrase: fr.phraseGlobe || PHRASES_GLOBE.france, ids: [250], centre: CENTRES_GLOBE.france });
   const body = `${bandeauHtml(c, { photo: '/site/c/paysages/antilles.webp', video: '', titre: r.titrePage || r.nom, chapo: r.chapo || r.accroche || 'Choisissez votre spécialité : chaque cuisine a ses buffets, ses plats et ses douceurs.', bouton: 'Choisir ma spécialité', ancre: '#specialites' }, [['La boutique', '/boutique'], [r.nom]])}
 <section class="sm-globe" id="specialites" data-sm data-sm-paris="[2.35,48.86]">
   <div class="sm-map" data-sm-map aria-label="Globe des saveurs du monde : faites-le tourner, touchez un pays"></div>
@@ -351,6 +363,8 @@ function pageGlobe(c, r) {
   <script type="application/json" data-sm-data>${JSON.stringify(items).replace(/</g, '\\u003c')}</script>
 </section>`;
   return layout(c, { title: r.seoTitre || r.titrePage || r.nom, description: r.seoDescription || r.chapo || '', body, path: '/' + r.slug, image: '/site/c/paysages/antilles.webp', bodyClass: 'sm-page',
+    /* aperçu au partage (SMS, WhatsApp…) sous le titre (Jean-Luc, 2026-11-23) */
+    partage: r.partageTexte || 'Dix traiteurs, une seule maison.',
     head: '<link rel="stylesheet" href="/vendor/maplibre5/maplibre-gl.css">', scripts: `<script src="/vendor/maplibre5/maplibre-gl.js" defer></script><script src="/js/globe.js?v=${V}" defer></script>` });
 }
 function pageSpecialites(c, r) {
