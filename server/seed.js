@@ -938,6 +938,11 @@ const DOUBLONS = [
 /* [titre, photo, texte alternatif] ; sources dans data/credits-photos-univers.md */
 /* [fiche, version, [[photo, description]…]] */
 const VRAIES_PHOTOS = [
+  /* Buffet chinois, section « Nos buffets » (Jean-Luc, 2026-11-23) : des photos de buffet en chafing dishes, jamais de pièce à l'unité.
+     Images tirées de sa vidéo chinois-boucle.mp4 (ses médias). */
+  ['buffet-chinois-entrees-plat', 'buffet1', [['/site/c/chinois-menus/buffet-chafing-1.webp', 'Buffet chinois servi en chafing dishes'], ['/site/c/chinois-menus/buffet-chafing-2.webp', 'Rangée de chafing dishes ouverts sur un buffet asiatique'], ['/site/c/chinois-menus/buffet-chafing-3.webp', 'Buffet asiatique : plusieurs plats chauds en chafing dishes']]],
+  ['buffet-chinois-assortiment-13-pieces-salees', 'buffet1', [['/site/c/chinois-menus/buffet-chafing-3.webp', 'Buffet asiatique : plusieurs plats chauds en chafing dishes'], ['/site/c/chinois-menus/buffet-chafing-1.webp', 'Buffet chinois servi en chafing dishes'], ['/site/c/chinois-menus/buffet-chafing-2.webp', 'Rangée de chafing dishes ouverts sur un buffet asiatique']]],
+  ['buffet-chinois-entrees-plat-dessert', 'buffet1', [['/site/c/chinois-menus/buffet-chafing-2.webp', 'Rangée de chafing dishes ouverts sur un buffet asiatique'], ['/site/c/chinois-menus/buffet-chafing-3.webp', 'Buffet asiatique : plusieurs plats chauds en chafing dishes'], ['/site/c/chinois-menus/buffet-chafing-1.webp', 'Buffet chinois servi en chafing dishes']]],
   /* Jeux et animations sans photo (Jean-Luc, 2026-11-22) : Pexels et Unsplash, licences libres ; sources dans data/credits-photos-univers.md */
   ['puissance-4-geant', 'v1', [['https://images.pexels.com/photos/3009788/pexels-photo-3009788.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Puissance 4 géant bleu joué en soirée']]],
   ['taureau-mecanique', 'v1', [['https://images.unsplash.com/photo-1539070519374-cd87b6cf7624?auto=format&fit=crop&w=1600&q=80', 'Taureau mécanique sur son matelas gonflable']]],
