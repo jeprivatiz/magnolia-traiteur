@@ -106,3 +106,81 @@ Photos regardées une à une avant usage (vraies photos, sans texte ni logo, san
 - Buffet végétarien : salade sur buffet Pexels 2291344 (https://www.pexels.com/photo/2291344/), tarte Pexels 29050581 (https://www.pexels.com/photo/29050581/), plateau de fromages Pexels 6660071 (https://www.pexels.com/photo/6660071/)
 - Petit cocktail végétarien : mini-tartelettes Pexels 25916399 (https://www.pexels.com/photo/25916399/), toasts tomate Pexels 1239312 (https://www.pexels.com/photo/1239312/)
 - Grand cocktail dînatoire végétarien : plateau de tartinables Pexels 4374578 (https://www.pexels.com/photo/4374578/), houmous et crudités Pexels 5852251 (https://www.pexels.com/photo/5852251/), tarte au citron meringuée Pexels 6606003 (https://www.pexels.com/photo/6606003/)
+
+## Buffet chinois, carte à l'unité (2026-11-23)
+Vraies photos libres regardées une à une (sans texte ni logo ; quelques-unes recadrées pour couper une inscription en bordure). Licences Creative Commons ou domaine public, usage commercial permis ; auteur et licence ci-dessous (attribution requise pour CC BY et CC BY-SA).
+- Potage de crustacés : avlxyz, BY-SA 2.0, Flickr via Openverse, https://www.flickr.com/photos/10559879@N00/2171031233
+- Potage aux nids d’hirondelle : Robert Staudhammer from Earth, CC BY-SA 2.0, Wikimedia Commons, https://commons.wikimedia.org/wiki/File:Bird%27s-nest-soup-Miri-Malaysia.jpg
+- Potage pékinois (piquant) : avlxyz, BY-SA 2.0, Flickr via Openverse, https://www.flickr.com/photos/10559879@N00/2416274752
+- Potage aux raviolis (porc) : avlxyz, BY-SA 2.0, Flickr via Openverse, https://www.flickr.com/photos/10559879@N00/521426140
+- Potage aux raviolis (crevettes) : stu_spivack, CC BY-SA 2.0, Wikimedia Commons, https://commons.wikimedia.org/wiki/File:Shrimp_wonton_noodle_soup.jpg
+- Soupe aux vermicelles et poulet : avlxyz, BY-SA 2.0, Flickr via Openverse, https://www.flickr.com/photos/10559879@N00/2237954857
+- Salade de soja nature : VegaTeam, BY 2.0, Flickr via Openverse, https://www.flickr.com/photos/59256189@N04/5477683860
+- Salade chinoise aux crevettes : Takeaway, CC BY-SA 3.0, Wikimedia Commons, https://commons.wikimedia.org/wiki/File:Yam_wun_sen.JPG
+- Salade chinoise au poulet : Thank You (23 Millions+) views, BY 2.0, Flickr via Openverse, https://www.flickr.com/photos/34128007@N04/52019997617
+- Rouleaux de printemps : Jeremy Weate, BY 2.0, Flickr via Openverse, https://www.flickr.com/photos/73542590@N00/8671136053
+- Nems au porc : Anne Molina, CC BY-SA 4.0, Wikimedia Commons, https://commons.wikimedia.org/wiki/File:Lumpia_or_fried_spring_rolls.jpg
+- Bò bún (vermicelles de riz aux nems et au bœuf) : fabulousfabs, CC BY 2.0, Wikimedia Commons, https://commons.wikimedia.org/wiki/File:Bun_Bo_Nam_Bo.jpg
+- Omelette au crabe : Jen SFO-BCN, BY 2.0, Flickr via Openverse, https://www.flickr.com/photos/22148389@N00/3560920782
+- Omelette aux crevettes : N509FZ, CC BY-SA 4.0, Wikimedia Commons, https://commons.wikimedia.org/wiki/File:Shrimp_omelette_on_Z99_(20260107184712).jpg
+- Omelette aux légumes (foo-yong) : BrokenSphere, CC BY-SA 3.0, Wikimedia Commons, https://commons.wikimedia.org/wiki/File:Egg_foo_young.JPG
+- Crevettes tempura : Daderot, CC0, Wikimedia Commons, https://commons.wikimedia.org/wiki/File:Tempura_shrimp_and_vegetables_-_Massachusetts.jpg
+- Beignets de crevettes : whologwhy, BY 2.0, Flickr via Openverse, https://www.flickr.com/photos/60417477@N00/6281601633
+- Bouchées au bœuf à la vapeur : Windmemories, CC BY-SA 4.0, Wikimedia Commons, https://commons.wikimedia.org/wiki/File:20240730_Steamed_beef_dumplings_of_Chun_He_Lou.jpg
+- Raviolis frits aux crevettes : roland, BY 2.0, Flickr via Openverse, https://www.flickr.com/photos/35034347371@N01/418046674
+- Assortiment de bouchées vapeur : Chika, BY 2.0, Flickr via Openverse, https://www.flickr.com/photos/26694022@N00/4099148495
+- Toasts aux crevettes : Ser Amantio di Nicolao, CC BY-SA 3.0, Wikimedia Commons, https://commons.wikimedia.org/wiki/File:Shrimp_toast_appetizer_at_TRN_Cafe,_with_dipping_sauce.jpg
+- Raviolis vietnamiens maison : Casablanca1911 at <a class="external text" data-mw-original-href="http://vi.wiki, PUBLIC DOMAIN, Wikimedia Commons, https://commons.wikimedia.org/wiki/File:B%C3%A1nh_cu%E1%BB%91n_Thanh_Tr%C3%AC.jpg
+- Raviolis pékinois grillés : basheertome, BY 2.0, Flickr via Openverse, https://www.flickr.com/photos/10019047@N05/13919426034
+- Mijoté de poulet au gingembre et à la ciboulette : avlxyz, BY-SA 2.0, Flickr via Openverse, https://www.flickr.com/photos/10559879@N00/3011562937
+- Langouste au gingembre et à la ciboulette : lazy fri13th, CC BY 2.0, Wikimedia Commons, https://commons.wikimedia.org/wiki/File:Ginger_scallion_lobster.jpg
+- Crevettes à la sauce piquante : 我乃野云鹤, CC BY-SA 4.0, Wikimedia Commons, https://commons.wikimedia.org/wiki/File:Fried_Shrimps_in_Hot_and_Spicy_Sauce_2.jpg
+- Crevettes au curry : Krista, CC BY 2.0, Wikimedia Commons, https://commons.wikimedia.org/wiki/File:Shrimps_in_curry_sauce.jpg
+- Grosses crevettes au sel et au poivre : Clotee Pridgen Allochuku, BY 2.0, Flickr via Openverse, https://www.flickr.com/photos/44846110@N07/11702939933
+- Crevettes sautées aux légumes : jeffreyw, CC BY 2.0, Wikimedia Commons, https://commons.wikimedia.org/wiki/File:Noodle_stir_fry_with_chicken,_shrimp,_and_broccoli_(18471621051).jpg
+- Crevettes à l’ananas : Coco Kim, BY 2.0, Flickr via Openverse, https://www.flickr.com/photos/78292210@N05/15921156629
+- Lotte à la sauce aigre-douce : avlxyz, BY-SA 2.0, Flickr via Openverse, https://www.flickr.com/photos/10559879@N00/3450251342
+- Filet de poisson à la sauce piquante : Prince Roy, BY 2.0, Flickr via Openverse, https://www.flickr.com/photos/17352537@N00/2972778848
+- Filet de poisson à la sauce aigre-douce : thienzieyung, BY 2.0, Flickr via Openverse, https://www.flickr.com/photos/26978304@N08/16533087881
+- Filet de poisson à la sauce citron : WordRidden, BY 2.0, Flickr via Openverse, https://www.flickr.com/photos/97844767@N00/5869238152
+- Saint-Jacques aux légumes : Discover Lehigh Valley, PA, BY 2.0, Flickr via Openverse, https://www.flickr.com/photos/32075561@N06/9256981363
+- Seiches au sel et au poivre : stu_spivack, BY-SA 2.0, Flickr via Openverse, https://www.flickr.com/photos/35034346243@N01/2369430695
+- Seiches à la sauce piquante : avlxyz, BY-SA 2.0, Flickr via Openverse, https://www.flickr.com/photos/10559879@N00/2268562332
+- Poulet aux noix de cajou : Simon Law from Montréal, QC, Canada, CC BY-SA 2.0, Wikimedia Commons, https://commons.wikimedia.org/wiki/File:Cashewchickenphoto.jpg
+- Poulet à l’impériale (épicé) : C John Thompson, BY-SA 2.0, Flickr via Openverse, https://www.flickr.com/photos/71266843@N03/6454330343
+- Poulet aux amandes : Ser Amantio di Nicolao, CC BY-SA 3.0, Wikimedia Commons, https://commons.wikimedia.org/wiki/File:Almond_chicken_from_Panda_Express_3.jpg
+- Poulet sauté épicé : N509FZ, CC BY-SA 4.0, Wikimedia Commons, https://commons.wikimedia.org/wiki/File:Kung_Pao_Chicken_at_Liqiaoshun_Restaurant_(20220310175424).jpg
+- Poulet à l’ananas : jshontz, BY 2.0, Flickr via Openverse, https://www.flickr.com/photos/29332685@N07/14147874618
+- Poulet en beignet au citron : Willis Lam, CC BY-SA 2.0, Wikimedia Commons, https://commons.wikimedia.org/wiki/File:Tenglong_Chinese_Restaurant_Lemon_Chicken_(37577556406).jpg
+- Poulet au curry : avlxyz, BY-SA 2.0, Flickr via Openverse, https://www.flickr.com/photos/10559879@N00/2426703227
+- Poulet frit du chef à la sichuanaise (épicé) : avlxyz, BY-SA 2.0, Flickr via Openverse, https://www.flickr.com/photos/10559879@N00/2353663209
+- Poulet grillé parfumé : avlxyz, BY-SA 2.0, Flickr via Openverse, https://www.flickr.com/photos/10559879@N00/521457547
+- Canard à l’ananas : whologwhy, BY 2.0, Flickr via Openverse, https://www.flickr.com/photos/60417477@N00/5056028728
+- Canard frit aux cinq parfums : avlxyz, BY-SA 2.0, Flickr via Openverse, https://www.flickr.com/photos/10559879@N00/2418785280
+- Bœuf au curry : Andy Li, CC0, Wikimedia Commons, https://commons.wikimedia.org/wiki/File:Curry_Beef_Brisket_with_Rice_-_CK_Bistro.jpg
+- Bœuf à la sauce piquante : Guilhem Vellut from Paris, France, CC BY 2.0, Wikimedia Commons, https://commons.wikimedia.org/wiki/File:Stir-fried_Spicy_Beef_Ragout_@_Resto_des_Amis_@_Paris_(33196742825).jpg
+- Porc à la sauce piquante : P1898, CC BY 4.0, Wikimedia Commons, https://commons.wikimedia.org/wiki/File:Spicy_pork_bulgogi.jpg
+- Porc laqué : avlxyz, BY-SA 2.0, Flickr via Openverse, https://www.flickr.com/photos/10559879@N00/3087383373
+- Travers de porc royal (sucré) : theimpulsivebuy, BY-SA 2.0, Flickr via Openverse, https://www.flickr.com/photos/27410581@N07/16676261509
+- Travers de porc au sel et au poivre : Benjwong, PUBLIC DOMAIN, Wikimedia Commons, https://commons.wikimedia.org/wiki/File:SaltnPepperrib.jpg
+- Chou chinois sauté nature : Ralff Nestor Nacor, CC BY-SA 4.0, Wikimedia Commons, https://commons.wikimedia.org/wiki/File:Stir_Fried_Bok_Choy,_Aug_2025.jpg
+- Soja sauté : danpeng1, BY 2.0, Flickr via Openverse, https://www.flickr.com/photos/82401372@N00/3921114211
+- Pommes de terre sautées au sel et au poivre : Daderot, CC0, Wikimedia Commons, https://commons.wikimedia.org/wiki/File:Potatoes,_fried_with_salt_and_pepper_-_Arlington,_MA.jpg
+- Nouilles sautées à la viande (poulet ou bœuf) : pointnshoot, BY 2.0, Flickr via Openverse, https://www.flickr.com/photos/18244673@N00/284501614
+- Nouilles sautées aux crevettes : Aaron Gustafson from Austin, Texas, CC BY-SA 2.0, Wikimedia Commons, https://commons.wikimedia.org/wiki/File:Chow_mein_by_Aaron_Gustafson_in_Austin,_Texas.jpg
+- Riz sauté du chef (crevettes, porc laqué et œuf) : avlxyz, BY-SA 2.0, Flickr via Openverse, https://www.flickr.com/photos/10559879@N00/3522091044
+- Riz sauté au curry (crevettes, porc laqué et œuf) : bochalla, BY-SA 2.0, Flickr via Openverse, https://www.flickr.com/photos/98627683@N00/4508666583
+- Riz gluant à la vapeur : thomaswanhoff, BY-SA 2.0, Flickr via Openverse, https://www.flickr.com/photos/51035727839@N01/5074814028
+- Riz sauté thaï (crevettes, ananas et œuf) : Ruocaled, BY 2.0, Flickr via Openverse, https://www.flickr.com/photos/54063325@N07/7090014075
+- Potage aux asperges et au crabe : auteur non indiqué, CC BY-SA 4.0, Wikimedia Commons, https://commons.wikimedia.org/wiki/File:Corn_crab_soup1.jpg
+- Raviolis frits au porc : jeffreyw, BY 2.0, Flickr via Openverse, https://www.flickr.com/photos/7927684@N03/4739410312
+- Crevettes à la sauce aigre-douce : avlxyz, BY-SA 2.0, Flickr via Openverse, https://www.flickr.com/photos/10559879@N00/3978772451
+- Lotte à la sauce piquante pékinoise : Edsel L, BY-SA 2.0, Flickr via Openverse, https://www.flickr.com/photos/27119975@N00/4528953988
+- Filet de poisson au sel et au poivre : avlxyz, BY-SA 2.0, Flickr via Openverse, https://www.flickr.com/photos/10559879@N00/3199200846
+- Seiches au gingembre et à la ciboulette : Thang Nguyen, CC BY-SA 2.0, Wikimedia Commons, https://commons.wikimedia.org/wiki/File:Stir_fried_squid.jpg
+- Cuisses de grenouilles à l’impériale (épicées) : Maksym Kozlenko, CC BY-SA 4.0, Wikimedia Commons, https://commons.wikimedia.org/wiki/File:Fried_frog_legs.jpg
+- Bœuf aux oignons : 毒島みるく, CC0, Wikimedia Commons, https://commons.wikimedia.org/wiki/File:Fried_beef,_bamboo_shoots_and_oyster_lunch_of_Matsuya.jpg
+- Porc aux champignons noirs et pousses de bambou : goodiesfirst, BY 2.0, Flickr via Openverse, https://www.flickr.com/photos/49215102@N00/260378562
+- Champignons noirs sautés : avlxyz, BY-SA 2.0, Flickr via Openverse, https://www.flickr.com/photos/10559879@N00/2268561764
+- Légumes chop suey : Obsidian Soul, CC0, Wikimedia Commons, https://commons.wikimedia.org/wiki/File:Chop_suey_(Philippines).jpg
+- Riz nature : Anna Frodesiak, CC0, Wikimedia Commons, https://commons.wikimedia.org/wiki/File:Steamed_rice_in_bowl_01.jpg
