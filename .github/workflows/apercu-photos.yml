@@ -1,7 +1,7 @@
 name: Aperçu de photos libres (temporaire)
 
 # Outil temporaire, accepté par Jean-Luc le 2026-11-23 : télécharge en petit des photos Pexels/Unsplash candidates
-# (2e série) pour que Claude puisse les regarder avant de les choisir (le cloud ne joint pas ces sites). Retiré avant la fusion.
+# (3e série) pour que Claude puisse les regarder avant de les choisir (le cloud ne joint pas ces sites). Retiré avant la fusion.
 on:
   push:
     paths:
@@ -18,21 +18,14 @@ jobs:
       - uses: actions/checkout@v4
       - name: Téléchargement
         run: |
-          mkdir -p apercu-photos/r2 && cd apercu-photos/r2
+          mkdir -p apercu-photos/r3 && cd apercu-photos/r3
           px() { curl -fsSL -A "Mozilla/5.0" -o "px-$1.jpg" "https://images.pexels.com/photos/$1/pexels-photo-$1.jpeg?auto=compress&cs=tinysrgb&w=500" || echo "échec px $1"; }
-          for id in 6660180 1239312 22820141 29935505 18955561 8253100 14415371 27357436 20230770 4374578 6145894; do px $id; done
-          UA="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
-          for q in salad-buffet vegetarian-buffet fruit-tarts tartlet caprese-skewers canapes vegetarian-canapes party-food quiche hummus-platter vegan-appetizers verrine; do
-            curl -fsSL -A "$UA" -H "Accept-Language: en" "https://www.pexels.com/search/${q//-/%20}/" -o s.html || echo "échec recherche px $q"
-            ids=$(grep -oE '/photo/[a-z0-9-]+-[0-9]{5,}/' s.html 2>/dev/null | grep -oE '[0-9]{5,}' | awk '!a[$0]++' | head -8)
-            echo "px $q: $ids" >> liste.txt
-            for id in $ids; do px $id; done
-            curl -fsSL -A "$UA" "https://unsplash.com/s/photos/$q?license=free" -o u.html || echo "échec recherche us $q"
-            us=$(grep -oE 'https://images\.unsplash\.com/photo-[0-9a-f-]+' u.html 2>/dev/null | awk '!a[$0]++' | head -6)
-            echo "us $q: $us" >> liste.txt
-            for u in $us; do n=${u##*/}; curl -fsSL -A "$UA" -o "us-$n.jpg" "$u?auto=format&fit=crop&w=500&q=60" || true; done
+          for id in 1563627 6043409 25916399 1485806 3602269 1013518; do px $id; done
+          for u in XVTTK3wcYME OZq0qiyoE1o PY_dHgdrcno iP6ZoS0c1Sw; do
+            f=$(curl -fsSL -A "Mozilla/5.0" -o "us-$u.jpg" -w '%{url_effective}' "https://unsplash.com/photos/$u/download?w=500" || echo "échec")
+            echo "$u $f" >> liste.txt
           done
-          rm -f s.html u.html; ls | wc -l; cat liste.txt
+          ls -la; cat liste.txt
       - name: Enregistrer
         run: |
           git config user.name "magnolia-bot"
