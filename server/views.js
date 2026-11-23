@@ -335,13 +335,14 @@ function pageGlobe(c, r) {
     return { slug: x.slug, nom: x.nom, pays: x.pays || (lieu ? lieu[1] : ''), n: L.length, href: `/${r.slug}/${x.slug}`, photo: x.photoGlobe || (lieu && PHOTOS_PAYS[lieu[0]] ? `/site/pays/${lieu[0]}.jpg` : x.bandeauPhoto || x.photo || ''), vignette: vedette?.photos?.[0]?.src || x.photo || '',
       phrase: x.phraseGlobe || (lieu && PHRASES_GLOBE[lieu[0]]) || speChapo(x), ids: lieu ? lieu[2].map(Number) : [], centre: lieu ? CENTRES_GLOBE[lieu[0]] || null : null };
   });
-  const body = `${bandeauHtml(c, { photo: r.photoGlobeAccueil || '/site/pays/antilles.jpg', video: '', titre: r.titrePage || r.nom, chapo: r.chapo || r.accroche || 'Choisissez votre spécialité : chaque cuisine a ses buffets, ses plats et ses douceurs.', bouton: 'Choisir ma spécialité', ancre: '#specialites' }, [['La boutique', '/boutique'], [r.nom]])}
+  const body = `${bandeauHtml(c, { photo: '/site/c/paysages/antilles.webp', video: '', titre: r.titrePage || r.nom, chapo: r.chapo || r.accroche || 'Choisissez votre spécialité : chaque cuisine a ses buffets, ses plats et ses douceurs.', bouton: 'Choisir ma spécialité', ancre: '#specialites' }, [['La boutique', '/boutique'], [r.nom]])}
 <section class="sm-globe" id="specialites" data-sm data-sm-paris="[2.35,48.86]">
   <div class="sm-map" data-sm-map aria-label="Globe des saveurs du monde : faites-le tourner, touchez un pays"></div>
   <svg class="sm-fleche" data-sm-fleche aria-hidden="true"><defs><marker id="sm-pointe" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="#e2c495"/></marker><linearGradient id="sm-grad" x1="0" x2="1"><stop offset="0" stop-color="#e2c495" stop-opacity=".25"/><stop offset="1" stop-color="#e2c495"/></linearGradient></defs><path data-sm-trait d="" fill="none" stroke="url(#sm-grad)" stroke-width="2.2" stroke-linecap="round" marker-end="url(#sm-pointe)"/></svg>
   <div class="sm-tete" data-sm-tete>
     <p class="eyebrow">Un voyage à votre table</p>
     <h2 data-sm-titre>Choisissez votre destination culinaire</h2>
+    <p class="sm-sous" data-sm-sous>Dix traiteurs, une seule maison : le meilleur de chaque cuisine, réuni pour vos événements, quel que soit le nombre de personnes.</p>
     <p class="sm-phrase" data-sm-phrase>Touchez un pays à gauche ou sur le globe pour découvrir sa cuisine.</p>
   </div>
   <ul class="sm-paves" data-sm-paves>${items.map((x, i) => `<li><a class="sm-pave" href="${esc(x.href)}" data-sm-i="${i}"><span><i>${esc(x.pays)}</i><b>${esc(x.nom)}</b><small>${x.n} prestation${x.n > 1 ? 's' : ''}</small></span></a></li>`).join('')}</ul>
@@ -349,7 +350,7 @@ function pageGlobe(c, r) {
   <p class="sm-aide" aria-hidden="true">Faites tourner le globe et touchez un pays</p>
   <script type="application/json" data-sm-data>${JSON.stringify(items).replace(/</g, '\\u003c')}</script>
 </section>`;
-  return layout(c, { title: r.seoTitre || r.titrePage || r.nom, description: r.seoDescription || r.chapo || '', body, path: '/' + r.slug, image: r.photoGlobeAccueil || '/site/pays/antilles.jpg', bodyClass: 'sm-page',
+  return layout(c, { title: r.seoTitre || r.titrePage || r.nom, description: r.seoDescription || r.chapo || '', body, path: '/' + r.slug, image: '/site/c/paysages/antilles.webp', bodyClass: 'sm-page',
     head: '<link rel="stylesheet" href="/vendor/maplibre5/maplibre-gl.css">', scripts: `<script src="/vendor/maplibre5/maplibre-gl.js" defer></script><script src="/js/globe.js?v=${V}" defer></script>` });
 }
 function pageSpecialites(c, r) {

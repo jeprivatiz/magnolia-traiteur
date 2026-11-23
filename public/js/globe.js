@@ -33,6 +33,7 @@
   addEventListener('load', () => setTimeout(() => items.forEach(x => { if (x.photo) { const i = new Image(); i.src = x.photo; } }), 1500));
   function majTete(x) {
     $('[data-sm-titre]').textContent = x.pays || x.nom;
+    const ss = $('[data-sm-sous]'); if (ss) ss.hidden = true;
     const ph = $('[data-sm-phrase]'); if (ph) ph.textContent = x.phrase || '';
     const t = $('[data-sm-tete]'); t.classList.remove('entre'); void t.offsetWidth; t.classList.add('entre');
   }
@@ -122,7 +123,16 @@
         <rect x="17" y="-3.5" width="9" height="7" rx="3" fill="url(#sm-corps)" stroke="#7a5c2c" stroke-width=".5"/>
         <rect x="-26" y="-3.5" width="9" height="7" rx="3" fill="url(#sm-module)" stroke="#6f777c" stroke-width=".5"/>
         <path d="M-6-9l-6-6M6 9l5 5" stroke="#cfd3d6" stroke-width="1"/><circle cx="-12" cy="-15" r="2" fill="#f6f1e8"/></g>
-    </defs>` + ORBITES.map(o => `<path class="sm-orbite${o[5] ? ' station' : ''}" d=""/>`).join('') + ORBITES.map(o => `<use class="sm-engin" href="#${o[5] ? 'sm-station' : 'sm-sat'}"/>`).join('');
+      <radialGradient id="sm-lune-sol" cx=".38" cy=".34" r=".75"><stop offset="0" stop-color="#f4f4f2"/><stop offset=".55" stop-color="#c9c9c6"/><stop offset="1" stop-color="#6e6e6b"/></radialGradient>
+      <radialGradient id="sm-lune-ombre" cx=".85" cy=".8" r=".9"><stop offset=".45" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".55"/></radialGradient>
+      <mask id="sm-masque-terre" maskUnits="userSpaceOnUse" x="-1500" y="-1500" width="5000" height="5000"><rect x="-1500" y="-1500" width="5000" height="5000" fill="#fff"/><circle class="sm-masque-disque" r="0" fill="#000"/></mask>
+    <clipPath id="sm-clip-lune"><rect class="sm-clip-lune-r" x="0" y="0" width="10000" height="10000"/></clipPath>
+    </defs><g clip-path="url(#sm-clip-lune)"><g class="sm-lune-masque"><g class="sm-lune-pos"><g class="sm-lune">
+      <circle r="1" fill="url(#sm-lune-sol)"/>
+      <path d="M-.55-.2c.15-.25.45-.3.6-.12.12.16-.05.38-.25.42-.22.05-.45-.08-.35-.3zM.05.25c.2-.1.42 0 .45.17.03.2-.2.3-.38.25-.17-.05-.25-.3-.07-.42zM.2-.55c.12-.06.28 0 .28.1 0 .12-.15.17-.26.12-.1-.05-.1-.17-.02-.22z" fill="#8f8f8b" opacity=".55"/>
+      ${[[-.3, .5, .11], [.55, -.1, .09], [-.1, -.7, .07], [.4, .6, .06], [-.7, .25, .06], [.15, -.15, .05]].map(([x, y, r]) => `<circle cx="${x}" cy="${y}" r="${r}" fill="#9a9a96" stroke="#e8e8e5" stroke-width=".02"/>`).join('')}
+      <circle r="1" fill="url(#sm-lune-ombre)"/>
+    </g></g></g></g>` + ORBITES.map(o => `<path class="sm-orbite${o[5] ? ' station' : ''}" d=""/>`).join('') + ORBITES.map(o => `<use class="sm-engin" href="#${o[5] ? 'sm-station' : 'sm-sat'}"/>`).join('');
     box.appendChild(orbSvg);
   }
   /* point d'une orbite : repère écran (x à droite, y en haut, z vers nous) */
@@ -132,6 +142,22 @@
     const cw = Math.cos(o[2]), sw = Math.sin(o[2]);
     return [x0 * cw - y0 * sw, x0 * sw + y0 * cw, z];
   }
+  /* la Lune (Jean-Luc, 2026-11-23) : grande orbite au-delà des satellites, très lente ; elle entre dans le cadre,
+     le traverse, en ressort, passe derrière la Terre (cachée par le disque du globe), puis revient */
+  const LUNE = [2.3, -0.22, -0.1, -0.4, 0.11];
+  function majLune(ctr, R, t) {
+    const [x, y, z] = pointOrbite(LUNE, LUNE[3] + LUNE[4] * t, R);
+    const g = orbSvg.querySelector('.sm-lune-pos'), rl = R * .17 * (1 + .12 * z / (LUNE[0] * R));
+    g.setAttribute('transform', `translate(${(ctr.x + x).toFixed(1)} ${(ctr.y - y).toFixed(1)})`);
+    g.firstElementChild.setAttribute('transform', `scale(${rl.toFixed(2)})`);
+    const disque = orbSvg.querySelector('.sm-masque-disque');
+    disque.setAttribute('cx', ctr.x.toFixed(1)); disque.setAttribute('cy', ctr.y.toFixed(1)); disque.setAttribute('r', (R * 1.004).toFixed(1));
+    /* derrière la Terre : le disque du globe la masque ; devant : rien ne la masque */
+    /* sur ordinateur, elle passe derrière la colonne des pays : on ne la dessine qu'à droite de celle-ci */
+    const pv = mobile() ? null : bande.getBoundingClientRect(), bx = orbSvg.getBoundingClientRect();
+    orbSvg.querySelector('.sm-clip-lune-r').setAttribute('x', pv && pv.width ? Math.round(pv.right - bx.left + 18) : 0);
+    const m = g.parentNode; if (z < 0) m.setAttribute('mask', 'url(#sm-masque-terre)'); else m.removeAttribute('mask');
+  }
   function majOrbites() {
     if (!orbSvg || !map) return;
     const globe = (map.getProjection()?.type || 'globe') === 'globe';
@@ -139,6 +165,7 @@
     const ctr = map.project(map.getCenter()), R = 512 * Math.pow(2, map.getZoom()) / (2 * Math.PI);
     const t = (performance.now() - orbT0) / 1000;
     const cache = (x, y, z) => z < 0 && x * x + y * y < R * R * 1.002;
+    majLune(ctr, R, t);
     const chemins = orbSvg.querySelectorAll('.sm-orbite'), engins = orbSvg.querySelectorAll('.sm-engin');
     ORBITES.forEach((o, i) => {
       /* tracé de l'orbite : on saute la partie cachée derrière la Terre */
@@ -166,6 +193,7 @@
   function deselectionner() {
     actif = -1;
     $$('[data-sm-i]').forEach(p => p.classList.remove('on'));
+    const ss = $('[data-sm-sous]'); if (ss) ss.hidden = false;
     $('[data-sm-titre]').textContent = titre0; const ph = $('[data-sm-phrase]'); if (ph) ph.textContent = phrase0;
     const t = $('[data-sm-tete]'); t.classList.remove('entre'); void t.offsetWidth; t.classList.add('entre');
     if (heroImgs) { heroImgs.forEach(im => im.classList.remove('on')); hero.classList.remove('pays-on'); }
