@@ -726,3 +726,9 @@ a.qs-back { display: inline-flex; align-items: center; text-decoration: none; }
 .pic small { font-size: .72rem; line-height: 1.2; color: #4a514d; }
 .pic:hover { border-color: #b08a4f; }
 .pic.on { border: 2px solid #b08a4f; background: #f6efe0; padding: 7px 3px; }
+
+/* fiche lieu : types d'événements (recherche de la page Lieux) */
+.lab-ev { margin: 14px 0 6px; }
+.checks.ev-lieu { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px 14px; }
+.checks.ev-lieu label { display: flex; align-items: center; gap: 8px; font-weight: 400; margin: 0; padding: 6px 10px; border: 1px solid var(--ligne); border-radius: 8px; background: var(--carte); cursor: pointer; }
+.checks.ev-lieu input { width: auto; margin: 0; }

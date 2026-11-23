@@ -539,11 +539,43 @@ ${proches.length ? `<section class="wrap"><div class="sec-h"><h2>Dans la même r
   return layout(c, { title: p.titre, description: p.extrait, body, path: prodHref(p), schema, image: photos[0]?.src, bodyClass: 'p-fiche' });
 }
 
-function lieux(c) {
-  const L = c.lieux.filter(l => l.statut !== 'masque');
+/* ---------- page Lieux + recherche multicritère (localisation, type d'événement, type de lieu, convives, mot-clé) ---------- */
+const _nrm = t => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+function filtrerLieux(L, f) {
+  const mots = _nrm(f.q).split(/[^a-z0-9]+/).filter(m => m.length > 1);
+  return L.filter(l => (!f.loc || l.departement === f.loc)
+    && (!f.ev || (l.evenements || []).includes(f.ev))
+    && (!f.type || l.type === f.type)
+    && (!f.n || !l.capacite || l.capacite >= f.n)
+    && (!mots.length || (h => mots.every(m => h.includes(m)))(_nrm([l.nom, l.ville, l.adresse, l.type, l.description, ...(l.equipements || []), ...(l.evenements || [])].join(' ')))));
+}
+function lieux(c, query = {}) {
+  const { TYPES_LIEU, EVENEMENTS_LIEU, DEPARTEMENTS_LIEU } = require('./seed');
+  const tous = c.lieux.filter(l => l.statut !== 'masque');
   const RL = c.rubriques.find(r => r.slug === 'lieux') || {};
+  const un = v => String(Array.isArray(v) ? v[0] : v || '').trim().slice(0, 80);
+  const f = { loc: un(query.loc), ev: un(query.ev), type: un(query.type), n: Math.max(0, parseInt(un(query.n), 10) || 0), q: un(query.q) };
+  const actif = !!(f.loc || f.ev || f.type || f.n || f.q);
+  const L = actif ? filtrerLieux(tous, f) : tous;
+  /* listes remplies d'après les fiches : seulement ce qui existe, dans l'ordre du back-office */
+  const depts = [...new Set(tous.map(l => l.departement).filter(Boolean))].sort((a, b) => (a === '75' ? -1 : b === '75' ? 1 : a.localeCompare(b)));
+  const evs = [...new Set(tous.flatMap(l => l.evenements || []))].sort((a, b) => (EVENEMENTS_LIEU.indexOf(a) + 1 || 99) - (EVENEMENTS_LIEU.indexOf(b) + 1 || 99) || a.localeCompare(b));
+  const types = [...new Set(tous.map(l => l.type).filter(Boolean))].sort((a, b) => (TYPES_LIEU.indexOf(a) + 1 || 99) - (TYPES_LIEU.indexOf(b) + 1 || 99) || a.localeCompare(b));
+  const opts = (list, cur, lab = x => x) => list.map(x => `<option value="${esc(x)}"${x === cur ? ' selected' : ''}>${esc(lab(x))}</option>`).join('');
+  const deptLab = d => DEPARTEMENTS_LIEU[d] ? (d === '75' ? 'Paris' : `${DEPARTEMENTS_LIEU[d]} (${d})`) : d;
+  const form = `<form class="lsearch" action="/lieux#resultats" method="get" role="search" aria-label="Rechercher un lieu">
+    <label class="ls-f"><span>Localisation</span><select name="loc"><option value="">Toutes</option>${opts(depts, f.loc, deptLab)}</select></label>
+    <label class="ls-f"><span>Type d’événement</span><select name="ev"><option value="">Tous</option>${opts(evs, f.ev)}</select></label>
+    <label class="ls-f"><span>Type de lieu</span><select name="type"><option value="">Tous</option>${opts(types, f.type)}</select></label>
+    <label class="ls-f ls-n"><span>Convives</span><input type="number" name="n" min="1" max="2000" inputmode="numeric" placeholder="Nombre" value="${f.n || ''}"></label>
+    <label class="ls-f ls-q"><span>Par mot-clé</span><input type="search" name="q" placeholder="Terrasse, Seine…" value="${esc(f.q)}" enterkeyhint="search"></label>
+    <button class="btn btn-or ls-go">Rechercher</button>
+  </form>`;
+  const pers = n => n > 1 ? 's' : '';
+  const resume = actif ? `<p class="ls-res" id="resultats" role="status">${L.length ? `<b>${L.length} lieu${L.length > 1 ? 'x' : ''}</b> correspond${L.length > 1 ? 'ent' : ''} à votre recherche` : '<b>Aucun lieu</b> ne correspond à tous ces critères'}${f.n ? ` pour ${f.n} convive${pers(f.n)}` : ''}. <a class="lnk" href="/lieux#resultats">Voir tous les lieux</a></p>` : '<span id="resultats"></span>';
+  const vide = actif && !L.length ? `<div class="ls-vide"><p>Essayez d’enlever un critère, ou appelez-nous : nous connaissons aussi d’autres lieux, hors de cette sélection.</p><p class="row"><a class="btn btn-vert" href="/lieux#resultats">Voir tous les lieux</a><a class="btn" href="tel:+33763669892">07 63 66 98 92</a><a class="btn" href="/contact">Nous écrire</a></p></div>` : '';
   const body = `${bandeau(c, 'lieux')}
-  <section class="wrap" id="lieux">${introHtml(RL.introTitre, RL.introTexte)}<div class="cards grid">${L.map(l => `<a class="card" href="/lieux/${esc(l.slug)}"><div class="card-img">${img(l.photos?.[0], l.nom)}${l.capacite ? `<span class="tag">Jusqu’à ${l.capacite} pers.</span>` : ''}</div><div class="card-b"><h3>${esc(l.nom)}</h3><p>${esc(l.ville || '')}</p><p>${esc(trunc(l.description, 110))}</p><div class="card-f"><span class="prix">${esc(l.prixTexte || 'Sur devis')}</span><span class="more">Découvrir ${icon.arrow}</span></div></div></a>`).join('')}</div></section>`;
+  <section class="wrap ls-wrap" id="lieux">${form}${actif ? '' : introHtml(RL.introTitre, RL.introTexte)}${resume}${vide}<div class="cards grid">${L.map(l => `<a class="card" href="/lieux/${esc(l.slug)}"><div class="card-img">${img(l.photos?.[0], l.nom)}${l.capacite ? `<span class="tag">Jusqu’à ${l.capacite} pers.</span>` : ''}</div><div class="card-b">${l.type ? `<p class="card-type">${esc(l.type)}</p>` : ''}<h3>${esc(l.nom)}</h3><p>${esc(l.ville || '')}</p><p>${esc(trunc(l.description, 110))}</p><div class="card-f"><span class="prix">${esc(l.prixTexte || 'Sur devis')}</span><span class="more">Découvrir ${icon.arrow}</span></div></div></a>`).join('')}</div></section>`;
   const B = bandeauDe(c, 'lieux');
   return layout(c, { title: B.titre, description: B.chapo, body, path: '/lieux', image: B.photo });
 }
@@ -853,4 +885,4 @@ function facturePage(c, f, t) {
 }
 
 module.exports = {
-  sectionsRub, plateau3dHtml, universListe, RANGEMENTS, pageSpecialites, specialite, sousVisibles, layout, home, boutique, produit, lieux, lieu, selection, texte, maison, livraison, commander, temoignages, contact, legal, erreur, espaceConnexion, espace, devisPage, facturePage, textToHtml, V, BANDEAUX_DEFAUT };
+  sectionsRub, plateau3dHtml, universListe, RANGEMENTS, pageSpecialites, specialite, sousVisibles, layout, home, boutique, produit, lieux, filtrerLieux, lieu, selection, texte, maison, livraison, commander, temoignages, contact, legal, erreur, espaceConnexion, espace, devisPage, facturePage, textToHtml, V, BANDEAUX_DEFAUT };

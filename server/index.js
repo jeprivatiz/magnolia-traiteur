@@ -838,7 +838,7 @@ async function createApp(opts = {}) {
     if (pg) return res.redirect(302, pg.href); /* « zone de livraison » tapé dans la recherche → la page */
     return views.boutique(c, { q: s(req.query.q, 80), titre: req.query.q ? 'Recherche' : 'La boutique' });
   }));
-  app.get('/lieux', page(c => views.lieux(c)));
+  app.get('/lieux', page((c, req) => views.lieux(c, req.query)));
   app.get('/lieux/:slug', page((c, req, res, next) => { const l = c.lieux.find(x => x.slug === req.params.slug && x.statut !== 'masque'); return l ? views.lieu(c, l) : next(); }));
   app.get('/ma-selection', page(c => views.selection(c)));
   app.get('/maison', page(c => views.maison(c)));

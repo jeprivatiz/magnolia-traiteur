@@ -582,3 +582,9 @@ function bandeauCookies() {
     t.addEventListener('mouseleave', () => { t.classList.remove('joue'); v.pause(); });
   });
 })();
+
+/* page Lieux : la recherche n'envoie que les critères remplis (adresse plus courte, facile à partager) */
+document.querySelector('.lsearch')?.addEventListener('submit', e => {
+  for (const el of e.target.querySelectorAll('select, input')) if (!el.value) el.disabled = true;
+  setTimeout(() => { for (const el of e.target.querySelectorAll('[disabled]')) el.disabled = false; }, 0);
+});
