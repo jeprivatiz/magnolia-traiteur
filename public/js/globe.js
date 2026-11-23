@@ -90,11 +90,95 @@
       if (k >= 1) { flecheT0 = 0; trait.style.strokeDasharray = ''; trait.style.strokeDashoffset = ''; }
     }
   }
-  const boucleFleche = () => { majFleche(); flecheAnim = requestAnimationFrame(boucleFleche); };
+  const boucleFleche = () => { majFleche(); majOrbites(); flecheAnim = requestAnimationFrame(boucleFleche); };
+
+  /* ---------- satellites et station spatiale en orbite (Jean-Luc, 2026-11-23) ----------
+     orbites circulaires inclinées autour du globe, dessinées en SVG au-dessus de la carte ;
+     elles tournent dans le même sens que la Terre et passent derrière elle. */
+  const SVGNS = 'http://www.w3.org/2000/svg';
+  const ORBITES = [
+    // rayon (× rayon du globe), inclinaison du plan, rotation du plan, phase de départ, vitesse (rad/s), station ?
+    [1.10, 0.38, -0.40, 0.0, 0.34], [1.15, 0.62, 0.50, 2.1, 0.30], [1.21, 0.30, 1.20, 4.0, 0.26],
+    [1.13, 0.85, -1.05, 1.0, 0.32], [1.25, 0.48, 0.10, 3.1, 0.23], [1.18, 1.05, -0.70, 5.2, 0.28],
+    [1.28, 0.70, 0.90, 0.6, 0.21], [1.12, 1.30, 1.60, 2.8, 0.31], [1.23, 0.22, -1.40, 4.6, 0.25],
+    [1.17, 0.55, 0.30, 1.7, 0.20, true],
+  ];
+  let orbSvg = null, orbT0 = performance.now();
+  function creerOrbites(box) {
+    orbSvg = document.createElementNS(SVGNS, 'svg'); orbSvg.setAttribute('class', 'sm-orbites'); orbSvg.setAttribute('aria-hidden', 'true');
+    orbSvg.innerHTML = `<defs>
+      <linearGradient id="sm-panneau" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2a4a66"/><stop offset="1" stop-color="#12263a"/></linearGradient>
+      <linearGradient id="sm-corps" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f3e3bf"/><stop offset=".5" stop-color="#c9a46a"/><stop offset="1" stop-color="#8a6a36"/></linearGradient>
+      <linearGradient id="sm-module" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset=".55" stop-color="#cfd3d6"/><stop offset="1" stop-color="#8d9499"/></linearGradient>
+      <g id="sm-sat"><path d="M-9 0H-4M4 0H9" stroke="#d9d4c7" stroke-width="1.2"/>
+        <rect x="-26" y="-5.5" width="17" height="11" rx="1" fill="url(#sm-panneau)" stroke="#c9a46a" stroke-width=".6"/><path d="M-20.3-5.5v11M-14.6-5.5v11M-26 0h17" stroke="#c9a46a" stroke-width=".4" opacity=".8"/>
+        <rect x="9" y="-5.5" width="17" height="11" rx="1" fill="url(#sm-panneau)" stroke="#c9a46a" stroke-width=".6"/><path d="M14.7-5.5v11M20.4-5.5v11M9 0h17" stroke="#c9a46a" stroke-width=".4" opacity=".8"/>
+        <rect x="-5" y="-6" width="10" height="12" rx="2" fill="url(#sm-corps)" stroke="#7a5c2c" stroke-width=".5"/>
+        <path d="M0-6v-3.5" stroke="#d9d4c7" stroke-width=".8"/><circle cx="0" cy="-10.5" r="2.4" fill="#f6f1e8" stroke="#8d9499" stroke-width=".5"/></g>
+      <g id="sm-station"><path d="M-46 0H46" stroke="#cfd3d6" stroke-width="2.2"/><path d="M-46 0H46" stroke="#8d9499" stroke-width=".6" stroke-dasharray="2 2"/>
+        ${[-40, -27, 27, 40].map(x => `<rect x="${x - 4}" y="-25" width="8" height="21" fill="url(#sm-panneau)" stroke="#c9a46a" stroke-width=".6"/><rect x="${x - 4}" y="4" width="8" height="21" fill="url(#sm-panneau)" stroke="#c9a46a" stroke-width=".6"/><path d="M${x}-25v50M${x - 4}-14.5h8M${x - 4}14.5h8" stroke="#c9a46a" stroke-width=".35" opacity=".8"/>`).join('')}
+        <rect x="-17" y="-5" width="34" height="10" rx="4" fill="url(#sm-module)" stroke="#6f777c" stroke-width=".5"/>
+        <rect x="-6" y="-9" width="12" height="18" rx="4" fill="url(#sm-module)" stroke="#6f777c" stroke-width=".5"/>
+        <rect x="17" y="-3.5" width="9" height="7" rx="3" fill="url(#sm-corps)" stroke="#7a5c2c" stroke-width=".5"/>
+        <rect x="-26" y="-3.5" width="9" height="7" rx="3" fill="url(#sm-module)" stroke="#6f777c" stroke-width=".5"/>
+        <path d="M-6-9l-6-6M6 9l5 5" stroke="#cfd3d6" stroke-width="1"/><circle cx="-12" cy="-15" r="2" fill="#f6f1e8"/></g>
+    </defs>` + ORBITES.map(o => `<path class="sm-orbite${o[5] ? ' station' : ''}" d=""/>`).join('') + ORBITES.map(o => `<use class="sm-engin" href="#${o[5] ? 'sm-station' : 'sm-sat'}"/>`).join('');
+    box.appendChild(orbSvg);
+  }
+  /* point d'une orbite : repère écran (x à droite, y en haut, z vers nous) */
+  function pointOrbite(o, th, R) {
+    const r = o[0] * R, x0 = r * Math.cos(th), s = r * Math.sin(th);
+    const y0 = s * Math.sin(o[1]), z = s * Math.cos(o[1]);
+    const cw = Math.cos(o[2]), sw = Math.sin(o[2]);
+    return [x0 * cw - y0 * sw, x0 * sw + y0 * cw, z];
+  }
+  function majOrbites() {
+    if (!orbSvg || !map) return;
+    const globe = (map.getProjection()?.type || 'globe') === 'globe';
+    orbSvg.style.display = globe ? '' : 'none'; if (!globe) return;
+    const ctr = map.project(map.getCenter()), R = 512 * Math.pow(2, map.getZoom()) / (2 * Math.PI);
+    const t = (performance.now() - orbT0) / 1000;
+    const cache = (x, y, z) => z < 0 && x * x + y * y < R * R * 1.002;
+    const chemins = orbSvg.querySelectorAll('.sm-orbite'), engins = orbSvg.querySelectorAll('.sm-engin');
+    ORBITES.forEach((o, i) => {
+      /* tracé de l'orbite : on saute la partie cachée derrière la Terre */
+      let d = '', lev = true;
+      for (let k = 0; k <= 96; k++) {
+        const [x, y, z] = pointOrbite(o, k / 96 * Math.PI * 2, R);
+        if (cache(x, y, z)) { lev = true; continue; }
+        d += `${lev ? 'M' : 'L'}${(ctr.x + x).toFixed(1)} ${(ctr.y - y).toFixed(1)}`; lev = false;
+      }
+      chemins[i].setAttribute('d', d);
+      /* l'engin : orienté le long de sa trajectoire, un peu plus grand quand il passe devant */
+      const th = o[3] + o[4] * t, [x, y, z] = pointOrbite(o, th, R), [x2, y2] = pointOrbite(o, th + .02, R);
+      const ang = Math.atan2(-(y2 - y), x2 - x) * 180 / Math.PI;
+      const ech = (o[5] ? 1.25 : .8) * (1 + .22 * z / (o[0] * R)) * Math.max(.55, Math.min(1.2, R / 260));
+      const e = engins[i];
+      e.setAttribute('transform', `translate(${(ctr.x + x).toFixed(1)} ${(ctr.y - y).toFixed(1)}) rotate(${ang.toFixed(1)}) scale(${ech.toFixed(3)})`);
+      e.style.opacity = cache(x, y, z) ? 0 : z < 0 ? .75 : 1;
+    });
+  }
 
   /* ---------- choix d'une spécialité ---------- */
   let arcAnim = 0;
+  /* état de départ : aucun pays, bandeau d'arrivée, titre d'invitation (2e clic sur le pays choisi, Jean-Luc 2026-11-23) */
+  const titre0 = $('[data-sm-titre]').textContent, phrase0 = $('[data-sm-phrase]')?.textContent || '';
+  function deselectionner() {
+    actif = -1;
+    $$('[data-sm-i]').forEach(p => p.classList.remove('on'));
+    $('[data-sm-titre]').textContent = titre0; const ph = $('[data-sm-phrase]'); if (ph) ph.textContent = phrase0;
+    const t = $('[data-sm-tete]'); t.classList.remove('entre'); void t.offsetWidth; t.classList.add('entre');
+    if (heroImgs) { heroImgs.forEach(im => im.classList.remove('on')); hero.classList.remove('pays-on'); }
+    trait.setAttribute('d', ''); root.classList.remove('sm-cache');
+    if (!map || !geo) return;
+    marque && marque.remove(); carteVoir && carteVoir.remove(); marque = carteVoir = null;
+    cancelAnimationFrame(arcAnim);
+    map.getSource('choix').setData({ type: 'FeatureCollection', features: [] });
+    map.getSource('arc').setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: [PARIS, PARIS] } });
+    map.flyTo({ center: [20, 22], zoom: zoomBase() + .35, duration: calme ? 0 : 1600, essential: true });
+  }
   function choisir(i, { voler = true, bandeau = true } = {}) {
+    if (i === actif) { deselectionner(); return; }
     actif = i;
     $$('[data-sm-i]').forEach(p => p.classList.toggle('on', +p.dataset.smI === i));
     const x = items[i]; if (!x) return;
@@ -164,17 +248,18 @@
     requestAnimationFrame(boucleTour);
     const dt = tPrec ? Math.min(.1, (t - tPrec) / 1000) : 0; tPrec = t;
     if (!map || !tour || performance.now() < pause || map.isMoving()) { vitesse = 0; return; }
-    /* le pays file vers la droite : dès qu'il va disparaître (bord droit), on accélère jusqu'à son retour à gauche */
+    /* le pays file vers la gauche : dès qu'il va disparaître (bord gauche), on accélère jusqu'à son retour à droite */
     const d = actif >= 0 ? ecart(centreDe(items[actif])[0]) : 0;
-    const cible = d > 70 || d < -110 ? VITE : LENT;
+    const cible = d < -70 || d > 110 ? VITE : LENT;
     vitesse += (cible - vitesse) * Math.min(1, dt * 2.2);
     const c = map.getCenter();
-    map.jumpTo({ center: [c.lng - vitesse * dt, c.lat] });
+    map.jumpTo({ center: [c.lng + vitesse * dt, c.lat] });
   }
   function demarrer() {
     const ml = window.maplibregl; if (!ml) return;
     try { const cv = document.createElement('canvas'); if (!(cv.getContext('webgl2') || cv.getContext('webgl'))) return; } catch (e) { return; }
     const box = $('[data-sm-map]');
+    creerOrbites(box);
     try {
       map = new ml.Map({
         container: box, attributionControl: false, center: [15, 30], zoom: 1.4, minZoom: .6, maxZoom: 5, renderWorldCopies: false,
@@ -238,7 +323,7 @@
       if (!tour) ctrl.querySelector('[data-sm-act="tour"]').setAttribute('aria-pressed', 'false');
       ctrl.addEventListener('click', e => {
         const b = e.target.closest('[data-sm-act]'); if (!b) return;
-        if (b.dataset.smAct === '3d') { const g = (map.getProjection()?.type || 'globe') === 'globe'; map.setProjection({ type: g ? 'mercator' : 'globe' }); b.setAttribute('aria-pressed', String(!g)); if (g) map.easeTo({ zoom: Math.max(1, zoomBase() - .2), duration: 600 }); }
+        if (b.dataset.smAct === '3d') { const g = (map.getProjection()?.type || 'globe') === 'globe'; root.classList.toggle('sm-plat', g); map.setPaintProperty('choix', 'fill-extrusion-color', g ? '#ffffff' : '#d4b07a'); map.setPaintProperty('choix-bord', 'line-color', g ? '#ffffff' : '#f6e7c8'); map.setProjection({ type: g ? 'mercator' : 'globe' }); b.setAttribute('aria-pressed', String(!g)); if (g) map.easeTo({ zoom: Math.max(1, zoomBase() - .2), duration: 600 }); }
         if (b.dataset.smAct === 'tour') { if (tour) arreterTour(); else { tour = true; pause = 0; b.setAttribute('aria-pressed', 'true'); } }
         if (b.dataset.smAct === 'reset') { if (actif < 0) { map.flyTo({ center: [20, 22], zoom: zoomBase() + .35, duration: 1400 }); return; } const c = centreDe(items[actif]); map.flyTo({ center: [c[0] - (mobile() ? 0 : 6), Math.max(-35, Math.min(45, c[1] - 4))], zoom: zoomBase() + .35, duration: 1400 }); }
       });
