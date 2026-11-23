@@ -815,7 +815,7 @@ async function initSousRubriques(store, { log = console } = {}) {
   }
 
   /* « Cocktails & buffets français » + paragraphe de présentation (Jean-Luc, 2026-11-22). Une fois : modifiable ensuite dans le back-office. */
-  const RCbc = await store.get('site/reglages');
+  const RCb = await store.get('site/reglages');
   if (RCb && !RCb.cocktailsFrancais) {
     const cb = await store.get('rubriques/cocktails-buffets');
     if (cb) await store.set('rubriques/cocktails-buffets', { ...cb,
@@ -975,11 +975,12 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('site/reglages', { ...(await store.get('site/reglages')), chinoisPrixJL1: true });
   }
 
-  /* Carte Magnolia : le bandeau du chef doit se voir même si une autre photo avait été réglée au back-office (Jean-Luc, 2026-11-23). */
-  const RCbc = await store.get('site/reglages');
-  if (RCbc && !RCbc.carteBandeauChef2) {
+  /* Carte Magnolia : le bandeau du chef (Jean-Luc, 2026-11-23). La page prend d'abord bandeauPhoto, puis photoAccueil (vignette
+     de l'accueil), puis photo : on fixe donc bandeauPhoto pour que la vignette d'accueil ne remplace pas le bandeau. Vignette inchangée. */
+  const RChef = await store.get('site/reglages');
+  if (RChef && !RChef.carteBandeauChef2) {
     const cm = await store.get('rubriques/carte-magnolia');
-    if (cm) await store.set('rubriques/carte-magnolia', { ...cm, photo: '/site/c/carte-magnolia-bandeau-chef.webp', bandeauPhoto: '', photoAccueil: '' });
+    if (cm) await store.set('rubriques/carte-magnolia', { ...cm, bandeauPhoto: '/site/c/carte-magnolia-bandeau-chef.webp' });
     await store.set('site/reglages', { ...(await store.get('site/reglages')), carteBandeauChef2: true });
   }
 
