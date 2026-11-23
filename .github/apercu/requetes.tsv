@@ -1,0 +1,106 @@
+P1	seafood soup chinese
+P2b	bird's nest soup
+P3	crab asparagus soup
+P4	hot and sour soup
+P5	wonton soup
+P6	shrimp wonton soup
+P7	chicken vermicelli soup
+H8	bean sprout salad
+H9	chinese shrimp salad
+H10	chinese crab salad
+H11	chinese chicken salad
+H12	fresh spring rolls
+H14a	fried spring rolls pork
+H14b	fried spring rolls chicken
+H14o	bun bo nam bo
+H15	crab omelette
+H16	shrimp omelette
+H17	egg foo young
+H18	shrimp tempura
+H19	fried shrimp fritters
+H19c	fried stuffed squid
+V1	har gow
+V1a	shrimp siu mai
+V2	pork siu mai
+V3	beef dumplings steamed
+V4	steamed shrimp crescent dumplings
+V5	fried shrimp dumplings crescent
+V6	fried shrimp wontons
+V7	dim sum steamer basket
+V8	shrimp toast
+V9	fried pork wontons
+V10	banh cuon
+V11	potstickers
+V11a	beef samosa
+S9	lamb ginger scallion
+S10	beef ginger scallion
+S11	chicken ginger scallion claypot
+S12	fish ginger scallion claypot
+S15	lobster ginger scallion
+S16	steamed prawns garlic
+M20	spicy shrimp chinese
+M20b	shrimp ginger scallion
+M21	curry shrimp chinese
+M22	sweet and sour shrimp
+M23	salt and pepper shrimp
+M24	shrimp stir fry vegetables
+M24a	shrimp black bean sauce
+M25	pineapple shrimp
+M25a	lemon fish chinese
+M25b	sweet and sour fish
+M25c	spicy fish chinese
+M26	chili fish fillet chinese
+M27	sweet and sour fish fillet
+M27a	salt and pepper fish
+M27b	lemon fish fillet
+M28	spicy scallops chinese
+M30	scallops stir fry vegetables
+M31	squid black bean sauce
+M31a	squid ginger scallion
+M31b	salt and pepper squid
+M32	spicy squid stir fry
+M33	spicy frog legs chinese
+M35	frog legs stir fry
+M36	salt and pepper frog legs
+M37	frog legs ginger scallion
+VI38	cashew chicken
+VI39	kung pao chicken
+VI40	almond chicken
+VI41	chicken wood ear mushroom bamboo
+VI42	spicy chicken stir fry
+VI43	pineapple chicken
+VI44	lemon chicken
+VI45	chinese curry chicken
+VI46	sichuan fried chicken
+VI46b	salt and pepper chicken
+VI47	duck mushrooms stir fry
+VI48	pineapple duck
+VI50	roast duck chinese
+VI51	spicy duck chinese
+VI52	five spice duck
+VI53	beef bamboo shoots mushrooms
+VI55	chinese beef curry
+VI56	spicy beef stir fry
+VI57	beef with onions chinese
+VI58	spicy pork stir fry
+VI59	pork bamboo shoots mushrooms
+VI60	chinese pork curry
+VI61	sweet and sour pork
+VI61c	caramel pork
+VI63	char siu
+VI64	chinese spare ribs
+VI65	salt and pepper pork ribs
+A66	stir fried bok choy
+A67	stir fried bean sprouts
+A68	wood ear mushroom stir fry
+A69	chop suey vegetables
+A69A	salt and pepper potatoes
+A70	chow mein beef
+A71	shrimp chow mein
+A72	vegetable chow mein
+A73	special fried rice
+A74	curry fried rice
+A75	yangzhou fried rice
+A76	steamed white rice bowl
+A77	sticky rice
+AT27	pineapple fried rice

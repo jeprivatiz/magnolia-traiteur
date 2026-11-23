@@ -1,0 +1,26 @@
+name: Aperçu de photos libres (temporaire)
+
+# Outil temporaire, accepté par Jean-Luc le 2026-11-23 : télécharge en petit des photos libres candidates
+# pour que Claude puisse les regarder avant de les choisir (le cloud ne joint pas ces sites). Retiré avant la fusion.
+on:
+  push:
+    paths:
+      - .github/workflows/apercu-photos.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apercu:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Recherche et téléchargement
+        run: python3 .github/apercu/chercher.py
+      - name: Enregistrer
+        run: |
+          git config user.name "magnolia-bot"
+          git config user.email "magnolia-bot@users.noreply.github.com"
+          git add apercu-photos
+          git commit -m "Aperçu temporaire de photos libres" && git push || echo rien
