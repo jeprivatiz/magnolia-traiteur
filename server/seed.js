@@ -955,17 +955,22 @@ async function initSousRubriques(store, { log = console } = {}) {
   }
 
   /* Buffet chinois : prix donnés par Jean-Luc (2026-11-23), plus de « Sur devis » : nems et raviolis aux légumes 1,10 € TTC pièce,
-     brochettes poulet à la citronnelle, bœuf fromage et poulet yakitori 1,90 € TTC pièce. Minimum 5. Recherche par titre (le slug dépend de l'import). */
+     brochettes poulet à la citronnelle, bœuf fromage et poulet yakitori 1,90 € TTC pièce ;
+     nems aux crevettes 1,20 € pièce, perles coco 1 €, mochi 1,20 € ; à la portion : poulet citronnelle 14,90 €, boulettes 12,90 €,
+     riz sauté aux légumes 6,80 €, litchis (6 par portion) 1,50 €. Minimum 5. Recherche par titre (le slug dépend de l'import). */
   const RCx = await store.get('site/reglages');
   if (RCx && !RCx.chinoisPrixJL1) {
-    const PRIX = { 'nems aux legumes': [110, 'pièce'], 'raviolis aux legumes': [110, 'pièce'], 'brochettes poulet a la citronnelle': [190, null], 'brochettes boeuf fromage': [190, null], 'brochettes poulet yakitori': [190, null] };
+    const PRIX = { 'nems aux legumes': [110, 'pièce'], 'raviolis aux legumes': [110, 'pièce'], 'brochettes poulet a la citronnelle': [190, null], 'brochettes boeuf fromage': [190, null], 'brochettes poulet yakitori': [190, null],
+      'nems aux crevettes': [120, 'pièce'], 'poulet a la citronnelle': [1490, 'portion'], 'boulettes de poulet piquantes et sucrees': [1290, 'portion'],
+      'riz saute aux legumes': [680, 'portion'], 'perles coco': [100, 'pièce'], 'mochi': [120, 'pièce'],
+      'litchis au sirop': [150, 'portion', 'Litchis au sirop, en portion de 6 litchis : servis frais, prêts à déguster.'] };
     const cle = t => String(t || '').toLowerCase().replace(/œ/g, 'oe').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
     for (const d of await store.list('produits')) {
       const p = { id: d.id, ...d.data };
       if (p.sous !== 'buffet-chinois' || !PRIX[cle(p.titre)]) continue;
-      const [prixCents, unite] = PRIX[cle(p.titre)];
-      await store.set('produits/' + p.id, { ...d.data, prixCents, unite: unite || p.unite || 'pièce', min: 5, aCompleter: false,
-        ...(p.minimumTexte ? { minimumTexte: 'Minimum de commande : 5 ' + ((unite || p.unite) === 'brochette' ? 'brochettes' : 'pièces') } : {}) });
+      const [prixCents, unite, extrait] = PRIX[cle(p.titre)];
+      await store.set('produits/' + p.id, { ...d.data, prixCents, ...(extrait ? { extrait } : {}), unite: unite || p.unite || 'pièce', min: 5, aCompleter: false,
+        ...(p.minimumTexte ? { minimumTexte: 'Minimum de commande : 5 ' + ({ brochette: 'brochettes', portion: 'portions' }[unite || p.unite] || 'pièces') } : {}) });
     }
     await store.set('site/reglages', { ...(await store.get('site/reglages')), chinoisPrixJL1: true });
   }
