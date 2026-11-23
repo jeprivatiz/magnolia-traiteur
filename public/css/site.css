@@ -997,7 +997,7 @@ body.noscroll .partage { display: none; }
 /* La Maison Magnolia : toutes les photos en noir et blanc, pour un rendu plus classe (Jean-Luc, 2026-11-23).
    Seulement dans le contenu de cette page : l’en-tête, le pied de page et les logos (Google, clients) gardent leurs couleurs. */
 .p-maison main img:not([src$=".svg"]):not(.marquee img), .p-maison main video, .p-maison main [style*="background-image"] { filter: grayscale(1); }
-/* globe : la Lune en noir et blanc, discrète */
+/* globe : la Lune (photo Pexels 596134, en noir et blanc), discrète */
 .sm-lune { opacity: .92; filter: grayscale(1) drop-shadow(0 3px 6px rgba(0, 0, 0, .3)); }
 /* Saveurs du monde : sous-titre discret sous « Choisissez votre destination culinaire » */
 .sm-sous { margin: -.35em auto .7em; max-width: 640px; line-height: 1.35; font-family: var(--serif, 'Cormorant Garamond', Georgia, serif); font-style: italic; font-size: 1.2rem; color: #9a7a45; }

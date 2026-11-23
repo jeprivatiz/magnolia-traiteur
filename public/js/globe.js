@@ -123,14 +123,11 @@
         <rect x="17" y="-3.5" width="9" height="7" rx="3" fill="url(#sm-corps)" stroke="#7a5c2c" stroke-width=".5"/>
         <rect x="-26" y="-3.5" width="9" height="7" rx="3" fill="url(#sm-module)" stroke="#6f777c" stroke-width=".5"/>
         <path d="M-6-9l-6-6M6 9l5 5" stroke="#cfd3d6" stroke-width="1"/><circle cx="-12" cy="-15" r="2" fill="#f6f1e8"/></g>
-      <radialGradient id="sm-lune-sol" cx=".38" cy=".34" r=".75"><stop offset="0" stop-color="#f4f4f2"/><stop offset=".55" stop-color="#c9c9c6"/><stop offset="1" stop-color="#6e6e6b"/></radialGradient>
-      <radialGradient id="sm-lune-ombre" cx=".85" cy=".8" r=".9"><stop offset=".45" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".55"/></radialGradient>
+      <radialGradient id="sm-lune-ombre" cx=".85" cy=".8" r=".9"><stop offset=".45" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".35"/></radialGradient>
       <mask id="sm-masque-terre" maskUnits="userSpaceOnUse" x="-1500" y="-1500" width="5000" height="5000"><rect x="-1500" y="-1500" width="5000" height="5000" fill="#fff"/><circle class="sm-masque-disque" r="0" fill="#000"/></mask>
     <clipPath id="sm-clip-lune"><rect class="sm-clip-lune-r" x="0" y="0" width="10000" height="10000"/></clipPath>
     </defs><g clip-path="url(#sm-clip-lune)"><g class="sm-lune-masque"><g class="sm-lune-pos"><g class="sm-lune">
-      <circle r="1" fill="url(#sm-lune-sol)"/>
-      <path d="M-.55-.2c.15-.25.45-.3.6-.12.12.16-.05.38-.25.42-.22.05-.45-.08-.35-.3zM.05.25c.2-.1.42 0 .45.17.03.2-.2.3-.38.25-.17-.05-.25-.3-.07-.42zM.2-.55c.12-.06.28 0 .28.1 0 .12-.15.17-.26.12-.1-.05-.1-.17-.02-.22z" fill="#8f8f8b" opacity=".55"/>
-      ${[[-.3, .5, .11], [.55, -.1, .09], [-.1, -.7, .07], [.4, .6, .06], [-.7, .25, .06], [.15, -.15, .05]].map(([x, y, r]) => `<circle cx="${x}" cy="${y}" r="${r}" fill="#9a9a96" stroke="#e8e8e5" stroke-width=".02"/>`).join('')}
+      <image href="/site/lune/lune.png" x="-1" y="-1" width="2" height="2"/>
       <circle r="1" fill="url(#sm-lune-ombre)"/>
     </g></g></g></g>` + ORBITES.map(o => `<path class="sm-orbite${o[5] ? ' station' : ''}" d=""/>`).join('') + ORBITES.map(o => `<use class="sm-engin" href="#${o[5] ? 'sm-station' : 'sm-sat'}"/>`).join('');
     box.appendChild(orbSvg);
