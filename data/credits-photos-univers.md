@@ -100,3 +100,9 @@ Photos regardées une à une avant usage (vraies photos, sans texte ni logo). Li
 - Entrées indiennes (pakoras, naans) : Pexels 958547 (chanwalrus), https://www.pexels.com/photo/958547/
 - Table indienne : Pexels 7182077 (pure-punjabi), https://www.pexels.com/photo/7182077/
 - Grand buffet indien : Unsplash photo-1682862279256-b2a9e4f3d22c (Takashi Yamada)
+
+## Traiteur végétarien et vegan (2026-11-23)
+Photos regardées une à une avant usage (vraies photos, sans texte ni logo, sans viande ni poisson visibles). Licence Pexels (usage commercial libre).
+- Buffet végétarien : salade sur buffet Pexels 2291344 (https://www.pexels.com/photo/2291344/), tarte Pexels 29050581 (https://www.pexels.com/photo/29050581/), plateau de fromages Pexels 6660071 (https://www.pexels.com/photo/6660071/)
+- Petit cocktail végétarien : mini-tartelettes Pexels 25916399 (https://www.pexels.com/photo/25916399/), toasts tomate Pexels 1239312 (https://www.pexels.com/photo/1239312/)
+- Grand cocktail dînatoire végétarien : plateau de tartinables Pexels 4374578 (https://www.pexels.com/photo/4374578/), houmous et crudités Pexels 5852251 (https://www.pexels.com/photo/5852251/), tarte au citron meringuée Pexels 6606003 (https://www.pexels.com/photo/6606003/)

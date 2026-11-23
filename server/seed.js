@@ -983,6 +983,11 @@ const PHOTOS_BUFFETS_EN_TETE = [
   ['buffet-indien-entree-plat-dessert', 'https://images.unsplash.com/photo-1682862279256-b2a9e4f3d22c?auto=format&fit=crop&w=1600&q=80', 'Grand buffet indien : entrées, currys, naans et desserts'],
 ];
 const VRAIES_PHOTOS = [
+  /* Traiteur végétarien (Jean-Luc, 2026-11-23) : vraies photos libres Pexels choisies d'après le contenu de chaque formule,
+     regardées une à une, sans viande ni poisson visibles. Sources dans data/credits-photos-univers.md */
+  ['buffet-vegetarien', 'veg1', [['https://images.pexels.com/photos/2291344/pexels-photo-2291344.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Saladier de salade grecque sur un buffet'], ['https://images.pexels.com/photos/29050581/pexels-photo-29050581.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Tarte aux fromages et aux légumes'], ['https://images.pexels.com/photos/6660071/pexels-photo-6660071.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Plateau de fromages, raisins, fruits secs et pain']]],
+  ['petit-cocktail-vegetarien-14-pieces-salees', 'veg1', [['https://images.pexels.com/photos/25916399/pexels-photo-25916399.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Plateau de mini-tartelettes salées végétariennes'], ['https://images.pexels.com/photos/1239312/pexels-photo-1239312.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Toasts tomate, fromage frais et basilic']]],
+  ['grand-cocktail-dinatoire-vegetarien-sale-et-sucre', 'veg1', [['https://images.pexels.com/photos/4374578/pexels-photo-4374578.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Plateau de cocktail végétarien : tartinables, crudités, olives et crackers'], ['https://images.pexels.com/photos/5852251/pexels-photo-5852251.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Houmous, crudités, tomates cerises et crackers'], ['https://images.pexels.com/photos/6606003/pexels-photo-6606003.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Tarte au citron meringuée']]],
   /* Toasts à l'avocat et aux crevettes : photo envoyée par Jean-Luc (2026-11-23), sur la fiche et son doublon antillais */
   ['toasts-a-l-avocat-et-aux-crevettes', 'jl1', [['/site/c/antilles-unit/toast-avocat-crevettes-jean-luc-20261123.webp', 'Toasts à l’avocat et aux crevettes']]],
   ['toasts-a-l-avocat-et-aux-crevettes-antilles', 'jl1', [['/site/c/antilles-unit/toast-avocat-crevettes-jean-luc-20261123.webp', 'Toasts à l’avocat et aux crevettes']]],
