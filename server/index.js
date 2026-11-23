@@ -16,6 +16,7 @@ const views = require('./views');
 const { preparerAlerte } = require('./relances');
 const { totaux, controleMarge, prochainNumero, lignesDepuisDemande, estimerLigne } = require('./devis');
 const { rid, sha, esc, euros, limiter, dateFr, slugify } = require('./util');
+const IA = require('./ia');
 
 const ROOT = path.join(__dirname, '..');
 const PUBLIC = path.join(ROOT, 'public');
@@ -55,6 +56,7 @@ async function createApp(opts = {}) {
   await initSousRubriques(store, { log });
   const cat = createCatalogue(store);
   const brevo = opts.brevo || createBrevo({ env, store, log });
+  const ia = IA.createIa({ env, ask: opts.iaAsk, log });
   const prod = env.NODE_ENV === 'production';
   const SITE = (env.SITE_URL || 'http://localhost:' + (env.PORT || 3000)).replace(/\/$/, '');
   const uploadDir = path.resolve(env.UPLOAD_DIR || path.join(ROOT, 'var', 'uploads'));
@@ -135,7 +137,7 @@ async function createApp(opts = {}) {
   /* ---------- fichiers statiques ---------- */
   app.get('/sante', wrap(async (req, res) => {
     const c = await cat.get();
-    res.set('Cache-Control', 'no-store').json({ ok: true, base: env.DB_HOST ? 'MySQL' : 'fichier local', brevo: brevo.live ? 'actif' : 'mode test', prestations: c.produits.length, rubriques: c.rubriques.length, lieux: c.lieux.length });
+    res.set('Cache-Control', 'no-store').json({ ok: true, base: env.DB_HOST ? 'MySQL' : 'fichier local', brevo: brevo.live ? 'actif' : 'mode test', ia: ia.actif ? 'active' : 'clé à ajouter', prestations: c.produits.length, rubriques: c.rubriques.length, lieux: c.lieux.length });
   }));
   app.use(express.static(PUBLIC, { maxAge: prod ? '7d' : 0, index: false, setHeaders: (res, p) => { if (/\.(webp|jpe?g|png|svg|mp4|woff2?)$/.test(p)) res.set('Cache-Control', 'public, max-age=2592000'); } }));
   app.use('/media', express.static(uploadDir, { maxAge: '30d' }));
@@ -502,6 +504,9 @@ async function createApp(opts = {}) {
   A.post('/actions/devis-depuis-demande/:id', sameSite, wrap(async (req, res) => {
     const d = await store.get('demandes/' + req.params.id);
     if (!d) return res.status(404).json({ error: 'Demande introuvable.' });
+    res.json({ ok: true, id: await devisDepuisDemande(d, req.ctx) });
+  }));
+  async function devisDepuisDemande(d, ctx, extra = {}) {
     const c = await cat.get();
     const T = c.reglages.tarifs || {};
     const id = 'v_' + rid(8), token = rid(18);
@@ -513,12 +518,74 @@ async function createApp(opts = {}) {
       intro: `Madame, Monsieur, suite à votre demande, voici notre proposition pour votre ${String(d.evenement?.type || 'événement').toLowerCase()}.`,
       lignes: lignesDepuisDemande(d, c, T), remiseCents: 0, acomptePct: T.acomptePct ?? 30, validiteJusquau: validite,
       conditions: 'Prix TTC. Acompte à la signature, solde au plus tard 7 jours avant l’événement. Nombre définitif d’invités à confirmer 7 jours avant.',
-      lienPaiement: '', createdAt: new Date().toISOString(), creePar: req.ctx.name,
+      lienPaiement: '', createdAt: new Date().toISOString(), creePar: ctx.name,
     };
+    Object.assign(devis, extra);
     await store.set('devis/' + id, devis);
     await store.set('_devistoken/' + sha(token), { id });
-    audit(req.ctx, 'devis créé', 'devis/' + id, numero);
-    res.json({ ok: true, id });
+    audit(ctx, 'devis créé', 'devis/' + id, numero);
+    return id;
+  }
+  /* ---------- commande préparée par l'IA (Suivi client › « ✨ Commande avec l'IA ») ---------- */
+  const iaLimit = limiter(+(env.AI_LIMIT_PER_HOUR || 300), 3600e3);
+  const iaErreur = (res, e) => res.status(e.code === 'not_granted' ? 503 : 502).json({ error: e.code === 'not_granted' ? 'L’IA n’est pas encore activée : ajoutez la variable ANTHROPIC_API_KEY dans Railway.' : e.code === 'refused' ? 'L’IA a refusé cette demande. Reformulez le texte.' : 'L’IA n’a pas répondu correctement. Réessayez.', code: e.code || 'ai_failed' });
+  A.get('/ia/etat', wrap(async (req, res) => { const R = (await cat.get()).reglages; res.json({ actif: ia.actif, evenements: R.evenements || [], tarifs: R.tarifs || {}, origine: R.origine || null }); }));
+  A.post('/ia/fiche', sameSite, json, wrap(async (req, res) => {
+    if (!iaLimit(req.ctx.uid)) return res.status(429).json({ error: 'Trop de demandes : réessayez dans une minute.' });
+    const texte = s(req.body?.texte, 6000);
+    if (texte.length < 5) return res.status(400).json({ error: 'Écrivez ou dictez d’abord les infos du client.' });
+    const R = (await cat.get()).reglages, evts = R.evenements || [];
+    try { res.json({ fiche: IA.nettoyerFiche(IA.json(await ia.demander(IA.promptFiche(texte, evts, new Date().toISOString().slice(0, 10)))), evts) }); }
+    catch (e) { iaErreur(res, e); }
+  }));
+  A.post('/ia/produits', sameSite, json, wrap(async (req, res) => {
+    if (!iaLimit(req.ctx.uid)) return res.status(429).json({ error: 'Trop de demandes : réessayez dans une minute.' });
+    const c = await cat.get(), compact = IA.catalogueCompact(c);
+    const fiche = IA.nettoyerFiche(req.body?.fiche || {}, c.reglages.evenements || []);
+    const fichePourIa = { type: fiche.type, date: fiche.date, horaire: fiche.horaire, invites: fiche.invites, ville: fiche.ville, budgetTTC: fiche.budget, precisions: fiche.notes };
+    try { res.json({ articles: IA.nettoyerArticles(IA.json(await ia.demander(IA.promptProduits(fichePourIa, s(req.body?.texte, 6000), compact, c.reglages.tarifs || {}), { effort: 'medium', maxTokens: 6000 })), c, compact.visibles) }); }
+    catch (e) { iaErreur(res, e); }
+  }));
+  A.post('/actions/commande-ia', sameSite, json, wrap(async (req, res) => {
+    const c = await cat.get(), T = c.reglages.tarifs || {};
+    const f = IA.nettoyerFiche(req.body?.fiche || {}, c.reglages.evenements || []);
+    const nom = [f.prenom, f.nom].filter(Boolean).join(' ');
+    if (!nom) return res.status(400).json({ error: 'Indiquez au moins le nom du client.' });
+    if (f.email && !isEmail(f.email)) return res.status(400).json({ error: 'L’e-mail du client n’est pas valide.' });
+    const { visibles } = IA.catalogueCompact(c);
+    const articles = IA.nettoyerArticles(req.body?.articles, c, visibles);
+    if (!articles.length) return res.status(400).json({ error: 'Cochez au moins une prestation.' });
+    /* client : retrouvé par son e-mail (seules les cases vides sont complétées), sinon créé */
+    const now = new Date().toISOString();
+    let clientId = null;
+    if (f.email) {
+      const idx = await store.get('_clientemail/' + sha(f.email)), cl = idx && await store.get('clients/' + idx.id);
+      if (cl) { clientId = idx.id; await store.set('clients/' + clientId, { ...cl, nom: cl.nom || nom, tel: cl.tel || f.tel, societe: cl.societe || f.societe, adresse: cl.adresse || f.adresse, derniereActivite: now }); }
+    }
+    if (!clientId) {
+      clientId = 'c_' + rid(8);
+      await store.set('clients/' + clientId, { id: clientId, nom, email: f.email, tel: f.tel, societe: f.societe, adresse: f.adresse, notes: '', creeLe: now, derniereActivite: now, source: 'téléphone (IA)' });
+      if (f.email) await store.set('_clientemail/' + sha(f.email), { id: clientId });
+    }
+    const lignes = articles.map(a => ({ slug: a.slug, titre: a.titre, rubrique: a.rubrique, unite: a.unite, qte: a.qte, prixCents: a.prixCents, supCents: 0,
+      totalCents: (a.prixCents || 0) * a.qte, surDevis: a.prixCents == null, variante: '', choix: {}, resume: '', note: a.note, personnel: null, pack: null }));
+    if (f.serveurs) lignes[0].personnel = { nb: f.serveurs, heures: Math.max(T.personnel?.minHeures || 4, +f.heures || 0) };
+    if (f.vaisselle && (T.packs || []).some(x => x.id === f.vaisselle)) lignes[0].pack = { id: f.vaisselle, nb: +f.invites || lignes[0].qte };
+    const km = Math.min(2000, Math.max(0, Math.round(+req.body?.km || 0)));
+    const sousTotal = lignes.reduce((t, l) => t + l.totalCents, 0), seuil = T.livraisonOfferteCents ?? 70000, offerte = !!(km && seuil > 0 && sousTotal >= seuil);
+    const id = 'd_' + rid(8), ref = await prochainNumero(store, 'demande'), par = req.ctx.name || req.ctx.email || 'équipe';
+    const demande = {
+      id, ref, type: 'devis', source: 'Téléphone (IA)', clientId, contact: { nom, email: f.email, tel: f.tel, societe: f.societe },
+      evenement: { type: f.type, date: f.date, invites: +f.invites || 0, cp: f.cp, ville: f.ville, adresse: f.adresse, horaire: f.horaire },
+      livraison: km ? { km, cents: offerte ? 0 : km * (T.kmCents || 100), ...(offerte ? { offerte: true } : {}) } : null,
+      lignes, sousTotalCents: sousTotal, totalEstimeCents: sousTotal + (km && !offerte ? km * (T.kmCents || 100) : 0),
+      message: [f.notes, 'Commande préparée avec l’IA à partir de : ' + s(req.body?.texte, 6000)].filter(Boolean).join('\n\n'), statut: 'demande',
+      historique: [{ at: now, statut: 'demande', par }], createdAt: now, commercial: par,
+    };
+    await store.set('demandes/' + id, demande);
+    audit(req.ctx, 'commande préparée avec l’IA', 'demandes/' + id, ref);
+    const devisId = await devisDepuisDemande(demande, req.ctx, { iaDraft: true });
+    res.json({ ok: true, demandeId: id, devisId, ref });
   }));
   A.post('/actions/devis-vierge', sameSite, json, wrap(async (req, res) => {
     const T = (await cat.get()).reglages.tarifs || {};

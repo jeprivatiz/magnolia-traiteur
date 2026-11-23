@@ -10,8 +10,11 @@
     "test": "node --test test/*.test.js",
     "recuperer": "node scripts/recuperer-brouillon.js"
   },
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.12.0",
     "bcryptjs": "^2.4.3",
     "express": "^4.21.2",
     "multer": "^2.0.2",

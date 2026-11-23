@@ -55,10 +55,10 @@
       : m[0] === 'crm' ? `<button type="button" class="chip crm-btn" data-tab="crm" data-crm aria-expanded="${open}" title="Demandes de devis, Suivi client, Devis, Factures">CRM<span>${nb}</span></button>`
       : `<a href="#/${m[0]}" data-tab="${m[0]}" class="chip${CRM.includes(m[0]) ? ' crm-sub' : ''}${cur === m[0] ? ' on' : ''}"${cur === m[0] ? ' aria-current="page"' : ''}>${m[1]}${m[0] === 'demandes' ? `<span>${nb}</span>` : ''}</a>`;
     return `<div class="bo">
-      <aside class="side" id="side"><a class="logo" href="#/"><img src="/brand/monogramme.svg" alt=""><span>Magnolia<small>Back-office</small></span></a>
+      <aside class="side" id="side"><a class="logo" href="#/"><img src="/brand/monogramme.svg" alt=""><span>Magnolia<small>Back-office</small></span></a><a class="go-site" href="/" target="_blank" rel="noopener">🌐 Aller sur le site ↗</a>
       <nav class="tabs${open ? ' crm-open' : ''}"><p class="tabs-lab">Espace équipe</p>${MENU.map(item).join('')}</nav>
-      <div class="me"><span>${esc(session.nom || session.email)}<small>${session.role === 'manager' ? 'Manager' : 'Collaborateur'}</small></span><a href="/" target="_blank">Voir le site ↗</a><button class="lnk" data-logout>Déconnexion</button></div></aside>
-      <div class="main"><header class="mtop"><button class="burger" data-burger aria-label="Menu">☰</button><span class="mtitle">${esc((MENU.find(m => m[0] === cur) || [, ''])[1])}</span></header><div class="content">${inner}</div></div></div>`;
+      <div class="me"><span>${esc(session.nom || session.email)}<small>${session.role === 'manager' ? 'Manager' : 'Collaborateur'}</small></span><button class="lnk" data-logout>Déconnexion</button></div></aside>
+      <div class="main"><header class="mtop"><button class="burger" data-burger aria-label="Menu">☰</button><span class="mtitle">${esc((MENU.find(m => m[0] === cur) || [, ''])[1])}</span><a class="go-site sm" href="/" target="_blank" rel="noopener">🌐 Le site ↗</a></header><div class="content">${inner}</div></div></div>`;
   }
   const page = (titre, actions, body) => `<div class="ph"><h1>${titre}</h1><div class="pa">${actions || ''}</div></div>${body}`;
 
@@ -224,7 +224,7 @@
     const [dem, devisL, eq] = await Promise.all([api(A + '/demandes'), api(A + '/devis'), api(A + '/actions/equipe').catch(() => [])]);
     cache.devisL = devisL; cache.equipe = eq.filter(u => !u.desactive);
     cache.opps = dem.filter(d => d.type !== 'contact').map(d => opportunite(d, devisL));
-    return page('Suivi client', '<a class="btn" href="#/devis/nouveau">+ Nouveau devis</a>', '<div id="qs"></div>');
+    return page('Suivi client', '<button type="button" class="btn ghost aq-btn" data-aiq>✨ Commande avec l’IA</button><a class="btn" href="#/devis/nouveau">+ Nouveau devis</a>', '<p class="muted intro">Vos opportunités en cours, d’un coup d’œil. Une commande prise au téléphone ? « ✨ Commande avec l’IA » : tapez ou dictez tout en vrac, l’IA prépare la fiche client et le devis avec le catalogue.</p><div id="qs"></div>');
   }
   const SV = { p: 'all', o: '', f: 'all', s: '', d1: '', d2: '' };
   function suiviDessin() {
@@ -268,7 +268,7 @@
   const btnEtape = (o, k, html) => o.d.statut === 'refuse' ? html : `<button type="button" class="qs-stb" data-qstep="${k}" data-q="${o.d.id}" title="Cliquer pour mettre à jour">${html}</button>`;
   function frise(o) {
     const st = o.d.statut, decided = ['accord', 'reserve', 'termine', 'refuse'].includes(st), sent = !!o.envoyeLe;
-    const out = [etape('done', 'Demande', d1(o.d.createdAt) + (o.d.lignes ? ' · site' : ''), '✓')];
+    const out = [etape('done', 'Demande', d1(o.d.createdAt) + (o.d.source ? ' · ' + (/IA/.test(o.d.source) ? '✨ IA' : 'tél.') : o.d.lignes ? ' · site' : ''), '✓')];
     out.push(sent ? etape('done', 'Devis envoyé', d1(o.envoyeLe), '✓') : `<button type="button" class="qs-stb" data-qdevis="${o.d.id}" title="Préparer le devis">${etape('now', 'Devis à envoyer', o.main ? 'brouillon' : 'à préparer')}</button>`);
     const rel = o.relances[o.relances.length - 1];
     const relB = h => sent && !decided ? `<button type="button" class="qs-stb" data-qrel="${o.d.id}" title="Relancer le client">${h}</button>` : h;
@@ -359,12 +359,131 @@
     });
   };
 
+
+  /* ---------- commande avec l'IA (comme « ✨ Devis avec l'IA » de Je Privatise) :
+     infos du client en vrac (texte ou dictée) → fiche client → prestations du catalogue → devis pré-rempli à vérifier ---------- */
+  function micPour(btn, ta, msg, fin) {
+    if (!btn || !ta) return; const SR = window.SpeechRecognition || window.webkitSpeechRecognition; let rec = null, base = '';
+    const dire = h => { if (msg) msg.innerHTML = h; };
+    btn.onclick = () => {
+      if (!SR) { dire('<span class="err">La dictée n’est pas disponible sur ce navigateur. Sur iPhone, utilisez le micro 🎤 du clavier ; sur ordinateur, Chrome, Edge ou Safari.</span>'); return; }
+      if (rec) { rec.stop(); return; }
+      rec = new SR(); rec.lang = 'fr-FR'; rec.interimResults = true; rec.continuous = true;
+      base = ta.value.trim(); let ok = '';
+      rec.onresult = ev => { let tmp = ''; for (let i = ev.resultIndex; i < ev.results.length; i++) { const r = ev.results[i]; if (r.isFinal) ok += r[0].transcript.trim() + ' '; else tmp += r[0].transcript; } ta.value = [base, (ok + tmp).trim()].filter(Boolean).join(base && !/[.,;]$/.test(base) ? ', ' : ' '); ta.dispatchEvent(new Event('input')); };
+      rec.onerror = ev => dire(`<span class="err">${ev.error === 'not-allowed' || ev.error === 'service-not-allowed' ? 'Le micro est bloqué : autorisez-le dans le navigateur, puis réessayez.' : ev.error === 'no-speech' ? 'Je n’ai rien entendu : réessayez en parlant près du micro.' : 'La dictée s’est arrêtée. Réessayez.'}</span>`);
+      rec.onend = () => { rec = null; btn.classList.remove('on'); if (!/err/.test(msg?.innerHTML || '')) dire(''); fin?.(); };
+      try { rec.start(); btn.classList.add('on'); dire('<span class="muted">🔴 Je vous écoute… parlez, puis appuyez à nouveau sur 🎤 pour arrêter.</span>'); } catch { rec = null; dire('<span class="err">Impossible de démarrer la dictée ici.</span>'); }
+    };
+  }
+  async function commandeIa() {
+    document.querySelector('.aq-modal')?.remove();
+    const conf = await api(A + '/ia/etat').catch(() => ({ actif: false, evenements: [], tarifs: {} }));
+    const prods = cache.produits || await api(A + '/produits').catch(() => []); cache.produits = prods;
+    const T = conf.tarifs || {}, O = conf.origine || { lat: 48.692674, lon: 2.212317 };
+    const st = { step: 1, texte: '', f: null, art: [], km: '', villes: [] };
+    const m = document.createElement('div'); m.className = 'modal aq-modal'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-modal', 'true');
+    const tete = (h, sub) => `<div class="aq-h"><div><p class="aq-eye">✨ Commande avec l’IA</p><h2>${h}</h2>${sub ? `<p class="muted">${sub}</p>` : ''}</div><button type="button" class="x" data-aqx aria-label="Fermer">×</button></div>
+      <ol class="aq-steps">${['Infos du client', 'Fiche client', 'Commande'].map((t, i) => `<li class="${st.step === i + 1 ? 'on' : st.step > i + 1 ? 'done' : ''}">${st.step > i + 1 ? '✓' : i + 1} ${t}</li>`).join('')}</ol>`;
+    const opt = (list, cur, first) => `<option value="">${first}</option>${list.map(x => { const [v, l] = Array.isArray(x) ? x : [x, x]; return `<option value="${esc(v)}"${String(v) === String(cur) ? ' selected' : ''}>${esc(l)}</option>`; }).join('')}`;
+    const kmAR = (lat, lon) => { const r = x => x * Math.PI / 180, d = 2 * 6371 * Math.asin(Math.sqrt(Math.sin(r(lat - O.lat) / 2) ** 2 + Math.cos(r(O.lat)) * Math.cos(r(lat)) * Math.sin(r(lon - O.lon) / 2) ** 2)); return Math.max(10, Math.round(d * 1.3 * 2)); };
+    const visibles = prods.filter(p => p.statut !== 'masque').sort((a, b) => a.titre.localeCompare(b.titre));
+    const totaux = () => {
+      const presta = st.art.filter(a => a.on).reduce((t, a) => t + (a.prixCents || 0) * a.qte, 0);
+      const f = st.f || {}, pers = f.serveurs ? (T.personnel?.heureCents || 4188) * f.serveurs * Math.max(T.personnel?.minHeures || 4, +f.heures || 0) : 0;
+      const pk = (T.packs || []).find(x => x.id === f.vaisselle), pack = pk ? pk.prixCents * (+f.invites || 0) : 0;
+      const seuil = T.livraisonOfferteCents ?? 70000, km = +st.km || 0, offerte = km && seuil > 0 && presta >= seuil, liv = km && !offerte ? km * (T.kmCents || 100) : 0;
+      return { presta, pers, pack, liv, offerte, total: presta + pers + pack + liv };
+    };
+    const draw = () => {
+      if (st.step === 1) m.innerHTML = `<div class="modal-in aq-in">${tete('Décrivez la commande du client', 'Tapez ou dictez tout en vrac : nom, téléphone, e-mail, date, nombre d’invités, ville de livraison, ce qu’il veut manger, le personnel… L’IA prépare la fiche client et la commande avec le catalogue Magnolia (prix TTC, minimums). Rien n’est envoyé au client.')}
+        ${conf.actif ? '' : '<p class="aq-warn">L’IA n’est pas encore activée sur le site : il faut ajouter la clé <b>ANTHROPIC_API_KEY</b> dans les variables Railway. En attendant, vous pouvez créer le devis à la main (« + Nouveau devis »).</p>'}
+        <div class="aq-nrow"><textarea id="aqTexte" rows="7" placeholder="ex. Sophie Durand, 06 12 34 56 78, sophie.durand@gmail.com, anniversaire de ses 40 ans le 14 mars, 40 personnes à Massy 91300, livraison 19 h, buffet antillais avec accras et colombo de poulet, 2 serveurs 5 h, vaisselle en dur">${esc(st.texte)}</textarea><button type="button" class="aq-mic" id="aqMic" title="Dicter" aria-label="Dicter">🎤</button></div><p class="aq-nmsg" id="aqNMsg"></p>
+        <div class="aq-f"><span class="aq-msg" id="aqMsg"></span><span class="aq-sp"></span><button type="button" class="btn ghost" data-aqx>Annuler</button><button type="button" class="btn" id="aqGo"${conf.actif ? '' : ' disabled'}>✨ Préparer la fiche client</button></div></div>`;
+      else if (st.step === 2) { const f = st.f;
+        m.innerHTML = `<div class="modal-in aq-in">${tete('Vérifiez la fiche client', 'L’IA a rempli ce qu’elle a compris. Corrigez si besoin, puis composez la commande.')}
+        <form id="aqForm" class="aq-g" autocomplete="off">
+          <label>Prénom<input name="prenom" value="${esc(f.prenom)}"></label><label>Nom<input name="nom" value="${esc(f.nom)}"></label>
+          <label>Téléphone<input name="tel" type="tel" value="${esc(f.tel)}"></label><label>E-mail<input name="email" type="email" value="${esc(f.email)}"></label>
+          <label>Société<input name="societe" value="${esc(f.societe)}"></label><label>Événement<select name="type">${opt(conf.evenements || [], f.type, 'Choisir')}</select></label>
+          <label>Date<input name="date" type="date" value="${esc(f.date)}"></label><label>Heure de livraison<input name="horaire" value="${esc(f.horaire)}" placeholder="ex. 19 h"></label>
+          <label>Invités<input name="invites" type="number" min="1" inputmode="numeric" value="${esc(f.invites)}"></label><label>Budget TTC (€)<input name="budget" type="number" min="0" inputmode="numeric" value="${esc(f.budget)}"></label>
+          <label>Code postal de livraison<input name="cp" inputmode="numeric" maxlength="5" value="${esc(f.cp)}"></label><label>Ville<select name="ville">${st.villes.length ? st.villes.map(v => `<option${v.nom === f.ville ? ' selected' : ''}>${esc(v.nom)}</option>`).join('') : `<option>${esc(f.ville || 'D’abord le code postal')}</option>`}</select></label>
+          <label class="aq-wide">Adresse de livraison<input name="adresse" value="${esc(f.adresse)}"></label>
+          <label>Livraison (km aller-retour)<input name="km" type="number" min="0" inputmode="numeric" value="${esc(st.km)}"><small class="muted" id="aqKm">${st.km ? `${euros(st.km * (T.kmCents || 100))} TTC, offerte dès ${euros(T.livraisonOfferteCents ?? 70000)} TTC` : 'Calculé avec le code postal'}</small></label>
+          <label>Vaisselle<select name="vaisselle">${opt((T.packs || []).map(p => [p.id, `${p.label} (${euros(p.prixCents)} TTC/pers.)`]), f.vaisselle, 'Pas de pack vaisselle')}</select></label>
+          <label>Serveurs<input name="serveurs" type="number" min="0" inputmode="numeric" value="${esc(f.serveurs)}"></label><label>Heures de service<input name="heures" type="number" min="0" inputmode="numeric" value="${esc(f.heures)}"><small class="muted">${euros(T.personnel?.heureCents || 4188)} TTC/h, ${T.personnel?.minHeures || 4} h minimum</small></label>
+          <label class="aq-wide">Notes pour le devis<textarea name="notes" rows="3">${esc(f.notes)}</textarea></label>
+        </form>
+        <div class="aq-f"><button type="button" class="btn ghost" data-aqback="1">← Modifier le texte</button><span class="aq-msg" id="aqMsg"></span><span class="aq-sp"></span><button type="button" class="btn" id="aqProd">✨ Composer la commande</button></div></div>`;
+        const cp = m.querySelector('[name=cp]'), vi = m.querySelector('[name=ville]'), km = m.querySelector('[name=km]');
+        const majKm = () => { const v = st.villes.find(x => x.nom === vi.value); if (v) { st.km = kmAR(v.lat, v.lon); km.value = st.km; m.querySelector('#aqKm').textContent = `${euros(st.km * (T.kmCents || 100))} TTC, offerte dès ${euros(T.livraisonOfferteCents ?? 70000)} TTC`; } };
+        const villes = async () => { const c = cp.value.replace(/\D/g, '').slice(0, 5); cp.value = c; if (c.length !== 5) return;
+          try { st.villes = (await fetch(`https://geo.api.gouv.fr/communes?codePostal=${c}&fields=nom,centre&format=json`).then(x => x.json())).map(x => ({ nom: x.nom, lat: x.centre?.coordinates?.[1], lon: x.centre?.coordinates?.[0] })).filter(x => x.lat); } catch { st.villes = []; }
+          const want = st.f.ville && st.villes.find(v => v.nom.toLowerCase() === st.f.ville.toLowerCase());
+          vi.innerHTML = st.villes.length ? st.villes.map(v => `<option${want && v === want ? ' selected' : ''}>${esc(v.nom)}</option>`).join('') : '<option value="">Ville introuvable</option>'; if (!st.km || want) majKm(); };
+        cp.addEventListener('input', villes); vi.addEventListener('change', majKm); km.addEventListener('input', () => { st.km = +km.value || ''; });
+        if (cp.value && !st.villes.length) villes();
+      } else {
+        const t = totaux(), ligne = (a, i) => `<div class="aq-a${a.on ? ' on' : ''}"><input type="checkbox" data-aqon="${i}"${a.on ? ' checked' : ''} aria-label="Garder">${a.photo ? `<img src="${esc(a.photo)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'aq-noph'}))">` : '<span class="aq-noph"></span>'}
+          <div class="aq-at"><b>${esc(a.titre)}</b><small>${esc([a.rubrique, a.prixCents == null ? 'prix à confirmer' : euros(a.prixCents) + ' TTC / ' + (a.unite || 'unité'), 'minimum ' + a.min].filter(Boolean).join(' · '))}</small>${a.pourquoi ? `<em>✨ ${esc(a.pourquoi)}</em>` : ''}
+          <input class="aq-note" data-aqnote="${i}" value="${esc(a.note)}" placeholder="Choix du client, précisions (facultatif)"></div>
+          <label class="aq-q">Quantité<input type="number" min="${a.min}" inputmode="numeric" data-aqq="${i}" value="${a.qte}"><small>${a.prixCents == null ? '—' : euros(a.prixCents * a.qte)}</small></label></div>`;
+        m.innerHTML = `<div class="modal-in aq-in">${tete('La commande proposée', `Pour ${esc([st.f.prenom, st.f.nom].filter(Boolean).join(' ') || 'le client')}${st.f.invites ? ' · ' + st.f.invites + ' invités' : ''} · décochez ce qui ne convient pas, ajustez les quantités (jamais sous le minimum), ajoutez une prestation si besoin.`)}
+          <div class="aq-as">${st.art.map(ligne).join('') || '<p class="muted">L’IA n’a rien trouvé dans le catalogue : ajoutez les prestations ci-dessous.</p>'}</div>
+          <select class="aq-add" data-aqadd><option value="">+ Ajouter une prestation du catalogue…</option>${visibles.map(p => `<option value="${esc(p.slug)}">${esc(p.titre)} · ${p.prixCents == null ? 'prix à confirmer' : euros(p.prixCents)}</option>`).join('')}</select>
+          <dl class="aq-tot"><dt>Prestations</dt><dd>${euros(t.presta)}</dd>${t.pers ? `<dt>Personnel (${st.f.serveurs} × ${Math.max(T.personnel?.minHeures || 4, +st.f.heures || 0)} h)</dt><dd>${euros(t.pers)}</dd>` : ''}${t.pack ? `<dt>Pack vaisselle</dt><dd>${euros(t.pack)}</dd>` : ''}${st.km ? `<dt>Livraison (${st.km} km A/R)</dt><dd>${t.offerte ? 'offerte' : euros(t.liv)}</dd>` : ''}<dt class="g">Total estimé TTC</dt><dd class="g">${euros(t.total)}</dd></dl>
+          <div class="aq-f"><button type="button" class="btn ghost" data-aqback="2">← Modifier la fiche</button><span class="aq-msg" id="aqMsg"></span><span class="aq-sp"></span><button type="button" class="btn" id="aqMake"${st.art.some(a => a.on) ? '' : ' disabled'}>Préparer le devis</button></div></div>`;
+      }
+      if (st.step === 1) { const ta = m.querySelector('#aqTexte'); ta.oninput = () => { st.texte = ta.value; }; micPour(m.querySelector('#aqMic'), ta, m.querySelector('#aqNMsg'), () => { st.texte = ta.value; }); }
+    };
+    const lireForm = () => { const f = new FormData(m.querySelector('#aqForm')), g = k => String(f.get(k) ?? '').trim(); st.f = { prenom: g('prenom'), nom: g('nom'), tel: g('tel'), email: g('email'), societe: g('societe'), type: g('type'), date: g('date'), horaire: g('horaire'), invites: +g('invites') || '', budget: +g('budget') || '', cp: g('cp'), ville: st.villes.length ? g('ville') : st.f.ville, adresse: g('adresse'), vaisselle: g('vaisselle'), serveurs: +g('serveurs') || '', heures: +g('heures') || '', notes: g('notes') }; st.km = +g('km') || ''; };
+    const occupe = (id, on, html) => { const b = m.querySelector(id), msg = m.querySelector('#aqMsg'); if (b) b.disabled = on; if (msg) msg.innerHTML = html || ''; };
+    const ajout = p => { const min = Math.max(1, +p.min || 1); return { slug: p.slug, titre: p.titre, rubrique: '', unite: p.unite || '', prixCents: p.prixCents ?? null, min, qte: Math.max(min, p.unite === 'personne' ? +st.f.invites || min : min), note: '', pourquoi: '', photo: p.photos?.[0]?.src || '', on: true }; };
+    m.addEventListener('input', e => {
+      const q = e.target.closest('[data-aqq]'); if (q) { const a = st.art[+q.dataset.aqq]; a.qte = Math.max(1, Math.round(+q.value || 0)); q.nextElementSibling.textContent = a.prixCents == null ? '—' : euros(a.prixCents * a.qte); return; }
+      const n = e.target.closest('[data-aqnote]'); if (n) st.art[+n.dataset.aqnote].note = n.value;
+    });
+    m.addEventListener('change', e => {
+      const q = e.target.closest('[data-aqq]'); if (q) { const a = st.art[+q.dataset.aqq]; if (a.qte < a.min) { a.qte = a.min; toast(`Minimum ${a.min} pour « ${a.titre} ».`); } draw(); return; }
+      const ad = e.target.closest('[data-aqadd]'); if (ad) { const p = visibles.find(x => x.slug === ad.value); if (p && !st.art.some(a => a.slug === p.slug)) st.art.push(ajout(p)); draw(); }
+    });
+    m.addEventListener('click', async e => {
+      if (e.target === m || e.target.closest('[data-aqx]')) { m.remove(); return; }
+      const bk = e.target.closest('[data-aqback]'); if (bk) { st.step = +bk.dataset.aqback; draw(); return; }
+      const on = e.target.closest('[data-aqon]'); if (on) { st.art[+on.dataset.aqon].on = on.checked; draw(); return; }
+      if (e.target.closest('#aqGo')) {
+        st.texte = m.querySelector('#aqTexte').value.trim(); if (st.texte.length < 5) { occupe('#aqGo', false, '<span class="err">Écrivez ou dictez d’abord les infos du client.</span>'); return; }
+        occupe('#aqGo', true, '<span class="muted">L’IA lit la demande…</span>');
+        try { st.f = (await api(A + '/ia/fiche', { method: 'POST', body: { texte: st.texte } })).fiche; st.villes = []; st.km = ''; st.step = 2; draw(); }
+        catch (err) { occupe('#aqGo', false, `<span class="err">${esc(err.message)}</span>`); }
+        return;
+      }
+      if (e.target.closest('#aqProd')) {
+        lireForm(); if (!st.f.nom && !st.f.prenom) { occupe('#aqProd', false, '<span class="err">Indiquez au moins le nom du client.</span>'); return; }
+        occupe('#aqProd', true, '<span class="muted">L’IA compose la commande avec le catalogue…</span>');
+        try { st.art = (await api(A + '/ia/produits', { method: 'POST', body: { fiche: st.f, texte: st.texte } })).articles.map(a => ({ ...a, on: true })); st.step = 3; draw(); }
+        catch (err) { occupe('#aqProd', false, `<span class="err">${esc(err.message)}</span>`); }
+        return;
+      }
+      if (e.target.closest('#aqMake')) {
+        occupe('#aqMake', true, '<span class="muted">Création du devis…</span>');
+        try {
+          const r = await api(A + '/actions/commande-ia', { method: 'POST', body: { fiche: st.f, km: st.km, texte: st.texte, articles: st.art.filter(a => a.on).map(a => ({ slug: a.slug, qte: a.qte, note: a.note })) } });
+          m.remove(); toast('✨ Devis préparé avec l’IA : vérifiez les lignes et le message, enregistrez, puis envoyez.'); location.hash = '#/devis/' + r.devisId;
+        } catch (err) { occupe('#aqMake', false, `<span class="err">${esc(err.message)}</span>`); }
+      }
+    });
+    draw(); document.body.append(m); m.querySelector('#aqTexte')?.focus();
+  }
+  document.addEventListener('click', e => { if (e.target.closest('[data-aiq]')) commandeIa(); });
+
   /* ---------- devis ---------- */
   async function devis(id) {
     if (id === 'nouveau') { const r = await api(A + '/actions/devis-vierge', { method: 'POST', body: {} }); location.replace('#/devis/' + r.id); return ''; }
     if (id) return devisEdit(id);
     const list = (await api(A + '/devis')).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-    return page('Devis', '<a class="btn" href="#/devis/nouveau">+ Nouveau devis</a>', list.length ? `<div class="table"><table><thead><tr><th>N°</th><th>Client</th><th>Événement</th><th class="n">Total TTC</th><th>Statut</th><th>Vu par le client</th></tr></thead><tbody>
+    return page('Devis', '<button type="button" class="btn ghost aq-btn" data-aiq>✨ Commande avec l’IA</button><a class="btn" href="#/devis/nouveau">+ Nouveau devis</a>', list.length ? `<div class="table"><table><thead><tr><th>N°</th><th>Client</th><th>Événement</th><th class="n">Total TTC</th><th>Statut</th><th>Vu par le client</th></tr></thead><tbody>
       ${list.map(d => `<tr data-href="#/devis/${d.id}"><td><b>${esc(d.numero)}</b></td><td>${esc(d.clientNom)}</td><td>${esc(d.evenement?.type || '')} ${dateFr(d.evenement?.date)}</td><td class="n">${euros(tot(d).ttc)}</td><td><span class="pill d-${d.statut}">${DSTAT[d.statut]}</span></td><td>${d.vuLe ? dateH(d.vuLe) : '—'}</td></tr>`).join('')}</tbody></table></div>` : '<div class="vide"><p>Aucun devis.</p><p class="muted">Créez un devis depuis une demande (les lignes sont reprises) ou partez d’un devis vierge.</p></div>');
   }
   devis.after = id => { if (id && id !== 'nouveau') return devisEdit.after(id); $$('tr[data-href]').forEach(tr => tr.addEventListener('click', () => { location.hash = tr.dataset.href; })); };
@@ -387,6 +506,7 @@
     const signe = d.statut === 'accepte';
     const lock = signe && session.role !== 'manager';
     return page(`Devis ${esc(d.numero)} <span class="pill d-${d.statut}">${DSTAT[d.statut]}</span>`, `<a class="btn ghost" href="#/devis">← Devis</a>${d.statut !== 'brouillon' ? `<a class="btn ghost" href="/devis/${d.token}" target="_blank">Voir comme le client ↗</a>` : ''}`, `
+      ${d.iaDraft && d.statut === 'brouillon' ? '<p class="aq-info">✨ Devis préparé avec l’IA à partir de la commande du client : vérifiez les lignes, les quantités et le texte, enregistrez, puis envoyez-le.</p>' : ''}
       ${signe ? `<p class="okbox">✓ Signé en ligne par <b>${esc(d.signature?.nom)}</b> le ${dateH(d.signature?.at)}.${lock ? ' Seul le Manager peut le modifier.' : ''}</p>` : ''}
       <form id="dv" class="${lock ? 'lock' : ''}">
       <div class="cols">
