@@ -116,7 +116,7 @@ function matieres() {
     blini: S({ color: 0xd9a75e, roughness: .8 }),
     anchois: P({ color: 0xc9ccd0, metalness: .6, roughness: .25, clearcoat: 1 }),
     cellophane: P({ color: 0xffffff, roughness: .04, metalness: 0, transparent: true, opacity: .07, specularIntensity: 1, clearcoat: 1, iridescence: 1, iridescenceIOR: 1.6, iridescenceThicknessRange: [250, 900], side: THREE.DoubleSide, depthWrite: false }),
-    ombre: new THREE.MeshBasicMaterial({ map: texture(128, 128, (x, w) => { const g = x.createRadialGradient(w / 2, w / 2, w * .2, w / 2, w / 2, w / 2); g.addColorStop(0, 'rgba(0,0,0,.55)'); g.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = g; x.fillRect(0, 0, w, w); }), transparent: true, depthWrite: false }),
+    ombre: new THREE.MeshBasicMaterial({ map: texture(128, 128, (x, w) => { const g = x.createRadialGradient(w / 2, w / 2, w * .2, w / 2, w / 2, w / 2); g.addColorStop(0, 'rgba(20,30,40,.32)'); g.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = g; x.fillRect(0, 0, w, w); }), transparent: true, depthWrite: false }),
   };
   /* papier glacé : presque invisible de face, brillant et blanc sur les bords (effet de Fresnel), comme un vrai cellophane */
   M.cellophane.onBeforeCompile = sh => {
@@ -128,233 +128,36 @@ function matieres() {
   return M;
 }
 
-/* ---------------- modèles (géométries partagées, construites une fois) ---------------- */
-function modeles(M) {
-  const G = {};
-  /* huître ouverte sur sa coquille creuse, en forme de goutte */
-  const huitre = (teinte, taille) => {
-    const g = new THREE.Group();
-    const forme = (v, k) => { const t = (v.x + 1) / 2; v.z *= .62 + .38 * (1 - t) ** .7; v.x *= 1.28; v.y *= k; };
-    const coq = deformer(new THREE.SphereGeometry(1, 30, 14, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), (v, o) => {
-      forme(v, .42); const n = bruit(o.x * 3, o.z * 3, 1) * .09 + Math.sin(Math.hypot(o.x + 1, o.z) * 16) * .025;
-      v.x *= 1 + n; v.z *= 1 + n; v.y -= Math.abs(n) * .5;
-    }, (o, c) => { const b = (bruit(o.x * 5, o.z * 5, 2) + 1) / 2; c.set(teinte).lerp(col(0x4b5a4c), b * .6).lerp(col(0x2f2a26), Math.max(0, o.y + .25) * 1.4); });
-    g.add(new THREE.Mesh(coq, M.coquille));
-    const nac = deformer(new THREE.CircleGeometry(.94, 30), (v) => { const x = v.x, z = v.y; v.set(x, 0, -z); forme(v, 1); v.y = .02 - (1 - Math.min(1, Math.hypot(x, z))) * .06; }, (o, c) => { const r = Math.hypot(o.x, o.y); c.set(0xf4eff4).lerp(col(0x7d7590), Math.min(1, Math.max(0, r - .8) * 4.5)); });
-    g.add(new THREE.Mesh(nac, M.nacre));
-    const chair = deformer(new THREE.SphereGeometry(.7, 26, 10, 0, Math.PI * 2, 0, Math.PI / 2), (v, o) => {
-      const t = (o.x / .7 + 1) / 2; v.z *= (.58 + .32 * (1 - t)); v.x *= 1.2; v.y *= .2;
-      const f = Math.sin(Math.atan2(o.z, o.x) * 18) * .035 * Math.max(0, Math.hypot(o.x, o.z) / .7 - .6); v.x += f; v.z += f; v.y += bruit(o.x * 6, o.z * 6, 3) * .03;
-    }, (o, c) => { const r = Math.hypot(o.x, o.z) / .7; c.set(0xd9ccb2).lerp(col(0xbfae94), (bruit(o.x * 7, o.z * 7, 4) + 1) * .3).lerp(col(0x3d3631), Math.min(1, Math.max(0, r - .66) * 4)); });
-    const ch = new THREE.Mesh(chair, M.chairHuitre); ch.position.set(-.05, .03, 0); g.add(ch);
-    g.scale.setScalar(taille);
-    return g;
-  };
-  G.huitre = huitre(0x8e9a8a, 1);
-  G.huitreFine = huitre(0x9a978a, .92);
-  G.huitreGrosse = huitre(0x7f8d80, 1.1);
-
-  /* praire : petit coquillage bombé, strié */
-  {
-    const g = new THREE.Group();
-    const geo = deformer(new THREE.SphereGeometry(.6, 24, 14), (v, o) => { v.y *= o.y > 0 ? .55 : .35; v.z *= .9; v.y += Math.sin(Math.hypot(o.x, o.z - .6) * 30) * .012; }, (o, c) => { const s = Math.sin(Math.hypot(o.x, o.z - .6) * 30); c.set(0xb39674).lerp(col(0x6d5236), (s + 1) * .3).lerp(col(0xe6d8c0), Math.max(0, o.y - .1) * .5); });
-    g.add(new THREE.Mesh(geo, M.coquille));
-    G.praire = g;
-  }
-
-  /* crevette : corps en C, anneaux, queue en éventail, tête, antennes */
-  const crevette = (base, clair, L) => {
-    const g = new THREE.Group();
-    const pts = []; for (let i = 0; i <= 10; i++) { const a = -.3 + i / 10 * 3.6; pts.push(new THREE.Vector3(Math.cos(a) * L * .55, Math.sin(i / 10 * Math.PI) * .12 * L, Math.sin(a) * L * .55)); }
-    const courbe = new THREE.CatmullRomCurve3(pts);
-    const corps = tubeVar(courbe, 60, 12, t => (t < .1 ? .1 + t * 1.6 : t > .82 ? .26 - (t - .82) * 1.1 : .26 - Math.abs(t - .45) * .1) * L * .62, .85);
-    const pc = corps.attributes.position, cl = new Float32Array(pc.count * 3), cc = new THREE.Color();
-    for (let i = 0; i < pc.count; i++) { const t = Math.floor(i / 13) / 60; const s = (Math.sin(t * 60) + 1) / 2; cc.set(base).lerp(col(clair), s * .45 + (pc.getY(i) < .02 ? .35 : 0)); cl.set([cc.r, cc.g, cc.b], i * 3); }
-    corps.setAttribute('color', new THREE.BufferAttribute(cl, 3));
-    g.add(new THREE.Mesh(corps, M.carapace));
-    const fin = courbe.getPointAt(0), dir = courbe.getTangentAt(0);
-    for (let k = -1; k <= 1; k++) {
-      const q = new THREE.Mesh(deformer(new THREE.SphereGeometry(.2 * L, 10, 6), v => { v.x *= 1.6; v.y *= .18; }, (o, c) => c.set(base).lerp(col(0x9a2a10), .25)), M.carapace);
-      q.position.copy(fin).addScaledVector(dir, -.18 * L); q.rotation.y = Math.atan2(-dir.z, dir.x) + Math.PI + k * .45; q.position.x += Math.cos(q.rotation.y) * .12 * L; q.position.z -= Math.sin(q.rotation.y) * .12 * L;
-      g.add(q);
-    }
-    const tete = courbe.getPointAt(1), td = courbe.getTangentAt(1);
-    const th = new THREE.Mesh(deformer(new THREE.SphereGeometry(.3 * L, 16, 10), v => { v.x *= 1.5; v.y *= .85; }, (o, c) => c.set(base).lerp(col(0xd9461e), .3).lerp(col(clair), Math.max(0, o.y) * .8)), M.carapace);
-    th.position.copy(tete).addScaledVector(td, .28 * L); th.rotation.y = Math.atan2(-td.z, td.x); g.add(th);
-    for (const s of [-1, 1]) {
-      const oe = new THREE.Mesh(new THREE.SphereGeometry(.045 * L, 8, 6), M.noir); oe.position.copy(th.position).addScaledVector(td, .32 * L).add(new THREE.Vector3(-td.z * s * .14 * L, .12 * L, td.x * s * .14 * L)); g.add(oe);
-      const a0 = th.position.clone().addScaledVector(td, .35 * L);
-      const ant = new THREE.CatmullRomCurve3([a0, a0.clone().addScaledVector(td, .8 * L).add(new THREE.Vector3(-td.z * s * .5 * L, .25 * L, td.x * s * .5 * L)), a0.clone().addScaledVector(td, 1.3 * L).add(new THREE.Vector3(-td.z * s * 1.6 * L, -.05, td.x * s * 1.6 * L))]);
-      g.add(new THREE.Mesh(tubeVar(ant, 16, 4, t => .018 * L * (1 - t * .7)), M.carapace));
-    }
-    return teinter(g, base);
-  };
-  G.crevette = crevette(0xef6a45, 0xffd2bd, 1);
-  G.crevetteGrise = crevette(0xb0896a, 0xe9d8c4, .62);
-
-  /* langoustine : corps allongé rose saumon, longues pinces fines */
-  {
-    const g = new THREE.Group(), L = 1;
-    const base = 0xf09a7e, clair = 0xffe1d2;
-    const courbe = new THREE.CatmullRomCurve3([new THREE.Vector3(-1.5, .05, 0), new THREE.Vector3(-.7, .16, 0), new THREE.Vector3(.4, .2, 0), new THREE.Vector3(1.3, .16, 0)]);
-    const corps = tubeVar(courbe, 50, 12, t => (t < .08 ? .12 + t * 2 : t > .55 ? .3 + Math.sin((t - .55) / .45 * Math.PI) * .06 : .26) * L, .78);
-    deformer(corps, v => v, (o, c) => { const s = (Math.sin(o.x * 9) + 1) / 2; c.set(base).lerp(col(clair), o.x < .4 ? s * .5 : .2 + Math.max(0, o.y - .2) * 2); });
-    g.add(new THREE.Mesh(corps, M.carapace));
-    for (let k = -1; k <= 1; k++) { const q = new THREE.Mesh(deformer(new THREE.SphereGeometry(.22, 10, 6), v => { v.x *= 1.5; v.y *= .15; }, (o, c) => c.set(base)), M.carapace); q.position.set(-1.62, .05, k * .15); q.rotation.y = k * .45; g.add(q); }
-    for (const s of [-1, 1]) {
-      const bras = new THREE.CatmullRomCurve3([new THREE.Vector3(1.15, .1, s * .18), new THREE.Vector3(1.6, .14, s * .55), new THREE.Vector3(2.4, .12, s * .7), new THREE.Vector3(3.1, .08, s * .5)]);
-      g.add(new THREE.Mesh(tubeVar(bras, 30, 6, t => t > .7 ? .11 - (t - .7) * .25 : .06 + t * .07), M.carapace));
-      const pi = new THREE.CatmullRomCurve3([new THREE.Vector3(3, .08, s * .52), new THREE.Vector3(3.5, .07, s * .38), new THREE.Vector3(3.8, .06, s * .3)]);
-      g.add(new THREE.Mesh(tubeVar(pi, 12, 5, t => .05 * (1 - t)), M.carapace));
-      const oe = new THREE.Mesh(new THREE.SphereGeometry(.06, 8, 6), M.noir); oe.position.set(1.45, .3, s * .1); g.add(oe);
-    }
-    for (let i = 0; i < 4; i++) for (const s of [-1, 1]) { const p = new THREE.CatmullRomCurve3([new THREE.Vector3(.6 + i * .15, .05, s * .15), new THREE.Vector3(.5 + i * .15, -.02, s * .55)]); g.add(new THREE.Mesh(tubeVar(p, 6, 4, () => .025), M.carapace)); }
-    g.scale.setScalar(.78);
-    G.langoustine = teinter(g, 0xf09a7e);
-  }
-
-  /* demi-homard : coupé dans la longueur, chair blanche apparente, pince */
-  {
-    const g = new THREE.Group();
-    const rouge = 0xc9311b, sombre = 0x6e1a12;
-    const coque = deformer(new THREE.SphereGeometry(1, 34, 12, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), (v, o) => { const w = o.x > .1 ? 1 - (o.x - .1) * .35 : .78 + (o.x + 1) * .12; v.x *= 2.6; v.z *= w; v.y *= .62; if (o.x < .1) v.z *= 1 + Math.max(0, Math.sin(o.x * 22)) * .07; }, (o, c) => { const s = (Math.sin(o.x * 14) + 1) / 2; c.set(rouge).lerp(col(sombre), s * .35 + (bruit(o.x * 6, o.z * 6, 9) + 1) * .15).lerp(col(0xf08a40), Math.max(0, o.y + .1) * 1.2); });
-    g.add(new THREE.Mesh(coque, M.carapace));
-    const chair = deformer(new THREE.CircleGeometry(1, 34), v => { const x = v.x, z = v.y; const w = x > .1 ? 1 - (x - .1) * .35 : .78 + (x + 1) * .12; v.set(x * 2.5, .04 + (1 - x * x - z * z) * .18, -z * w * .95); v.y += Math.sin(x * 12) * .02; }, (o, c) => { const x = o.x; c.set(0xfbf3ea).lerp(col(0xf0b9a0), (Math.sin(x * 22) + 1) * .18).lerp(col(0xd8452c), Math.min(1, Math.max(0, Math.abs(o.y) - .75) * 5)).lerp(col(0xf2c15c), x > .6 ? (x - .6) * 1.6 : 0); });
-    g.add(new THREE.Mesh(chair, M.chairBlanche));
-    for (let k = -1; k <= 1; k++) { const q = new THREE.Mesh(deformer(new THREE.SphereGeometry(.38, 12, 6), v => { v.x *= 1.5; v.y *= .15; }, (o, c) => c.set(rouge).lerp(col(sombre), .3)), M.carapace); q.position.set(-2.75, -.05, k * .22); q.rotation.y = k * .5; g.add(q); }
-    const pince = deformer(new THREE.SphereGeometry(.5, 20, 12), (v, o) => { v.x *= 1.9; v.y *= .55; v.z *= .9; if (o.x > .3) v.z += Math.sign(o.z) * .08; v.y += bruit(o.x * 5, o.y * 5, o.z * 5) * .05; }, (o, c) => c.set(rouge).lerp(col(sombre), (bruit(o.x * 8, o.y * 8, o.z * 8) + 1) * .3).lerp(col(0xf0c080), Math.max(0, -o.y) * .6));
-    const pm = new THREE.Mesh(pince, M.carapace); pm.position.set(2.75, .05, 1.05); pm.rotation.y = -.6; pm.scale.setScalar(1.35); g.add(pm);
-    const bras = new THREE.CatmullRomCurve3([new THREE.Vector3(2.2, .05, .2), new THREE.Vector3(2.4, .12, .55), new THREE.Vector3(2.2, .05, .95)]);
-    g.add(new THREE.Mesh(tubeVar(bras, 14, 8, () => .16), M.carapace));
-    const ant = new THREE.CatmullRomCurve3([new THREE.Vector3(2.5, .2, -.1), new THREE.Vector3(3.5, .35, -.5), new THREE.Vector3(4.6, .1, -1.2)]);
-    g.add(new THREE.Mesh(tubeVar(ant, 20, 4, t => .04 * (1 - t * .7)), M.carapace));
-    g.scale.setScalar(.82);
-    G.demiHomard = teinter(g, 0xc9311b);
-  }
-
-  /* tourteau : carapace bombée brun-orangé, pattes articulées, grosses pinces à bout noir */
-  {
-    const g = new THREE.Group();
-    const brun = 0xb5532a, fonce = 0x6b2b16, clair = 0xe59a5a;
-    const cara = deformer(new THREE.SphereGeometry(1, 40, 20), (v, o) => { v.x *= 1.75; v.z *= 1.25; v.y *= o.y > 0 ? .62 : .2; const a = Math.atan2(o.z, o.x); v.x *= 1 + Math.sin(a * 9) * .018 * (1 - Math.abs(o.y)); v.z *= 1 + Math.sin(a * 9) * .018 * (1 - Math.abs(o.y)); v.y += bruit(o.x * 5, o.y * 5, o.z * 5) * .03; },
-      (o, c) => { const b = (bruit(o.x * 7, o.y * 7, o.z * 7) + 1) / 2; c.set(brun).lerp(col(fonce), b * .5 + Math.max(0, .3 - o.y) * .6).lerp(col(clair), Math.max(0, o.y - .55) * 1.2); });
-    const cm = new THREE.Mesh(cara, M.carapace); cm.position.y = .2; g.add(cm);
-    const patte = (s, i) => {
-      const a = (i - 1.5) * .42 + (s > 0 ? Math.PI : 0);
-      const ox = Math.cos(a) * -1.5, oz = Math.sin(a) * 1.05;
-      const kx = Math.cos(a) * -2.4, kz = Math.sin(a) * 1.9 + s * .35;
-      const fx = Math.cos(a) * -2.9, fz = Math.sin(a) * 2.6 + s * .55;
-      const c1 = new THREE.CatmullRomCurve3([new THREE.Vector3(ox, .12, oz), new THREE.Vector3(kx, .42, kz)]);
-      const c2 = new THREE.CatmullRomCurve3([new THREE.Vector3(kx, .42, kz), new THREE.Vector3(fx, -.02, fz)]);
-      g.add(new THREE.Mesh(tubeVar(c1, 8, 7, t => .13 - t * .02), M.carapace));
-      g.add(new THREE.Mesh(tubeVar(c2, 8, 7, t => .11 * (1 - t * .8)), M.carapace));
-    };
-    for (const s of [-1, 1]) for (let i = 0; i < 4; i++) patte(s, i);
-    for (const s of [-1, 1]) {
-      const b = new THREE.CatmullRomCurve3([new THREE.Vector3(1.3, .15, s * .6), new THREE.Vector3(1.9, .35, s * 1.25), new THREE.Vector3(2.4, .3, s * 1.1)]);
-      g.add(new THREE.Mesh(tubeVar(b, 14, 8, t => .2 + t * .05), M.carapace));
-      const pin = new THREE.Mesh(deformer(new THREE.SphereGeometry(.42, 18, 12), (v, o) => { v.x *= 1.7; v.y *= .75; }, (o, c) => c.set(brun).lerp(col(clair), Math.max(0, o.y) * .8).lerp(col(0x1a120e), Math.max(0, o.x - .25) * 4)), M.carapace);
-      pin.position.set(2.75, .3, s * .95); pin.rotation.y = -s * .45; g.add(pin);
-    }
-    g.scale.setScalar(.85);
-    G.tourteau = teinter(g, 0xb5532a);
-    const demi = g.clone(); demi.scale.setScalar(.66); G.demiTourteau = demi;
-  }
-
-  /* bulot : coquille en spirale couchée, beige strié */
-  {
-    const prof = [];
-    for (let i = 0; i <= 40; i++) { const t = i / 40; const r = (t < .15 ? t / .15 * .55 : .55 * (1 - (t - .15) / .85) ** 1.1) + Math.abs(Math.sin(t * Math.PI * 7)) * .05 * (1 - t); prof.push(new THREE.Vector2(Math.max(.005, r), t * 1.5)); }
-    const geo = deformer(new THREE.LatheGeometry(prof, 22), (v, o) => { const tw = o.y * 4; const x = v.x, z = v.z; v.x = x * Math.cos(tw) - z * Math.sin(tw); v.z = x * Math.sin(tw) + z * Math.cos(tw); v.x += Math.sin(o.y * 3) * .06; },
-      (o, c) => { const s = (Math.sin(o.y * 44 + Math.atan2(o.z, o.x) * 2) + 1) / 2; c.set(0xc09d72).lerp(col(0x5e4429), s * .6).lerp(col(0x3e2f22), o.y < .08 ? .7 : 0); });
-    const g = new THREE.Group(); const m = new THREE.Mesh(geo, M.coquille); m.rotation.z = -Math.PI / 2 + .25; m.position.set(-.7, .3, 0); g.add(m);
-    g.scale.setScalar(.85);
-    G.bulot = g;
-  }
-
-  /* oursin : demi-sphère violet sombre à piquants, ouvert sur ses langues orangées */
-  {
-    const g = new THREE.Group();
-    g.add(new THREE.Mesh(new THREE.SphereGeometry(.72, 22, 12, 0, Math.PI * 2, Math.PI * .28, Math.PI * .72), M.oursin));
-    const pics = [];
-    const cone = new THREE.ConeGeometry(.035, .55, 4); cone.translate(0, .27, 0);
-    for (let i = 0; i < 110; i++) {
-      const y = -1 + i / 110 * 1.45, r = Math.sqrt(1 - y * y), a = i * 2.39996;
-      const d = new THREE.Vector3(Math.cos(a) * r, y, Math.sin(a) * r);
-      const c = cone.clone(); c.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d)); c.translate(d.x * .66, d.y * .66, d.z * .66); pics.push(c);
-    }
-    g.add(new THREE.Mesh(fusion(pics), M.oursin));
-    for (let i = 0; i < 5; i++) { const l = new THREE.Mesh(deformer(new THREE.SphereGeometry(.2, 12, 8), v => { v.x *= 1.9; v.y *= .55; v.y += bruit(v.x * 9, v.z * 9, 5) * .02; }), M.corail); const a = i / 5 * Math.PI * 2; l.position.set(Math.cos(a) * .3, .5, Math.sin(a) * .3); l.rotation.y = -a; g.add(l); }
-    g.position.y = .15;
-    const w = new THREE.Group(); w.add(g); w.scale.setScalar(.85);
-    G.oursin = w;
-  }
-
-  /* boîte de caviar ouverte, couvercle posé contre */
-  {
-    const g = new THREE.Group();
-    const boite = new THREE.Mesh(new THREE.CylinderGeometry(.75, .75, .35, 40, 1, true), M.or); boite.position.y = .18; g.add(boite);
-    const grains = deformer(new THREE.CircleGeometry(.73, 40), v => { const x = v.x, z = v.y; v.set(x, .34 + bruit(x * 40, z * 40, 1) * .012, -z); }); g.add(new THREE.Mesh(grains, M.caviar));
-    const fond = new THREE.Mesh(new THREE.CircleGeometry(.75, 40), M.or); fond.rotation.x = -Math.PI / 2; g.add(fond);
-    const cv = new THREE.Mesh(new THREE.CylinderGeometry(.8, .8, .1, 40), M.or); cv.position.set(.55, .55, -.55); cv.rotation.set(.9, 0, -.4); g.add(cv);
-    G.caviar = g;
-  }
-  /* verrine d'œufs de saumon */
-  {
-    const g = new THREE.Group();
-    const prof = [new THREE.Vector2(.0, 0), new THREE.Vector2(.55, 0), new THREE.Vector2(.68, .5), new THREE.Vector2(.7, .52)];
-    g.add(new THREE.Mesh(new THREE.LatheGeometry(prof, 32), M.verre));
-    const boule = new THREE.SphereGeometry(.075, 8, 6), bs = [];
-    for (let i = 0; i < 70; i++) { const a = i * 2.4, r = Math.sqrt(i / 70) * .58; const b = boule.clone(); b.translate(Math.cos(a) * r, .42 + alea() * .06 - r * .05, Math.sin(a) * r); bs.push(b); }
-    g.add(new THREE.Mesh(fusion(bs), M.oeufs));
-    G.oeufs = g;
-  }
-  /* rose de saumon fumé */
-  {
-    const pts = []; for (let i = 0; i <= 40; i++) { const t = i / 40, a = t * Math.PI * 5, r = .1 + t * .5; pts.push(new THREE.Vector3(Math.cos(a) * r, 0, Math.sin(a) * r)); }
-    const spir = new THREE.CatmullRomCurve3(pts);
-    const geo = new THREE.TubeGeometry(spir, 120, .2, 3, false);
-    deformer(geo, (v, o) => { v.y = Math.max(0, o.y) * 1.6 + .2 * (1 - Math.hypot(o.x, o.z) / .7); v.y += bruit(o.x * 6, o.y * 6, o.z * 6) * .04; });
-    const g = new THREE.Group(); const m = new THREE.Mesh(geo, M.saumon); m.position.y = .05; g.add(m);
-    G.saumon = g;
-  }
-  /* ramequin de tarama */
-  const ramequin = (mat) => {
-    const g = new THREE.Group();
-    const prof = [new THREE.Vector2(0, 0), new THREE.Vector2(.6, 0), new THREE.Vector2(.66, .42), new THREE.Vector2(.6, .44), new THREE.Vector2(.56, .1)];
-    g.add(new THREE.Mesh(new THREE.LatheGeometry(prof, 32), M.porcelaine));
-    g.add(new THREE.Mesh(deformer(new THREE.SphereGeometry(.56, 24, 10, 0, Math.PI * 2, 0, Math.PI / 2), (v, o) => { v.y = .34 + v.y * .38 + Math.sin(Math.atan2(o.z, o.x) * 3 + o.y * 9) * .02; }), mat));
-    return g;
-  };
-  G.tarama = ramequin(M.tarama); G.taramaOursin = ramequin(M.taramaOursin); G.taramaBlanc = ramequin(M.taramaBlanc);
-  /* coupelle d'anchois marinés */
-  {
-    const g = ramequin(M.porcelaine).children[0].clone(); const gr = new THREE.Group(); gr.add(g);
-    for (let i = 0; i < 5; i++) { const f = new THREE.Mesh(deformer(new THREE.BoxGeometry(1, .04, .14, 8, 1, 1), v => { v.y += Math.sin(v.x * 3 + i) * .03; v.z *= 1 - Math.abs(v.x) * .6; }), M.anchois); f.position.set(0, .36 + i * .03, (i - 2) * .14); f.rotation.y = (i - 2) * .25; gr.add(f); }
-    G.anchois = gr;
-  }
-  /* pile de blinis */
-  {
-    const g = new THREE.Group();
-    for (let i = 0; i < 4; i++) { const b = new THREE.Mesh(deformer(new THREE.CylinderGeometry(.45, .45, .12, 24, 1), v => { v.y += bruit(v.x * 4, v.z * 4, i) * .02; }), M.blini); b.position.set(i * .08 - .12, .06 + i * .12, (i % 2) * .05); b.rotation.set(.05 * i, i, 0); g.add(b); }
-    G.blinis = g;
-  }
-  /* citrons : demi-citron et quartier */
-  {
-    const g = new THREE.Group();
-    const peau = new THREE.Mesh(deformer(new THREE.SphereGeometry(.5, 24, 14, 0, Math.PI * 2, 0, Math.PI / 2), v => { v.y *= 1.25; v.x *= 1; }), M.zeste);
-    peau.rotation.z = Math.PI / 2; g.add(peau);
-    const face = new THREE.Mesh(new THREE.CircleGeometry(.5, 32), M.citronFace); face.rotation.y = -Math.PI / 2; face.position.x = -.001; g.add(face);
-    const bout = new THREE.Mesh(new THREE.SphereGeometry(.09, 10, 6), M.zeste); bout.position.x = .62; g.add(bout);
-    g.rotation.z = -.35; g.position.y = .25;
-    const w = new THREE.Group(); w.add(g); G.citron = w;
-    const q = new THREE.Group();
-    const qp = new THREE.Mesh(new THREE.SphereGeometry(.5, 20, 10, 0, Math.PI * .5, 0, Math.PI), M.zeste); qp.scale.set(1, 1, 1.25); q.add(qp);
-    const f1 = new THREE.Mesh(new THREE.CircleGeometry(.5, 16, Math.PI / 2, Math.PI), M.citronFace); f1.scale.set(1, 1, 1); q.add(f1);
-    q.rotation.set(Math.PI / 2, 0, .3); q.position.y = .05;
-    const wq = new THREE.Group(); wq.add(q); G.quartier = wq;
-  }
-  /* rince-doigts : coupelle de verre, eau et rondelle de citron */
+/* ---------------- les produits : vraies photos détourées (Jean-Luc, 2026-11-23 : « des vraies photos, pas de l'IA ») ----------------
+   Photos des fiches produits du site (public/site/c/seafood30), détourées et rangées dans public/site/plateau.
+   « plat » : photo prise du dessus, posée à plat sur la glace ; « debout » : photo de trois-quarts, tournée vers le regard. */
+const PHOTOS = {
+  'huitre-g1': ['plat', 2.3], 'huitre-g2': ['plat', 2.6], 'huitre-g3': ['plat', 2.4],
+  'huitres-utah': ['debout', 5], 'huitres-pleine-mer': ['debout', 5],
+  praires: ['debout', 4.2], bulots: ['debout', 4.2],
+  'crevettes-grises': ['plat', 3.8], 'crevettes-roses': ['debout', 5],
+  langoustines: ['plat', 5.4], homard: ['plat', 4.3], 'demi-homards': ['plat', 5.2],
+  tourteau: ['debout', 6], 'demi-tourteau': ['debout', 4.4], oursin: ['plat', 2.7],
+  caviar: ['debout', 3.2], 'oeufs-saumon': ['debout', 3.2], tarama: ['debout', 2.8], 'tarama-cabillaud': ['debout', 3], 'tarama-oursins': ['debout', 3.2],
+  'saumon-fume': ['debout', 4.4], anchois: ['plat', 3.6], blinis: ['plat', 3.2], citron: ['debout', 1.6],
+};
+async function modeles(M) {
+  const G = {}, chargeur = new THREE.TextureLoader();
+  const ombreGeo = new THREE.PlaneGeometry(1, 1); ombreGeo.rotateX(-Math.PI / 2);
+  await Promise.all(Object.entries(PHOTOS).map(([nom, [mode, larg]]) => chargeur.loadAsync(`/site/plateau/${nom}.webp`).then(t => {
+    t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+    const mat = new THREE.MeshBasicMaterial({ map: t, transparent: true, alphaTest: .15, side: THREE.DoubleSide, toneMapped: false });
+    larg *= 1.15; const h = larg * t.image.height / t.image.width;
+    const geo = new THREE.PlaneGeometry(larg, h);
+    const g = new THREE.Group(); g.userData.mode = mode;
+    const om = new THREE.Mesh(ombreGeo, M.ombre); om.position.y = .04; om.renderOrder = 1;
+    if (mode === 'plat') { geo.rotateX(-Math.PI / 2); om.scale.set(larg * .95, 1, h * .95); }
+    else { geo.translate(0, h / 2, 0); om.scale.set(larg * .9, 1, larg * .4); }
+    const plan = new THREE.Mesh(geo, mat); plan.position.y = mode === 'plat' ? .06 : -.08;
+    g.add(om, plan);
+    G[nom] = g;
+  }).catch(() => {})));
+  /* rince-doigts : coupelle de verre, eau et rondelle de citron (objet de service, pas un produit) */
   {
     const g = new THREE.Group();
     const prof = [new THREE.Vector2(0, 0), new THREE.Vector2(.55, 0), new THREE.Vector2(.85, .3), new THREE.Vector2(.92, .62), new THREE.Vector2(.95, .64)];
@@ -378,41 +181,39 @@ function fusion(liste) {
 /* ---------------- du produit du site à ce qu'on pose sur le plateau ---------------- */
 /* type de pièce, nombre de pièces par unité vendue, emplacement (0 centre, 1 milieu, 2 bord), place occupée */
 const TYPES = [
-  [/gillardeau/i, 'huitreGrosse', 6, 2, .95],
-  [/utah/i, 'huitre', 6, 2, .9],
-  [/hu[iî]tre/i, 'huitreFine', 6, 2, .85],
-  [/praire|palourde|clam/i, 'praire', 6, 2, .5],
-  [/demi.?homard/i, 'demiHomard', 1, 0, 1.6],
-  [/homard|langouste\b/i, 'demiHomard', 2, 0, 1.6],
-  [/demi.?tourteau/i, 'demiTourteau', 1, 0, 1.6],
-  [/tourteau|crabe/i, 'tourteau', 1, 0, 2.1],
-  [/langoustine/i, 'langoustine', 2, 1, .75],
-  [/crevettes? grise/i, 'crevetteGrise', 5, 1, .42],
-  [/crevette|gambas/i, 'crevette', 6, 1, .6],
-  [/bulot|bigorneau/i, 'bulot', 6, 1, .5],
-  [/oursin/i, 'oursin', 1, 1, .9],
-  [/tarama d.?oursin/i, 'taramaOursin', 1, 2, .7],
-  [/tarama de cabillaud/i, 'taramaBlanc', 1, 2, .7],
-  [/tarama/i, 'tarama', 1, 2, .7],
-  [/caviar/i, 'caviar', 1, 2, .85],
-  [/oeufs? de saumon|œufs? de saumon/i, 'oeufs', 1, 2, .75],
-  [/saumon/i, 'saumon', 2, 1, .7],
-  [/anchois/i, 'anchois', 1, 2, .7],
-  [/blini/i, 'blinis', 1, 2, .6],
+  [/gillardeau/i, ['huitre-g1', 'huitre-g2', 'huitre-g3'], 6, 2, 1.25],
+  [/utah/i, 'huitres-utah', 2, 2, 2.4],
+  [/hu[iî]tre/i, 'huitres-pleine-mer', 2, 2, 2.4],
+  [/praire|palourde|clam/i, 'praires', 1, 2, 2.1],
+  [/demi.?homard/i, 'demi-homards', 1, 0, 2.6],
+  [/homard|langouste\b/i, 'homard', 1, 0, 2.6],
+  [/demi.?tourteau/i, 'demi-tourteau', 1, 0, 2.2],
+  [/tourteau|crabe/i, 'tourteau', 1, 0, 3],
+  [/langoustine/i, 'langoustines', 1, 1, 2.6],
+  [/crevettes? grise/i, 'crevettes-grises', 1, 1, 1.9],
+  [/crevette|gambas/i, 'crevettes-roses', 1, 1, 2.4],
+  [/bulot|bigorneau/i, 'bulots', 1, 1, 2.1],
+  [/tarama d.?oursin/i, 'tarama-oursins', 1, 2, 1.6],
+  [/oursin/i, 'oursin', 1, 1, 1.4],
+  [/tarama de cabillaud/i, 'tarama-cabillaud', 1, 2, 1.5],
+  [/tarama/i, 'tarama', 1, 2, 1.4],
+  [/caviar/i, 'caviar', 1, 2, 1.6],
+  [/oeufs? de saumon|œufs? de saumon/i, 'oeufs-saumon', 1, 2, 1.6],
+  [/saumon/i, 'saumon-fume', 1, 1, 2.2],
+  [/anchois/i, 'anchois', 1, 2, 1.8],
+  [/blini/i, 'blinis', 1, 2, 1.6],
 ];
 const typeDe = titre => { const t = String(titre || ''); const x = TYPES.find(([re]) => re.test(t)); return x ? { type: x[1], parUnite: x[2], anneau: x[3], place: x[4] } : null; };
-/* « tarama d'oursins » doit passer avant « oursin » */
-TYPES.splice(TYPES.findIndex(t => t[1] === 'oursin'), 0, ...TYPES.splice(TYPES.findIndex(t => t[1] === 'taramaOursin'), 1));
 
-const EXEMPLE = [['Huîtres Gillardeau', 2], ['Huîtres pleine mer', 1], ['Praires', 1], ['Crevettes roses', 2], ['Langoustines', 3], ['Tourteau', 1], ['Demi-homard', 2], ['Bulots', 1], ['Oursin', 2]];
-const MAX_PIECES = 90, TAILLE = 1.35;
+const EXEMPLE = [['Huîtres Gillardeau', 2], ['Huîtres Utah Beach', 1], ['Huîtres pleine mer', 1], ['Praires', 2], ['Crevettes roses', 1], ['Langoustines', 2], ['Tourteau', 1], ['Homard', 1], ['Demi-homard', 1], ['Bulots', 1], ['Oursin', 2], ['Crevettes grises', 1]];
+const MAX_PIECES = 60, TAILLE = 1.15;
 for (const t of TYPES) t[4] *= TAILLE;
 
 function piecesDe(liste) {
   const out = []; const vus = {};
   for (const [titre, qte] of liste) {
     const t = typeDe(titre); if (!t) continue;
-    for (let i = 0; i < qte * t.parUnite; i++) { vus[t.type] = (vus[t.type] || 0) + 1; out.push({ cle: t.type + '#' + vus[t.type], ...t }); }
+    for (let i = 0; i < qte * t.parUnite; i++) { const k = String(t.type); vus[k] = (vus[k] || 0) + 1; const photo = Array.isArray(t.type) ? t.type[(vus[k] - 1) % t.type.length] : t.type; out.push({ ...t, cle: k + '#' + vus[k], type: photo }); }
   }
   return out.slice(0, MAX_PIECES);
 }
@@ -421,67 +222,40 @@ function piecesDe(liste) {
 const R_PLAT = 10.2, R_GLACE = 9.5;
 const hGlace = r => .55 + 1.45 * Math.max(0, 1 - (r / R_GLACE) ** 2) ** .8;
 function dresser(pieces) {
-  /* citrons et rince-doigts : toujours là */
-  const deco = [];
+  /* citrons : toujours là, glissés entre les produits */
   const n = pieces.length;
-  const nCitrons = n ? Math.min(8, 4 + Math.floor(n / 14)) : 6;
-  for (let i = 0; i < nCitrons; i++) deco.push({ cle: (i % 2 ? 'quartier#' : 'citron#') + i, type: i % 2 ? 'quartier' : 'citron', anneau: 2, place: .6 * TAILLE, deco: true });
-  const tout = [...pieces];
-  /* groupes du même produit côte à côte ; les citrons s'intercalent entre les groupes du bord */
-  const anneaux = [[], [], []];
-  for (const p of tout) anneaux[p.anneau].push(p);
-  anneaux[0].sort((a, b) => (b.type === 'tourteau') - (a.type === 'tourteau'));
-  const bord = anneaux[2], groupes = []; for (const p of bord) { const g = groupes.find(x => x[0].type === p.type); g ? g.push(p) : groupes.push([p]); }
-  const bordMix = []; let ci = 0;
-  const pasCitron = Math.max(1, Math.round(groupes.length / Math.max(1, deco.length)));
-  groupes.forEach((g, i) => { bordMix.push(...g); if ((i + 1) % pasCitron === 0 && ci < deco.length) bordMix.push(deco[ci++]); });
-  while (ci < deco.length) bordMix.splice(Math.floor(bordMix.length * (ci / deco.length)), 0, deco[ci++]);
-  anneaux[2] = bordMix;
-  /* si un anneau déborde, on reporte sur le voisin, puis on réduit un peu la taille de tout */
-  const RAYONS = [[0, 3.2], [4.3, 6.3], [7, 8.6]];
-  const capa = (k, s) => k === 0 ? Math.PI * 4.8 ** 2 : (RAYONS[k][1] - RAYONS[k][0] + 1.2) * 2 * Math.PI * (RAYONS[k][0] + RAYONS[k][1]) / 2;
-  let echelle = 1;
-  for (let essai = 0; essai < 7; essai++) {
-    const charge = anneaux.map(A => A.reduce((a, p) => a + (p.place * echelle * 2) ** 2 * .8, 0));
-    if (charge.every((c, k) => c <= capa(k))) break;
-    if (charge[0] > capa(0) && anneaux[0].length > 1) { anneaux[1].push(...anneaux[0].splice(Math.ceil(anneaux[0].length * .6))); continue; }
-    if (charge[1] > capa(1)) { const x = anneaux[1].splice(Math.ceil(anneaux[1].length * .7)); anneaux[2].push(...x); }
-    echelle *= .9;
-  }
-  echelle = Math.max(.55, echelle) * TAILLE;
-  const poses = [];
-  /* centre : grosses pièces, en étoile */
-  const C = anneaux[0];
-  /* le tourteau trône au milieu, les demi-homards couchés autour, chair vers le haut */
-  const auMilieu = C.length && C[0].type === 'tourteau' ? 1 : 0, autour = C.length - auMilieu;
-  C.forEach((p, i) => {
-    let r = 0, a = 0;
-    if (i >= auMilieu && C.length > 1) { const j = i - auMilieu; a = j / autour * Math.PI * 2 + .5; r = auMilieu ? 3.8 : (autour > 1 ? 1.6 + autour * .25 : 0); }
-    poses.push({ p, x: Math.cos(a) * r, z: Math.sin(a) * r, rot: p.type === 'demiHomard' ? -a + Math.PI / 2 : -a + Math.PI, s: echelle, lev: p.type === 'demiHomard' ? .6 : .15 });
-  });
-  /* milieu et bord : en couronne, sur une ou deux rangées */
-  for (const k of [1, 2]) {
-    const A = anneaux[k]; if (!A.length) continue;
-    const [r0, r1] = RAYONS[k];
-    const perim = A.reduce((a, p) => a + p.place * 2 * echelle / TAILLE * 1.05, 0);
-    const rangs = Math.min(3, Math.max(1, Math.ceil(perim / (2 * Math.PI * ((r0 + r1) / 2)))));
-    const par = Math.ceil(A.length / rangs);
-    for (let j = 0; j < rangs; j++) {
-      const L = A.slice(j * par, (j + 1) * par); if (!L.length) continue;
-      const r = rangs === 1 ? (r0 + r1) / 2 : r0 + (r1 - r0) * (j / (rangs - 1));
-      const tot = L.reduce((a, p) => a + p.place, 0);
-      let acc = j * .37;
-      for (const p of L) {
-        const a = (acc + p.place / 2) / tot * Math.PI * 2 + k * .3; acc += p.place;
-        const radial = p.type === 'langoustine' || p.type === 'crevette' || p.type === 'crevetteGrise' ? -a + Math.PI : p.type.startsWith('huitre') ? -a + Math.PI : -a + alea() * 6;
-        poses.push({ p, x: Math.cos(a) * r, z: Math.sin(a) * r, rot: radial, s: echelle });
+  const nCitrons = n ? Math.min(7, 3 + Math.floor(n / 6)) : 5;
+  const citrons = Array.from({ length: nCitrons }, (_, i) => ({ cle: 'citron#' + i, type: 'citron', anneau: 2, place: .8, deco: true }));
+  /* ordre de pose : les grosses pièces au centre, puis chaque produit regroupé ; les citrons répartis */
+  const ordre = pieces.slice().sort((a, b) => a.anneau - b.anneau || b.place - a.place);
+  const tout = [];
+  const pas = Math.max(1, Math.floor(ordre.length / (nCitrons + 1)));
+  ordre.forEach((p, i) => { tout.push(p); if ((i + 1) % pas === 0 && citrons.length) tout.push(citrons.shift()); });
+  tout.push(...citrons);
+  /* rangement en spirale : chaque pièce prend la première place libre en partant du centre ;
+     si tout ne tient pas sur la glace, on réduit un peu la taille de l'ensemble et on recommence */
+  let echelle = 1, poses = [];
+  for (let essai = 0; essai < 12; essai++) {
+    poses = []; let ok = true;
+    for (const p of tout) {
+      const rp = p.place * echelle;
+      let place = null;
+      for (let k = 0; k < 900; k++) {
+        const rad = Math.sqrt(k) * .32, a = k * 2.39996 + .7;
+        if (rad + rp * .55 > 8.9) break;
+        const x = Math.cos(a) * rad, z = Math.sin(a) * rad;
+        if (poses.every(q => Math.hypot(q.x - x, q.z - z) >= (rp + q.rp) * .86)) { place = { x, z, a }; break; }
       }
+      if (!place) { ok = false; break; }
+      poses.push({ p, x: place.x, z: place.z, rp, rot: -place.a - Math.PI / 2 + (alea() - .5) * .6, s: echelle });
     }
+    if (ok) break;
+    echelle *= .92;
   }
   /* deux rince-doigts posés sur le bord du plateau */
   poses.push({ p: { cle: 'rince#1', type: 'rinceDoigts', deco: true }, x: Math.cos(.6) * 10.55, z: Math.sin(.6) * 10.55, rot: 0, s: 1.1, table: true });
   poses.push({ p: { cle: 'rince#2', type: 'rinceDoigts', deco: true }, x: Math.cos(.6 + Math.PI) * 10.55, z: Math.sin(.6 + Math.PI) * 10.55, rot: 0, s: 1.1, table: true });
-  for (const q of poses) { const r = Math.hypot(q.x, q.z); q.y = q.table ? .32 : hGlace(r) - .12 + (q.p.type.startsWith('huitre') ? .14 : 0) + (q.lev || 0); q.tilt = q.table ? 0 : Math.min(.45, r / R_GLACE * .55); q.ang = Math.atan2(q.z, q.x); }
+  for (const q of poses) { const r = Math.hypot(q.x, q.z); q.plat = PHOTOS[q.p.type]?.[0] === 'plat'; q.y = q.table ? .32 : hGlace(r) + (q.plat ? .12 : -.1); q.tilt = q.table || !q.plat ? 0 : Math.min(.4, r / R_GLACE * .5); q.ang = Math.atan2(q.z, q.x); }
   return poses;
 }
 
@@ -507,7 +281,7 @@ function demarrer(el) {
   scene.add(new THREE.HemisphereLight(0xffffff, 0x2a3a30, .5));
 
   const camera = new THREE.PerspectiveCamera(30, 1, .5, 200);
-  const M = matieres(), G = modeles(M);
+  const M = matieres(); let G = {};
   const monde = new THREE.Group(); scene.add(monde);
   const plateau = new THREE.Group(); monde.add(plateau);
 
@@ -529,30 +303,12 @@ function demarrer(el) {
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), s = new THREE.Vector3(), p = new THREE.Vector3();
     for (let i = 0; i < N; i++) {
       const r = Math.sqrt(alea()) * (R_GLACE + .1), a = alea() * Math.PI * 2;
-      p.set(Math.cos(a) * r, hGlace(Math.min(r, R_GLACE)) - .3 + alea() * .1, Math.sin(a) * r);
+      p.set(Math.cos(a) * r, hGlace(Math.min(r, R_GLACE)) - .42 + alea() * .08, Math.sin(a) * r);
       e.set(alea() * 6, alea() * 6, alea() * 6); q.setFromEuler(e);
       const k = .5 + alea() * .9; s.set(k * (.8 + alea() * .5), k * (.6 + alea() * .5), k * (.8 + alea() * .5));
       inst.setMatrixAt(i, m4.compose(p, q, s));
     }
     plateau.add(inst);
-    /* algues et salicornes qui dépassent de la glace, comme chez l'écailler */
-    const brins = [];
-    for (let i = 0; i < 26; i++) {
-      const a = i / 26 * Math.PI * 2 + alea() * .2, r = 8.6 + alea() * .9;
-      const p0 = new THREE.Vector3(Math.cos(a) * r, hGlace(r) - .1, Math.sin(a) * r);
-      const out = new THREE.Vector3(Math.cos(a + .3), 0, Math.sin(a + .3));
-      const c = new THREE.CatmullRomCurve3([p0, p0.clone().addScaledVector(out, .7).setY(p0.y + .25), p0.clone().addScaledVector(out, 1.5).setY(p0.y + .05)]);
-      brins.push(tubeVar(c, 10, 4, t => .07 * (1 - t * .6)).toNonIndexed());
-    }
-    plateau.add(new THREE.Mesh(fusion(brins), M.salicorne));
-    const algues = [];
-    for (let i = 0; i < 9; i++) {
-      const a = i / 9 * Math.PI * 2 + .4, r = 9.1;
-      const p0 = new THREE.Vector3(Math.cos(a) * r, hGlace(r) - .05, Math.sin(a) * r), t = new THREE.Vector3(-Math.sin(a), 0, Math.cos(a));
-      const c = new THREE.CatmullRomCurve3([p0.clone().addScaledVector(t, -1.2), p0.clone().addScaledVector(t, -.4).setY(p0.y + .12), p0.clone().addScaledVector(t, .5).setY(p0.y + .02), p0.clone().addScaledVector(t, 1.3).setY(p0.y + .1)]);
-      algues.push(tubeVar(c, 20, 5, t2 => .22 * Math.sin(Math.PI * (.1 + t2 * .8)), .18).toNonIndexed());
-    }
-    plateau.add(new THREE.Mesh(fusion(algues), M.algue));
   }
 
   /* les pièces posées (dictionnaire clé → objet), animées quand elles arrivent ou repartent */
@@ -661,6 +417,7 @@ function demarrer(el) {
   const lacher = () => { if (!glisse) return; vit = Math.max(-4, Math.min(4, glisse.v || 0)); glisse = null; el.classList.remove('p3-tient'); };
   cv.addEventListener('pointerup', lacher); cv.addEventListener('pointercancel', lacher);
 
+  const qTmp = new THREE.Quaternion(), qCam = new THREE.Quaternion(), eTmp = new THREE.Euler();
   let visible = true, dernier = performance.now(), boucle = 0;
   const frame = () => {
     boucle = 0;
@@ -668,6 +425,15 @@ function demarrer(el) {
     if (!glisse) { vit += ((reduit ? .05 : .16) - vit) * Math.min(1, dt * 1.2); angle += vit * dt; }
     monde.rotation.y = angle;
     for (const [k, o] of poseesObj) { placer(o, dt); if (o.depart && o.sortie >= 1) { pieces.remove(o.g); poseesObj.delete(k); } }
+    /* photos « debout » : toujours face au regard, comme posées contre la glace */
+    monde.updateMatrixWorld();
+    const elev = Math.atan2(camera.position.y - 1, Math.hypot(camera.position.x, camera.position.z));
+    for (const o of poseesObj.values()) {
+      const inner = o.g.children[0]; if (!inner || inner.userData.mode !== 'debout') continue;
+      const plan = inner.children[1];
+      o.g.getWorldQuaternion(qTmp); plan.quaternion.copy(qTmp.invert().multiply(qCam.setFromEuler(eTmp.set(0, Math.atan2(camera.position.x, camera.position.z), 0))));
+      plan.rotateX(-elev * .85);
+    }
     if (Math.abs(emballe - emballeCible) > .001) {
       emballe += (emballeCible - emballe) * Math.min(1, dt * 2.2); if (Math.abs(emballe - emballeCible) < .002) emballe = emballeCible;
       emb.visible = emballe > .002; formePapier(emballe); cadrer();
@@ -718,10 +484,9 @@ function demarrer(el) {
   });
   addEventListener('storage', e => { if (e.key === 'mg_sel') majTout(false); });
   addEventListener('pageshow', () => majTout(true));
-  majTout(true);
   cadrer();
-  el.classList.add('p3-pret');
   relancer();
+  modeles(M).then(g => { G = g; majTout(true); el.classList.add('p3-pret'); relancer(); });
 }
 
 const racine = document.querySelector('[data-p3]');
