@@ -796,7 +796,8 @@ async function createApp(opts = {}) {
     if (!r) return next();
     req._masque = r.statut === 'masque';
     if (views.sousVisibles(r).length) return views.pageSpecialites(c, r);
-    return views.boutique(c, { intro: { titre: r.introTitre, texte: r.introTexte }, rub: r.slug, titre: r.nom, chapo: r.chapo || r.accroche, photo: r.photoAccueil || r.photo, path: '/' + r.slug, liste: c.byRub.get(r.slug), sections: views.sectionsRub(r, c.byRub.get(r.slug)) });
+    const p3 = r.slug === 'grand-large' && r.plateau3d !== false ? views.plateau3dHtml(c, r, c.byRub.get(r.slug)) : '';
+    return views.boutique(c, { intro: { titre: r.introTitre, texte: r.introTexte }, rub: r.slug, titre: r.nom, chapo: r.chapo || r.accroche, photo: r.photoAccueil || r.photo, path: '/' + r.slug, liste: c.byRub.get(r.slug), sections: views.sectionsRub(r, c.byRub.get(r.slug)), avant: p3, scripts: p3 ? `<script type="module" src="/js/plateau3d.js?v=${views.V}"></script>` : '' });
   }));
   app.get('/:rub/:slug', page((c, req, res, next) => {
     const ru = c.rubriques.find(x => x.slug === req.params.rub && (x.statut !== 'masque' || apercu(req)));

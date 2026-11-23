@@ -418,15 +418,15 @@ function sectionsRub(r, liste) {
   const L = (liste || []).slice().sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
   return RANGEMENTS.map(([k, t]) => [k, (r.titresSections || {})[k] || t, L.filter(p => rangementDe(p) === k)]).filter(b => b[2].length);
 }
-function boutique(c, { q = '', rub = '', titre, chapo, photo, path = '/boutique', liste = null, fil = null, chips = '', hero = '', seo = null, intro = null, sections = null }) {
+function boutique(c, { q = '', rub = '', titre, chapo, photo, path = '/boutique', liste = null, fil = null, chips = '', hero = '', seo = null, intro = null, sections = null, avant = '', scripts = '' }) {
   const rubs = c.rubriques.filter(r => r.statut !== 'masque' && r.slug !== 'lieux');
   const prods = liste || (q ? c.search(c, q, 400) : c.produits.filter(p => p.statut !== 'masque'));
   const r = rubs.find(x => x.slug === rub);
   const body = `
 ${hero || (path === '/boutique' && !q ? bandeau(c, 'boutique') : photo ? bandeauHtml(c, { photo: r?.bandeauPhoto || photo, video: r?.bandeauVideo || '', titre: r?.titrePage || titre, chapo, bouton: 'Voir les prestations', ancre: '#prestations' }, fil || (r ? [['La boutique', '/boutique'], [r.nom]] : [[titre]]))
     : `<section class="wrap page-h">${crumbs([[titre]])}<h1>${esc(titre)}</h1><p class="lead">${esc(chapo || 'Toute la brochure, avec ses prix. Ajoutez vos choix à votre sélection, puis demandez votre devis.')}</p></section>`)}
-<section class="wrap shop" id="prestations" data-shop>
-  ${intro ? introHtml(intro.titre, intro.texte) : ''}
+${avant}<section class="wrap shop" id="prestations" data-shop>
+  ${intro && !avant ? introHtml(intro.titre, intro.texte) : ''}${avant ? '<h2 class="p3-titre-liste">Tous nos produits en détail</h2>' : ''}
   ${path === '/boutique' && !q ? (B => B.introTitre || B.introTexte ? `<div class="shop-intro">${B.introTitre ? `<h2>${esc(B.introTitre)}</h2>` : ''}${B.introTexte ? `<p>${esc(B.introTexte)}</p>` : ''}</div>` : '')(bandeauDe(c, 'boutique')) : ''}
   <div class="shop-bar">
     ${chips}<div class="chips scroll-x" role="tablist"${chips ? ' hidden' : ''}>${liste ? '' : `<a class="chip${!rub ? ' on' : ''}" href="/boutique" data-filter="">Tout <small>${c.produits.filter(p => p.statut !== 'masque').length}</small></a>`}${liste ? '' : rubs.map(x => `<a class="chip${x.slug === rub ? ' on' : ''}" href="/${x.slug}"${x.slug === 'saveurs-du-monde' || x.parSections ? ' data-lien' : ` data-filter="${x.slug}"`}>${esc(x.nom)} <small>${c.byRub.get(x.slug)?.length || 0}</small></a>`).join('')}</div>
@@ -440,9 +440,46 @@ ${hero || (path === '/boutique' && !q ? bandeau(c, 'boutique') : photo ? bandeau
     : `<div class="cards grid" data-grid>${prods.map(p => card(p, c, { rubNom: !rub })).join('')}</div>`}
   ${!prods.length ? `<div class="empty"><p>Aucune prestation ne correspond à « ${esc(q)} ».</p><p>Appelez-nous au <a href="tel:${esc(c.reglages.telephone)}">${esc(c.reglages.telephone)}</a> : nous trouvons toujours une solution.</p></div>` : ''}
 </section>`;
-  return layout(c, { title: seo?.title || (r && path === '/' + r.slug && r.seoTitre) || titre, description: seo?.description || (r && path === '/' + r.slug && r.seoDescription) || chapo || (path === '/boutique' && !q ? bandeauDe(c, 'boutique').chapo : ''), body, path, image: path === '/boutique' && !q ? bandeauDe(c, 'boutique').photo : photo });
+  return layout(c, { title: seo?.title || (r && path === '/' + r.slug && r.seoTitre) || titre, description: seo?.description || (r && path === '/' + r.slug && r.seoDescription) || chapo || (path === '/boutique' && !q ? bandeauDe(c, 'boutique').chapo : ''), body, path, scripts, image: path === '/boutique' && !q ? bandeauDe(c, 'boutique').photo : photo });
 }
 
+/* Plateau de fruits de mer en 3D (Jean-Luc, 2026-11-23) : le client choisit ses produits à l'unité, le plateau se compose sous ses yeux.
+   Scène construite en code (public/js/plateau3d.js, three.js sous licence MIT) ; textes modifiables dans la rubrique (introTitre, introTexte). */
+const FAMILLES_MER = [['Huîtres & coquillages', /hu[iî]tre|praire|bulot|oursin|palourde|bigorneau/i], ['Crustacés', /homard|tourteau|crabe|langoustine|crevette|gambas/i], ['Pour accompagner', /./]];
+function plateau3dHtml(c, r, liste) {
+  const L = (liste || []).filter(p => p.statut !== 'masque' && p.prixCents != null && !(p.groupes || []).length && !(p.variantes || []).length).slice().sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
+  if (!L.length) return '';
+  const contenu = p => String(p.extrait || '').split(' · ').slice(1).filter(x => !/vendu/i.test(x)).join(' · ');
+  const fam = FAMILLES_MER.map(([t, re]) => [t, []]);
+  for (const p of L) fam[FAMILLES_MER.findIndex(([, re]) => re.test(p.titre))][1].push(p);
+  const prods = L.map(p => ({ slug: p.slug, titre: p.titre, prixCents: p.prixCents, unite: p.unite || '', min: p.min || 1, photo: p.photos?.[0]?.src || '', rubrique: r.nom }));
+  const titre = r.introTitre || 'Composez votre plateau, nous le dressons';
+  return `<section class="p3" data-p3 id="composer">
+  <div class="p3-in">
+    <div class="p3-scene-col">
+      <div class="p3-scene" data-p3-scene><div class="p3-attente" aria-hidden="true"><span></span></div></div>
+      <p class="p3-legende" data-p3-legende aria-live="polite"><b>Exemple de plateau</b></p>
+      <button type="button" class="p3-emb" data-p3-emballer aria-pressed="false">${icon.arrow}<span>Voir l’emballage cadeau</span></button>
+    </div>
+    <div class="p3-texte">
+      <p class="eyebrow">Votre plateau sur mesure</p>
+      <h2>${esc(titre)}</h2>
+      <p class="p3-lead">Vous choisissez vos produits à l’unité, nous les dressons pour vous sur un grand plateau blanc, sur un lit de glace pilée, avec citrons et rince-doigts. Le tout est emballé de papier glacé, comme un grand paquet cadeau, prêt à poser sur votre buffet.</p>
+      <ol class="p3-etapes">
+        <li><b>1</b><span>Choisissez vos produits ci-dessous : huîtres, crustacés, caviar…</span></li>
+        <li><b>2</b><span>Nous ouvrons et dressons tout le jour même sur glace, avec citrons et rince-doigts.</span></li>
+        <li><b>3</b><span>Livré emballé comme un cadeau : vous n’avez plus qu’à le poser sur la table.</span></li>
+      </ol>
+      <div class="p3-compo">
+        ${fam.filter(f => f[1].length).map(([t, P]) => `<h3>${esc(t)}</h3><ul>${P.map(p => { const { prix, unite } = prixCourt(p, euros); return `<li data-p3-ligne="${esc(p.slug)}"><a href="${prodHref(p)}" class="p3-l">${p.photos?.[0]?.src ? `<img src="${esc(p.photos[0].src)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : '<span class="p3-ph"></span>'}<span><b>${esc(p.titre)}</b><small>${esc(prix)} ${esc(unite)}${contenu(p) ? ' · ' + esc(contenu(p)) : ''}</small></span></a><span class="p3-qty"><button type="button" data-p3-moins aria-label="Retirer un ${esc(p.titre)}" disabled>−</button><output data-p3-q>0</output><button type="button" data-p3-plus aria-label="Ajouter un ${esc(p.titre)}">+</button></span></li>`; }).join('')}</ul>`).join('')}
+      </div>
+      <div class="p3-pied" data-p3-pied hidden><span>Votre plateau <b data-p3-total></b></span><a class="btn btn-or" href="/ma-selection">Demander mon devis</a></div>
+      <p class="small p3-note">Tarifs TTC. Dressage, glace, citrons, rince-doigts et emballage compris. Merci de nous contacter pour parler des produits qui vous sont contre-indiqués avant validation de votre devis.</p>
+    </div>
+  </div>
+  <script type="application/json" data-p3-produits>${JSON.stringify(prods).replace(/</g, '\\u003c')}</script>
+</section>`;
+}
 /* bloc « Allergènes » de la fiche : les cases cochées dans le back-office (fiche › Allergènes), en pastilles ;
    rien de coché sur un produit alimentaire = « sur demande ». Les services (personnel, musique, lieux, matériel à 20 %) n'ont pas ce bloc. */
 function allergenesHtml(p) {
@@ -812,4 +849,4 @@ function facturePage(c, f, t) {
 }
 
 module.exports = {
-  sectionsRub, universListe, RANGEMENTS, pageSpecialites, specialite, sousVisibles, layout, home, boutique, produit, lieux, lieu, selection, texte, maison, livraison, commander, temoignages, contact, legal, erreur, espaceConnexion, espace, devisPage, facturePage, textToHtml, V, BANDEAUX_DEFAUT };
+  sectionsRub, plateau3dHtml, universListe, RANGEMENTS, pageSpecialites, specialite, sousVisibles, layout, home, boutique, produit, lieux, lieu, selection, texte, maison, livraison, commander, temoignages, contact, legal, erreur, espaceConnexion, espace, devisPage, facturePage, textToHtml, V, BANDEAUX_DEFAUT };
