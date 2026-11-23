@@ -222,7 +222,7 @@ const SPE_TEXTES = {
   'buffet-africain': ['Buffet africain', 'Mafé, yassa, poulet braisé, alloco et accras : les saveurs d’Afrique pour vos fêtes et mariages.'],
   'couscous-party': ['Couscous party', 'Couscous royal, tajines et pâtisseries orientales, servis à volonté pour vos grandes tablées.'],
   'buffet-italien': ['Buffet italien', 'Antipasti, pâtes fraîches, pizzas, burrata et tiramisu : l’Italie généreuse pour vos événements.'],
-  'buffet-antillais': ['Buffet antillais', 'Accras, boudins créoles, colombo, rougail et punchs : la cuisine des îles par Le Traiteur Antillais.'],
+  'buffet-antillais': ['Buffet antillais', 'Accras, boudins créoles, colombo, rougail et punchs : la cuisine des îles par Magnolia Traiteur.'],
   'buffet-indien': ['Buffet indien', 'Samoussas, currys, biryani, naans et lassis : un buffet parfumé pour vos réceptions.'],
   'specialites-japonaises': ['Sushis et buffet japonais', 'Plateaux de sushis, makis, california et brochettes yakitori, livrés frais pour vos cocktails.'],
 };
@@ -514,6 +514,13 @@ async function initSousRubriques(store, { log = console } = {}) {
     const r = d.data; if (!r || r.sansIdf) continue;
     const sous = (r.sous || []).map(x => ({ ...x, titrePage: net(x.titrePage), chapo: net(x.chapo), seoTitre: net(x.seoTitre), seoDescription: net(x.seoDescription) }));
     await store.set('rubriques/' + d.id, { ...r, titrePage: net(r.titrePage), chapo: net(r.chapo), seoTitre: net(r.seoTitre), seoDescription: net(r.seoDescription), sous, sansIdf: true });
+  }
+  // une fois (2026-11-23, demande de Jean-Luc) : page Buffet antillais, « la cuisine des îles par Magnolia Traiteur » (et non « par Le Traiteur Antillais »)
+  const parMagnolia = t => typeof t === 'string' ? t.replace(/par le Traiteur Antillais/gi, 'par Magnolia Traiteur') : t;
+  for (const d of await store.list('rubriques')) {
+    const r = d.data; if (!r?.sous?.length || r.antillaisMagnolia) continue;
+    const sous = r.sous.map(x => ({ ...x, titrePage: parMagnolia(x.titrePage), chapo: parMagnolia(x.chapo), seoTitre: parMagnolia(x.seoTitre), seoDescription: parMagnolia(x.seoDescription), introTitre: parMagnolia(x.introTitre), introTexte: parMagnolia(x.introTexte) }));
+    await store.set('rubriques/' + d.id, { ...r, sous, antillaisMagnolia: true });
   }
   // une fois (2026-11-22, choix de Jean-Luc) : nouvelles photos des bandeaux Boutique (coupes qu'on remplit) et La maison (maître d'hôtel)
   const RB = await store.get('site/reglages');
