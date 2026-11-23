@@ -650,3 +650,16 @@ a.qs-back { display: inline-flex; align-items: center; text-decoration: none; }
 .btn.voir-site:hover { background: #f6e8c8; }
 .sousrow .voir-site { margin: 2px 0 8px; }
 .rubbox .bh { flex-wrap: wrap; gap: 10px; }
+
+/* choix du pictogramme d'un univers (Catalogue > rubrique) */
+.pictos { border: 1px solid #d9d2c4; border-radius: 12px; padding: 12px 14px 8px; background: #fbf8f2; margin: 0; }
+.pictos legend { font-weight: 600; padding: 0 6px; }
+.pic-g { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+.pic { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 4px; border: 1px solid #e0d8c8; border-radius: 10px; background: #fff; cursor: pointer; text-align: center; font-weight: 400; }
+.pic input { position: absolute; opacity: 0; pointer-events: none; }
+.pic-i { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 50%; background: #1d3b2f; color: #d9b878; }
+.pic-i svg { width: 28px; height: 28px; }
+.pic-0 { font-size: 1.3rem; line-height: 1; }
+.pic small { font-size: .72rem; line-height: 1.2; color: #4a514d; }
+.pic:hover { border-color: #b08a4f; }
+.pic.on { border: 2px solid #b08a4f; background: #f6efe0; padding: 7px 3px; }

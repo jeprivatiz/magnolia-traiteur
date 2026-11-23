@@ -158,10 +158,11 @@ function universListe(c) {
 }
 function univers(c) {
   /* la vignette Lieux prend la place de la rubrique « lieux » (ordre du back-office) */
-  const lieux = `<a class="tile" href="/lieux">${img(c.lieux[0]?.photos?.[0], '')}<span class="tile-t"><b>Lieux de réception</b><small>${c.lieux.filter(l => l.statut !== 'masque').length} lieux à privatiser</small></span></a>`;
+  const pic = r => { const k = pictoDe(r); return k ? `<span class="tile-p">${pictoSvg(k)}</span>` : ''; };
+  const lieux = `<a class="tile" href="/lieux">${img(c.lieux[0]?.photos?.[0], '')}<span class="tile-t">${pic(c.rubriques.find(r => r.slug === 'lieux') || { slug: 'lieux' })}<b>Lieux de réception</b><small>${c.lieux.filter(l => l.statut !== 'masque').length} lieux à privatiser</small></span></a>`;
   const rubs = c.rubriques.filter(r => r.statut !== 'masque');
   return rubs.map(r => r.slug === 'lieux' ? lieux : `<a class="tile" href="${rubHref(r)}">
-    ${img(r.photoAccueil || r.photo, '')}<span class="tile-t"><b>${esc(r.nom)}</b>${r.accroche ? `<small>${esc(r.accroche)}</small>` : `<small>${c.byRub.get(r.slug)?.length || 0} prestations</small>`}</span></a>`).join('')
+    ${img(r.photoAccueil || r.photo, '')}<span class="tile-t">${pic(r)}<b>${esc(r.nom)}</b>${r.accroche ? `<small>${esc(r.accroche)}</small>` : `<small>${c.byRub.get(r.slug)?.length || 0} prestations</small>`}</span></a>`).join('')
     + (rubs.some(r => r.slug === 'lieux') ? '' : lieux);
 }
 
@@ -292,6 +293,7 @@ const suggChips = (R, cls = '') => `<div class="chips sugg ${cls}">${suggestions
 /* ---------- pages d'atterrissage des spécialités (publicité Google Ads) ---------- */
 const { SPE_TEXTES, RANGEMENTS, rangementDe } = require('./seed');
 const { carteSvg, lieuDe } = require('./cartes');
+const { pictoDe, pictoSvg } = require('./pictos');
 const speTitre = x => x.titrePage || SPE_TEXTES[x.slug]?.[0] || x.nom;
 const speChapo = x => x.chapo || SPE_TEXTES[x.slug]?.[1] || `${x.pays ? x.pays + ' : ' : ''}toutes nos propositions, préparées par Magnolia Traiteur et livrées 7 jours sur 7.`;
 /* mots du bandeau défilant de l'accueil → page de la spécialité (ou de l'univers), sinon recherche */
