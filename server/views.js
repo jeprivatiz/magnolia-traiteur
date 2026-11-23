@@ -513,7 +513,7 @@ function produit(c, p) {
 <section class="wrap fiche">
   ${crumbs([['La boutique', '/boutique'], [r.nom, '/' + r.slug], ...(() => { const x = sousVisibles(c.rubriques.find(y => y.slug === p.rubrique)).find(y => y.slug === p.sous); return x ? [[x.nom, `/${p.rubrique}/${x.slug}`]] : []; })(), [p.titre]])}
   <div class="fiche-g">
-    <div class="fiche-media">${media}</div>
+    <div class="fiche-media">${media}${(p.sousPhoto || []).length ? `<div class="sous-photo">${p.sousPhoto.map(t => `<p>${esc(t)}</p>`).join('')}</div>` : ''}</div>
     <div class="fiche-info">
       <p class="eyebrow"><a href="/${esc(r.slug)}">${esc(r.nom)}</a></p>
       <h1>${esc(p.titre)}</h1>

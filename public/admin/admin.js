@@ -865,8 +865,9 @@
           <label>Mise en avant<select name="maison"><option value="1">Produit maison (en premier)</option><option value=""${!p.maison ? ' selected' : ''}>Partenaire</option></select></label></div>
           ${(rubs.find(r => r.slug === p.rubrique)?.sous || []).length ? `<label>Spécialité (dans « ${esc(rubs.find(r => r.slug === p.rubrique).nom)} »)<select name="sous"><option value="">Aucune (seulement dans « Tout »)</option>${[...rubs.find(r => r.slug === p.rubrique).sous].sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0)).map(x => `<option value="${esc(x.slug)}"${x.slug === p.sous ? ' selected' : ''}>${esc(x.nom)}</option>`).join('')}</select></label><fieldset class="span3 aussi"><legend>Aussi affichée dans <small class="muted">(un seul produit, plusieurs spécialités : pas de doublon dans la boutique)</small></legend>${[...rubs.find(r => r.slug === p.rubrique).sous].sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0)).map(x => `<label class="chk"><input type="checkbox" name="autresSous" value="${esc(x.slug)}"${(p.autresSous || []).includes(x.slug) ? ' checked' : ''}> ${esc(String(x.nom).split(' · ')[0])}</label>`).join(' ')}</fieldset>` : ''}
           <label>Section sur la page de la spécialité<select name="rangement"><option value="">Automatique (d’après le nom)</option>${[['buffets', 'Nos buffets'], ['entrees', 'Nos entrées à l’unité'], ['plats', 'Nos plats à l’unité'], ['accompagnements', 'Nos accompagnements à l’unité'], ['fromages', 'Nos fromages'], ['desserts', 'Nos desserts à l’unité'], ['divers', 'Produits divers à l’unité']].map(([k, t]) => `<option value="${k}"${p.rangement === k ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
+          <label>Description sous la photo <small class="muted">(s’affiche juste sous la photo de la page produit ; collez votre texte, les lignes vides sont retirées)</small><textarea name="sousPhoto" rows="5" data-colle placeholder="Ex. Notre poulet colombo mijoté 4 heures…">${esc((p.sousPhoto || []).join('\n'))}</textarea></label>
           <label>Accroche (cartes et Google)<textarea name="extrait" rows="2">${esc(p.extrait || '')}</textarea></label>
-          <label>Description (un paragraphe par ligne)<textarea name="description" rows="4">${esc((p.description || []).join('\n'))}</textarea></label>
+          <label>Description (un paragraphe par ligne)<textarea name="description" rows="4" data-colle>${esc((p.description || []).join('\n'))}</textarea></label>
         </section>
         <section class="box"><h2>Prix et quantités</h2>
           <label>Prix TTC (€) <small>vide = « Sur devis »</small><input name="prix" value="${fromCents(p.prixCents)}" inputmode="decimal"></label>
@@ -904,6 +905,12 @@
     draw();
     const dirty = () => { $('#dirty').textContent = 'Modifications non enregistrées'; };
     form.addEventListener('input', dirty);
+    /* texte collé (Word, site…) : on retire les lignes vides entre les lignes */
+    $$('[data-colle]', form).forEach(t => t.addEventListener('paste', e => {
+      const txt = e.clipboardData?.getData('text/plain'); if (txt == null) return;
+      e.preventDefault();
+      t.setRangeText(lignesNettes(txt).join('\n'), t.selectionStart, t.selectionEnd, 'end'); dirty();
+    }));
     bindPhotos(form);
     $('#photos').addEventListener('input', e => { if (e.target.matches('[data-alt]')) photos[+e.target.closest('[data-i]').dataset.i].alt = e.target.value; });
     $('#photos').addEventListener('click', e => { const f = e.target.closest('[data-i]'); if (!f) return; const i = +f.dataset.i; if (e.target.closest('[data-rm]') && confirmerRetrait()) { photos.splice(i, 1); draw(); dirty(); } if (e.target.closest('[data-main]')) { photos.unshift(...photos.splice(i, 1)); draw(); dirty(); } });
@@ -926,7 +933,7 @@
         const gv = !vars.length ? null : fg.length ? vars.filter(v => !fg.some(x => x[1] === v && !x[2])) : (old.variantes || null);
         return { ...old, variantes: gv && gv.length && gv.length < vars.length ? gv : null, id: old.id || 'g' + gi, titre, max: +max || null, exact: mode === 'exact', facultatif: fac === 'facultatif', options: b.slice(1).map((o, oi) => { const [label, sup] = o.split('|').map(x => x.trim()); const oo = (old.options || []).find(x => x.label === label) || {}; return { ...oo, id: oo.id || 'o' + oi + '-' + label.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-').slice(0, 30), label, supCents: toCents(sup) || 0 }; }) };
       });
-      const next = { ...p, titre: f.get('titre'), rubrique: f.get('rubrique'), sous: f.get('rubrique') === p.rubrique ? (f.get('sous') ?? p.sous ?? '') : '', autresSous: f.get('rubrique') === p.rubrique ? f.getAll('autresSous').filter(x => x !== f.get('sous')) : [], rangement: f.get('rangement') ?? p.rangement ?? '', statut: f.get('statut'), maison: !!f.get('maison'), extrait: f.get('extrait'), description: String(f.get('description')).split('\n').map(x => x.trim()).filter(Boolean),
+      const next = { ...p, titre: f.get('titre'), rubrique: f.get('rubrique'), sous: f.get('rubrique') === p.rubrique ? (f.get('sous') ?? p.sous ?? '') : '', autresSous: f.get('rubrique') === p.rubrique ? f.getAll('autresSous').filter(x => x !== f.get('sous')) : [], rangement: f.get('rangement') ?? p.rangement ?? '', statut: f.get('statut'), maison: !!f.get('maison'), extrait: f.get('extrait'), description: lignesNettes(f.get('description')), sousPhoto: lignesNettes(f.get('sousPhoto')),
         prixCents: toCents(f.get('prix')), unite: f.get('unite'), contenuPortion: String(f.get('contenuPortion') || '').trim(), min: +f.get('min') || 1, minimumTexte: '', prixTexte: '', coutCents: toCents(f.get('cout')), tva: +f.get('tva'),
         regles: { ...(p.regles || {}), personnel: f.get('r_personnel') ? (p.regles?.personnel || 'service') : null, packs: !!f.get('r_packs') },
         variantes: String(f.get('variantes')).split('\n').map(x => x.trim()).filter(Boolean), photos, video: f.get('video') ? { src: f.get('video'), poster: f.get('poster') || '' } : null,
@@ -935,6 +942,9 @@
       catch (err) { toast(err.message, true); }
     });
   };
+
+  /* découpe un texte en lignes propres : espaces insécables, tabulations et lignes vides retirés */
+  function lignesNettes(v) { return String(v || '').replace(/\r\n?|\u2028|\u2029|\v|\f/g, '\n').split('\n').map(x => x.replace(/[\u00a0\t\u200b]+/g, ' ').replace(/ {2,}/g, ' ').trim()).filter(Boolean); }
 
   /* ---------- lieux ---------- */
   /* mêmes listes que server/seed.js (recherche multicritère de la page Lieux) */
