@@ -94,3 +94,9 @@ Photos regardées une à une avant usage (vraies photos, sans texte ni logo). Li
 - Table de buffet libanais : Pexels 29177219 (Ali Dashti), https://www.pexels.com/photo/29177219/
 - Kafta, kebbé et mezzés : Pexels 23025180 (Ali Dashti), https://www.pexels.com/photo/23025180/
 - Buffet asiatique en chafing dishes : Pexels 39388375 et 39388382 (sejio402), Pexels 2291367 (naimbic)
+- Entrées antillaises (beignets, bouchées, crevettes) : Pexels 16868526 (kay-vo), https://www.pexels.com/photo/16868526/
+- Repas antillais (riz aux haricots, plats, dessert) : Pexels 9638804 (iamabdullahsheik), https://www.pexels.com/photo/9638804/
+- Entrée + plat + dessert antillais : photo de Jean-Luc (buffet-complet.jpg, brouillon)
+- Entrées indiennes (pakoras, naans) : Pexels 958547 (chanwalrus), https://www.pexels.com/photo/958547/
+- Table indienne : Pexels 7182077 (pure-punjabi), https://www.pexels.com/photo/7182077/
+- Grand buffet indien : Unsplash photo-1682862279256-b2a9e4f3d22c (Takashi Yamada)

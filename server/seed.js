@@ -711,6 +711,12 @@ async function initSousRubriques(store, { log = console } = {}) {
     }
   }
 
+  for (const [slug, src, alt] of PHOTOS_BUFFETS_EN_TETE) {
+    const x = await store.get('produits/' + slug);
+    if (!x || (x.photoBuffet || '') === src) continue;
+    await store.set('produits/' + slug, { ...x, photos: [{ src, alt }, ...(x.photos || []).filter(ph => ph.src !== src)], photoBuffet: src });
+  }
+
   /* plateaux de sushis : compositions, prix et photos du site actuel magnoliatraiteur.fr/plateaux-de-sushis (Jean-Luc, 2026-11-22).
      Une fois. Le plateau 80 pièces n'existe plus et le « Plateau de 75 sushis » des coffrets faisait doublon : masqués, leur adresse renvoie au grand plateau. */
   const RSu = await store.get('site/reglages');
@@ -949,6 +955,16 @@ const DOUBLONS = [
 ];
 /* [titre, photo, texte alternatif] ; sources dans data/credits-photos-univers.md */
 /* [fiche, version, [[photo, description]…]] */
+/* « Nos buffets » des spécialités (Jean-Luc, 2026-11-23) : une photo de buffet en tête de chaque formule, choisie d'après son contenu
+   (jamais une pièce à l'unité). Les autres photos de la fiche restent dans sa galerie. Sources dans data/credits-photos-univers.md. */
+const PHOTOS_BUFFETS_EN_TETE = [
+  ['buffet-antillais-entrees-seules', 'https://images.pexels.com/photos/16868526/pexels-photo-16868526.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Plateau d’entrées : beignets, bouchées frites et crevettes'],
+  ['buffet-antillais-entree-et-plat-ou-plat-et-dessert', 'https://images.pexels.com/photos/9638804/pexels-photo-9638804.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Repas antillais : riz aux haricots rouges, plats en sauce et dessert'],
+  ['buffet-antillais-entree-plat-dessert', '/site/c/antilles-menus/buffet-complet.jpg.webp', 'Buffet antillais complet servi en chafing dishes'],
+  ['buffet-indien-entrees-a-l-unite', 'https://images.pexels.com/photos/958547/pexels-photo-958547.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Entrées indiennes : pakoras, naans et chutneys'],
+  ['buffet-indien-entree-plat-ou-plat-dessert', 'https://images.pexels.com/photos/7182077/pexels-photo-7182077.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Table indienne : currys, riz et accompagnements'],
+  ['buffet-indien-entree-plat-dessert', 'https://images.unsplash.com/photo-1682862279256-b2a9e4f3d22c?auto=format&fit=crop&w=1600&q=80', 'Grand buffet indien : entrées, currys, naans et desserts'],
+];
 const VRAIES_PHOTOS = [
   /* Buffet chinois, section « Nos buffets » (Jean-Luc, 2026-11-23) : des photos de buffet en chafing dishes, jamais de pièce à l'unité.
      Images tirées de sa vidéo chinois-boucle.mp4 (ses médias). */
