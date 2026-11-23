@@ -339,7 +339,7 @@ function pageGlobe(c, r) {
   <svg class="sm-fleche" data-sm-fleche aria-hidden="true"><defs><marker id="sm-pointe" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="#e2c495"/></marker><linearGradient id="sm-grad" x1="0" x2="1"><stop offset="0" stop-color="#e2c495" stop-opacity=".25"/><stop offset="1" stop-color="#e2c495"/></linearGradient></defs><path data-sm-trait d="" fill="none" stroke="url(#sm-grad)" stroke-width="2.2" stroke-linecap="round" marker-end="url(#sm-pointe)"/></svg>
   <div class="sm-tete" data-sm-tete>
     <p class="eyebrow">Un voyage à votre table</p>
-    <h2 data-sm-titre>Choisissez votre destination</h2>
+    <h2 data-sm-titre>Choisissez votre destination culinaire</h2>
     <p class="sm-phrase" data-sm-phrase>Touchez un pays à gauche ou sur le globe pour découvrir sa cuisine.</p>
   </div>
   <ul class="sm-paves" data-sm-paves>${items.map((x, i) => `<li><a class="sm-pave" href="${esc(x.href)}" data-sm-i="${i}"><span><i>${esc(x.pays)}</i><b>${esc(x.nom)}</b><small>${x.n} prestation${x.n > 1 ? 's' : ''}</small></span></a></li>`).join('')}</ul>

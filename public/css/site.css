@@ -874,10 +874,10 @@ textarea:focus, input:focus, select:focus { outline: 2px solid color-mix(in srgb
 .sm-globe .maplibregl-canvas { outline: none; }
 .sm-fleche { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 4; pointer-events: none; overflow: visible; }
 .sm-fleche path { stroke: #b08a4f; }
-.sm-tete { position: absolute; z-index: 5; top: clamp(20px, 4vh, 44px); left: 50%; transform: translateX(-50%); width: min(680px, calc(100% - 32px)); margin-left: 170px; text-align: center; pointer-events: none; }
+.sm-tete { position: absolute; z-index: 5; top: clamp(20px, 4vh, 44px); left: 50%; transform: translateX(-50%); width: min(860px, calc(100% - 420px)); margin-left: 170px; text-align: center; pointer-events: none; }
 .sm-tete > * { pointer-events: auto; }
 .sm-tete .eyebrow { color: #b08a4f; margin: 0 0 .35em; }
-.sm-tete h2 { color: #1d3b2f; font-size: clamp(2.2rem, 4.6vw, 3.8rem); margin: 0 0 .25em; line-height: 1.05; }
+.sm-tete h2 { color: #1d3b2f; font-size: clamp(2rem, 3.4vw, 3.2rem); margin: 0 0 .25em; line-height: 1.05; }
 .sm-phrase { margin: 0 auto; max-width: 560px; font-size: 1.04rem; line-height: 1.55; color: #4a5650; }
 .sm-tete.entre h2, .sm-tete.entre .sm-phrase { animation: smEntre .7s cubic-bezier(.2, .8, .2, 1) both; }
 .sm-tete.entre .sm-phrase { animation-delay: .12s; }
@@ -974,3 +974,13 @@ textarea:focus, input:focus, select:focus { outline: 2px solid color-mix(in srgb
   .sm-paves { scroll-snap-type: none; }
   .sm-paves > .sm-copie { display: list-item; }
 }
+/* globe : satellites et station spatiale en orbite */
+.sm-orbites { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; overflow: visible; }
+.sm-orbite { fill: none; stroke: #b08a4f; stroke-width: .7; opacity: .3; }
+.sm-orbite.station { stroke-dasharray: 3 4; opacity: .55; }
+.sm-engin { transition: opacity .25s; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .35)); }
+/* globe en vue à plat (sans 3D) : texte d'aide en blanc sur la carte verte */
+.sm-globe.sm-plat .sm-aide { color: #fff; }
+.sm-globe.sm-plat { background: #10261c; }
+.sm-globe.sm-plat .sm-tete h2, .sm-globe.sm-plat .sm-phrase { color: #fff; text-shadow: 0 2px 12px rgba(0, 0, 0, .6); }
+.sm-globe .maplibregl-marker { z-index: 3; }
