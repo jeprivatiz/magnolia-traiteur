@@ -851,7 +851,7 @@ async function initSousRubriques(store, { log = console } = {}) {
   const RCm = await store.get('site/reglages');
   if (RCm && !RCm.carteSections) {
     const cm = await store.get('rubriques/carte-magnolia');
-    if (cm) await store.set('rubriques/carte-magnolia', { ...cm, parSections: true, titresSections: { entrees: 'Les entrées', plats: 'Les plats', fromages: 'Plateau de fromages', desserts: 'Les desserts', divers: 'Menus et service à table', ...(cm.titresSections || {}) } });
+    if (cm) await store.set('rubriques/carte-magnolia', { ...cm, parSections: true, titresSections: { entrees: 'Nos entrées', plats: 'Nos plats', fromages: 'Nos fromages', desserts: 'Nos desserts', divers: 'Menus et service à table', ...(cm.titresSections || {}) } });
     const sans = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     for (const { id, data: p } of await store.list('produits')) {
       if (p.rubrique !== 'carte-magnolia' || p.rangement) continue;
@@ -861,6 +861,23 @@ async function initSousRubriques(store, { log = console } = {}) {
       await store.set('produits/' + id, { ...p, rangement: k });
     }
     await store.set('site/reglages', { ...(await store.get('site/reglages')), carteSections: true });
+  }
+
+  /* La carte Magnolia : titres « Nos entrées, Nos plats, Nos fromages, Nos desserts » (Jean-Luc, 2026-11-23).
+     Une fois ; on ne remplace que les anciens titres par défaut, un titre changé au back-office reste. */
+  const RCm2 = await store.get('site/reglages');
+  if (RCm2 && !RCm2.carteSections2) {
+    const cm = await store.get('rubriques/carte-magnolia');
+    if (cm) {
+      const T = { ...(cm.titresSections || {}) }, anciens = { entrees: 'Les entrées', plats: 'Les plats', fromages: 'Plateau de fromages', desserts: 'Les desserts' };
+      const nouveaux = { entrees: 'Nos entrées', plats: 'Nos plats', fromages: 'Nos fromages', desserts: 'Nos desserts' };
+      for (const k in nouveaux) if (!T[k] || T[k] === anciens[k]) T[k] = nouveaux[k];
+      await store.set('rubriques/carte-magnolia', { ...cm, parSections: true, titresSections: T });
+    }
+    for (const { id, data: p } of await store.list('produits')) {
+      if (p.rubrique === 'carte-magnolia' && /fromage|trio affin/i.test(String(p.titre || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')) && p.rangement !== 'fromages') await store.set('produits/' + id, { ...p, rangement: 'fromages' });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), carteSections2: true });
   }
 
   /* paragraphe de présentation de chaque rubrique et de la page Lieux (Jean-Luc, 2026-11-22). Posé une fois, seulement si vide. */
@@ -966,6 +983,11 @@ const PHOTOS_BUFFETS_EN_TETE = [
   ['buffet-indien-entree-plat-dessert', 'https://images.unsplash.com/photo-1682862279256-b2a9e4f3d22c?auto=format&fit=crop&w=1600&q=80', 'Grand buffet indien : entrées, currys, naans et desserts'],
 ];
 const VRAIES_PHOTOS = [
+  /* Traiteur végétarien (Jean-Luc, 2026-11-23) : vraies photos libres Pexels choisies d'après le contenu de chaque formule,
+     regardées une à une, sans viande ni poisson visibles. Sources dans data/credits-photos-univers.md */
+  ['buffet-vegetarien', 'veg1', [['https://images.pexels.com/photos/2291344/pexels-photo-2291344.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Saladier de salade grecque sur un buffet'], ['https://images.pexels.com/photos/29050581/pexels-photo-29050581.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Tarte aux fromages et aux légumes'], ['https://images.pexels.com/photos/6660071/pexels-photo-6660071.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Plateau de fromages, raisins, fruits secs et pain']]],
+  ['petit-cocktail-vegetarien-14-pieces-salees', 'veg1', [['https://images.pexels.com/photos/25916399/pexels-photo-25916399.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Plateau de mini-tartelettes salées végétariennes'], ['https://images.pexels.com/photos/1239312/pexels-photo-1239312.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Toasts tomate, fromage frais et basilic']]],
+  ['grand-cocktail-dinatoire-vegetarien-sale-et-sucre', 'veg1', [['https://images.pexels.com/photos/4374578/pexels-photo-4374578.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Plateau de cocktail végétarien : tartinables, crudités, olives et crackers'], ['https://images.pexels.com/photos/5852251/pexels-photo-5852251.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Houmous, crudités, tomates cerises et crackers'], ['https://images.pexels.com/photos/6606003/pexels-photo-6606003.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Tarte au citron meringuée']]],
   /* Toasts à l'avocat et aux crevettes : photo envoyée par Jean-Luc (2026-11-23), sur la fiche et son doublon antillais */
   ['toasts-a-l-avocat-et-aux-crevettes', 'jl1', [['/site/c/antilles-unit/toast-avocat-crevettes-jean-luc-20261123.webp', 'Toasts à l’avocat et aux crevettes']]],
   ['toasts-a-l-avocat-et-aux-crevettes-antilles', 'jl1', [['/site/c/antilles-unit/toast-avocat-crevettes-jean-luc-20261123.webp', 'Toasts à l’avocat et aux crevettes']]],

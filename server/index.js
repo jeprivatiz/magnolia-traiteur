@@ -754,6 +754,9 @@ async function createApp(opts = {}) {
     /* plusieurs univers choisis dans le pavé de recherche de l'accueil : /boutique?u=carte-magnolia,douceurs */
     const choix = String(req.query.u || '').split(',').map(x => x.trim()).filter(Boolean);
     const us = views.universListe(c).filter(u => choix.includes(u.slug));
+    /* un seul univers présenté en sections (La carte Magnolia) → sa vraie page, avec ses titres Nos entrées, Nos plats… */
+    const r1 = us.length === 1 && c.rubriques.find(r => r.slug === us[0].slug && r.parSections);
+    if (r1) { const q = new URLSearchParams(req.query); q.delete('u'); return res.redirect(302, '/' + r1.slug + (q.toString() ? '?' + q : '')); }
     if (us.length) {
       const liste = us.flatMap(u => u.prods || []).filter((p, i, a) => a.indexOf(p) === i);
       const chips = `<div class="chips scroll-x">${us.map(u => `<a class="chip on" href="${u.href}">${esc(u.nom)}${u.prods ? ` <small>${u.prods.length}</small>` : ''}</a>`).join('')}</div>`;
