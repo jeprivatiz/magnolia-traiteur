@@ -122,6 +122,41 @@ function extraireAvis(texte) {
   return out.slice(0, 60);
 }
 
+
+/* ---------- critères de recherche des lieux (page Lieux : localisation, type d'événement, type de lieu, convives) ---------- */
+const TYPES_LIEU = ['Péniche à quai', 'Bateau navigant', 'Loft', 'Appartement', 'Demeure', 'Salle de réception', 'Rooftop', 'Restaurant', 'Jardin ou domaine'];
+const EVENEMENTS_LIEU = ['Anniversaire', 'Mariage', 'Fiançailles', 'Pacs', 'Baptême', 'Bar/Bat Mitzvah', 'Réunion de famille', 'Réception entre amis', 'Soirée étudiante', 'Fête d’entreprise', 'Séminaire', 'Conférence', 'Réunion professionnelle', 'Repas d’affaires', 'After-work', 'Pot de départ', 'Présentation de produits', 'Remise de prix', 'Spectacle'];
+const DEPARTEMENTS_LIEU = { '75': 'Paris', '77': 'Seine-et-Marne', '78': 'Yvelines', '91': 'Essonne', '92': 'Hauts-de-Seine', '93': 'Seine-Saint-Denis', '94': 'Val-de-Marne', '95': 'Val-d’Oise' };
+const VILLES_DEPT = { paris: '75', boulogne: '92', sevres: '92', asnieres: '92', ivry: '94', versailles: '78' };
+const sansAccent = t => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+function departementLieu({ adresse = '', ville = '', ligne = '' } = {}) {
+  const cp = String(adresse).match(/\b(7[5789]|9[1-5])\d{3}\b/); if (cp) return cp[1];
+  const p = String(ligne).match(/\((\d{2})\)/); if (p && DEPARTEMENTS_LIEU[p[1]]) return p[1];
+  const v = sansAccent(ville + ' ' + ligne); for (const [k, d] of Object.entries(VILLES_DEPT)) if (v.includes(k)) return d;
+  return '';
+}
+/* lit la fiche du brouillon (texte de la page) : type de lieu, département, événements possibles */
+function criteresLieu(raw) {
+  const t = String(raw.texte || '').split('\n').map(x => x.trim());
+  const i = t.indexOf('Lieux de réception');
+  const typeBrut = i >= 0 ? t[i + 1] : '';
+  const type = TYPES_LIEU.find(x => sansAccent(x) === sansAccent(typeBrut)) || (typeBrut && typeBrut.length < 30 ? typeBrut : '');
+  const ligne = i >= 0 ? t[i + 3] : '';
+  const adr = raw.address || {};
+  const departement = departementLieu({ adresse: adr.streetAddress, ville: adr.addressLocality, ligne });
+  const norm = e => /mitzvah/i.test(e) ? 'Bar/Bat Mitzvah' : e.replace(/'/g, '’');
+  let evenements = [];
+  const j = t.indexOf('Pour vos événements');
+  if (j >= 0) for (let k = j + 1; k < t.length && t[k] && t[k].length < 40 && !/^Équipements/.test(t[k]); k++) evenements.push(norm(t[k]));
+  if (!evenements.length) { /* fiche rédigée en phrases : on repère les mots */
+    const txt = sansAccent(t.join(' '));
+    const mot = m => new RegExp('(^|[^a-z])' + sansAccent(m).replace(/[’']/g, "['’]").replace(/[/]/g, '.') + '($|[^a-z])').test(txt);
+    evenements = EVENEMENTS_LIEU.filter(e => mot(e) || (e === 'Fête d’entreprise' && /entreprise/.test(txt)) || (e === 'Séminaire' && /seminaire/.test(txt)));
+  }
+  evenements = [...new Set(evenements)].filter(e => EVENEMENTS_LIEU.includes(e)).sort((a, b) => EVENEMENTS_LIEU.indexOf(a) - EVENEMENTS_LIEU.indexOf(b));
+  return { type, departement, evenements };
+}
+
 async function seed(store, { force = false, log = console } = {}) {
   const deja = await store.get('site/reglages');
   if (deja && !force) return { fait: false };
@@ -156,6 +191,7 @@ async function seed(store, { force = false, log = console } = {}) {
       equipements: (l.amenityFeature || []).map(a => a.name), photos: (Array.isArray(l.image) ? l.image : [l.image]).filter(Boolean).map(s => s.replace(/^https:\/\/www\.magnoliatraiteur\.fr/, '')),
       prixTexte: l.offers?.price ? l.offers.price + ' €' : 'Sur devis',
       avis: (l.review || []).map(r => ({ auteur: r.author?.name || '', titre: r.name || '', texte: r.reviewBody || '' })),
+      ...criteresLieu(l),
     });
   }
   const avis = extraireAvis(data.pages?.['/temoignages']?.texte);
@@ -1136,6 +1172,19 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('site/reglages', { ...RL, adresse, origine: { ...(RL.origine || {}), ...ORIGINE_LABO },
       tarifs: { ...(RL.tarifs || {}), livraisonOfferteCents: RL.tarifs?.livraisonOfferteCents ?? 70000 }, zoneLivraison2026: true });
   }
+
+  /* recherche multicritère de la page Lieux (Jean-Luc, 2026-11-23) : type de lieu, département et événements repris
+     des fiches du brouillon. Une fois, sans écraser ce qui a été saisi au back-office (Back-office > Lieux). */
+  const RLx = await store.get('site/reglages');
+  if (RLx && !RLx.lieuxCriteres) {
+    const bruts = new Map((lireBrouillon().data?.lieux || []).map(l => [l.slug, l]));
+    for (const { id, data: l } of await store.list('lieux')) {
+      const b = bruts.get(l.slug || id), cr = b ? criteresLieu(b) : { type: '', evenements: [], departement: departementLieu({ adresse: l.adresse, ville: l.ville }) };
+      const next = { ...l, type: l.type || cr.type, departement: l.departement || cr.departement, evenements: l.evenements?.length ? l.evenements : cr.evenements };
+      if (JSON.stringify(next) !== JSON.stringify(l)) await store.set('lieux/' + id, next);
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), lieuxCriteres: true });
+  }
 }
 
 /* [fiche gardée, doublons…] : mêmes produit, prix et minimum */
@@ -1454,4 +1503,4 @@ const VIGNETTES_UNIVERS = {
   'boissons': pexels(5531479), // barman qui sert un cocktail (Jean-Luc ne voulait pas d'un bar)
 };
 
-module.exports = { RANGEMENTS, rangementDe, SPE_TEXTES, initSousRubriques, classerSous, SOUS_DEFAUT, importerAvisAncienSite, dateIso, seed, REGLAGES_DEFAUT, MODELES_DEFAUT, extraireAvis };
+module.exports = { TYPES_LIEU, EVENEMENTS_LIEU, DEPARTEMENTS_LIEU, criteresLieu, departementLieu, RANGEMENTS, rangementDe, SPE_TEXTES, initSousRubriques, classerSous, SOUS_DEFAUT, importerAvisAncienSite, dateIso, seed, REGLAGES_DEFAUT, MODELES_DEFAUT, extraireAvis };

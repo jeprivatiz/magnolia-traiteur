@@ -1062,3 +1062,30 @@ body.noscroll .partage { display: none; }
 }
 
 @media (prefers-color-scheme: dark) { .p3-pied { background: #173126; } }
+
+/* ---------- page Lieux : recherche multicritère ---------- */
+.lsearch { display: grid; grid-template-columns: 1.25fr 1.15fr 1.05fr .7fr 1.15fr auto; gap: 12px; align-items: end; background: var(--creme); border: 1px solid var(--ligne); border-radius: var(--rayon); padding: 18px 20px 20px; margin: 0 0 26px; box-shadow: var(--ombre); }
+.ls-f { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.ls-f span { font-size: .78rem; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--vert); }
+.lsearch select, .lsearch input { width: 100%; min-width: 0; height: 46px; border: 1px solid var(--ligne); border-radius: 10px; background-color: var(--carte); color: var(--encre); font: 400 1rem var(--sans); padding: 0 12px; outline: none; -webkit-appearance: none; appearance: none; }
+.lsearch select { padding-right: 34px; cursor: pointer; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%23b08a4f' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; }
+.lsearch input::placeholder { color: var(--gris); opacity: .8; }
+.lsearch select:focus, .lsearch input:focus { border-color: var(--or); box-shadow: 0 0 0 3px color-mix(in srgb, var(--or) 22%, transparent); }
+.lsearch .ls-go { height: 46px; min-height: 46px; padding: 0 26px; border-radius: 10px; text-transform: uppercase; letter-spacing: .12em; font-weight: 500; white-space: nowrap; }
+.ls-wrap .shop-intro { margin-top: 8px; }
+.ls-res { margin: -8px 0 22px; color: var(--gris); }
+.ls-res b { color: var(--vert); font-weight: 500; }
+.ls-res .lnk { margin-left: .4em; }
+.ls-vide { text-align: center; background: var(--creme); border-radius: var(--rayon); padding: 26px 18px; margin-bottom: 26px; }
+.ls-vide .row { justify-content: center; flex-wrap: wrap; gap: 10px; margin: 0; }
+.card-type { font-size: .72rem; letter-spacing: .14em; text-transform: uppercase; color: var(--or); font-weight: 500; margin: 0 0 4px !important; }
+@media (max-width: 1080px) {
+  .lsearch { grid-template-columns: repeat(3, 1fr); }
+  .lsearch .ls-go { width: 100%; }
+}
+@media (max-width: 640px) {
+  .lsearch { grid-template-columns: 1fr 1fr; gap: 10px; padding: 14px 14px 16px; }
+  .lsearch .ls-f:first-child, .lsearch .ls-go { grid-column: 1 / -1; }
+  .lsearch .ls-f span { font-size: .72rem; letter-spacing: .06em; }
+  .lsearch select, .lsearch input { font-size: 16px; height: 44px; } /* 16 px : pas de zoom automatique sur iPhone */
+}
