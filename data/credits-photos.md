@@ -28,3 +28,4 @@ Toutes issues de Pexels (licence Pexels : usage commercial gratuit, sans attribu
 | japon.jpg | Pagode Chureito et mont Fuji | https://www.pexels.com/photo/pagoda-and-mount-fuji-in-spring-4336279/ |
 | liban.jpg | Rochers de la Grotte aux Pigeons, Beyrouth | https://www.pexels.com/photo/drone-shot-of-pigeon-rocks-in-lebanon-12259278/ |
 | maghreb.jpg | Chefchaouen, Maroc | https://www.pexels.com/photo/chafchaoune-from-above-22717147/ |
+- Lune du globe : https://www.pexels.com/photo/full-moon-596134/ (licence Pexels), détourée et passée en noir et blanc → public/site/lune/lune.png
