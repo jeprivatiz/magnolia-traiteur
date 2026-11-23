@@ -335,7 +335,7 @@ async function initUniteSpecialites(store, log) {
   if (!r || r.uniteInit || !(r.sous || []).length) return;
   const prods = (await store.list('produits')).map(d => ({ id: d.id, ...d.data }));
   const RANG = { entrees: 'entrees', mezzes: 'entrees', brochettes: 'entrees', salades: 'entrees', plats: 'plats', accompagnements: 'accompagnements', desserts: 'desserts' };
-  const UNITE = { entrees: ['pièce', 20], /* 20 : trop haut pour le buffet chinois, ramené à 5 plus bas (chinoisMin5) */ mezzes: ['portion', 10], brochettes: ['brochette', 10], salades: ['portion', 10], plats: ['portion', 10], accompagnements: ['portion', 10], desserts: ['pièce', 10] };
+  const UNITE = { entrees: ['pièce', 5], mezzes: ['portion', 5], brochettes: ['brochette', 5], salades: ['portion', 5], plats: ['portion', 5], accompagnements: ['portion', 5], desserts: ['pièce', 5] }; /* minimum 5 à l'unité (Jean-Luc, 2026-11-23) */
   const vus = new Set(prods.map(p => p.slug)); let ordre = Math.max(0, ...prods.map(p => p.ordre || 0)) + 1, n = 0;
   for (const x of r.sous) {
     const dans = prods.filter(p => p.sous === x.slug);
@@ -393,7 +393,7 @@ async function initSousRubriques(store, { log = console } = {}) {
       const ligne = PRIX_INDIEN.find(([re]) => re.test(nom));
       if (!ligne) continue;
       const cout = ligne[1];
-      await store.set('produits/' + d.id, { ...p, prixCents: Math.ceil(cout * 1.3 / 10) * 10, coutCents: cout, unite: 'portion', min: 10, aCompleter: false });
+      await store.set('produits/' + d.id, { ...p, prixCents: Math.ceil(cout * 1.3 / 10) * 10, coutCents: cout, unite: 'portion', min: 5, aCompleter: false });
       ni++;
     }
     await store.set('rubriques/saveurs-du-monde', { ...(await store.get('rubriques/saveurs-du-monde')), indienPrix: true });
@@ -408,7 +408,7 @@ async function initSousRubriques(store, { log = console } = {}) {
       const slug = slugify(titre + ' indien');
       if (vus.has(slug)) continue; vus.add(slug);
       const src = photo || AMBIANCE_INDIEN[nc % AMBIANCE_INDIEN.length];
-      await store.set('produits/' + slug, { id: slug, slug, rubrique: 'saveurs-du-monde', autresRubriques: [], sous: 'buffet-indien', rangement, titre, prixCents: Math.ceil(cout * 1.3 / 10) * 10, coutCents: cout, unite, min: 10, extrait: `${titre} : spécialité indienne préparée par notre chef et livrée prête à servir.`, description: [], photos: [{ src, alt: titre }], photoAmbiance: !photo, video: null, groupes: [], variantes: [], sections: [], details: [], regles: { personnel: 'service', packs: true }, ordre: ordre++, statut: 'visible', maison: true, tva: 10, allergenes: [], aCompleter: false });
+      await store.set('produits/' + slug, { id: slug, slug, rubrique: 'saveurs-du-monde', autresRubriques: [], sous: 'buffet-indien', rangement, titre, prixCents: Math.ceil(cout * 1.3 / 10) * 10, coutCents: cout, unite, min: 5, extrait: `${titre} : spécialité indienne préparée par notre chef et livrée prête à servir.`, description: [], photos: [{ src, alt: titre }], photoAmbiance: !photo, video: null, groupes: [], variantes: [], sections: [], details: [], regles: { personnel: 'service', packs: true }, ordre: ordre++, statut: 'visible', maison: true, tva: 10, allergenes: [], aCompleter: false });
       nc++;
     }
     // titres trop longs (« Chicken tikka massala : poulet mariné… ») : le nom en titre, la description en texte
@@ -908,6 +908,24 @@ async function initSousRubriques(store, { log = console } = {}) {
       await store.set('produits/' + id, { ...p, min: 5, ...(p.minimumTexte ? { minimumTexte: `Minimum de commande : 5 ${p.unite === 'pièce' ? 'pièces' : p.unite === 'portion' ? 'portions' : p.unite + 's'}` } : {}) });
     }
     await store.set('site/reglages', { ...(await store.get('site/reglages')), chinoisMin5: true });
+  }
+
+  /* Toutes les fiches à l'unité des spécialités (Saveurs du monde) : minimum 5 (accord de Jean-Luc, 2026-11-23).
+     Seulement les unités « pièce / portion / brochette » au-dessus de 5 ; les coffrets, plateaux, corbeilles (minimum 1) et les
+     formules « personne » ne bougent pas, sauf « Buffet indien · Entrée + plat ou plat + dessert » : 20 → 10 personnes comme les autres buffets. */
+  const RU5 = await store.get('site/reglages');
+  if (RU5 && !RU5.unitesMin5) {
+    const pl = u => u === 'pièce' ? 'pièces' : u === 'portion' ? 'portions' : u + 's';
+    for (const { id, data: p } of await store.list('produits')) {
+      if (!p.sous) continue;
+      if (/^buffet-indien/.test(id) && p.unite === 'personne' && p.min === 20 && /plat ou plat/i.test(p.titre || '')) {
+        await store.set('produits/' + id, { ...p, min: 10, ...(p.minimumTexte ? { minimumTexte: 'Minimum : 10 personnes' } : {}) });
+        continue;
+      }
+      if (!['pièce', 'portion', 'brochette'].includes(p.unite) || !(p.min > 5) || rangementDe(p) === 'buffets') continue;
+      await store.set('produits/' + id, { ...p, min: 5, ...(p.minimumTexte ? { minimumTexte: `Minimum de commande : 5 ${pl(p.unite)}` } : {}) });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), unitesMin5: true });
   }
 
   /* paragraphe de présentation de chaque rubrique et de la page Lieux (Jean-Luc, 2026-11-22). Posé une fois, seulement si vide. */
