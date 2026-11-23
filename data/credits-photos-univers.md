@@ -72,3 +72,15 @@ Licence Pexels : usage commercial gratuit, sans obligation de citer l'auteur (ht
 | Buffet italien · Entrée + plat + dessert, photo principale (grand buffet d'antipasti) à la place des tomates confites | https://www.pexels.com/photo/buffet-with-finger-food-23388862/ | 22/11/2026 (demande directe) |
 | Carte Magnolia, « Menu enfant (3 à 12 ans) » (mini-burgers et frites) | https://www.pexels.com/photo/gourmet-mini-burgers-with-fries-on-wooden-platter-36630854/ | 22/11/2026 (demande directe) |
 | Carte Magnolia, « Repas servi à table » (serveur et assiettes) | https://www.pexels.com/photo/a-waiter-holding-plates-with-salad-25809274/ | 22/11/2026 (demande directe) |
+| Musique & spectacles, « puissance-4-geant » (Puissance 4 géant bleu joué en soirée) | https://www.pexels.com/photo/3009788/ | 22/11/2026 (demande directe) |
+| Musique & spectacles, « taureau-mecanique » (Taureau mécanique sur son matelas gonflable) | https://unsplash.com/photos/0qb_Y8EEsr0 | 22/11/2026 (demande directe) |
+| Musique & spectacles, « baby-foot-bonzini-b90 » (Baby-foot en bois de style café, barres rouges) | https://www.pexels.com/photo/10827142/ | 22/11/2026 (demande directe) |
+| Musique & spectacles, « billard » (Billard avec triangle de boules et queues) | https://www.pexels.com/photo/37063421/ | 22/11/2026 (demande directe) |
+| Musique & spectacles, « table-de-ping-pong » (Table de ping-pong avec raquettes et balle) | https://www.pexels.com/photo/40213156/ | 22/11/2026 (demande directe) |
+| Musique & spectacles, « cible-de-flechettes-electronique » (Cible de fléchettes électronique) | https://www.pexels.com/photo/242494/ | 22/11/2026 (demande directe) |
+| Musique & spectacles, « chateau-gonflable-crocodile-petit-format » (Enfants qui sautent dans un château gonflable) | https://unsplash.com/photos/vi8gZmGtGik | 22/11/2026 (demande directe) |
+| Musique & spectacles, « chateau-gonflable-crocodile-grand-format » (Grand château gonflable avec obstacles et toboggan sur une pelouse) | https://unsplash.com/photos/a_hMEPZUmOM | 22/11/2026 (demande directe) |
+| Musique & spectacles, « videobooth-a-360 » (Plateau tournant de vidéobooth 360° lors d’un événement) | https://unsplash.com/photos/6IxEQoTdtKM | 22/11/2026 (demande directe) |
+| Musique & spectacles, « livre-d-or-audio-telephone-a-messages » (Téléphone rétro pour livre d’or audio, voile de mariée) | https://www.pexels.com/photo/37276787/ | 22/11/2026 (demande directe) |
+| Musique & spectacles, « photobooth-borne-photo-avec-impressions » (Invités qui posent dans le photobooth) | https://www.pexels.com/photo/9342943/ | 22/11/2026 (demande directe) |
+| Musique & spectacles, « hermine-animatrice-pour-les-enfants-de-3-a-8-ans » (Maquillage d’enfant pendant une animation) | https://www.pexels.com/photo/8385028/ | 22/11/2026 (demande directe) |
