@@ -865,7 +865,10 @@
           <label>Mise en avant<select name="maison"><option value="1">Produit maison (en premier)</option><option value=""${!p.maison ? ' selected' : ''}>Partenaire</option></select></label></div>
           ${(rubs.find(r => r.slug === p.rubrique)?.sous || []).length ? `<label>Spécialité (dans « ${esc(rubs.find(r => r.slug === p.rubrique).nom)} »)<select name="sous"><option value="">Aucune (seulement dans « Tout »)</option>${[...rubs.find(r => r.slug === p.rubrique).sous].sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0)).map(x => `<option value="${esc(x.slug)}"${x.slug === p.sous ? ' selected' : ''}>${esc(x.nom)}</option>`).join('')}</select></label><fieldset class="span3 aussi"><legend>Aussi affichée dans <small class="muted">(un seul produit, plusieurs spécialités : pas de doublon dans la boutique)</small></legend>${[...rubs.find(r => r.slug === p.rubrique).sous].sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0)).map(x => `<label class="chk"><input type="checkbox" name="autresSous" value="${esc(x.slug)}"${(p.autresSous || []).includes(x.slug) ? ' checked' : ''}> ${esc(String(x.nom).split(' · ')[0])}</label>`).join(' ')}</fieldset>` : ''}
           <label>Section sur la page de la spécialité<select name="rangement"><option value="">Automatique (d’après le nom)</option>${[['buffets', 'Nos buffets'], ['entrees', 'Nos entrées à l’unité'], ['plats', 'Nos plats à l’unité'], ['accompagnements', 'Nos accompagnements à l’unité'], ['fromages', 'Nos fromages'], ['desserts', 'Nos desserts à l’unité'], ['divers', 'Produits divers à l’unité']].map(([k, t]) => `<option value="${k}"${p.rangement === k ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
-          <label>Description sous la photo <small class="muted">(s’affiche juste sous la photo de la page produit ; collez votre texte, les lignes vides sont retirées)</small><textarea name="sousPhoto" rows="5" data-colle placeholder="Ex. Notre poulet colombo mijoté 4 heures…">${esc((p.sousPhoto || []).join('\n'))}</textarea></label>
+          <div class="sp-edit"><label for="sousPhoto">Description sous la photo <small class="muted">(s’affiche juste sous la photo de la page produit. Au collage, les lignes vides sont retirées ; une ligne vide que vous ajoutez avec Entrée reste visible. Mots en gras : sélectionnez-les puis « G ».)</small></label>
+          <div class="sp-barre"><button type="button" class="btn ghost sm" data-gras title="Mettre la sélection en gras"><b>G</b> Gras</button><button type="button" class="btn ghost sm" data-titres-gras title="Met en gras les lignes écrites tout en MAJUSCULES">Titres en MAJUSCULES en gras</button><button type="button" class="btn ghost sm" data-sans-gras title="Retire le gras de la sélection (ou de tout le texte)">Retirer le gras</button></div>
+          <textarea id="sousPhoto" name="sousPhoto" rows="8" data-colle placeholder="Ex. NOS MINI PIÈCES&#10;pain polaire - saumon fumé - fromage frais">${esc((p.sousPhoto || []).join('\n'))}</textarea>
+          <p class="muted sm">Le gras s’écrit **entre deux étoiles** dans la case : sur le site, les étoiles disparaissent et le mot apparaît en gras.</p></div>
           <label>Accroche (cartes et Google)<textarea name="extrait" rows="2">${esc(p.extrait || '')}</textarea></label>
           <label>Description (un paragraphe par ligne)<textarea name="description" rows="4" data-colle>${esc((p.description || []).join('\n'))}</textarea></label>
         </section>
@@ -905,6 +908,31 @@
     draw();
     const dirty = () => { $('#dirty').textContent = 'Modifications non enregistrées'; };
     form.addEventListener('input', dirty);
+    /* description sous la photo : boutons gras */
+    {
+      const ta = $('[name=sousPhoto]', form);
+      const remplace = (debut, fin, txt) => { ta.focus(); ta.setRangeText(txt, debut, fin, 'select'); dirty(); };
+      $('[data-gras]', form)?.addEventListener('click', () => {
+        let a = ta.selectionStart, b = ta.selectionEnd;
+        while (a < b && /\s/.test(ta.value[a])) a++;
+        while (b > a && /\s/.test(ta.value[b - 1])) b--;
+        if (a === b) { toast('Sélectionnez d’abord les mots à mettre en gras.', true); return; }
+        const sel = ta.value.slice(a, b);
+        /* chaque ligne de la sélection est mise en gras séparément */
+        remplace(a, b, sel.split('\n').map(l => l.trim() ? '**' + l.replace(/\*\*/g, '') + '**' : l).join('\n'));
+      });
+      $('[data-sans-gras]', form)?.addEventListener('click', () => {
+        const a = ta.selectionStart, b = ta.selectionEnd;
+        if (a === b) remplace(0, ta.value.length, ta.value.replace(/\*\*/g, ''));
+        else remplace(a, b, ta.value.slice(a, b).replace(/\*\*/g, ''));
+      });
+      $('[data-titres-gras]', form)?.addEventListener('click', () => {
+        let n = 0;
+        const v = ta.value.split('\n').map(l => { const t = l.trim(); if (!t || t.startsWith('**') || !/\p{Lu}.*\p{Lu}/u.test(t) || /\p{Ll}/u.test(t)) return l; n++; return '**' + t + '**'; }).join('\n');
+        remplace(0, ta.value.length, v); ta.setSelectionRange(0, 0);
+        toast(n ? `${n} titre${n > 1 ? 's' : ''} mis en gras.` : 'Aucune ligne tout en majuscules à mettre en gras.', !n);
+      });
+    }
     /* texte collé (Word, site…) : on retire les lignes vides entre les lignes */
     $$('[data-colle]', form).forEach(t => t.addEventListener('paste', e => {
       const txt = e.clipboardData?.getData('text/plain'); if (txt == null) return;
@@ -933,7 +961,7 @@
         const gv = !vars.length ? null : fg.length ? vars.filter(v => !fg.some(x => x[1] === v && !x[2])) : (old.variantes || null);
         return { ...old, variantes: gv && gv.length && gv.length < vars.length ? gv : null, id: old.id || 'g' + gi, titre, max: +max || null, exact: mode === 'exact', facultatif: fac === 'facultatif', options: b.slice(1).map((o, oi) => { const [label, sup] = o.split('|').map(x => x.trim()); const oo = (old.options || []).find(x => x.label === label) || {}; return { ...oo, id: oo.id || 'o' + oi + '-' + label.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-').slice(0, 30), label, supCents: toCents(sup) || 0 }; }) };
       });
-      const next = { ...p, titre: f.get('titre'), rubrique: f.get('rubrique'), sous: f.get('rubrique') === p.rubrique ? (f.get('sous') ?? p.sous ?? '') : '', autresSous: f.get('rubrique') === p.rubrique ? f.getAll('autresSous').filter(x => x !== f.get('sous')) : [], rangement: f.get('rangement') ?? p.rangement ?? '', statut: f.get('statut'), maison: !!f.get('maison'), extrait: f.get('extrait'), description: lignesNettes(f.get('description')), sousPhoto: lignesNettes(f.get('sousPhoto')),
+      const next = { ...p, titre: f.get('titre'), rubrique: f.get('rubrique'), sous: f.get('rubrique') === p.rubrique ? (f.get('sous') ?? p.sous ?? '') : '', autresSous: f.get('rubrique') === p.rubrique ? f.getAll('autresSous').filter(x => x !== f.get('sous')) : [], rangement: f.get('rangement') ?? p.rangement ?? '', statut: f.get('statut'), maison: !!f.get('maison'), extrait: f.get('extrait'), description: lignesNettes(f.get('description')), sousPhoto: lignesSousPhoto(f.get('sousPhoto')),
         prixCents: toCents(f.get('prix')), unite: f.get('unite'), contenuPortion: String(f.get('contenuPortion') || '').trim(), min: +f.get('min') || 1, minimumTexte: '', prixTexte: '', coutCents: toCents(f.get('cout')), tva: +f.get('tva'),
         regles: { ...(p.regles || {}), personnel: f.get('r_personnel') ? (p.regles?.personnel || 'service') : null, packs: !!f.get('r_packs') },
         variantes: String(f.get('variantes')).split('\n').map(x => x.trim()).filter(Boolean), photos, video: f.get('video') ? { src: f.get('video'), poster: f.get('poster') || '' } : null,
@@ -945,6 +973,9 @@
 
   /* découpe un texte en lignes propres : espaces insécables, tabulations et lignes vides retirés */
   function lignesNettes(v) { return String(v || '').replace(/\r\n?|\u2028|\u2029|\v|\f/g, '\n').split('\n').map(x => x.replace(/[\u00a0\t\u200b]+/g, ' ').replace(/ {2,}/g, ' ').trim()).filter(Boolean); }
+
+  /* description sous la photo : garde UNE ligne vide là où vous en mettez (pas de doublons, pas au début ni à la fin) */
+  function lignesSousPhoto(v) { const l = String(v || '').replace(/\r\n?|\u2028|\u2029|\v|\f/g, '\n').split('\n').map(x => x.replace(/[\u00a0\t\u200b]+/g, ' ').replace(/ {2,}/g, ' ').trim()).filter((x, i, a) => x || (i > 0 && a[i - 1])); while (l.length && !l[0]) l.shift(); while (l.length && !l[l.length - 1]) l.pop(); return l; }
 
   /* ---------- lieux ---------- */
   /* mêmes listes que server/seed.js (recherche multicritère de la page Lieux) */

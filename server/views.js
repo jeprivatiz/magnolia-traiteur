@@ -513,7 +513,7 @@ function produit(c, p) {
 <section class="wrap fiche">
   ${crumbs([['La boutique', '/boutique'], [r.nom, '/' + r.slug], ...(() => { const x = sousVisibles(c.rubriques.find(y => y.slug === p.rubrique)).find(y => y.slug === p.sous); return x ? [[x.nom, `/${p.rubrique}/${x.slug}`]] : []; })(), [p.titre]])}
   <div class="fiche-g">
-    <div class="fiche-media">${media}${(p.sousPhoto || []).length ? `<div class="sous-photo" data-sp><div class="sp-txt">${p.sousPhoto.map(t => `<p>${esc(t)}</p>`).join('')}</div><button type="button" class="sp-plus" data-sp-plus hidden>Voir plus</button></div>` : ''}</div>
+    <div class="fiche-media">${media}${(p.sousPhoto || []).length ? `<div class="sous-photo" data-sp><div class="sp-txt">${p.sousPhoto.map(t => t ? `<p>${esc(t).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\*\*/g, '')}</p>` : '<p class="sp-vide" aria-hidden="true"></p>').join('')}</div><button type="button" class="sp-plus" data-sp-plus hidden>Voir plus</button></div>` : ''}</div>
     <div class="fiche-info">
       <p class="eyebrow"><a href="/${esc(r.slug)}">${esc(r.nom)}</a></p>
       <h1>${esc(p.titre)}</h1>
