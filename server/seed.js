@@ -966,6 +966,9 @@ const PHOTOS_BUFFETS_EN_TETE = [
   ['buffet-indien-entree-plat-dessert', 'https://images.unsplash.com/photo-1682862279256-b2a9e4f3d22c?auto=format&fit=crop&w=1600&q=80', 'Grand buffet indien : entrées, currys, naans et desserts'],
 ];
 const VRAIES_PHOTOS = [
+  /* Toasts à l'avocat et aux crevettes : photo envoyée par Jean-Luc (2026-11-23), sur la fiche et son doublon antillais */
+  ['toasts-a-l-avocat-et-aux-crevettes', 'jl1', [['/site/c/antilles-unit/toast-avocat-crevettes-jean-luc-20261123.webp', 'Toasts à l’avocat et aux crevettes']]],
+  ['toasts-a-l-avocat-et-aux-crevettes-antilles', 'jl1', [['/site/c/antilles-unit/toast-avocat-crevettes-jean-luc-20261123.webp', 'Toasts à l’avocat et aux crevettes']]],
   /* Buffet chinois, section « Nos buffets » (Jean-Luc, 2026-11-23) : des photos de buffet en chafing dishes, jamais de pièce à l'unité.
      Images tirées de sa vidéo chinois-boucle.mp4 (ses médias). */
   ['buffet-chinois-entrees-plat', 'buffet1', [['/site/c/chinois-menus/buffet-chafing-1.webp', 'Buffet chinois servi en chafing dishes'], ['/site/c/chinois-menus/buffet-chafing-2.webp', 'Rangée de chafing dishes ouverts sur un buffet asiatique'], ['/site/c/chinois-menus/buffet-chafing-3.webp', 'Buffet asiatique : plusieurs plats chauds en chafing dishes']]],
