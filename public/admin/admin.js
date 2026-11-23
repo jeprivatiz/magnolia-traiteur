@@ -681,6 +681,7 @@
         <label>Titre du paragraphe de présentation<input name="introTitre" value="${esc(rub.introTitre || '')}" placeholder="ex. Cocktails et buffets à la française"></label>
         <label class="span3">Paragraphe de présentation <small class="muted">(sous le bandeau, centré ; une ligne vide = nouveau paragraphe ; vide = rien)</small><textarea name="introTexte" rows="5">${esc(rub.introTexte || '')}</textarea></label>
         <details class="span3 landbox"><summary>Page d’atterrissage : titre et Google</summary><div class="g3"><label>Grand titre de la page<input name="titrePage" value="${esc(rub.titrePage || '')}" placeholder="${esc(rub.nom || '')}"></label><label>Titre dans Google<input name="seoTitre" value="${esc(rub.seoTitre || '')}" maxlength="70" placeholder="vide = grand titre"></label><label>Description dans Google<input name="seoDescription" value="${esc(rub.seoDescription || '')}" maxlength="170" placeholder="vide = texte d’introduction"></label></div></details>
+        <fieldset class="span3 pictos" data-pictos><legend>Pictogramme sur la vignette de l’accueil</legend><p class="muted sm">Chargement…</p></fieldset>
         <div class="span3 phrow">${photoField('photoAccueil', rub.photoAccueil || rub.photo, 'Photo de la vignette')}<div class="row"><label>Ordre<input type="number" name="ordre" value="${rub.ordre ?? 0}" class="num"></label><label>TVA par défaut<select name="tva">${[5.5, 10, 20].map(t => `<option value="${t}"${+(rub.tva || 10) === t ? ' selected' : ''}>${t} %</option>`).join('')}</select></label><button class="btn ghost">Enregistrer la rubrique</button></div></div>
         <div class="span3 sousbox pliable" data-pli="sous"><div class="plihead"><h3>Spécialités <small class="muted">(${(rub.sous || []).length} · vignettes affichées avant les prestations, ex. Buffet libanais, Paëlla party)</small></h3><button type="button" class="btn ghost sm plibtn" data-plibtn></button></div><div class="plibody">
           <p class="muted sm">Sans spécialité, la rubrique affiche directement toutes ses prestations. Chaque prestation se range dans une spécialité depuis sa fiche (liste « Spécialité »).</p>
@@ -763,6 +764,14 @@
     $('[data-pq]').addEventListener('input', filtrer);
     $('[data-pq]').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); const a = $('#plist a.prow'); if (a) location.hash = a.getAttribute('href'); } });
     bindPhotos($('#rf'));
+    /* pictogramme de la vignette : choix visuel (Automatique = celui prévu pour cet univers) */
+    (cache.pictos ||= fetch('/pictos.json').then(r => r.json())).then(({ liste, defaut }) => {
+      const cur = rubC.picto === 'aucun' ? '' : rubC.picto || '', auto = liste.find(x => x.k === defaut[cache.catR]);
+      const opt = (v, nom, svg) => `<label class="pic${cur === v ? ' on' : ''}" title="${esc(nom)}"><input type="radio" name="picto" value="${v}"${cur === v ? ' checked' : ''}><span class="pic-i">${svg}</span><small>${esc(nom)}</small></label>`;
+      const fs = $('[data-pictos]'); if (!fs) return;
+      fs.innerHTML = `<legend>Pictogramme sur la vignette de l’accueil</legend><div class="pic-g">${opt('', 'Aucun pictogramme (photo seule)', '<span class="pic-0">∅</span>')}${auto ? opt('auto', 'Celui prévu (' + auto.nom.toLowerCase() + ')', auto.svg) : ''}${liste.map(x => opt(x.k, x.nom, x.svg)).join('')}</div><p class="muted sm">En réserve : par défaut, la vignette garde sa photo seule. Pour afficher un pictogramme, cliquez sur un dessin, puis « Enregistrer la rubrique ».</p>`;
+      fs.addEventListener('change', () => $$('.pic', fs).forEach(l => l.classList.toggle('on', $('input', l).checked)));
+    });
     $('#rf').addEventListener('submit', async e => {
       e.preventDefault(); lireSous(); const f = Object.fromEntries(new FormData(e.target)); const rub = cache.rubriques.find(x => x.slug === cache.catR);
       for (const k of Object.keys(f)) if (/^(sp|bp)\d+$/.test(k)) delete f[k];

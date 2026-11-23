@@ -141,6 +141,7 @@ async function createApp(opts = {}) {
   }));
   app.use(express.static(PUBLIC, { maxAge: prod ? '7d' : 0, index: false, setHeaders: (res, p) => { if (/\.(webp|jpe?g|png|svg|mp4|woff2?)$/.test(p)) res.set('Cache-Control', 'public, max-age=2592000'); } }));
   app.use('/media', express.static(uploadDir, { maxAge: '30d' }));
+  app.get('/pictos.json', (req, res) => { const P = require('./pictos'); res.json({ liste: P.liste(), defaut: P.DEFAUT }); });
   app.get('/robots.txt', (req, res) => env.SITE_NOINDEX === '1' ? res.type('text/plain').send('User-agent: *\nDisallow: /\n') : res.type('text/plain').send(`User-agent: *\nDisallow: /admin\nDisallow: /devis/\nDisallow: /facture/\nDisallow: /espace-client\nSitemap: ${SITE}/sitemap.xml\n`));
   app.get('/sitemap.xml', wrap(async (req, res) => {
     const c = await cat.get();
