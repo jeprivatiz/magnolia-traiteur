@@ -984,6 +984,15 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('site/reglages', { ...(await store.get('site/reglages')), chinoisPrixJL1: true });
   }
 
+  /* Carte Magnolia : le bandeau du chef (Jean-Luc, 2026-11-23). La page prend d'abord bandeauPhoto, puis photoAccueil (vignette
+     de l'accueil), puis photo : on fixe donc bandeauPhoto pour que la vignette d'accueil ne remplace pas le bandeau. Vignette inchangée. */
+  const RChef = await store.get('site/reglages');
+  if (RChef && !RChef.carteBandeauChef2) {
+    const cm = await store.get('rubriques/carte-magnolia');
+    if (cm) await store.set('rubriques/carte-magnolia', { ...cm, bandeauPhoto: '/site/c/carte-magnolia-bandeau-chef.webp' });
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), carteBandeauChef2: true });
+  }
+
   /* Paëlla royale : retirer de la galerie les 3 photos d'ingrédients seuls (poulet, chorizo, crevettes) (Jean-Luc, 2026-11-23). */
   const RPr = await store.get('site/reglages');
   if (RPr && !RPr.paellaSansIngredients) {
