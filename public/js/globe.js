@@ -69,12 +69,13 @@
   let flecheAnim = 0, flecheT0 = 0;
   function majFleche() {
     if (!map || actif < 0) { trait.setAttribute('d', ''); return; }
-    const x = items[actif], pave = paves[actif]; if (!pave) return;
-    const R = root.getBoundingClientRect(), P = pave.getBoundingClientRect();
-    const c = centreDe(x), pt = map.project(c);
+    const x = items[actif], c = centreDe(x);
     const cache = Math.abs(ecart(c[0])) > 84 && (map.getProjection()?.type || 'globe') === 'globe';
     root.classList.toggle('sm-cache', cache);
-    if (cache) { trait.setAttribute('d', ''); return; }
+    const pave = paveVisible(actif);
+    if (cache || !pave) { trait.setAttribute('d', ''); return; }
+    const R = root.getBoundingClientRect(), P = pave.getBoundingClientRect();
+    const pt = map.project(c);
     const mob = mobile();
     const sx = mob ? P.left + P.width / 2 - R.left : P.right - R.left + 6, sy = mob ? P.bottom - R.top + 6 : P.top + P.height / 2 - R.top;
     const ex = pt.x + (map.getContainer().getBoundingClientRect().left - R.left), ey = pt.y + (map.getContainer().getBoundingClientRect().top - R.top);
@@ -95,11 +96,11 @@
   let arcAnim = 0;
   function choisir(i, { voler = true, bandeau = true } = {}) {
     actif = i;
-    paves.forEach((p, k) => p.classList.toggle('on', k === i));
+    $$('[data-sm-i]').forEach(p => p.classList.toggle('on', +p.dataset.smI === i));
     const x = items[i]; if (!x) return;
     majTete(x);
     if (bandeau) majBandeau(x);
-    if (mobile()) paves[i]?.scrollIntoView({ behavior: calme ? 'auto' : 'smooth', inline: 'center', block: 'nearest' });
+    if (mobile()) pauseBande(8000);
     if (!map || !geo) return;
     const c = centreDe(x);
     map.getSource('choix').setData({ type: 'FeatureCollection', features: geo.features.filter(f => x.ids.includes(f.id)) });
@@ -123,7 +124,33 @@
     arcAnim = requestAnimationFrame(pas);
     flecheT0 = calme ? 0 : performance.now() + 200;
   }
-  paves.forEach(p => p.addEventListener('click', e => { e.preventDefault(); choisir(+p.dataset.smI); }));
+  /* ---------- téléphone : la bande de pavés défile toute seule, en boucle, de gauche à droite (Jean-Luc, 2026-11-22) ----------
+     elle s'arrête dès qu'on la touche et repart quelques secondes après ; les pavés restent cliquables */
+  const bande = $('[data-sm-paves]');
+  bande.addEventListener('click', e => { const p = e.target.closest('[data-sm-i]'); if (!p) return; e.preventDefault(); choisir(+p.dataset.smI); });
+  [...bande.children].forEach(li => { const c = li.cloneNode(true); c.classList.add('sm-copie'); c.setAttribute('aria-hidden', 'true'); c.querySelector('a').tabIndex = -1; bande.appendChild(c); });
+  let bandeArret = 0, bandePos = -1, bandeT = 0;
+  const largeurJeu = () => { const c = bande.querySelector('.sm-copie'); return c ? c.offsetLeft - bande.firstElementChild.offsetLeft : 0; };
+  function pauseBande(ms) { bandeArret = Math.max(bandeArret, performance.now() + ms); bandePos = -1; }
+  ['touchstart', 'pointerdown', 'wheel'].forEach(ev => bande.addEventListener(ev, () => pauseBande(4000), { passive: true }));
+  bande.addEventListener('touchend', () => pauseBande(3500), { passive: true });
+  function paveVisible(i) {
+    const L = $$(`[data-sm-i="${i}"]`); if (!mobile()) return L[0];
+    const B = bande.getBoundingClientRect();
+    return L.find(p => { const r = p.getBoundingClientRect(); return r.right > B.left + 10 && r.left < B.right - 10; }) || null;
+  }
+  function defile(t) {
+    requestAnimationFrame(defile);
+    const dt = bandeT ? Math.min(.1, (t - bandeT) / 1000) : 0; bandeT = t;
+    if (!mobile() || performance.now() < bandeArret) return;
+    const W = largeurJeu(); if (!W) return;
+    if (bandePos < 0) bandePos = bande.scrollLeft || W;
+    bandePos -= 32 * dt; // pixels par seconde ; les pavés glissent vers la droite
+    if (bandePos <= 0) bandePos += W;
+    if (bandePos > W * 1.5) bandePos -= W;
+    bande.scrollLeft = Math.round(bandePos);
+  }
+  requestAnimationFrame(defile);
 
   /* ---------- globe ---------- */
   function zoomBase() { const b = map.getContainer(); const w = b.clientWidth - (mobile() ? 0 : 380), h = b.clientHeight - (mobile() ? 0 : 270); return Math.log2(Math.max(260, Math.min(w, h)) / 512) + (mobile() ? .95 : 1.3); }
@@ -136,7 +163,7 @@
   function boucleTour(t) {
     requestAnimationFrame(boucleTour);
     const dt = tPrec ? Math.min(.1, (t - tPrec) / 1000) : 0; tPrec = t;
-    if (!map || !tour || t < pause || map.isMoving()) { vitesse = 0; return; }
+    if (!map || !tour || performance.now() < pause || map.isMoving()) { vitesse = 0; return; }
     /* le pays file vers la droite : dès qu'il va disparaître (bord droit), on accélère jusqu'à son retour à gauche */
     const d = actif >= 0 ? ecart(centreDe(items[actif])[0]) : 0;
     const cible = d > 70 || d < -110 ? VITE : LENT;
