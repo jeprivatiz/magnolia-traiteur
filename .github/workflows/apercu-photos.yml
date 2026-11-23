@@ -1,0 +1,32 @@
+name: Aperçu de photos libres (temporaire)
+
+# Outil temporaire, accepté par Jean-Luc le 2026-11-23 : télécharge en petit des photos Pexels/Unsplash candidates
+# pour que Claude puisse les regarder avant de les choisir (le cloud ne joint pas ces sites). Retiré avant la PR. (2e passage : buffets antillais et indien)
+on:
+  push:
+    paths:
+      - .github/workflows/apercu-photos.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apercu:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Téléchargement
+        run: |
+          mkdir -p apercu-photos && cd apercu-photos
+          px() { curl -fsSL -A "Mozilla/5.0" -o "px-$1.jpg" "https://images.pexels.com/photos/$1/pexels-photo-$1.jpeg?auto=compress&cs=tinysrgb&w=600" || echo "échec px $1"; }
+          us() { curl -fsSL -A "Mozilla/5.0" -o "us-$1.jpg" "https://images.unsplash.com/$1?auto=format&fit=crop&w=600&q=70" || echo "échec us $1"; }
+          for id in 36750236 25390062 27556962 17533361 16868526 40108713 9638804 9624296 27556985 19863292 40263096 35247180 36916402 32121761 7182077 7340914 8818732 958545 38464138 18840501 36799070 35985960 19659595 32689485 31177727 19659579 958547 38923304 40263097; do px $id; done
+          for id in photo-1763553113344-b6a32fcd9ffa photo-1761110429384-0678d7015545 photo-1575950674322-3a1977724f2e photo-1589778655375-3e622a9fc91c photo-1728910156510-77488f19b152 photo-1682862279256-b2a9e4f3d22c; do us $id; done
+          ls -la
+      - name: Enregistrer
+        run: |
+          git config user.name "magnolia-bot"
+          git config user.email "magnolia-bot@users.noreply.github.com"
+          git add apercu-photos
+          git commit -m "Aperçu temporaire de photos libres" && git push || echo rien
