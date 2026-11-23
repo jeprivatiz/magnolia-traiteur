@@ -379,6 +379,9 @@ section { margin: clamp(56px, 8vw, 110px) auto; }
 .fiche-prix span { color: var(--gris); }
 .fiche-prix .min { margin-left: 6px; }
 .desc { color: var(--encre); }
+.sous-photo { margin-top: 16px; color: var(--encre); line-height: 1.55; }
+.sous-photo p { margin: 0 0 .3em; }
+.sous-photo p:last-child { margin-bottom: 0; }
 .conf { background: var(--creme); border-radius: var(--rayon); padding: 20px; margin: 24px 0; }
 .conf-q { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .lab { font-size: .74rem; letter-spacing: .14em; text-transform: uppercase; font-weight: 500; }
