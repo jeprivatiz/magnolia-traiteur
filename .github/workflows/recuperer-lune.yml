@@ -19,7 +19,9 @@ jobs:
       - name: Téléchargement
         run: |
           mkdir -p public/site/lune/source
-          curl -fsSL -A "Mozilla/5.0 (magnolia-recuperation)" -o public/site/lune/source/moon_mosaic_print.jpg "https://svs.gsfc.nasa.gov/vis/a000000/a005000/a005001/moon_mosaic_print.jpg"
+          cd public/site/lune/source
+          for id in 7711844 596134 17302603 7501782 11252554 14993461 11105038 5024217 378556; do curl -fsSL -A "Mozilla/5.0 (magnolia-recuperation)" -o "pexels-$id.jpg" "https://images.pexels.com/photos/$id/pexels-photo-$id.jpeg?auto=compress&cs=tinysrgb&w=1200" || echo "échec $id"; done
+          cd -
           ls -la public/site/lune/source
       - name: Enregistrer dans le dépôt
         run: |
@@ -27,5 +29,5 @@ jobs:
           git config user.email "magnolia-bot@users.noreply.github.com"
           git add public/site/lune
           if git diff --cached --quiet; then echo "Rien de nouveau."; exit 0; fi
-          git commit -m "Photo de la Lune (NASA SVS, domaine public)"
+          git commit -m "Photos de la Lune candidates (Pexels)"
           git push
