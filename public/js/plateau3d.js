@@ -1,6 +1,8 @@
 /* Plateau de fruits de mer en 3D (Jean-Luc, 2026-11-23).
-   Tout est construit en code avec three.js (licence MIT, public/vendor/three) : aucune image, aucun modèle extérieur.
-   Grand plateau blanc, lit de glace pilée, huîtres, crustacés, citrons, rince-doigts, papier glacé et ruban doré.
+   Plateau, glace, rince-doigts et papier glacé en 3D (three.js, licence MIT, public/vendor/three) ;
+   produits et lit d'algues = vraies photos détourées (public/site/plateau, voir SOURCES.md).
+   Dressé comme chez le poissonnier : tout à plat sur les algues, en couronnes vers l'intérieur, sans rien superposer ;
+   le plateau est petit au départ et grandit avec les produits choisis.
    Le plateau tourne lentement ; on le fait tourner du doigt (gauche/droite), jamais de zoom.
    Il se compose avec les produits que le client ajoute (sélection « mg_sel » du site). */
 import * as THREE from '/vendor/three/three.module.min.js';
@@ -132,28 +134,22 @@ function matieres() {
    Photos des fiches produits du site (public/site/c/seafood30), détourées et rangées dans public/site/plateau.
    « plat » : photo prise du dessus, posée à plat sur la glace ; « debout » : photo de trois-quarts, tournée vers le regard. */
 const PHOTOS = {
-  'huitre-g1': ['plat', 2.3], 'huitre-g2': ['plat', 2.6], 'huitre-g3': ['plat', 2.4],
-  'huitres-utah': ['debout', 5], 'huitres-pleine-mer': ['debout', 5],
-  praires: ['debout', 4.2], bulots: ['debout', 4.2],
-  'crevettes-grises': ['plat', 3.8], 'crevettes-roses': ['debout', 5],
-  langoustines: ['plat', 5.4], homard: ['plat', 4.3], 'demi-homards': ['plat', 5.2],
-  tourteau: ['debout', 6], 'demi-tourteau': ['debout', 4.4], oursin: ['plat', 2.7],
-  caviar: ['debout', 3.2], 'oeufs-saumon': ['debout', 3.2], tarama: ['debout', 2.8], 'tarama-cabillaud': ['debout', 3], 'tarama-oursins': ['debout', 3.2],
-  'saumon-fume': ['debout', 4.4], anchois: ['plat', 3.6], blinis: ['plat', 3.2], citron: ['debout', 1.6],
+  'huitre-g1': 2.1, 'huitre-g2': 2.3, 'huitre-g3': 2.2, 'huitre-p1': 2.1, 'huitre-p2': 1.7, 'huitre-p3': 2.4, 'huitre-u3': 2.5,
+  praires: 3.4, bulots: 3.4, 'crevettes-grises': 3, 'crevettes-roses': 3.6, langoustines: 4.6, homard: 3, 'demi-homards': 4.2,
+  tourteau: 5.6, 'demi-tourteau': 3.8, oursin: 2.2, caviar: 2.4, 'oeufs-saumon': 2.4, tarama: 2.1, 'tarama-cabillaud': 2.3, 'tarama-oursins': 2.4,
+  'saumon-fume': 3.4, anchois: 2.8, blinis: 2.5, citron: 1.35,
 };
 async function modeles(M) {
   const G = {}, chargeur = new THREE.TextureLoader();
   const ombreGeo = new THREE.PlaneGeometry(1, 1); ombreGeo.rotateX(-Math.PI / 2);
-  await Promise.all(Object.entries(PHOTOS).map(([nom, [mode, larg]]) => chargeur.loadAsync(`/site/plateau/${nom}.webp`).then(t => {
+  await Promise.all(Object.entries(PHOTOS).map(([nom, larg]) => chargeur.loadAsync(`/site/plateau/${nom}.webp`).then(t => {
     t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
     const mat = new THREE.MeshBasicMaterial({ map: t, transparent: true, alphaTest: .15, side: THREE.DoubleSide, toneMapped: false });
-    larg *= 1.15; const h = larg * t.image.height / t.image.width;
-    const geo = new THREE.PlaneGeometry(larg, h);
-    const g = new THREE.Group(); g.userData.mode = mode;
-    const om = new THREE.Mesh(ombreGeo, M.ombre); om.position.y = .04; om.renderOrder = 1;
-    if (mode === 'plat') { geo.rotateX(-Math.PI / 2); om.scale.set(larg * .95, 1, h * .95); }
-    else { geo.translate(0, h / 2, 0); om.scale.set(larg * .9, 1, larg * .4); }
-    const plan = new THREE.Mesh(geo, mat); plan.position.y = mode === 'plat' ? .06 : -.08;
+    larg *= 1.35; const h = larg * t.image.height / t.image.width;
+    const geo = new THREE.PlaneGeometry(larg, h); geo.rotateX(-Math.PI / 2);
+    const g = new THREE.Group(); g.userData.dims = { w: larg, h };
+    const om = new THREE.Mesh(ombreGeo, M.ombre); om.position.y = .01; om.scale.set(larg * .9, 1, h * .9); om.renderOrder = 1;
+    const plan = new THREE.Mesh(geo, mat); plan.position.y = .03; plan.renderOrder = 2;
     g.add(om, plan);
     G[nom] = g;
   }).catch(() => {})));
@@ -181,82 +177,120 @@ function fusion(liste) {
 /* ---------------- du produit du site à ce qu'on pose sur le plateau ---------------- */
 /* type de pièce, nombre de pièces par unité vendue, emplacement (0 centre, 1 milieu, 2 bord), place occupée */
 const TYPES = [
-  [/gillardeau/i, ['huitre-g1', 'huitre-g2', 'huitre-g3'], 6, 2, 1.25],
-  [/utah/i, 'huitres-utah', 2, 2, 2.4],
-  [/hu[iî]tre/i, 'huitres-pleine-mer', 2, 2, 2.4],
-  [/praire|palourde|clam/i, 'praires', 1, 2, 2.1],
-  [/demi.?homard/i, 'demi-homards', 1, 0, 2.6],
-  [/homard|langouste\b/i, 'homard', 1, 0, 2.6],
-  [/demi.?tourteau/i, 'demi-tourteau', 1, 0, 2.2],
-  [/tourteau|crabe/i, 'tourteau', 1, 0, 3],
-  [/langoustine/i, 'langoustines', 1, 1, 2.6],
-  [/crevettes? grise/i, 'crevettes-grises', 1, 1, 1.9],
-  [/crevette|gambas/i, 'crevettes-roses', 1, 1, 2.4],
-  [/bulot|bigorneau/i, 'bulots', 1, 1, 2.1],
-  [/tarama d.?oursin/i, 'tarama-oursins', 1, 2, 1.6],
-  [/oursin/i, 'oursin', 1, 1, 1.4],
-  [/tarama de cabillaud/i, 'tarama-cabillaud', 1, 2, 1.5],
-  [/tarama/i, 'tarama', 1, 2, 1.4],
-  [/caviar/i, 'caviar', 1, 2, 1.6],
-  [/oeufs? de saumon|œufs? de saumon/i, 'oeufs-saumon', 1, 2, 1.6],
-  [/saumon/i, 'saumon-fume', 1, 1, 2.2],
-  [/anchois/i, 'anchois', 1, 2, 1.8],
-  [/blini/i, 'blinis', 1, 2, 1.6],
+  [/gillardeau/i, ['huitre-g1', 'huitre-g2', 'huitre-g3'], 6, 2],
+  [/utah/i, ['huitre-u3'], 6, 2],
+  [/hu[iî]tre/i, ['huitre-p1', 'huitre-p3', 'huitre-p2'], 6, 2],
+  [/praire|palourde|clam/i, 'praires', 1, 2],
+  [/demi.?homard/i, 'demi-homards', 1, 0],
+  [/homard|langouste\b/i, 'homard', 1, 0],
+  [/demi.?tourteau/i, 'demi-tourteau', 1, 0],
+  [/tourteau|crabe/i, 'tourteau', 1, 0],
+  [/langoustine/i, 'langoustines', 1, 1],
+  [/crevettes? grise/i, 'crevettes-grises', 1, 1],
+  [/crevette|gambas/i, 'crevettes-roses', 1, 1],
+  [/bulot|bigorneau/i, 'bulots', 1, 1],
+  [/tarama d.?oursin/i, 'tarama-oursins', 1, 0],
+  [/oursin/i, 'oursin', 1, 1],
+  [/tarama de cabillaud/i, 'tarama-cabillaud', 1, 0],
+  [/tarama/i, 'tarama', 1, 0],
+  [/caviar/i, 'caviar', 1, 0],
+  [/oeufs? de saumon|œufs? de saumon/i, 'oeufs-saumon', 1, 0],
+  [/saumon/i, 'saumon-fume', 1, 1],
+  [/anchois/i, 'anchois', 1, 1],
+  [/blini/i, 'blinis', 1, 1],
 ];
-const typeDe = titre => { const t = String(titre || ''); const x = TYPES.find(([re]) => re.test(t)); return x ? { type: x[1], parUnite: x[2], anneau: x[3], place: x[4] } : null; };
+const typeDe = titre => { const t = String(titre || ''); const x = TYPES.find(([re]) => re.test(t)); return x ? { type: x[1], parUnite: x[2], anneau: x[3] } : null; };
 
-const EXEMPLE = [['Huîtres Gillardeau', 2], ['Huîtres Utah Beach', 1], ['Huîtres pleine mer', 1], ['Praires', 2], ['Crevettes roses', 1], ['Langoustines', 2], ['Tourteau', 1], ['Homard', 1], ['Demi-homard', 1], ['Bulots', 1], ['Oursin', 2], ['Crevettes grises', 1]];
-const MAX_PIECES = 60, TAILLE = 1.15;
-for (const t of TYPES) t[4] *= TAILLE;
+const EXEMPLE = [['Huîtres Gillardeau', 1], ['Huîtres pleine mer', 1], ['Praires', 1], ['Crevettes roses', 1], ['Langoustines', 2], ['Tourteau', 1], ['Demi-homard', 1], ['Bulots', 1], ['Oursin', 1], ['Crevettes grises', 1]];
+const MAX_PIECES = 72;
 
 function piecesDe(liste) {
   const out = []; const vus = {};
   for (const [titre, qte] of liste) {
     const t = typeDe(titre); if (!t) continue;
-    for (let i = 0; i < qte * t.parUnite; i++) { const k = String(t.type); vus[k] = (vus[k] || 0) + 1; const photo = Array.isArray(t.type) ? t.type[(vus[k] - 1) % t.type.length] : t.type; out.push({ ...t, cle: k + '#' + vus[k], type: photo }); }
+    for (let i = 0; i < qte * t.parUnite; i++) { const k = String(t.type); vus[k] = (vus[k] || 0) + 1; const photo = Array.isArray(t.type) ? t.type[(vus[k] - 1) % t.type.length] : t.type; out.push({ ...t, src: k, cle: k + '#' + vus[k], type: photo }); }
   }
   return out.slice(0, MAX_PIECES);
 }
 
-/* ---------------- dressage : où poser chaque pièce sur la glace ---------------- */
-const R_PLAT = 10.2, R_GLACE = 9.5;
-const hGlace = r => .55 + 1.45 * Math.max(0, 1 - (r / R_GLACE) ** 2) ** .8;
-function dresser(pieces) {
-  /* citrons : toujours là, glissés entre les produits */
+/* ---------------- dressage : comme chez le poissonnier ---------------- */
+const R_GLACE = 9.5, R_UTILE = 8.9;
+const hGlace = r => .55 + 1.1 * Math.max(0, 1 - (r / R_GLACE) ** 2) ** .8;
+/* les grosses pièces et les coupelles au centre, puis des couronnes serrées vers l'extérieur
+   (crevettes, langoustines, bulots…, puis huîtres et coquillages, pointe vers le centre), citrons entre les produits.
+   Chaque couronne est calculée pour que rien ne se chevauche. Renvoie aussi la taille de plateau nécessaire. */
+function dresser(pieces, G) {
+  const dims = p => G[p.type]?.userData.dims || { w: 1, h: 1 };
   const n = pieces.length;
-  const nCitrons = n ? Math.min(7, 3 + Math.floor(n / 6)) : 5;
-  const citrons = Array.from({ length: nCitrons }, (_, i) => ({ cle: 'citron#' + i, type: 'citron', anneau: 2, place: .8, deco: true }));
-  /* ordre de pose : les grosses pièces au centre, puis chaque produit regroupé ; les citrons répartis */
-  const ordre = pieces.slice().sort((a, b) => a.anneau - b.anneau || b.place - a.place);
-  const tout = [];
-  const pas = Math.max(1, Math.floor(ordre.length / (nCitrons + 1)));
-  ordre.forEach((p, i) => { tout.push(p); if ((i + 1) % pas === 0 && citrons.length) tout.push(citrons.shift()); });
-  tout.push(...citrons);
-  /* rangement en spirale : chaque pièce prend la première place libre en partant du centre ;
-     si tout ne tient pas sur la glace, on réduit un peu la taille de l'ensemble et on recommence */
-  let echelle = 1, poses = [];
-  for (let essai = 0; essai < 12; essai++) {
-    poses = []; let ok = true;
-    for (const p of tout) {
-      const rp = p.place * echelle;
-      let place = null;
-      for (let k = 0; k < 900; k++) {
-        const rad = Math.sqrt(k) * .32, a = k * 2.39996 + .7;
-        if (rad + rp * .55 > 8.9) break;
-        const x = Math.cos(a) * rad, z = Math.sin(a) * rad;
-        if (poses.every(q => Math.hypot(q.x - x, q.z - z) >= (rp + q.rp) * .86)) { place = { x, z, a }; break; }
-      }
-      if (!place) { ok = false; break; }
-      poses.push({ p, x: place.x, z: place.z, rp, rot: -place.a - Math.PI / 2 + (alea() - .5) * .6, s: echelle });
-    }
-    if (ok) break;
-    echelle *= .92;
+  const nCitrons = n ? Math.min(10, 2 + Math.floor(n / 3)) : 0;
+  const citrons = Array.from({ length: nCitrons }, (_, i) => ({ cle: 'citron#' + i, type: 'citron', anneau: 2, deco: true }));
+  const parAnneau = [0, 1, 2].map(k => pieces.filter(p => p.anneau === k));
+  /* citrons glissés entre les groupes de la couronne extérieure (ou du milieu s'il n'y a rien au bord) */
+  const kc = parAnneau[2].length ? 2 : 1, ext = parAnneau[kc];
+  /* un citron toutes les quelques pièces, régulièrement tout autour */
+  const mix = [], pas = Math.max(1, ext.length / Math.max(1, citrons.length));
+  let prochain = pas / 2, ci = 0;
+  ext.forEach((p, i) => { mix.push(p); if (i + 1 >= prochain && ci < citrons.length) { mix.push(citrons[ci++]); prochain += pas; } });
+  while (ci < citrons.length) mix.push(citrons[ci++]);
+  parAnneau[kc] = mix;
+  const poses = [];
+  /* centre */
+  /* rien au centre : un citron au milieu, comme chez le poissonnier */
+  if (!parAnneau[0].length && citrons.length) { const c0 = citrons.pop(); parAnneau[0].push(c0); const i0 = parAnneau[kc].indexOf(c0); if (i0 >= 0) parAnneau[kc].splice(i0, 1); }
+  const C = parAnneau[0].slice().sort((a, b) => dims(b).w * dims(b).h - dims(a).w * dims(a).h);
+  let R = 0;
+  if (C.length === 1) { const d = dims(C[0]); poses.push({ p: C[0], r: 0, a: 0, rot: 0 }); R = Math.max(d.w, d.h) / 2; }
+  else if (C.length > 1) {
+    /* la plus grosse au milieu, les autres tout autour */
+    const d0 = dims(C[0]); poses.push({ p: C[0], r: 0, a: 0, rot: 0 }); const r0 = Math.max(d0.w, d0.h) / 2;
+    const autour = C.slice(1), prof = Math.max(...autour.map(p => dims(p).h)), larg = autour.reduce((s2, p) => s2 + dims(p).w + .15, 0);
+    const r = Math.max(r0 + prof / 2 + .1, larg / (2 * Math.PI));
+    let acc = 0; autour.forEach(p => { const w = dims(p).w + .15; const a = (acc + w / 2) / Math.max(larg, 2 * Math.PI * r) * Math.PI * 2; acc += w; poses.push({ p, r, a, rot: 0 }); });
+    R = r + prof / 2;
   }
+  /* les pièces maîtresses du centre sont servies un peu plus grosses */
+  if (C.length && !C[0].deco) { const gc = 1.25; poses.forEach(q => { q.r *= gc; q.g = gc; }); R *= gc; }
+  /* couronnes : crustacés et coquillages au milieu, huîtres au bord ; les pièces d'une couronne sont réparties tout autour */
+  for (const k of [1, 2]) {
+    let reste = parAnneau[k].slice();
+    while (reste.length) {
+      const echant = reste.slice(0, 12).map(p => dims(p).h), prof = Math.max(echant.reduce((a, b) => a + b, 0) / echant.length * 1.05, Math.max(...echant) * .75);
+      const rmin = R + (R ? .12 : 0) + prof / 2;
+      const tout2 = reste.reduce((t2, p) => t2 + dims(p).w * .92, 0);
+      /* tout ce qui reste tient sur une couronne : on la serre au plus près ; sinon on remplit celle-ci */
+      /* une seule couronne un peu plus large vaut mieux que plusieurs petites qui se chevauchent */
+      const rUne = Math.max(rmin, tout2 / (2 * Math.PI));
+      const r = rUne <= rmin + prof * 2.5 ? rUne : rmin;
+      const perim = 2 * Math.PI * r;
+      const rang = []; let larg = 0;
+      for (const p of reste) { const w = dims(p).w * .92; if (larg + w > perim + .01 && rang.length) break; rang.push(p); larg += w; }
+      reste = reste.slice(rang.length);
+      /* si la couronne n'est pas pleine, les pièces restent serrées par groupe et les vides sont répartis */
+      /* couronne clairsemée : les pièces sont servies plus grosses pour couvrir les algues */
+      const g = Math.min(1.55, Math.max(1, perim / Math.max(larg, .01) * .8));
+      const rg = r + prof * (g - 1) / 2, perimG = 2 * Math.PI * rg;
+      const vide = Math.max(0, perimG - larg * g) / rang.length;
+      let acc = 0;
+      rang.forEach(p => { const w = dims(p).w * .92 * g + vide; const a = (acc + w / 2) / perimG * Math.PI * 2 + k * .4; acc += w; poses.push({ p, r: rg, a, rot: 0, g }); });
+      R = rg + prof * g / 2;
+    }
+  }
+  /* taille du plateau : juste ce qu'il faut ; au-delà du grand plateau, on resserre un peu les pièces */
+  const besoin = R + .5;
+  const taille = Math.max(.42, Math.min(1, besoin / R_UTILE));
+  const echelle = besoin > R_UTILE ? R_UTILE / besoin : 1;
+  for (const q of poses) {
+    q.r *= echelle; q.s = echelle * (q.g || 1);
+    q.x = Math.cos(q.a) * q.r; q.z = Math.sin(q.a) * q.r;
+    /* pointe vers le centre : le haut de la photo regarde vers l'extérieur */
+    q.rot = q.r ? -q.a + Math.PI / 2 : 0;
+  }
+  poses.forEach(q => { const rr = q.r / taille; q.y = (hGlace(rr) + .08) * taille; q.tilt = Math.atan(Math.max(0, -(hGlace(rr + .2) - hGlace(rr)) / .2)) * .9; q.ang = q.a; });
   /* deux rince-doigts posés sur le bord du plateau */
-  poses.push({ p: { cle: 'rince#1', type: 'rinceDoigts', deco: true }, x: Math.cos(.6) * 10.55, z: Math.sin(.6) * 10.55, rot: 0, s: 1.1, table: true });
-  poses.push({ p: { cle: 'rince#2', type: 'rinceDoigts', deco: true }, x: Math.cos(.6 + Math.PI) * 10.55, z: Math.sin(.6 + Math.PI) * 10.55, rot: 0, s: 1.1, table: true });
-  for (const q of poses) { const r = Math.hypot(q.x, q.z); q.plat = PHOTOS[q.p.type]?.[0] === 'plat'; q.y = q.table ? .32 : hGlace(r) + (q.plat ? .12 : -.1); q.tilt = q.table || !q.plat ? 0 : Math.min(.4, r / R_GLACE * .5); q.ang = Math.atan2(q.z, q.x); }
-  return poses;
+  const rb = 10.55 * taille;
+  poses.push({ p: { cle: 'rince#1', type: 'rinceDoigts', deco: true }, x: Math.cos(.6) * rb, z: Math.sin(.6) * rb, rot: 0, s: Math.max(.7, taille) * 1.1, y: .32 * taille, tilt: 0, ang: .6 });
+  poses.push({ p: { cle: 'rince#2', type: 'rinceDoigts', deco: true }, x: Math.cos(.6 + Math.PI) * rb, z: Math.sin(.6 + Math.PI) * rb, rot: 0, s: Math.max(.7, taille) * 1.1, y: .32 * taille, tilt: 0, ang: .6 + Math.PI });
+  return { poses, taille, rayon: Math.min(R_UTILE, besoin) };
 }
 
 /* ---------------- la scène ---------------- */
@@ -313,10 +347,21 @@ function demarrer(el) {
 
   /* les pièces posées (dictionnaire clé → objet), animées quand elles arrivent ou repartent */
   const poseesObj = new Map();
-  const pieces = new THREE.Group(); plateau.add(pieces);
+  const pieces = new THREE.Group(); monde.add(pieces);
+  /* lit d'algues (vraie photo) posé sur la glace, sous les produits ; sa taille suit celle des produits */
+  const lit = new THREE.Group(); monde.add(lit);
+  new THREE.TextureLoader().load('/site/plateau/lit-algues.webp', t => {
+    t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+    const geo = new THREE.RingGeometry(.001, 1, 72, 14); geo.rotateX(-Math.PI / 2); geo.userData.base = geo.attributes.position.array.slice();
+    const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: t, transparent: true, alphaTest: .2, toneMapped: false, side: THREE.DoubleSide }));
+    m.renderOrder = 0; lit.add(m);
+  });
+  let taille = 1, tailleCible = 1, litR = 1, litRCible = 1;
   function appliquer(liste, instant) {
     graine = 11;
-    const poses = dresser(piecesDe(liste));
+    const res = dresser(piecesDe(liste), G), poses = res.poses;
+    tailleCible = res.taille; litRCible = Math.min(res.rayon + .7, (R_GLACE - .2) * res.taille);
+    if (instant) { taille = tailleCible; litR = litRCible; }
     const vues = new Set();
     poses.forEach((q, i) => {
       vues.add(q.p.cle);
@@ -338,12 +383,12 @@ function demarrer(el) {
     c.x += (q.x - c.x) * k; c.y += (q.y - c.y) * k; c.z += (q.z - c.z) * k; c.s += (q.s - c.s) * k;
     let dr = q.rot - c.rot; dr = Math.atan2(Math.sin(dr), Math.cos(dr)); c.rot += dr * k;
     let y = c.y, s = c.s;
-    if (o.arrivee < 1) { o.arrivee = Math.min(1, o.arrivee + dt * 1.6); const t = Math.max(0, o.arrivee); const b = t < 1 ? Math.abs(Math.cos(t * Math.PI * 1.5)) * (1 - t) ** 2 : 0; y += b * 6; s *= Math.min(1, t * 3); }
+    if (o.arrivee < 1) { o.arrivee = Math.min(1, o.arrivee + dt * 2.2); const t = Math.max(0, o.arrivee); y += (1 - t) ** 2 * 3; s *= Math.min(1, t * 2.5); }
     if (o.depart) { o.sortie += dt * 2.5; y += o.sortie ** 2 * 5; s *= Math.max(0, 1 - o.sortie); }
     o.g.position.set(c.x, y, c.z);
     o.g.rotation.set(0, 0, 0);
     o.g.rotateY(-q.ang);
-    o.g.rotateZ(q.tilt * (q.table ? 0 : 1) * -1);
+    o.g.rotateZ(-(q.tilt || 0));
     o.g.rotateY(q.ang + c.rot);
     o.g.scale.setScalar(Math.max(.0001, s));
     o.g.visible = s > .001;
@@ -399,7 +444,7 @@ function demarrer(el) {
     renderer.setSize(w, h, false);
     camera.aspect = w / h;
     const vfov = camera.fov * Math.PI / 180, hfov = 2 * Math.atan(Math.tan(vfov / 2) * camera.aspect);
-    const el2 = .9 - emballe * .25;
+    const el2 = 1.02 - emballe * .3;
     const larg = 12.4 + emballe * 1.4, haut = (12.4 * Math.sin(el2) + (2 + emballe * 13) * Math.cos(el2)) * .85 + 1.5;
     const d = Math.max(larg / Math.tan(hfov / 2), haut / Math.tan(vfov / 2)) + 4;
     camera.position.set(0, Math.sin(el2) * d + 1, Math.cos(el2) * d);
@@ -417,23 +462,25 @@ function demarrer(el) {
   const lacher = () => { if (!glisse) return; vit = Math.max(-4, Math.min(4, glisse.v || 0)); glisse = null; el.classList.remove('p3-tient'); };
   cv.addEventListener('pointerup', lacher); cv.addEventListener('pointercancel', lacher);
 
-  const qTmp = new THREE.Quaternion(), qCam = new THREE.Quaternion(), eTmp = new THREE.Euler();
   let visible = true, dernier = performance.now(), boucle = 0;
   const frame = () => {
     boucle = 0;
     const now = performance.now(), dt = Math.min(.05, (now - dernier) / 1000); dernier = now;
     if (!glisse) { vit += ((reduit ? .05 : .16) - vit) * Math.min(1, dt * 1.2); angle += vit * dt; }
     monde.rotation.y = angle;
-    for (const [k, o] of poseesObj) { placer(o, dt); if (o.depart && o.sortie >= 1) { pieces.remove(o.g); poseesObj.delete(k); } }
-    /* photos « debout » : toujours face au regard, comme posées contre la glace */
-    monde.updateMatrixWorld();
-    const elev = Math.atan2(camera.position.y - 1, Math.hypot(camera.position.x, camera.position.z));
-    for (const o of poseesObj.values()) {
-      const inner = o.g.children[0]; if (!inner || inner.userData.mode !== 'debout') continue;
-      const plan = inner.children[1];
-      o.g.getWorldQuaternion(qTmp); plan.quaternion.copy(qTmp.invert().multiply(qCam.setFromEuler(eTmp.set(0, Math.atan2(camera.position.x, camera.position.z), 0))));
-      plan.rotateX(-elev * .85);
+    if (Math.abs(taille - tailleCible) > .001 || Math.abs(litR - litRCible) > .001) {
+      const k = Math.min(1, dt * 3); taille += (tailleCible - taille) * k; litR += (litRCible - litR) * k;
     }
+    plateau.scale.setScalar(taille); emb.scale.setScalar(taille); om.scale.setScalar(.45 + .55 * taille);
+    /* le lit d'algues épouse le dôme de glace */
+    const litM = lit.children[0];
+    if (litM && (litM.userData.t !== taille || litM.userData.r !== litR)) {
+      litM.userData.t = taille; litM.userData.r = litR;
+      const pa = litM.geometry.attributes.position, b0 = litM.geometry.userData.base;
+      for (let i = 0; i < pa.count; i++) { const x = b0[i * 3] * litR, z = b0[i * 3 + 2] * litR; pa.setXYZ(i, x, (hGlace(Math.hypot(x, z) / taille) + .05) * taille, z); }
+      pa.needsUpdate = true; litM.geometry.computeBoundingSphere();
+    }
+    for (const [k, o] of poseesObj) { placer(o, dt); if (o.depart && o.sortie >= 1) { pieces.remove(o.g); poseesObj.delete(k); } }
     if (Math.abs(emballe - emballeCible) > .001) {
       emballe += (emballeCible - emballe) * Math.min(1, dt * 2.2); if (Math.abs(emballe - emballeCible) < .002) emballe = emballeCible;
       emb.visible = emballe > .002; formePapier(emballe); cadrer();
@@ -461,7 +508,7 @@ function demarrer(el) {
     const liste = perso ? L.map(l => [parSlug.get(l.slug).titre, +l.qte || 0]) : EXEMPLE;
     appliquer(liste, instant);
     const nb = piecesDe(liste).length;
-    if (legende) legende.innerHTML = perso ? `<b>Votre plateau</b> · ${nb} pièce${nb > 1 ? 's' : ''} dressée${nb > 1 ? 's' : ''} sur la glace` : '<b>Exemple de plateau</b> · ajoutez vos produits, il se compose sous vos yeux';
+    if (legende) legende.innerHTML = perso ? `<b>Votre plateau</b> · ${nb} pièce${nb > 1 ? 's' : ''} dressée${nb > 1 ? 's' : ''} sur le plateau` : '<b>Exemple de plateau</b> · ajoutez vos produits, il se compose sous vos yeux';
     const tot = L.reduce((a, l) => a + (parSlug.get(l.slug).prixCents || 0) * (+l.qte || 0), 0);
     if (total) total.textContent = perso ? euros(tot) + ' TTC' : '';
     if (pied) pied.hidden = !perso;

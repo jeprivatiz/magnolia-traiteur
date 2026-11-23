@@ -39,7 +39,11 @@ function adsConv(R) {
   return ` data-ads="${id}"` + d + k;
 }
 
-function layout(c, { title, description = '', body, path = '/', schema = null, bodyClass = '', image = '', head = '', scripts = '', partage = '' }) {
+/* Jean-Luc (2026-11-23) : « plateau de fruits de mer » ne doit jamais être coupé en deux lignes → espaces insécables partout */
+const INSECABLES = [[/\b(plateaux?) (de) (fruits) (de) (mer)\b/gi, '$1\u00a0$2\u00a0$3\u00a0$4\u00a0$5'], [/\b(fruits) (de) (mer)\b/gi, '$1\u00a0$2\u00a0$3']];
+const insecables = html => INSECABLES.reduce((h, [re, r]) => h.replace(re, r), String(html));
+function layout(...args) { return insecables(layoutBrut(...args)); }
+function layoutBrut(c, { title, description = '', body, path = '/', schema = null, bodyClass = '', image = '', head = '', scripts = '', partage = '' }) {
   const R = c.reglages;
   const fullTitle = title ? `${title} · ${R.nom || 'Magnolia Traiteur'}` : `${R.nom || 'Magnolia Traiteur'} · Traiteur événementiel`;
   const site = (process.env.SITE_URL || 'https://www.magnoliatraiteur.fr').replace(/\/$/, '');

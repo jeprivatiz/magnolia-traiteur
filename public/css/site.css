@@ -1006,29 +1006,29 @@ body.noscroll .partage { display: none; }
 @media (max-width: 860px) { .sm-sous { font-size: 1.05rem; } }
 
 /* ---------- Plateau de fruits de mer en 3D (page /grand-large) ---------- */
-.p3 { --p3-fond: #14291f; background: radial-gradient(120% 90% at 30% 35%, #2b5242 0%, #1d3b2f 45%, #11231b 100%); color: #f6f1e8; padding: 56px 0 48px; overflow-x: clip; }
+.p3 { background: var(--fond); color: var(--encre); padding: 48px 0 40px; overflow-x: clip; border-bottom: 1px solid var(--ligne); }
 .p3-in { max-width: var(--max); margin: 0 auto; padding: 0 24px; display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 40px; align-items: start; }
 .p3-scene-col { position: sticky; top: 90px; }
 .p3-scene { position: relative; aspect-ratio: 1 / .8; width: 100%; cursor: grab; }
 .p3-tient .p3-scene { cursor: grabbing; }
 .p3-scene canvas { position: absolute; inset: 0; width: 100% !important; height: 100% !important; display: block; outline: none; }
 .p3-attente { position: absolute; inset: 0; display: grid; place-items: center; transition: opacity .6s; }
-.p3-attente span { width: 46px; height: 46px; border-radius: 50%; border: 3px solid rgba(226, 196, 149, .25); border-top-color: #e2c495; animation: p3-tour 1s linear infinite; }
+.p3-attente span { width: 46px; height: 46px; border-radius: 50%; border: 3px solid rgba(176, 138, 79, .25); border-top-color: var(--or); animation: p3-tour 1s linear infinite; }
 .p3-pret .p3-attente { opacity: 0; pointer-events: none; }
 .p3-sans3d .p3-scene { display: none; }
 @keyframes p3-tour { to { transform: rotate(1turn); } }
-.p3-legende { text-align: center; margin: 6px 0 0; font-size: .95rem; color: #e7dccb; min-height: 1.5em; }
-.p3-legende b { color: #e2c495; font-weight: 600; }
-.p3-emb { display: flex; align-items: center; gap: 8px; margin: 12px auto 0; background: transparent; color: #e2c495; border: 1px solid rgba(226, 196, 149, .6); border-radius: 999px; padding: 9px 18px; font: 500 .95rem var(--sans); cursor: pointer; }
-.p3-emb:hover, .p3-emb[aria-pressed=true] { background: #e2c495; color: #1d3b2f; }
+.p3-legende { text-align: center; margin: 6px 0 0; font-size: .95rem; color: var(--gris); min-height: 1.5em; }
+.p3-legende b { color: var(--or); font-weight: 600; }
+.p3-emb { display: flex; align-items: center; gap: 8px; margin: 12px auto 0; background: transparent; color: var(--or); border: 1px solid var(--or); border-radius: 999px; padding: 9px 18px; font: 500 .95rem var(--sans); cursor: pointer; }
+.p3-emb:hover, .p3-emb[aria-pressed=true] { background: var(--or); color: #fff; }
 .p3-emb svg { width: 16px; height: 16px; transform: rotate(-90deg); }
-.p3-texte .eyebrow { color: #e2c495; }
-.p3-texte h2 { color: #fff; font-size: clamp(1.7rem, 3vw, 2.4rem); margin: .2em 0 .5em; line-height: 1.15; }
-.p3-lead { font-size: 1.08rem; line-height: 1.6; color: #efe7da; margin: 0 0 18px; }
+.p3-texte .eyebrow { color: var(--or); }
+.p3-texte h2 { color: var(--encre); font-size: clamp(1.7rem, 3vw, 2.4rem); margin: .2em 0 .5em; line-height: 1.15; }
+.p3-lead { font-size: 1.08rem; line-height: 1.6; color: var(--encre); margin: 0 0 18px; }
 .p3-etapes { list-style: none; padding: 0; margin: 0 0 22px; display: grid; gap: 10px; }
-.p3-etapes li { display: flex; gap: 12px; align-items: flex-start; color: #e7dccb; line-height: 1.45; }
+.p3-etapes li { display: flex; gap: 12px; align-items: flex-start; color: var(--encre); line-height: 1.45; }
 .p3-etapes b { flex: none; width: 28px; height: 28px; border-radius: 50%; background: #b08a4f; color: #fff; display: grid; place-items: center; font-size: .9rem; }
-.p3-compo { background: var(--carte); color: var(--encre); border-radius: var(--rayon); padding: 6px 16px 10px; box-shadow: 0 18px 40px rgba(0, 0, 0, .3); }
+.p3-compo { background: var(--carte); color: var(--encre); border-radius: var(--rayon); padding: 6px 16px 10px; border: 1px solid var(--ligne); box-shadow: var(--ombre); }
 .p3-compo h3 { font: 600 .82rem var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--or); margin: 16px 0 6px; }
 .p3-compo ul { list-style: none; margin: 0; padding: 0; }
 .p3-compo li { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-top: 1px solid var(--ligne); }
@@ -1044,15 +1044,15 @@ body.noscroll .partage { display: none; }
 .p3-qty button[data-p3-plus] { background: var(--or); color: #fff; }
 .p3-qty button:disabled { opacity: .3; cursor: default; }
 .p3-qty output { min-width: 26px; text-align: center; font-weight: 600; font-size: 1.02rem; }
-.p3-pied { position: sticky; bottom: 78px; margin-top: 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px; background: #f6f1e8; color: #1d3b2f; border-radius: 999px; padding: 8px 8px 8px 20px; box-shadow: 0 10px 30px rgba(0, 0, 0, .35); }
+.p3-pied { position: sticky; bottom: 78px; margin-top: 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--vert); color: #fff; border-radius: 999px; padding: 8px 8px 8px 20px; box-shadow: 0 10px 30px rgba(0, 0, 0, .35); }
 .p3-pied b { font-size: 1.1rem; margin-left: 4px; }
 .p3-pied .btn { white-space: nowrap; }
-.p3-note { color: #cfc4b2; margin-top: 12px; }
+.p3-note { color: var(--gris); margin-top: 12px; }
 .p3-titre-liste { margin: 8px 0 4px; }
 @media (max-width: 900px) {
-  .p3 { padding: 0 0 36px; }
+  .p3 { padding: 0 0 32px; }
   .p3-in { grid-template-columns: 1fr; gap: 10px; padding: 0 16px; }
-  .p3-scene-col { position: sticky; top: 56px; z-index: 2; margin: 0 -16px; padding: 4px 16px 8px; background: radial-gradient(100% 100% at 50% 40%, #2b5242, #1a3529); box-shadow: 0 12px 20px -14px rgba(0, 0, 0, .6); }
+  .p3-scene-col { position: sticky; top: 56px; z-index: 2; margin: 0 -16px; padding: 4px 16px 8px; background: var(--fond); box-shadow: 0 12px 16px -14px rgba(0, 0, 0, .35); }
   .p3-scene { aspect-ratio: auto; height: min(58vw, 340px); }
   .p3-legende { font-size: .85rem; margin-top: 0; }
   .p3-emb { margin-top: 6px; padding: 6px 14px; font-size: .85rem; }
@@ -1067,3 +1067,5 @@ body.noscroll .partage { display: none; }
   .p3-pied b { display: block; margin: 0; font-size: 1.02rem; }
   .p3-pied .btn { padding: 10px 16px; font-size: .8rem; }
 }
+
+@media (prefers-color-scheme: dark) { .p3-pied { background: #173126; } }
