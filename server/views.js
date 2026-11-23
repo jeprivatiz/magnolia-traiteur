@@ -447,8 +447,8 @@ ${avant}<section class="wrap shop" id="prestations" data-shop>
   return layout(c, { title: seo?.title || (r && path === '/' + r.slug && r.seoTitre) || titre, description: seo?.description || (r && path === '/' + r.slug && r.seoDescription) || chapo || (path === '/boutique' && !q ? bandeauDe(c, 'boutique').chapo : ''), body, path, scripts, image: path === '/boutique' && !q ? bandeauDe(c, 'boutique').photo : photo });
 }
 
-/* Plateau de fruits de mer en 3D (Jean-Luc, 2026-11-23) : le client choisit ses produits à l'unité, le plateau se compose sous ses yeux.
-   Scène construite en code (public/js/plateau3d.js, three.js sous licence MIT) ; textes modifiables dans la rubrique (introTitre, introTexte). */
+/* Plateau de fruits de mer (Jean-Luc, 2026-11-23) : le client choisit ses produits à l'unité, nous les dressons.
+   Photo du plateau (fournie par Jean-Luc) qui tourne doucement à gauche, sélection à droite (public/js/plateau.js) ; textes modifiables dans la rubrique (introTitre, introTexte). */
 const FAMILLES_MER = [['Huîtres & coquillages', /hu[iî]tre|praire|bulot|oursin|palourde|bigorneau/i], ['Crustacés', /homard|tourteau|crabe|langoustine|crevette|gambas/i], ['Pour accompagner', /./]];
 function plateau3dHtml(c, r, liste) {
   const L = (liste || []).filter(p => p.statut !== 'masque' && p.prixCents != null && !(p.groupes || []).length && !(p.variantes || []).length).slice().sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
@@ -461,14 +461,12 @@ function plateau3dHtml(c, r, liste) {
   return `<section class="p3" data-p3 id="composer">
   <div class="p3-in">
     <div class="p3-scene-col">
-      <div class="p3-scene" data-p3-scene><div class="p3-attente" aria-hidden="true"><span></span></div></div>
-      <p class="p3-legende" data-p3-legende aria-live="polite"><b>Exemple de plateau</b></p>
-      <button type="button" class="p3-emb" data-p3-emballer aria-pressed="false">${icon.arrow}<span>Voir l’emballage cadeau</span></button>
+      <div class="p3-photo"><img src="/site/plateau-fruits-de-mer.webp" alt="Plateau de fruits de mer Magnolia sur présentoir à deux étages : huîtres, langoustines, crevettes, tourteau, homard, bulots et citrons" width="1169" height="1464" fetchpriority="high"></div>
     </div>
     <div class="p3-texte">
       <p class="eyebrow">Votre plateau sur mesure</p>
       <h2>${esc(titre)}</h2>
-      <p class="p3-lead">Vous choisissez vos produits à l’unité, nous les dressons pour vous sur un grand plateau blanc, sur un lit de glace pilée, avec citrons et rince-doigts. Le tout est emballé de papier glacé, comme un grand paquet cadeau, prêt à poser sur votre buffet.</p>
+      <p class="p3-lead">Vous choisissez vos produits à l’unité, nous les dressons pour vous sur un grand plateau, sur un lit de glace pilée, avec citrons et rince-doigts. Le tout est emballé de papier glacé, comme un grand paquet cadeau, prêt à poser sur votre buffet.</p>
       <ol class="p3-etapes">
         <li><b>1</b><span>Choisissez vos produits ci-dessous : huîtres, crustacés, caviar…</span></li>
         <li><b>2</b><span>Nous ouvrons et dressons tout le jour même sur glace, avec citrons et rince-doigts.</span></li>
