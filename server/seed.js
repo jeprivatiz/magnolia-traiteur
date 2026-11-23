@@ -965,6 +965,17 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('site/reglages', { ...(await store.get('site/reglages')), paellaSansIngredients: true });
   }
 
+  /* Pastel de viande : vraie photo de pastels (Wikimedia Commons, « Fataya », Cheikh cherif, CC BY-SA 4.0) à la place de l'image IA (Jean-Luc, 2026-11-23). */
+  const RPv = await store.get('site/reglages');
+  if (RPv && !RPv.pastelVraiePhoto) {
+    const IA = '/site/c/africain-boutique/pastel-de-viande-a-lunite-1.webp.webp', VRAIE = '/site/c/africain-boutique/pastels-viande-vrais.webp';
+    for (const { id, data: p } of await store.list('produits')) {
+      if (!Array.isArray(p.photos) || !p.photos.some(ph => ph && ph.src === IA)) continue;
+      await store.set('produits/' + id, { ...p, photos: p.photos.map(ph => ph && ph.src === IA ? { src: VRAIE, alt: 'Pastels à la viande dorés' } : ph) });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), pastelVraiePhoto: true });
+  }
+
   /* paragraphe de présentation de chaque rubrique et de la page Lieux (Jean-Luc, 2026-11-22). Posé une fois, seulement si vide. */
   const RIr = await store.get('site/reglages');
   if (RIr && !RIr.introsRubriques) {

@@ -184,3 +184,8 @@ Vraies photos libres regardées une à une (sans texte ni logo ; quelques-unes r
 - Champignons noirs sautés : avlxyz, BY-SA 2.0, Flickr via Openverse, https://www.flickr.com/photos/10559879@N00/2268561764
 - Légumes chop suey : Obsidian Soul, CC0, Wikimedia Commons, https://commons.wikimedia.org/wiki/File:Chop_suey_(Philippines).jpg
 - Riz nature : Anna Frodesiak, CC0, Wikimedia Commons, https://commons.wikimedia.org/wiki/File:Steamed_rice_in_bowl_01.jpg
+
+## Buffet africain, pastel de viande (2026-11-23)
+| Fiche | Photo | Auteur | Licence | Source |
+|---|---|---|---|---|
+| Pastel de viande (à la place d'une image IA) | public/site/c/africain-boutique/pastels-viande-vrais.webp | Cheikh cherif | CC BY-SA 4.0 | https://commons.wikimedia.org/wiki/File:Fataya.jpg |
