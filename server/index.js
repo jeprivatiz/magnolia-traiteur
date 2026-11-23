@@ -103,6 +103,7 @@ async function createApp(opts = {}) {
     res.set('X-Content-Type-Options', 'nosniff');
     res.set('Referrer-Policy', 'strict-origin-when-cross-origin');
     res.set('X-Frame-Options', 'SAMEORIGIN');
+    res.set('X-Version', views.V); /* le back-office se recharge seul après une mise en ligne */
     req.cookies = Object.fromEntries(String(req.headers.cookie || '').split(';').map(c => c.trim().split('=')).filter(x => x[0]).map(([k, ...v]) => { try { return [k, decodeURIComponent(v.join('='))]; } catch { return [k, '']; } }));
     next();
   });
