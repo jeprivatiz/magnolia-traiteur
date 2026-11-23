@@ -1,0 +1,50 @@
+name: Aperçu de photos libres (temporaire)
+
+# Outil temporaire, accepté par Jean-Luc le 2026-11-23 : télécharge en petit des photos Pexels/Unsplash candidates
+# pour que Claude puisse les regarder avant de les choisir (le cloud ne joint pas ces sites). Retiré avant la fusion.
+on:
+  push:
+    paths:
+      - .github/workflows/apercu-photos.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apercu:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Téléchargement
+        run: |
+          mkdir -p apercu-photos && cd apercu-photos
+          px() { curl -fsSL -A "Mozilla/5.0" -o "px-$1.jpg" "https://images.pexels.com/photos/$1/pexels-photo-$1.jpeg?auto=compress&cs=tinysrgb&w=500" || echo "échec px $1"; }
+          for id in 8996057 2290741 29050581 3756480 2291344 8755349 3758039 5039343 6660422 5863641 4964096 3872351 15881259 5852251 6606003 6605303 18281683 11725599 6660071 41967; do px $id; done
+          for q in vegetarian-buffet salad-buffet vegetarian-appetizers canapes hummus-guacamole fruit-tarts quiche-buffet caprese-skewers; do
+            curl -fsSL -A "Mozilla/5.0" "https://unsplash.com/napi/search/photos?query=${q//-/%20}&per_page=12" -o "us-$q.json" || echo "échec napi $q"
+            python3 - "$q" <<'PY'
+          import json,sys,urllib.request
+          q=sys.argv[1]
+          try: d=json.load(open('us-%s.json'%q))
+          except Exception as e: print('json',q,e); sys.exit()
+          out=[]
+          for i,r in enumerate(d.get('results',[])):
+              if r.get('premium') or r.get('plus'): continue
+              u=r['urls']['raw'].split('?')[0]; slug=u.rsplit('/',1)[1]
+              out.append('%s %s %s | %s'%(q,slug,r.get('user',{}).get('name'),r.get('alt_description')))
+              try:
+                  req=urllib.request.Request(u+'?auto=format&fit=crop&w=500&q=60',headers={'User-Agent':'Mozilla/5.0'})
+                  open('us-%s-%s.jpg'%(q,slug),'wb').write(urllib.request.urlopen(req,timeout=20).read())
+              except Exception as e: print('dl',slug,e)
+          open('liste-us.txt','a').write('\n'.join(out)+'\n')
+          PY
+          done
+          rm -f us-*.json
+          ls -la
+      - name: Enregistrer
+        run: |
+          git config user.name "magnolia-bot"
+          git config user.email "magnolia-bot@users.noreply.github.com"
+          git add apercu-photos
+          git commit -m "Aperçu temporaire de photos libres" && git push || echo rien
