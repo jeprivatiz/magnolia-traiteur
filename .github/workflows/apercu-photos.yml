@@ -1,6 +1,6 @@
 name: Aperçu de photos libres (temporaire)
 
-# (2e série) Outil temporaire, accepté par Jean-Luc le 2026-11-23 : télécharge en petit des photos libres candidates
+# (3e série) Outil temporaire, accepté par Jean-Luc le 2026-11-23 : télécharge en petit des photos libres candidates
 # pour que Claude puisse les regarder avant de les choisir (le cloud ne joint pas ces sites). Retiré avant la fusion.
 on:
   push:
@@ -16,11 +16,11 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - name: Recherche et téléchargement
-        run: python3 .github/apercu/chercher.py
+      - name: Téléchargement des photos retenues
+        run: pip install -q pillow && python3 .github/apercu/telecharger.py
       - name: Enregistrer
         run: |
           git config user.name "magnolia-bot"
           git config user.email "magnolia-bot@users.noreply.github.com"
-          git add apercu-photos
+          git add public/site/c/chinois-carte
           git commit -m "Aperçu temporaire de photos libres" && git push || echo rien
