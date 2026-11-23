@@ -880,6 +880,24 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('site/reglages', { ...(await store.get('site/reglages')), carteSections2: true });
   }
 
+  /* Ordre des vignettes d'univers de l'accueil (Jean-Luc, 2026-11-23) : la nourriture d'abord, « Traiteur végétarien et vegan »
+     juste après « Coffrets & plateaux », « Petits-déjeuners » juste après « Animations sucrées », puis ce qui n'est pas de la
+     nourriture (indispensables, personnel, musique, lieux) à la fin. Le reste garde son ordre. Une fois : réglable ensuite au back-office (champ « Ordre »). */
+  const ROv = await store.get('site/reglages');
+  if (ROv && !ROv.ordreUnivers2) {
+    const rubs = (await store.list('rubriques')).sort((a, b) => (a.data.ordre ?? 99) - (b.data.ordre ?? 99));
+    const APRES = { 'traiteur-vegetarien-vegan': 'coffrets-plateaux', 'petits-dejeuners': 'douceurs' };
+    const FIN = ['indispensables', 'personnel', 'musique-animations', 'lieux'];
+    let L = rubs.filter(r => !APRES[r.id] && !FIN.includes(r.id));
+    for (const [slug, apres] of Object.entries(APRES)) {
+      const r = rubs.find(x => x.id === slug); if (!r) continue;
+      const i = L.findIndex(x => x.id === apres); L.splice(i < 0 ? L.length : i + 1, 0, r);
+    }
+    L = [...L, ...FIN.map(f => rubs.find(x => x.id === f)).filter(Boolean)];
+    for (const [i, r] of L.entries()) if (r.data.ordre !== i + 1) await store.set('rubriques/' + r.id, { ...r.data, ordre: i + 1 });
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), ordreUnivers2: true });
+  }
+
   /* paragraphe de présentation de chaque rubrique et de la page Lieux (Jean-Luc, 2026-11-22). Posé une fois, seulement si vide. */
   const RIr = await store.get('site/reglages');
   if (RIr && !RIr.introsRubriques) {
