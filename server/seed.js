@@ -851,7 +851,7 @@ async function initSousRubriques(store, { log = console } = {}) {
   const RCm = await store.get('site/reglages');
   if (RCm && !RCm.carteSections) {
     const cm = await store.get('rubriques/carte-magnolia');
-    if (cm) await store.set('rubriques/carte-magnolia', { ...cm, parSections: true, titresSections: { entrees: 'Les entrées', plats: 'Les plats', fromages: 'Plateau de fromages', desserts: 'Les desserts', divers: 'Menus et service à table', ...(cm.titresSections || {}) } });
+    if (cm) await store.set('rubriques/carte-magnolia', { ...cm, parSections: true, titresSections: { entrees: 'Nos entrées', plats: 'Nos plats', fromages: 'Nos fromages', desserts: 'Nos desserts', divers: 'Menus et service à table', ...(cm.titresSections || {}) } });
     const sans = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     for (const { id, data: p } of await store.list('produits')) {
       if (p.rubrique !== 'carte-magnolia' || p.rangement) continue;
@@ -861,6 +861,23 @@ async function initSousRubriques(store, { log = console } = {}) {
       await store.set('produits/' + id, { ...p, rangement: k });
     }
     await store.set('site/reglages', { ...(await store.get('site/reglages')), carteSections: true });
+  }
+
+  /* La carte Magnolia : titres « Nos entrées, Nos plats, Nos fromages, Nos desserts » (Jean-Luc, 2026-11-23).
+     Une fois ; on ne remplace que les anciens titres par défaut, un titre changé au back-office reste. */
+  const RCm2 = await store.get('site/reglages');
+  if (RCm2 && !RCm2.carteSections2) {
+    const cm = await store.get('rubriques/carte-magnolia');
+    if (cm) {
+      const T = { ...(cm.titresSections || {}) }, anciens = { entrees: 'Les entrées', plats: 'Les plats', fromages: 'Plateau de fromages', desserts: 'Les desserts' };
+      const nouveaux = { entrees: 'Nos entrées', plats: 'Nos plats', fromages: 'Nos fromages', desserts: 'Nos desserts' };
+      for (const k in nouveaux) if (!T[k] || T[k] === anciens[k]) T[k] = nouveaux[k];
+      await store.set('rubriques/carte-magnolia', { ...cm, parSections: true, titresSections: T });
+    }
+    for (const { id, data: p } of await store.list('produits')) {
+      if (p.rubrique === 'carte-magnolia' && /fromage|trio affin/i.test(String(p.titre || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')) && p.rangement !== 'fromages') await store.set('produits/' + id, { ...p, rangement: 'fromages' });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), carteSections2: true });
   }
 
   /* paragraphe de présentation de chaque rubrique et de la page Lieux (Jean-Luc, 2026-11-22). Posé une fois, seulement si vide. */
