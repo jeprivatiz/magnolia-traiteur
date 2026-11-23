@@ -928,6 +928,43 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('site/reglages', { ...(await store.get('site/reglages')), unitesMin5: true });
   }
 
+  /* Buffet chinois : carte complète (voir CARTE_CHINOISE). Une fois ; un prix déjà saisi au back-office n'est pas remplacé. */
+  const RCc = await store.get('site/reglages');
+  if (RCc && !RCc.carteChinoise1) {
+    const prixDe = (cents, pcs) => Math.ceil(cents * 1.35 / (pcs || 1) / 10) * 10;
+    let ordre = 200;
+    for (const [rangement, titre, cents, pcs, photo, existantes] of CARTE_CHINOISE) {
+      const prixCents = prixDe(cents, pcs), coutCents = Math.round(cents / (pcs || 1));
+      if (existantes.length) {
+        for (const id of existantes) {
+          const p = await store.get('produits/' + id);
+          if (!p || p.prixCents != null) continue;
+          await store.set('produits/' + id, { ...p, prixCents, coutCents, unite: pcs ? p.unite : 'portion', min: 5, aCompleter: false });
+        }
+        continue;
+      }
+      const slug = slugify(titre + ' chinois');
+      if (await store.get('produits/' + slug)) continue;
+      const unite = pcs ? 'pièce' : 'portion';
+      await store.set('produits/' + slug, { id: slug, slug, rubrique: 'saveurs-du-monde', autresRubriques: [], sous: 'buffet-chinois', rangement, titre, prixCents, coutCents, unite, min: 5,
+        extrait: pcs ? `${titre}, vendu à la pièce : préparé par notre chef et livré prêt à servir.` : `${titre} : préparé par notre chef et livré prêt à servir.`, description: [],
+        photos: photo ? [{ src: photo, alt: titre }] : [], video: null, groupes: [], variantes: [], sections: [], details: [], regles: { personnel: 'service', packs: true },
+        ordre: ordre++, statut: 'visible', maison: true, tva: 10, allergenes: [], aCompleter: false });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), carteChinoise1: true });
+  }
+
+  /* Paëlla royale : retirer de la galerie les 3 photos d'ingrédients seuls (poulet, chorizo, crevettes) (Jean-Luc, 2026-11-23). */
+  const RPr = await store.get('site/reglages');
+  if (RPr && !RPr.paellaSansIngredients) {
+    const p = await store.get('produits/paella-royale');
+    if (p && Array.isArray(p.photos)) {
+      const photos = p.photos.filter(ph => !String(ph && ph.src || '').includes('/paella-ingredients/'));
+      if (photos.length !== p.photos.length) await store.set('produits/paella-royale', { ...p, photos });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), paellaSansIngredients: true });
+  }
+
   /* paragraphe de présentation de chaque rubrique et de la page Lieux (Jean-Luc, 2026-11-22). Posé une fois, seulement si vide. */
   const RIr = await store.get('site/reglages');
   if (RIr && !RIr.introsRubriques) {
@@ -1020,6 +1057,100 @@ const DOUBLONS = [
 ];
 /* [titre, photo, texte alternatif] ; sources dans data/credits-photos-univers.md */
 /* [fiche, version, [[photo, description]…]] */
+/* Buffet chinois, carte complète à l'unité (Jean-Luc, 2026-11-23) : plats livrables de la carte du restaurant partenaire
+   (source interne, jamais affichée), prix = prix carte + 35 %, arrondi aux 10 centimes supérieurs, TTC.
+   Plats vendus par lot sur la carte (« 4 pièces »…) : prix à la pièce, comme les autres bouchées du site ; le reste à la portion.
+   Pas de plats sur plaque chauffante, de fondue, de plats « pour 2 » ni de marmites. Une vraie photo libre par plat
+   (sources dans data/credits-photos-univers.md) ; sans photo, le plat n'est pas mis.
+   [section, titre, prix carte en centimes, nombre de pièces du lot ou null, photo ou null, fiches existantes équivalentes] */
+const CARTE_CHINOISE = [
+  ['entrees', 'Potage de crustacés', 620, null, '/site/c/chinois-carte/potage-de-crustaces.webp', []],
+  ['entrees', 'Potage aux nids d’hirondelle', 550, null, '/site/c/chinois-carte/potage-aux-nids-d-hirondelle.webp', []],
+  ['entrees', 'Potage aux asperges et au crabe', 500, null, '/site/c/chinois-carte/potage-aux-asperges-et-au-crabe.webp', []],
+  ['entrees', 'Potage pékinois (piquant)', 450, null, '/site/c/chinois-carte/potage-pekinois-piquant.webp', []],
+  ['entrees', 'Potage aux raviolis (porc)', 550, null, '/site/c/chinois-carte/potage-aux-raviolis-porc.webp', []],
+  ['entrees', 'Potage aux raviolis (crevettes)', 600, null, '/site/c/chinois-carte/potage-aux-raviolis-crevettes.webp', []],
+  ['entrees', 'Soupe aux vermicelles et poulet', 450, null, '/site/c/chinois-carte/soupe-aux-vermicelles-et-poulet.webp', []],
+  ['entrees', 'Salade de soja nature', 400, null, '/site/c/chinois-carte/salade-de-soja-nature.webp', []],
+  ['entrees', 'Salade chinoise aux crevettes', 550, null, '/site/c/chinois-carte/salade-chinoise-aux-crevettes.webp', []],
+  ['entrees', 'Salade chinoise au poulet', 520, null, '/site/c/chinois-carte/salade-chinoise-au-poulet.webp', []],
+  ['entrees', 'Rouleaux de printemps', 500, null, '/site/c/chinois-carte/rouleaux-de-printemps.webp', []],
+  ['entrees', 'Nems au porc', 480, null, '/site/c/chinois-carte/nems-au-porc.webp', []],
+  ['entrees', 'Nems au poulet', 500, null, null, ["nems-au-poulet-chinois"]],
+  ['entrees', 'Bò bún (vermicelles de riz aux nems et au bœuf)', 850, null, '/site/c/chinois-carte/bo-bun-vermicelles-de-riz-aux-nems-et-au-boeuf.webp', []],
+  ['entrees', 'Omelette au crabe', 550, null, '/site/c/chinois-carte/omelette-au-crabe.webp', []],
+  ['entrees', 'Omelette aux crevettes', 550, null, '/site/c/chinois-carte/omelette-aux-crevettes.webp', []],
+  ['entrees', 'Omelette aux légumes (foo-yong)', 480, null, '/site/c/chinois-carte/omelette-aux-legumes-foo-yong.webp', []],
+  ['entrees', 'Crevettes tempura', 850, 6, '/site/c/chinois-carte/crevettes-tempura.webp', []],
+  ['entrees', 'Beignets de crevettes', 850, 6, '/site/c/chinois-carte/beignets-de-crevettes.webp', []],
+  ['entrees', 'Raviolis aux crevettes à la vapeur', 450, 4, null, ["hacao-aux-crevettes-chinois", "raviolis-aux-crevettes-chinois"]],
+  ['entrees', 'Bouchées aux crevettes à la vapeur', 450, 4, null, ["bouchees-vapeur-aux-crevettes-chinois"]],
+  ['entrees', 'Bouchées au porc à la vapeur', 450, 4, null, ["bouchees-au-porc-chinois"]],
+  ['entrees', 'Bouchées au bœuf à la vapeur', 450, 4, '/site/c/chinois-carte/bouchees-au-boeuf-a-la-vapeur.webp', []],
+  ['entrees', 'Raviolis frits aux crevettes', 680, 6, '/site/c/chinois-carte/raviolis-frits-aux-crevettes.webp', []],
+  ['entrees', 'Assortiment de bouchées vapeur', 550, 5, '/site/c/chinois-carte/assortiment-de-bouchees-vapeur.webp', []],
+  ['entrees', 'Toasts aux crevettes', 550, 3, '/site/c/chinois-carte/toasts-aux-crevettes.webp', []],
+  ['entrees', 'Raviolis frits au porc', 600, 6, '/site/c/chinois-carte/raviolis-frits-au-porc.webp', []],
+  ['entrees', 'Raviolis vietnamiens maison', 600, 3, '/site/c/chinois-carte/raviolis-vietnamiens-maison.webp', []],
+  ['entrees', 'Raviolis pékinois grillés', 580, 5, '/site/c/chinois-carte/raviolis-pekinois-grilles.webp', []],
+  ['entrees', 'Samoussas frits au bœuf', 600, 3, null, ["samoussas-au-boeuf-et-curry-chinois"]],
+  ['plats', 'Mijoté de poulet au gingembre et à la ciboulette', 980, null, '/site/c/chinois-carte/mijote-de-poulet-au-gingembre-et-a-la-ciboulette.webp', []],
+  ['plats', 'Langouste au gingembre et à la ciboulette', 3400, null, '/site/c/chinois-carte/langouste-au-gingembre-et-a-la-ciboulette.webp', []],
+  ['plats', 'Gambas à l’ail à la vapeur', 1250, null, null, ["crevettes-a-l-ail-chinois"]],
+  ['plats', 'Crevettes à la sauce piquante', 980, null, '/site/c/chinois-carte/crevettes-a-la-sauce-piquante.webp', []],
+  ['plats', 'Crevettes au curry', 980, null, '/site/c/chinois-carte/crevettes-au-curry.webp', []],
+  ['plats', 'Crevettes à la sauce aigre-douce', 980, null, '/site/c/chinois-carte/crevettes-a-la-sauce-aigre-douce.webp', []],
+  ['plats', 'Grosses crevettes au sel et au poivre', 990, null, '/site/c/chinois-carte/grosses-crevettes-au-sel-et-au-poivre.webp', []],
+  ['plats', 'Crevettes sautées aux légumes', 980, null, '/site/c/chinois-carte/crevettes-sautees-aux-legumes.webp', []],
+  ['plats', 'Crevettes à l’ananas', 980, null, '/site/c/chinois-carte/crevettes-a-l-ananas.webp', []],
+  ['plats', 'Lotte à la sauce aigre-douce', 1200, null, '/site/c/chinois-carte/lotte-a-la-sauce-aigre-douce.webp', []],
+  ['plats', 'Lotte à la sauce piquante pékinoise', 1200, null, '/site/c/chinois-carte/lotte-a-la-sauce-piquante-pekinoise.webp', []],
+  ['plats', 'Filet de poisson à la sauce piquante', 800, null, '/site/c/chinois-carte/filet-de-poisson-a-la-sauce-piquante.webp', []],
+  ['plats', 'Filet de poisson à la sauce aigre-douce', 800, null, '/site/c/chinois-carte/filet-de-poisson-a-la-sauce-aigre-douce.webp', []],
+  ['plats', 'Filet de poisson au sel et au poivre', 800, null, '/site/c/chinois-carte/filet-de-poisson-au-sel-et-au-poivre.webp', []],
+  ['plats', 'Filet de poisson à la sauce citron', 800, null, '/site/c/chinois-carte/filet-de-poisson-a-la-sauce-citron.webp', []],
+  ['plats', 'Saint-Jacques aux légumes', 1150, null, '/site/c/chinois-carte/saint-jacques-aux-legumes.webp', []],
+  ['plats', 'Seiches au gingembre et à la ciboulette', 980, null, '/site/c/chinois-carte/seiches-au-gingembre-et-a-la-ciboulette.webp', []],
+  ['plats', 'Seiches au sel et au poivre', 980, null, '/site/c/chinois-carte/seiches-au-sel-et-au-poivre.webp', []],
+  ['plats', 'Seiches à la sauce piquante', 980, null, '/site/c/chinois-carte/seiches-a-la-sauce-piquante.webp', []],
+  ['plats', 'Cuisses de grenouilles à l’impériale (épicées)', 1020, null, '/site/c/chinois-carte/cuisses-de-grenouilles-a-l-imperiale-epicees.webp', []],
+  ['plats', 'Poulet aux noix de cajou', 750, null, '/site/c/chinois-carte/poulet-aux-noix-de-cajou.webp', []],
+  ['plats', 'Poulet à l’impériale (épicé)', 750, null, '/site/c/chinois-carte/poulet-a-l-imperiale-epice.webp', []],
+  ['plats', 'Poulet aux amandes', 750, null, '/site/c/chinois-carte/poulet-aux-amandes.webp', []],
+  ['plats', 'Poulet sauté épicé', 750, null, '/site/c/chinois-carte/poulet-saute-epice.webp', []],
+  ['plats', 'Poulet à l’ananas', 790, null, '/site/c/chinois-carte/poulet-a-l-ananas.webp', []],
+  ['plats', 'Poulet en beignet au citron', 750, null, '/site/c/chinois-carte/poulet-en-beignet-au-citron.webp', []],
+  ['plats', 'Poulet au curry', 750, null, '/site/c/chinois-carte/poulet-au-curry.webp', []],
+  ['plats', 'Poulet frit du chef à la sichuanaise (épicé)', 800, null, '/site/c/chinois-carte/poulet-frit-du-chef-a-la-sichuanaise-epice.webp', []],
+  ['plats', 'Poulet grillé parfumé', 780, null, '/site/c/chinois-carte/poulet-grille-parfume.webp', []],
+  ['plats', 'Canard à l’ananas', 900, null, '/site/c/chinois-carte/canard-a-l-ananas.webp', []],
+  ['plats', 'Canard laqué', 920, null, null, ["canard-laque-chinois"]],
+  ['plats', 'Canard frit aux cinq parfums', 920, null, '/site/c/chinois-carte/canard-frit-aux-cinq-parfums.webp', []],
+  ['plats', 'Bœuf au curry', 820, null, '/site/c/chinois-carte/boeuf-au-curry.webp', []],
+  ['plats', 'Bœuf à la sauce piquante', 820, null, '/site/c/chinois-carte/boeuf-a-la-sauce-piquante.webp', []],
+  ['plats', 'Bœuf aux oignons', 820, null, '/site/c/chinois-carte/boeuf-aux-oignons.webp', []],
+  ['plats', 'Porc à la sauce piquante', 790, null, '/site/c/chinois-carte/porc-a-la-sauce-piquante.webp', []],
+  ['plats', 'Porc aux champignons noirs et pousses de bambou', 790, null, '/site/c/chinois-carte/porc-aux-champignons-noirs-et-pousses-de-bambou.webp', []],
+  ['plats', 'Porc ou poulet à la sauce aigre-douce', 700, null, null, ["porc-aigre-doux-chinois"]],
+  ['plats', 'Porc ou poulet au caramel', 780, null, null, ["porc-au-caramel-chinois"]],
+  ['plats', 'Porc laqué', 850, null, '/site/c/chinois-carte/porc-laque.webp', []],
+  ['plats', 'Travers de porc royal (sucré)', 880, null, '/site/c/chinois-carte/travers-de-porc-royal-sucre.webp', []],
+  ['plats', 'Travers de porc au sel et au poivre', 880, null, '/site/c/chinois-carte/travers-de-porc-au-sel-et-au-poivre.webp', []],
+  ['accompagnements', 'Chou chinois sauté nature', 500, null, '/site/c/chinois-carte/chou-chinois-saute-nature.webp', []],
+  ['accompagnements', 'Soja sauté', 500, null, '/site/c/chinois-carte/soja-saute.webp', []],
+  ['accompagnements', 'Champignons noirs sautés', 500, null, '/site/c/chinois-carte/champignons-noirs-sautes.webp', []],
+  ['accompagnements', 'Légumes chop suey', 500, null, '/site/c/chinois-carte/legumes-chop-suey.webp', []],
+  ['accompagnements', 'Pommes de terre sautées au sel et au poivre', 550, null, '/site/c/chinois-carte/pommes-de-terre-sautees-au-sel-et-au-poivre.webp', []],
+  ['accompagnements', 'Nouilles sautées à la viande (poulet ou bœuf)', 620, null, '/site/c/chinois-carte/nouilles-sautees-a-la-viande-poulet-ou-boeuf.webp', []],
+  ['accompagnements', 'Nouilles sautées aux crevettes', 650, null, '/site/c/chinois-carte/nouilles-sautees-aux-crevettes.webp', []],
+  ['accompagnements', 'Nouilles sautées aux légumes', 500, null, null, ["nouilles-sautees-aux-legumes-chinois"]],
+  ['accompagnements', 'Riz sauté du chef (crevettes, porc laqué et œuf)', 500, null, '/site/c/chinois-carte/riz-saute-du-chef-crevettes-porc-laque-et-oeuf.webp', []],
+  ['accompagnements', 'Riz sauté au curry (crevettes, porc laqué et œuf)', 500, null, '/site/c/chinois-carte/riz-saute-au-curry-crevettes-porc-laque-et-oeuf.webp', []],
+  ['accompagnements', 'Riz sauté à la cantonaise', 430, null, null, ["riz-cantonais-chinois"]],
+  ['accompagnements', 'Riz nature', 220, null, '/site/c/chinois-carte/riz-nature.webp', []],
+  ['accompagnements', 'Riz gluant à la vapeur', 280, null, '/site/c/chinois-carte/riz-gluant-a-la-vapeur.webp', []],
+  ['accompagnements', 'Riz sauté thaï (crevettes, ananas et œuf)', 600, null, '/site/c/chinois-carte/riz-saute-thai-crevettes-ananas-et-oeuf.webp', []],
+];
 /* « Nos buffets » des spécialités (Jean-Luc, 2026-11-23) : une photo de buffet en tête de chaque formule, choisie d'après son contenu
    (jamais une pièce à l'unité). Les autres photos de la fiche restent dans sa galerie. Sources dans data/credits-photos-univers.md. */
 const PHOTOS_BUFFETS_EN_TETE = [
