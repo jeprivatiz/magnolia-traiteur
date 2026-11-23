@@ -36,7 +36,8 @@ for line in open('.github/apercu/requetes.tsv', encoding='utf-8'):
             except Exception as e: m -= 1; print('dl', pid, e)
     except Exception as e: print('openverse', pid, e)
     time.sleep(3.2)
-try:
-    open('apercu-photos/mat2/samoussas-pexels.jpg','wb').write(get('https://images.pexels.com/photos/4449068/pexels-photo-4449068.jpeg?auto=compress&cs=tinysrgb&w=1200', raw=True))
-except Exception as e: print('pexels', e)
+for k,v in {'chaf1': 35247186, 'chaf2': 2291367, 'chaf3': 4007053, 'piz1': 18126715, 'piz2': 11181966, 'piz3': 14978624, 'piz4': 36214726, 'piz5': 9685272, 'piz6': 3343622, 'piz7': 35386737, 'chauf1': 8425027, 'chauf2': 15774577, 'chauf3': 8425042, 'chauf4': 8425050, 'chauf5': 5647593, 'chauf6': 8425057, 'verre1': 29157921, 'verre2': 2504941, 'verre3': 6288693, 'verre4': 16408, 'verre5': 6249033, 'chaise1': 11450795, 'chaise2': 33914531, 'chaise3': 8135298, 'rack1': 5018049, 'rack2': 15040068, 'rack3': 1561597, 'rack4': 7191403, 'rack5': 18977904, 'rack6': 18977894, 'rack7': 5825374, 'deco1': 10970554, 'deco2': 2306281, 'deco3': 9876597, 'deco4': 6479604, 'deco5': 16120234, 'deco6': 24279974, 'deco7': 19351562, 'deco8': 12876404, 'set1': 291767, 'set2': 735869, 'set3': 17057034, 'set4': 114974, 'set5': 14132973, 'set6': 555766, 'set7': 5727912, 'eco1': 9475305, 'eco2': 9475718, 'eco3': 4857600, 'nappe1': 50675, 'nappe2': 4639508, 'nappe3': 8112784, 'table1': 1118760, 'tente1': 1268877, 'tente2': 872831, 'tente3': 9627719, 'dess1': 1414234, 'dess2': 162688, 'cuis1': 28704740, 'cuis2': 39556646, 'reut1': 896819}.items():
+    try: open(f'apercu-photos/mat2/px-{k}-{v}.jpg','wb').write(get(f'https://images.pexels.com/photos/{v}/pexels-photo-{v}.jpeg?auto=compress&cs=tinysrgb&w=600', raw=True))
+    except Exception as e: print('pexels', k, e)
+    time.sleep(0.5)
 meta.close()
