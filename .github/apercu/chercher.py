@@ -6,31 +6,31 @@ def get(url, raw=False):
     req = urllib.request.Request(url, headers=UA)
     with urllib.request.urlopen(req, timeout=30) as r: d = r.read()
     return d if raw else json.loads(d)
-os.makedirs('apercu-photos/chn', exist_ok=True)
-meta = open('apercu-photos/chn/meta.jsonl', 'w')
+os.makedirs('apercu-photos/chn2', exist_ok=True)
+meta = open('apercu-photos/chn2/meta.jsonl', 'w')
 OK = ('cc0', 'cc-zero', 'public domain', 'pd', 'cc by', 'cc-by', 'by', 'by-sa', 'cc by-sa')
 for line in open('.github/apercu/requetes.tsv', encoding='utf-8'):
     pid, q = line.rstrip('\n').split('\t')
     n = 0
     try:
-        s = get('https://commons.wikimedia.org/w/api.php?' + urllib.parse.urlencode({'action': 'query', 'format': 'json', 'generator': 'search', 'gsrsearch': q + ' filetype:bitmap', 'gsrnamespace': 6, 'gsrlimit': 6, 'prop': 'imageinfo', 'iiprop': 'url|extmetadata', 'iiurlwidth': 400}))
+        s = get('https://commons.wikimedia.org/w/api.php?' + urllib.parse.urlencode({'action': 'query', 'format': 'json', 'generator': 'search', 'gsrsearch': q + ' filetype:bitmap', 'gsrnamespace': 6, 'gsrlimit': 10, 'prop': 'imageinfo', 'iiprop': 'url|extmetadata', 'iiurlwidth': 400}))
         pages = sorted((s.get('query') or {}).get('pages', {}).values(), key=lambda p: p.get('index', 99))
         for p in pages:
             ii = (p.get('imageinfo') or [{}])[0]; em = ii.get('extmetadata', {})
             lic = (em.get('LicenseShortName', {}).get('value') or '').lower()
             if 'nc' in lic.split('-') or 'nd' in lic.split('-'): continue
-            n += 1; f = f'apercu-photos/chn/{pid}-c{n}.jpg'
+            n += 1; f = f'apercu-photos/chn2/{pid}-c{n}.jpg'
             open(f, 'wb').write(get(ii['thumburl'], raw=True))
             meta.write(json.dumps({'id': pid, 'f': f, 'src': 'commons', 'titre': p.get('title'), 'page': ii.get('descriptionurl'), 'url': ii.get('url'), 'licence': em.get('LicenseShortName', {}).get('value'), 'auteur': em.get('Artist', {}).get('value', '')[:200]}, ensure_ascii=False) + '\n')
-            if n >= 3: break
+            if n >= 5: break
     except Exception as e: print('commons', pid, e)
     m = 0
     try:
-        s = get('https://api.openverse.org/v1/images/?' + urllib.parse.urlencode({'q': q, 'license_type': 'commercial,modification', 'page_size': 8, 'mature': 'false'}))
+        s = get('https://api.openverse.org/v1/images/?' + urllib.parse.urlencode({'q': q, 'license_type': 'commercial,modification', 'page_size': 10, 'mature': 'false'}))
         for r in s.get('results', []):
-            if m >= 3: break
+            if m >= 5: break
             try:
-                m += 1; f = f'apercu-photos/chn/{pid}-o{m}.jpg'
+                m += 1; f = f'apercu-photos/chn2/{pid}-o{m}.jpg'
                 open(f, 'wb').write(get(r.get('thumbnail') or r['url'], raw=True))
                 meta.write(json.dumps({'id': pid, 'f': f, 'src': 'openverse', 'titre': r.get('title'), 'page': r.get('foreign_landing_url'), 'url': r.get('url'), 'licence': (r.get('license') or '') + ' ' + (r.get('license_version') or ''), 'auteur': r.get('creator'), 'fournisseur': r.get('provider')}, ensure_ascii=False) + '\n')
             except Exception as e: m -= 1; print('dl', pid, e)
