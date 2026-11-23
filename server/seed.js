@@ -976,6 +976,58 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('site/reglages', { ...(await store.get('site/reglages')), pastelVraiePhoto: true });
   }
 
+  /* Les indispensables : une vraie photo par fiche matériel (à la place de la photo de serveuse ou de l'absence de photo),
+     doublons retirés (chaise bordeaux, 2e bain-marie), photo locale pour les samoussas légumes africains,
+     bandeau net de la Carte Magnolia (chef au dressage) (Jean-Luc, 2026-11-23). Sources : data/credits-photos-univers.md. */
+  const RMa = await store.get('site/reglages');
+  if (RMa && !RMa.materielPhotos1) {
+    const M = '/site/c/materiel/';
+    const PHOTOS = {
+      'petit-pack-traiteur-eco-responsable': ['pack-eco', 'Couverts en bois éco-responsables'],
+      'vaisselle-complete': ['vaisselle-complete', 'Assiettes, couverts et verres dressés sur une table'],
+      'decoration': ['decoration', 'Tables de mariage décorées de grands bouquets de fleurs blanches'],
+      'materiel-traiteur': ['materiel-traiteur', 'Verres à pied rangés sur un rack'],
+      'tente-de-reception-4-4-m': ['tente-4x4', 'Tentes de réception carrées à voilages, éclairées le soir'],
+      'grand-pack-traiteur-vaisselle-en-dur': ['grand-pack', 'Vaisselle en porcelaine, verres en verre et couverts en inox sur table nappée'],
+      'nappage-170-250-cm': ['nappage', 'Table dressée sur une grande nappe blanche'],
+      'mange-debout': ['mange-debout', 'Mange-debout sans nappe'],
+      'nappe-rectangulaire-170-250-cm': ['nappe-rectangulaire', 'Table rectangulaire avec nappe blanche'],
+      'chaise-pliante-de-luxe-en-velours-bordeaux': ['chaise-velours', 'Chaises dorées en velours bordeaux'],
+      'verres-en-verre-vin-coupes-a-champagne': ['verres-vin-coupes', 'Coupes à champagne en verre'],
+      'verres-reutilisables-eco-responsables': ['verres-reutilisables', 'Gobelets réutilisables empilés'],
+      'set-de-vaisselle-complet-par-personne': ['set-complet', 'Assiettes, couverts et verre à pied'],
+      'set-de-vaisselle-sans-verrerie-par-personne': ['set-sans-verrerie', 'Assiettes en porcelaine blanche'],
+      'set-de-vaisselle-dessert-par-personne': ['set-dessert', 'Assiette à dessert et fourchette'],
+      'bain-marie-chafing-dish-premier-modele': ['chafing-dish', 'Bains-marie (chafing dishes) sur un buffet'],
+      'four-a-pizza': ['four-pizza-mobile', 'Four à pizza mobile sur remorque'],
+      'chauffeur-prive-berlines-et-vans': ['chauffeur-prive', 'Chauffeur ouvrant la porte d’une berline'],
+    };
+    for (const [id, [f, alt]] of Object.entries(PHOTOS)) {
+      const p = await store.get('produits/' + id); if (!p) continue;
+      await store.set('produits/' + id, { ...p, photos: [{ src: M + f + '.webp', alt }] });
+    }
+    const t = await store.get('produits/table-rectangulaire-200-60-cm-6-a-8-personnes');
+    if (t && !(t.photos || []).length) await store.set('produits/table-rectangulaire-200-60-cm-6-a-8-personnes', { ...t, photos: [{ src: '/site/c/table-rectangulaire-client-20261101.webp.webp', alt: 'Table pliante rectangulaire sans nappe' }] });
+    const ancienne = await store.get('produits/chaises-pliantes-bordeaux'), luxe = await store.get('produits/chaise-pliante-de-luxe-en-velours-bordeaux');
+    if (ancienne && luxe) {
+      if (luxe.prixCents == null && ancienne.prixCents != null) await store.set('produits/chaise-pliante-de-luxe-en-velours-bordeaux', { ...(await store.get('produits/chaise-pliante-de-luxe-en-velours-bordeaux')), prixCents: ancienne.prixCents, prixTexte: ancienne.prixTexte, unite: ancienne.unite || 'chaise', aCompleter: false });
+      await store.delete('produits/chaises-pliantes-bordeaux');
+    }
+    const bm = await store.get('produits/bain-marie-chafing-dish-premier-modele');
+    if (bm) {
+      await store.set('produits/bain-marie-chafing-dish-premier-modele', { ...(await store.get('produits/bain-marie-chafing-dish-premier-modele')), titre: 'Bain-marie (chafing dish)' });
+      if (await store.get('produits/bain-marie-chafing-dish-second-modele')) await store.delete('produits/bain-marie-chafing-dish-second-modele');
+    }
+    const SAM = 'https://images.pexels.com/photos/4449068/pexels-photo-4449068.jpeg?auto=compress&cs=tinysrgb&w=1600';
+    for (const { id, data: p } of await store.list('produits')) {
+      if (!Array.isArray(p.photos) || !p.photos.some(ph => ph && ph.src === SAM)) continue;
+      await store.set('produits/' + id, { ...p, photos: p.photos.map(ph => ph && ph.src === SAM ? { ...ph, src: M + 'samoussas-legumes.webp' } : ph) });
+    }
+    const cm = await store.get('rubriques/carte-magnolia');
+    if (cm) await store.set('rubriques/carte-magnolia', { ...cm, photo: '/site/c/carte-magnolia-bandeau-chef.webp' });
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), materielPhotos1: true });
+  }
+
   /* paragraphe de présentation de chaque rubrique et de la page Lieux (Jean-Luc, 2026-11-22). Posé une fois, seulement si vide. */
   const RIr = await store.get('site/reglages');
   if (RIr && !RIr.introsRubriques) {
@@ -1220,7 +1272,7 @@ const VRAIES_PHOTOS = [
     ['/site/c/italien22-produits/mozzarella-tomates-sans-logo-20261106.webp.webp', 'Brochettes mozzarella et tomates cerises'], ['/site/c/italien22-produits/cake-jambon-olives-sans-logo-20261106.webp.webp', 'Cake jambon et olives'],
     ['/site/c/italien22-produits/gressins-sans-logo-20261106.webp.webp', 'Gressins'], ['/site/c/italien22-produits/olives-sans-logo-20261106.webp.webp', 'Olives noires']]],
   ['samoussa-legumes', 'v1', [['https://images.pexels.com/photos/9027521/pexels-photo-9027521.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Samoussas aux légumes croustillants, chutneys vert et tamarin']]],
-  ['samoussas-legumes', 'v1', [['https://images.pexels.com/photos/4449068/pexels-photo-4449068.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Samoussas aux légumes dorés dans une corbeille, sauces à côté']]],
+  ['samoussas-legumes', 'v1', [['/site/c/materiel/samoussas-legumes.webp', 'Samoussas aux légumes dorés dans une corbeille, sauces à côté']]],
 ];
 const PHOTOS_FICHES = [
   [/^air hockey/i, 'https://images.pexels.com/photos/5780929/pexels-photo-5780929.jpeg?auto=compress&cs=tinysrgb&w=1200', 'Table d’air hockey lumineuse'],
