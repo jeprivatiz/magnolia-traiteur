@@ -699,6 +699,18 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('produits/' + slug, { ...x, photos: photos.map(([src, alt]) => ({ src, alt })), vraiesPhotos: [...(x.vraiesPhotos || []), ver] });
   }
 
+  /* Buffet antillais — Plat seul (Jean-Luc, 2026-11-23) : plus de vidéo dans la galerie, la photo du colombo de poulet en premier. Une fois. */
+  {
+    const x = await store.get('produits/buffet-antillais-plat-seul');
+    if (x && !x.sansVideo) {
+      const COLOMBO = '/site/c/antilles-site/colombo-de-poulet-1-20261101.webp.webp';
+      const photos = x.photos || [];
+      const c = photos.find(ph => ph.src === COLOMBO);
+      const { video, ...reste } = x;
+      await store.set('produits/buffet-antillais-plat-seul', { ...reste, photos: c ? [c, ...photos.filter(ph => ph !== c)] : photos, sansVideo: true });
+    }
+  }
+
   /* plateaux de sushis : compositions, prix et photos du site actuel magnoliatraiteur.fr/plateaux-de-sushis (Jean-Luc, 2026-11-22).
      Une fois. Le plateau 80 pièces n'existe plus et le « Plateau de 75 sushis » des coffrets faisait doublon : masqués, leur adresse renvoie au grand plateau. */
   const RSu = await store.get('site/reglages');
