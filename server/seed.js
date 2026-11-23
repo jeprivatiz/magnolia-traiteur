@@ -335,7 +335,7 @@ async function initUniteSpecialites(store, log) {
   if (!r || r.uniteInit || !(r.sous || []).length) return;
   const prods = (await store.list('produits')).map(d => ({ id: d.id, ...d.data }));
   const RANG = { entrees: 'entrees', mezzes: 'entrees', brochettes: 'entrees', salades: 'entrees', plats: 'plats', accompagnements: 'accompagnements', desserts: 'desserts' };
-  const UNITE = { entrees: ['pièce', 20], mezzes: ['portion', 10], brochettes: ['brochette', 10], salades: ['portion', 10], plats: ['portion', 10], accompagnements: ['portion', 10], desserts: ['pièce', 10] };
+  const UNITE = { entrees: ['pièce', 20], /* 20 : trop haut pour le buffet chinois, ramené à 5 plus bas (chinoisMin5) */ mezzes: ['portion', 10], brochettes: ['brochette', 10], salades: ['portion', 10], plats: ['portion', 10], accompagnements: ['portion', 10], desserts: ['pièce', 10] };
   const vus = new Set(prods.map(p => p.slug)); let ordre = Math.max(0, ...prods.map(p => p.ordre || 0)) + 1, n = 0;
   for (const x of r.sous) {
     const dans = prods.filter(p => p.sous === x.slug);
@@ -896,6 +896,18 @@ async function initSousRubriques(store, { log = console } = {}) {
     L = [...L, ...FIN.map(f => rubs.find(x => x.id === f)).filter(Boolean)];
     for (const [i, r] of L.entries()) if (r.data.ordre !== i + 1) await store.set('rubriques/' + r.id, { ...r.data, ordre: i + 1 });
     await store.set('site/reglages', { ...(await store.get('site/reglages')), ordreUnivers2: true });
+  }
+
+  /* Buffet chinois à l'unité : minimum 5 (Jean-Luc, 2026-11-23, « 20 c'est impossible »). Le 20 venait de la valeur par défaut
+     (UNITE.entrees = 20 pièces) posée quand les fiches à l'unité ont été créées à partir des options des buffets.
+     Une fois ; modifiable ensuite au back-office. La quantité de départ d'une fiche reste son minimum. */
+  const RCh = await store.get('site/reglages');
+  if (RCh && !RCh.chinoisMin5) {
+    for (const { id, data: p } of await store.list('produits')) {
+      if (p.sous !== 'buffet-chinois' || !['entrees', 'plats', 'accompagnements', 'desserts'].includes(rangementDe(p)) || p.min === 5) continue;
+      await store.set('produits/' + id, { ...p, min: 5, ...(p.minimumTexte ? { minimumTexte: `Minimum de commande : 5 ${p.unite === 'pièce' ? 'pièces' : p.unite === 'portion' ? 'portions' : p.unite + 's'}` } : {}) });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), chinoisMin5: true });
   }
 
   /* paragraphe de présentation de chaque rubrique et de la page Lieux (Jean-Luc, 2026-11-22). Posé une fois, seulement si vide. */
