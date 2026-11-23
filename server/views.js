@@ -366,7 +366,8 @@ function pageGlobe(c, r) {
   <p class="sm-aide" aria-hidden="true">Faites tourner le globe et touchez un pays</p>
   <script type="application/json" data-sm-data>${JSON.stringify(items).replace(/</g, '\\u003c')}</script>
 </section>`;
-  return layout(c, { title: r.seoTitre || r.titrePage || r.nom, description: r.seoDescription || r.chapo || '', body, path: '/' + r.slug, image: '/site/c/paysages/antilles.webp', bodyClass: 'sm-page',
+  return layout(c, { title: r.seoTitre || r.titrePage || r.nom, description: r.seoDescription || r.chapo || '', body, path: '/' + r.slug, /* vignette de partage : la photo d'arrivée avec « Dix traiteurs, une seule maison. » écrit dessus (Jean-Luc, 2026-11-23) */
+    image: '/site/partage/saveurs-du-monde.jpg', bodyClass: 'sm-page',
     /* aperçu au partage (SMS, WhatsApp…) sous le titre (Jean-Luc, 2026-11-23) */
     partage: r.partageTexte || 'Dix traiteurs, une seule maison.',
     head: '<link rel="stylesheet" href="/vendor/maplibre5/maplibre-gl.css">', scripts: `<script src="/vendor/maplibre5/maplibre-gl.js" defer></script><script src="/js/globe.js?v=${V}" defer></script>` });
