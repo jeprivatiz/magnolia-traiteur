@@ -389,7 +389,7 @@ function pageSections(c, r, x, chips, hero) {
 <section class="wrap shop spe-sections" id="prestations">
   <div class="shop-bar">${chips}</div>
   ${x.introTexte ? `<div class="spe-intro">${x.introTitre ? `<h2>${esc(x.introTitre)}</h2>` : ''}${String(x.introTexte).split(/\n+/).map(l => l.trim()).filter(Boolean).map(l => `<p>${esc(l)}</p>`).join("")}</div>` : ''}
-  ${blocs.map(([k, t, L]) => `<div class="spe-bloc" id="${k}"><h2>${esc(t)}</h2><p class="count">${L.length} prestation${L.length > 1 ? 's' : ''} · tarifs TTC</p><div class="cards grid">${L.map(p => card(p, c, { rubNom: false })).join('')}</div></div>`).join('')}
+  ${blocs.map(([k, t, L]) => `<div class="spe-bloc" id="${k}"><h2>${esc(t)}</h2><p class="count">${L.length} prestation${L.length > 1 ? 's' : ''} · tarifs TTC${k === 'buffets' && x.slug === 'buffet-libanais' ? ' · photos non contractuelles' : ''}</p><div class="cards grid">${L.map(p => card(p, c, { rubNom: false })).join('')}</div></div>`).join('')}
 </section>`;
   return layout(c, { title: x.seoTitre || speTitre(x), description: x.seoDescription || speChapo(x), body, path: `/${r.slug}/${x.slug}`, image: x.bandeauPhoto || x.photo });
 }
