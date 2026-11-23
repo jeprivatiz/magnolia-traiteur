@@ -192,6 +192,9 @@
         apply();
       });
     });
+    /* Saveurs du monde : toujours la page du globe, jamais un filtre mélangé dans la boutique (Jean-Luc, 2026-11-23) */
+    if (location.pathname === '/boutique' && location.hash === '#saveurs-du-monde') { location.replace('/saveurs-du-monde'); }
+    else
     if (location.hash && location.pathname === '/boutique') $(`[data-filter="${CSS.escape(location.hash.slice(1))}"]`, shop)?.click();
     const qi = $('[data-shop-q]', shop);
     if (qi && location.pathname !== '/boutique') qi.form.addEventListener('submit', e => { e.preventDefault(); apply(); });
