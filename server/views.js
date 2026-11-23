@@ -39,7 +39,7 @@ function adsConv(R) {
   return ` data-ads="${id}"` + d + k;
 }
 
-function layout(c, { title, description = '', body, path = '/', schema = null, bodyClass = '', image = '', head = '', scripts = '' }) {
+function layout(c, { title, description = '', body, path = '/', schema = null, bodyClass = '', image = '', head = '', scripts = '', partage = '' }) {
   const R = c.reglages;
   const fullTitle = title ? `${title} · ${R.nom || 'Magnolia Traiteur'}` : `${R.nom || 'Magnolia Traiteur'} · Traiteur événementiel`;
   const site = (process.env.SITE_URL || 'https://www.magnoliatraiteur.fr').replace(/\/$/, '');
@@ -53,8 +53,12 @@ function layout(c, { title, description = '', body, path = '/', schema = null, b
 <meta name="description" content="${esc(description || R.accueil?.sousTitre || '')}">
 <link rel="canonical" href="${esc(site + path)}">
 <meta property="og:title" content="${esc(fullTitle)}">
-<meta property="og:description" content="${esc(description)}">
+<meta property="og:description" content="${esc(partage || description)}">
 ${image ? `<meta property="og:image" content="${esc(site + image)}">` : ''}
+<meta name="twitter:card" content="${image ? 'summary_large_image' : 'summary'}">
+<meta name="twitter:title" content="${esc(fullTitle)}">
+<meta name="twitter:description" content="${esc(partage || description)}">
+${image ? `<meta name="twitter:image" content="${esc(site + image)}">` : ''}
 <meta name="theme-color" content="#1d3b2f">
 <link rel="icon" href="/brand/monogramme.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/apple-icon.png">
@@ -359,6 +363,8 @@ function pageGlobe(c, r) {
   <script type="application/json" data-sm-data>${JSON.stringify(items).replace(/</g, '\\u003c')}</script>
 </section>`;
   return layout(c, { title: r.seoTitre || r.titrePage || r.nom, description: r.seoDescription || r.chapo || '', body, path: '/' + r.slug, image: '/site/c/paysages/antilles.webp', bodyClass: 'sm-page',
+    /* aperçu au partage (SMS, WhatsApp…) sous le titre (Jean-Luc, 2026-11-23) */
+    partage: r.partageTexte || 'Dix traiteurs, une seule maison.',
     head: '<link rel="stylesheet" href="/vendor/maplibre5/maplibre-gl.css">', scripts: `<script src="/vendor/maplibre5/maplibre-gl.js" defer></script><script src="/js/globe.js?v=${V}" defer></script>` });
 }
 function pageSpecialites(c, r) {
