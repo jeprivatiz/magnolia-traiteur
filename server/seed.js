@@ -880,6 +880,15 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('site/reglages', { ...(await store.get('site/reglages')), carteSections2: true });
   }
 
+  /* Vignette « La carte Magnolia » de l'accueil : souris d'agneau confite à la place du carpaccio sur fond vert (Jean-Luc, 2026-11-23).
+     Une fois, et seulement si la photo de la vignette n'a pas été changée au back-office. */
+  const RCm3 = await store.get('site/reglages');
+  if (RCm3 && !RCm3.carteVignette2) {
+    const cm = await store.get('rubriques/carte-magnolia'), ancienne = /carpaccio-de-tomates/;
+    if (cm && (!cm.photoAccueil || ancienne.test(cm.photoAccueil))) await store.set('rubriques/carte-magnolia', { ...cm, photoAccueil: '/site/c/carte-magnolia-photos/souris-dagneau-confite.webp.webp' });
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), carteVignette2: true });
+  }
+
   /* Ordre des vignettes d'univers de l'accueil (Jean-Luc, 2026-11-23) : la nourriture d'abord, « Traiteur végétarien et vegan »
      juste après « Coffrets & plateaux », « Petits-déjeuners » juste après « Animations sucrées », puis ce qui n'est pas de la
      nourriture (indispensables, personnel, musique, lieux) à la fin. Le reste garde son ordre. Une fois : réglable ensuite au back-office (champ « Ordre »). */

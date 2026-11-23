@@ -646,10 +646,10 @@
     bindPhotos($('#rf'));
     /* pictogramme de la vignette : choix visuel (Automatique = celui prévu pour cet univers) */
     (cache.pictos ||= fetch('/pictos.json').then(r => r.json())).then(({ liste, defaut }) => {
-      const cur = rubC.picto || '', auto = liste.find(x => x.k === defaut[cache.catR]);
+      const cur = rubC.picto === 'aucun' ? '' : rubC.picto || '', auto = liste.find(x => x.k === defaut[cache.catR]);
       const opt = (v, nom, svg) => `<label class="pic${cur === v ? ' on' : ''}" title="${esc(nom)}"><input type="radio" name="picto" value="${v}"${cur === v ? ' checked' : ''}><span class="pic-i">${svg}</span><small>${esc(nom)}</small></label>`;
       const fs = $('[data-pictos]'); if (!fs) return;
-      fs.innerHTML = `<legend>Pictogramme sur la vignette de l’accueil</legend><div class="pic-g">${opt('', 'Automatique' + (auto ? ' (' + auto.nom.toLowerCase() + ')' : ''), auto ? auto.svg : '—')}${liste.map(x => opt(x.k, x.nom, x.svg)).join('')}${opt('aucun', 'Aucun pictogramme', '<span class="pic-0">∅</span>')}</div><p class="muted sm">Cliquez sur un dessin, puis « Enregistrer la rubrique ».</p>`;
+      fs.innerHTML = `<legend>Pictogramme sur la vignette de l’accueil</legend><div class="pic-g">${opt('', 'Aucun pictogramme (photo seule)', '<span class="pic-0">∅</span>')}${auto ? opt('auto', 'Celui prévu (' + auto.nom.toLowerCase() + ')', auto.svg) : ''}${liste.map(x => opt(x.k, x.nom, x.svg)).join('')}</div><p class="muted sm">En réserve : par défaut, la vignette garde sa photo seule. Pour afficher un pictogramme, cliquez sur un dessin, puis « Enregistrer la rubrique ».</p>`;
       fs.addEventListener('change', () => $$('.pic', fs).forEach(l => l.classList.toggle('on', $('input', l).checked)));
     });
     $('#rf').addEventListener('submit', async e => {

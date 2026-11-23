@@ -68,8 +68,10 @@ const DEFAUT = {
   douceurs: 'gateau', 'petits-dejeuners': 'cafe', indispensables: 'couverts', personnel: 'noeud', 'musique-animations': 'musique', lieux: 'lieu',
 };
 
-/* r.picto : '' (ou absent) = automatique, 'aucun' = pas de pictogramme, sinon une clé de P */
-const pictoDe = r => { const k = r?.picto; if (k === 'aucun') return ''; return P[k] ? k : (DEFAUT[r?.slug] || ''); };
+/* En stock (Jean-Luc, 2026-11-23 : « pour l'instant, on garde les photos ») : rien ne s'affiche tant qu'une rubrique
+   n'a pas de pictogramme choisi au back-office. r.picto : '' ou 'aucun' = pas de pictogramme, 'auto' = celui prévu pour
+   cet univers (DEFAUT), sinon une clé de P. */
+const pictoDe = r => { const k = r?.picto; if (k === 'auto') return DEFAUT[r?.slug] || ''; return P[k] ? k : ''; };
 const pictoSvg = (k, cls = 'picto') => P[k] ? `<svg class="${cls}" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[k][1].replace(/\s*\n\s*/g, '')}</svg>` : '';
 const liste = () => Object.entries(P).map(([k, [nom]]) => ({ k, nom, svg: pictoSvg(k) }));
 
