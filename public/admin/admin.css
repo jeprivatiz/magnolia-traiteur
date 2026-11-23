@@ -770,3 +770,5 @@ a.qs-back { display: inline-flex; align-items: center; text-decoration: none; }
 
 .gal-err { margin: 0 0 10px; padding: 10px 14px; border-radius: 10px; background: #fbeeea; border: 1px solid #e3b4a8; color: #8a2f1e; font-size: .88rem; line-height: 1.45; }
 .gal-err[hidden] { display: none; }
+
+.maj-bandeau { position: fixed; left: 50%; top: 12px; transform: translateX(-50%); z-index: 1000; display: flex; align-items: center; gap: 12px; padding: 10px 12px 10px 18px; border-radius: 999px; background: #fff8ea; border: 1px solid #d8b76a; color: #5c4214; box-shadow: 0 8px 24px -8px rgba(0, 0, 0, .35); font-size: .9rem; max-width: calc(100vw - 24px); }

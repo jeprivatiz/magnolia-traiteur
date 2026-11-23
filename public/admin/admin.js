@@ -13,6 +13,7 @@
   const toast = (m, bad) => { const t = $('#toast'); t.textContent = m; t.className = 'toast on' + (bad ? ' bad' : ''); clearTimeout(t._t); t._t = setTimeout(() => { t.className = 'toast'; }, 3800); };
   async function api(url, { method = 'GET', body, form } = {}) {
     const r = await fetch(url, { method, headers: form ? { 'x-mg': '1' } : { 'content-type': 'application/json', 'x-mg': '1' }, body: form || (body !== undefined ? JSON.stringify(body) : undefined) });
+    verifierVersion(r.headers.get('x-version'));
     const j = await r.json().catch(() => ({}));
     if (r.status === 401) { session = null; render(); throw new Error('Connexion requise.'); }
     if (!r.ok) throw new Error(j.error || 'Erreur ' + r.status);
@@ -63,7 +64,21 @@
   const page = (titre, actions, body) => `<div class="ph"><h1>${titre}</h1><div class="pa">${actions || ''}</div></div>${body}`;
 
   /* ---------- routeur ---------- */
+  /* nouvelle version en ligne alors que l'onglet est resté ouvert : on recharge
+     au prochain changement d'écran (rien n'est perdu), et un bandeau le propose tout de suite */
+  const MA_VERSION = (document.querySelector('script[src*="admin.js?v="]')?.src.match(/v=([^&]+)/) || [])[1] || '';
+  let versionPerimee = false;
+  function verifierVersion(v) {
+    if (!v || !MA_VERSION || v === MA_VERSION || versionPerimee) return;
+    versionPerimee = true;
+    const b = document.createElement('div');
+    b.className = 'maj-bandeau';
+    b.innerHTML = '<span>Une nouvelle version du back-office est en ligne.</span><button type="button" class="btn sm">Recharger</button>';
+    b.querySelector('button').addEventListener('click', () => location.reload());
+    document.body.append(b);
+  }
   async function render() {
+    if (versionPerimee) { location.reload(); return; }
     if (!session) {
       try { const s = await fetch('/api/session').then(r => r.json()); if (s.connecte) session = s; } catch { /* */ }
     }
