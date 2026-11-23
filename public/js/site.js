@@ -23,6 +23,24 @@
     return j;
   };
 
+  /* ---------- bouton « Partager » : partage du téléphone (SMS, WhatsApp, mail…) ou copie du lien sur ordinateur ---------- */
+  const copier = async (txt) => {
+    try { await navigator.clipboard.writeText(txt); return true; } catch { /* ancien navigateur */ }
+    const ta = document.createElement('textarea'); ta.value = txt; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;opacity:0;top:0';
+    document.body.appendChild(ta); ta.select(); let ok = false; try { ok = document.execCommand('copy'); } catch { ok = false; } ta.remove(); return ok;
+  };
+  document.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-partage]'); if (!b) return;
+    const url = location.href.split('#')[0];
+    const titre = (document.querySelector('h1')?.textContent || document.title).trim().replace(/\s+/g, ' ');
+    const tactile = matchMedia('(pointer: coarse)').matches;
+    if (navigator.share && tactile) {
+      try { await navigator.share({ title: titre, text: titre + ' · Magnolia Traiteur', url }); return; }
+      catch (err) { if (err && err.name === 'AbortError') return; }
+    }
+    toast(await copier(url) ? 'Lien copié : vous pouvez le coller dans un SMS, un e-mail ou WhatsApp.' : 'Copiez ce lien : ' + url);
+  });
+
   /* ---------- en-tête, menu, recherche ---------- */
   const top = $('[data-top]');
   const onScroll = () => top && top.classList.toggle('scrolled', scrollY > 30);

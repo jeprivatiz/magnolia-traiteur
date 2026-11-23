@@ -18,6 +18,7 @@ const icon = {
   mic: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>',
   play: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>',
   arrow: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  share: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7.5 7.5 12 3l4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 11H6.5A1.5 1.5 0 0 0 5 12.5v7A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5v-7a1.5 1.5 0 0 0-1.5-1.5H16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
   phone: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>',
 };
 
@@ -117,6 +118,7 @@ ${schema ? `<script type="application/ld+json">${JSON.stringify(schema).replace(
   </div>
   <div class="foot-bas"><p>${esc(R.mentionPied || '')}</p><p><a href="/mentions-legales">Mentions légales</a> · <a href="/confidentialite">Confidentialité</a> · <a href="/cgv">CGV</a> · <a href="/allergenes">Allergènes</a><span data-cookies> · <a href="#cookies">Gérer mes cookies</a></span> · © ${new Date().getFullYear()} ${esc(R.nom)}</p></div>
 </footer>
+${/^\/(espace-client|ma-selection)/.test(path) ? '' : `<button type="button" class="partage" data-partage aria-label="Partager cette page">${icon.share}<span>Partager</span></button>`}
 <div class="toast" data-toast role="status" aria-live="polite"></div>
 <script>window.MG=${JSON.stringify({ tel: R.telephone, tarifs: R.tarifs, origine: R.origine, evenements: R.evenements }).replace(/</g, '\\u003c')};</script>
 <script src="/js/site.js?v=${V}" defer></script>
