@@ -1,5 +1,5 @@
 /* Page Plateaux de fruits de mer : boutons − / + de la sélection (même panier « mg_sel » que le reste du site).
-   La photo du plateau à gauche est décorative : elle tourne doucement en CSS, sans lien avec les produits choisis. */
+   La photo du plateau à gauche est décorative : fixe, sans lien avec les produits choisis. */
 (() => {
   const el = document.querySelector('[data-p3]');
   if (!el) return;

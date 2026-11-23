@@ -448,7 +448,7 @@ ${avant}<section class="wrap shop" id="prestations" data-shop>
 }
 
 /* Plateau de fruits de mer (Jean-Luc, 2026-11-23) : le client choisit ses produits à l'unité, nous les dressons.
-   Photo du plateau (fournie par Jean-Luc) qui tourne doucement à gauche, sélection à droite (public/js/plateau.js) ; textes modifiables dans la rubrique (introTitre, introTexte). */
+   Photo fixe du plateau (fournie par Jean-Luc) à gauche, sélection à droite (public/js/plateau.js) ; textes modifiables dans la rubrique (introTitre, introTexte). */
 const FAMILLES_MER = [['Huîtres & coquillages', /hu[iî]tre|praire|bulot|oursin|palourde|bigorneau/i], ['Crustacés', /homard|tourteau|crabe|langoustine|crevette|gambas/i], ['Pour accompagner', /./]];
 function plateau3dHtml(c, r, liste) {
   const L = (liste || []).filter(p => p.statut !== 'masque' && p.prixCents != null && !(p.groupes || []).length && !(p.variantes || []).length).slice().sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
