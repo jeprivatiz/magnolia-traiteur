@@ -798,6 +798,19 @@
   }
   /* photos réduites à 2000 px avant l'envoi (téléphones : 12 Mo → 500 Ko) */
   async function compress(file) {
+    /* photos iPhone (HEIC) : converties ici quand le navigateur sait les lire (Safari), sinon message clair */
+    const heic = /^image\/hei[cf]/i.test(file.type) || /\.hei[cf]$/i.test(file.name || '');
+    if (heic) {
+      try {
+        const bmp = await createImageBitmap(file);
+        const k = Math.min(1, 2000 / Math.max(bmp.width, bmp.height));
+        const cv = document.createElement('canvas'); cv.width = Math.round(bmp.width * k); cv.height = Math.round(bmp.height * k);
+        cv.getContext('2d').drawImage(bmp, 0, 0, cv.width, cv.height);
+        const blob = await new Promise(r => cv.toBlob(r, 'image/jpeg', 0.88));
+        if (blob) return new File([blob], (file.name || 'photo').replace(/\.\w+$/, '') + '.jpg', { type: 'image/jpeg' });
+      } catch {}
+      throw new Error('photo au format HEIC (iPhone) que ce navigateur ne sait pas lire. Ouvrez-la dans Aperçu > Fichier > Exporter en JPEG, ou envoyez-la depuis Safari ou l’iPhone.');
+    }
     if (!/^image\/(jpeg|png|webp)$/.test(file.type) || file.size < 600e3) return file;
     try {
       const bmp = await createImageBitmap(file);
@@ -865,10 +878,10 @@
           <label>Mise en avant<select name="maison"><option value="1">Produit maison (en premier)</option><option value=""${!p.maison ? ' selected' : ''}>Partenaire</option></select></label></div>
           ${(rubs.find(r => r.slug === p.rubrique)?.sous || []).length ? `<label>Spécialité (dans « ${esc(rubs.find(r => r.slug === p.rubrique).nom)} »)<select name="sous"><option value="">Aucune (seulement dans « Tout »)</option>${[...rubs.find(r => r.slug === p.rubrique).sous].sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0)).map(x => `<option value="${esc(x.slug)}"${x.slug === p.sous ? ' selected' : ''}>${esc(x.nom)}</option>`).join('')}</select></label><fieldset class="span3 aussi"><legend>Aussi affichée dans <small class="muted">(un seul produit, plusieurs spécialités : pas de doublon dans la boutique)</small></legend>${[...rubs.find(r => r.slug === p.rubrique).sous].sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0)).map(x => `<label class="chk"><input type="checkbox" name="autresSous" value="${esc(x.slug)}"${(p.autresSous || []).includes(x.slug) ? ' checked' : ''}> ${esc(String(x.nom).split(' · ')[0])}</label>`).join(' ')}</fieldset>` : ''}
           <label>Section sur la page de la spécialité<select name="rangement"><option value="">Automatique (d’après le nom)</option>${[['buffets', 'Nos buffets'], ['entrees', 'Nos entrées à l’unité'], ['plats', 'Nos plats à l’unité'], ['accompagnements', 'Nos accompagnements à l’unité'], ['fromages', 'Nos fromages'], ['desserts', 'Nos desserts à l’unité'], ['divers', 'Produits divers à l’unité']].map(([k, t]) => `<option value="${k}"${p.rangement === k ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
-          <div class="sp-edit"><label for="sousPhoto">Description sous la photo <small class="muted">(s’affiche juste sous la photo de la page produit. Au collage, les lignes vides sont retirées ; une ligne vide que vous ajoutez avec Entrée reste visible. Mots en gras : sélectionnez-les puis « G ».)</small></label>
-          <div class="sp-barre"><button type="button" class="btn ghost sm" data-gras title="Mettre la sélection en gras"><b>G</b> Gras</button><button type="button" class="btn ghost sm" data-titres-gras title="Met en gras les lignes écrites tout en MAJUSCULES">Titres en MAJUSCULES en gras</button><button type="button" class="btn ghost sm" data-sans-gras title="Retire le gras de la sélection (ou de tout le texte)">Retirer le gras</button></div>
-          <textarea id="sousPhoto" name="sousPhoto" rows="8" data-colle placeholder="Ex. NOS MINI PIÈCES&#10;pain polaire - saumon fumé - fromage frais">${esc((p.sousPhoto || []).join('\n'))}</textarea>
-          <p class="muted sm">Le gras s’écrit **entre deux étoiles** dans la case : sur le site, les étoiles disparaissent et le mot apparaît en gras.</p></div>
+          <div class="sp-edit"><span class="sp-lab">Description sous la photo <small class="muted">(s’affiche juste sous la photo de la page produit. Au collage, les lignes vides sont retirées ; une ligne vide que vous ajoutez avec Entrée reste visible.)</small></span>
+          <div class="sp-barre"><button type="button" class="btn ghost sm" data-gras title="Mettre la sélection en gras (ou l’enlever)"><b>G</b> Gras</button><button type="button" class="btn ghost sm" data-titres-gras title="Met en gras les lignes écrites tout en MAJUSCULES">Titres en MAJUSCULES en gras</button><button type="button" class="btn ghost sm" data-sans-gras title="Retire le gras de la sélection (ou de tout le texte)">Retirer le gras</button></div>
+          <div class="sp-zone" contenteditable="true" role="textbox" aria-multiline="true" data-sp-edit data-vide="Ex. NOS MINI PIÈCES puis, à la ligne, pain polaire - saumon fumé - fromage frais"></div>
+          <textarea name="sousPhoto" hidden>${esc((p.sousPhoto || []).join('\n'))}</textarea></div>
           <label>Accroche (cartes et Google)<textarea name="extrait" rows="2">${esc(p.extrait || '')}</textarea></label>
           <label>Description (un paragraphe par ligne)<textarea name="description" rows="4" data-colle>${esc((p.description || []).join('\n'))}</textarea></label>
         </section>
@@ -884,9 +897,10 @@
           <label>Variantes (une par ligne, ex. « Entrée & plat »)<textarea name="variantes" rows="2">${esc((p.variantes || []).join('\n'))}</textarea></label>
         </section>
       </div>
-      <section class="box"><div class="bh"><h2>Photos et vidéo</h2><div class="row"><label class="btn ghost sm up">+ Ajouter depuis mon ordinateur<input type="file" accept="image/*" multiple hidden data-multi></label><button type="button" class="btn ghost sm" data-pickp>+ Ajouter depuis la médiathèque</button></div></div>
-        <p class="muted sm">La photo principale s’affiche sur la vignette de la boutique. Glissez les photos pour changer l’ordre, ou cliquez sur « ★ Principale ».</p>
-        <div class="photos" id="photos"></div>
+      <section class="box"><div class="bh"><h2>Photos de la galerie <span class="gal-nb" data-galnb></span></h2><span class="gal-etat" data-galetat></span></div>
+        <p class="muted sm">Toutes les photos de la galerie sont ici. Chaque photo ajoutée apparaît tout de suite et <b>s’enregistre toute seule</b>. La photo principale (cadre doré) s’affiche sur la vignette de la boutique ; glissez les photos pour changer l’ordre, ou cliquez sur « ★ Principale ».</p>
+        <p class="gal-err" data-galerr hidden></p>
+        <div class="photos gal-bo" id="photos"></div>
         <h3 class="sub">Vidéo de la fiche <small class="muted">facultatif</small></h3><p class="muted sm">Sur la fiche, la vidéo passe en premier dans la galerie, avant les photos : elle tourne en boucle, sans le son. L’image d’attente s’affiche pendant son chargement (prenez une photo de la galerie). Format : fichier MP4 court (10 à 20 secondes).</p><div class="g2 vfiche">${photoField('video', p.video?.src || '', 'Vidéo (fichier MP4)')}${photoField('poster', p.video?.poster || '', 'Image d’attente')}</div>
       </section>
       <section class="box"><h2>Composition</h2><p class="muted sm">Un bloc par section, séparés par une ligne vide. Première ligne = titre, puis un élément par ligne. « # » = note avant la liste, « ## » = note après, « > » = paragraphe.</p><textarea name="sections" rows="10" class="mono">${esc((p.sections || []).map(sec).join('\n\n'))}</textarea>
@@ -902,34 +916,95 @@
   produit.after = id => {
     const p = cache.p, form = $('#pf');
     let photos = (p.photos || []).map(x => ({ ...x }));
+    const ajout = `<label class="gal-ajout" data-drop><input type="file" accept="image/*,.heic,.heif" multiple hidden data-multi><span class="ga-plus">+</span><b>Ajouter des photos</b><span>Cliquez ou glissez vos photos ici</span><span class="ga-tel">Sur iPhone : Photothèque ou appareil photo</span></label>
+      <button type="button" class="gal-ajout gal-media" data-pickp><span class="ga-plus">▦</span><b>Médiathèque</b><span>Reprendre une photo déjà envoyée</span></button>`;
     const draw = () => {
-      $('#photos').innerHTML = photos.map((ph, i) => vigGalerie(ph.src, i, ph.alt)).join('') || '<p class="muted">Aucune photo.</p>';
+      $('#photos').innerHTML = photos.map((ph, i) => ph.envoi
+        ? `<figure class="ph-envoi"><div class="ph-img"><img src="${esc(ph.src)}" alt=""><span class="ph-sablier">Envoi…</span></div></figure>`
+        : vigGalerie(ph.src, i, ph.alt)).join('') + ajout;
+      const n = photos.filter(x => !x.envoi).length;
+      $('[data-galnb]').textContent = n ? `(${n} photo${n > 1 ? 's' : ''})` : '(aucune photo)';
     };
     draw();
+    /* photos enregistrées automatiquement, sans toucher aux autres champs non enregistrés */
+    const etat = t => { const e = $('[data-galetat]'); if (e) e.textContent = t; };
+    let fileSauve = Promise.resolve(), altT = null;
+    const sauvePhotos = () => {
+      fileSauve = fileSauve.then(async () => {
+        const liste = photos.filter(x => !x.envoi).map(({ src, alt }) => ({ src, alt }));
+        etat('Enregistrement…');
+        try {
+          const base = cache.p || p;
+          const next = { ...base, photos: liste };
+          await api(`${A}/produits/${id}`, { method: 'PUT', body: next });
+          cache.p = next; cache.produits = null; etat('✓ Photos enregistrées');
+        } catch (err) { etat(''); toast('Photos non enregistrées : ' + err.message, true); }
+      });
+      return fileSauve;
+    };
+    const envoyer = async files => {
+      const imgs = [...files].filter(f => /^image\//.test(f.type) || /\.(hei[cf]|jpe?g|png|webp)$/i.test(f.name || ''));
+      if (!imgs.length) { toast('Choisissez des photos (JPG, PNG, WebP…).', true); return; }
+      const lots = imgs.map(f => { const x = { src: URL.createObjectURL(f), envoi: true, alt: form.titre.value }; photos.push(x); return [f, x]; });
+      draw(); etat(`Envoi de ${lots.length} photo${lots.length > 1 ? 's' : ''}…`);
+      let ok = 0; const refus = [];
+      for (const [f, x] of lots) {
+        try { const url = await uploadFile(f); URL.revokeObjectURL(x.src); x.src = url; delete x.envoi; ok++; }
+        catch (err) { photos.splice(photos.indexOf(x), 1); refus.push(`« ${f.name} » : ${err.message}`); }
+        draw();
+      }
+      if (ok) await sauvePhotos();
+      const msg = $('[data-galerr]');
+      if (msg) { msg.hidden = !refus.length; msg.innerHTML = refus.length ? `<b>${refus.length > 1 ? refus.length + ' photos non ajoutées' : 'Photo non ajoutée'}</b><br>${refus.map(esc).join('<br>')}` : ''; }
+      if (refus.length) toast(refus.length > 1 ? `${refus.length} photos non ajoutées (voir le message rouge).` : 'Photo non ajoutée (voir le message rouge).', true);
+      else toast(ok > 1 ? `${ok} photos ajoutées et enregistrées.` : 'Photo ajoutée et enregistrée.');
+    };
     const dirty = () => { $('#dirty').textContent = 'Modifications non enregistrées'; };
     form.addEventListener('input', dirty);
-    /* description sous la photo : boutons gras */
+    /* description sous la photo : petit éditeur où le gras se voit tel quel (enregistré en **gras**) */
     {
-      const ta = $('[name=sousPhoto]', form);
-      const remplace = (debut, fin, txt) => { ta.focus(); ta.setRangeText(txt, debut, fin, 'select'); dirty(); };
-      $('[data-gras]', form)?.addEventListener('click', () => {
-        let a = ta.selectionStart, b = ta.selectionEnd;
-        while (a < b && /\s/.test(ta.value[a])) a++;
-        while (b > a && /\s/.test(ta.value[b - 1])) b--;
-        if (a === b) { toast('Sélectionnez d’abord les mots à mettre en gras.', true); return; }
-        const sel = ta.value.slice(a, b);
-        /* chaque ligne de la sélection est mise en gras séparément */
-        remplace(a, b, sel.split('\n').map(l => l.trim() ? '**' + l.replace(/\*\*/g, '') + '**' : l).join('\n'));
+      const ta = $('[name=sousPhoto]', form), ed = $('[data-sp-edit]', form);
+      const ligneHtml = t => esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\*\*/g, '');
+      const affiche = l => { ed.innerHTML = l.map(t => `<div>${ligneHtml(t) || '<br>'}</div>`).join(''); ed.classList.toggle('vide', !l.length); };
+      const lit = () => {
+        /* copie hors écran : le gras devient **…**, puis innerText donne les lignes comme à l'écran */
+        const c = ed.cloneNode(true);
+        c.querySelectorAll('span[style*="font-weight"]').forEach(x => { if (/bold|[6-9]00/.test(x.style.fontWeight)) { const b = document.createElement('b'); b.append(...x.childNodes); x.replaceWith(b); } });
+        /* chaque morceau de texte en gras est entouré d'étoiles (un gras qui couvre plusieurs lignes reste ligne par ligne) */
+        const w = document.createTreeWalker(c, NodeFilter.SHOW_TEXT), nodes = []; let n;
+        while ((n = w.nextNode())) if (n.parentElement.closest('b, strong') && n.nodeValue.trim()) nodes.push(n);
+        nodes.forEach(t => { t.nodeValue = '**' + t.nodeValue + '**'; });
+        c.style.cssText = 'position:fixed;left:-99999px;top:0;width:800px;white-space:pre-wrap';
+        document.body.append(c); const txt = c.innerText; c.parentNode.removeChild(c);
+        return lignesSousPhoto(txt.replace(/\*\*\*\*/g, '').replace(/\*\*([ \t]+)\*\*/g, '$1').split('\n').map(l => l.replace(/\*\*(\s+)/g, '$1**').replace(/(\s+)\*\*/g, '**$1').replace(/^\*\*\*\*$/, '')).join('\n'));
+      };
+      const sync = () => { ta.value = lit().join('\n'); ed.classList.toggle('vide', !ed.textContent.trim()); };
+      affiche(lignesSousPhoto(ta.value));
+      try { document.execCommand('defaultParagraphSeparator', false, 'div'); } catch {}
+      ed.addEventListener('input', () => { sync(); dirty(); });
+      ed.addEventListener('paste', e => {
+        const txt = e.clipboardData?.getData('text/plain'); if (txt == null) return;
+        e.preventDefault();
+        const html = lignesNettes(txt).map(esc).join('<br>');
+        if (!document.execCommand('insertHTML', false, html)) { const sel = getSelection(); if (sel.rangeCount) { const r = sel.getRangeAt(0); r.deleteContents(); r.insertNode(document.createRange().createContextualFragment(html)); } }
+        sync(); dirty();
       });
-      $('[data-sans-gras]', form)?.addEventListener('click', () => {
-        const a = ta.selectionStart, b = ta.selectionEnd;
-        if (a === b) remplace(0, ta.value.length, ta.value.replace(/\*\*/g, ''));
-        else remplace(a, b, ta.value.slice(a, b).replace(/\*\*/g, ''));
+      /* les boutons gardent la sélection du texte */
+      $$('.sp-barre button', form).forEach(bt => bt.addEventListener('mousedown', e => e.preventDefault()));
+      const selDansEd = () => { const s = getSelection(); return s.rangeCount && !s.isCollapsed && ed.contains(s.anchorNode) && ed.contains(s.focusNode); };
+      $('[data-gras]', form).addEventListener('click', () => {
+        if (!selDansEd()) { toast('Sélectionnez d’abord les mots à mettre en gras.', true); return; }
+        document.execCommand('bold'); sync(); dirty();
       });
-      $('[data-titres-gras]', form)?.addEventListener('click', () => {
+      $('[data-sans-gras]', form).addEventListener('click', () => {
+        if (selDansEd()) { let k = 0; while (document.queryCommandState('bold') && k++ < 3) document.execCommand('bold'); }
+        else affiche(lit().map(l => l.replace(/\*\*/g, '')));
+        sync(); dirty();
+      });
+      $('[data-titres-gras]', form).addEventListener('click', () => {
         let n = 0;
-        const v = ta.value.split('\n').map(l => { const t = l.trim(); if (!t || t.startsWith('**') || !/\p{Lu}.*\p{Lu}/u.test(t) || /\p{Ll}/u.test(t)) return l; n++; return '**' + t + '**'; }).join('\n');
-        remplace(0, ta.value.length, v); ta.setSelectionRange(0, 0);
+        const l = lit().map(t => { const u = t.replace(/\*\*/g, '').trim(); if (!u || /^\*\*.*\*\*$/.test(t) || !/\p{Lu}.*\p{Lu}/u.test(u) || /\p{Ll}/u.test(u)) return t; n++; return '**' + u + '**'; });
+        affiche(l); sync(); if (n) dirty();
         toast(n ? `${n} titre${n > 1 ? 's' : ''} mis en gras.` : 'Aucune ligne tout en majuscules à mettre en gras.', !n);
       });
     }
@@ -940,14 +1015,23 @@
       t.setRangeText(lignesNettes(txt).join('\n'), t.selectionStart, t.selectionEnd, 'end'); dirty();
     }));
     bindPhotos(form);
-    $('#photos').addEventListener('input', e => { if (e.target.matches('[data-alt]')) photos[+e.target.closest('[data-i]').dataset.i].alt = e.target.value; });
-    $('#photos').addEventListener('click', e => { const f = e.target.closest('[data-i]'); if (!f) return; const i = +f.dataset.i; if (e.target.closest('[data-rm]') && confirmerRetrait()) { photos.splice(i, 1); draw(); dirty(); } if (e.target.closest('[data-main]')) { photos.unshift(...photos.splice(i, 1)); draw(); dirty(); } });
+    $('#photos').addEventListener('input', e => { if (e.target.matches('[data-multi]')) e.stopPropagation(); if (e.target.matches('[data-alt]')) { e.stopPropagation(); photos[+e.target.closest('[data-i]').dataset.i].alt = e.target.value; clearTimeout(altT); altT = setTimeout(sauvePhotos, 900); } });
+    $('#photos').addEventListener('click', e => { const f = e.target.closest('[data-i]'); if (!f) return; const i = +f.dataset.i; if (e.target.closest('[data-rm]') && confirm('Retirer cette photo de la galerie ?\n\nElle reste dans la médiathèque.')) { photos.splice(i, 1); draw(); sauvePhotos(); } if (e.target.closest('[data-main]')) { photos.unshift(...photos.splice(i, 1)); draw(); sauvePhotos(); } });
     let dragI = null;
-    $('#photos').addEventListener('dragstart', e => { dragI = +e.target.closest('[data-i]').dataset.i; });
-    $('#photos').addEventListener('dragover', e => e.preventDefault());
-    $('#photos').addEventListener('drop', e => { e.preventDefault(); const t = e.target.closest('[data-i]'); if (t == null || dragI == null) return; const [m] = photos.splice(dragI, 1); photos.splice(+t.dataset.i, 0, m); draw(); dirty(); });
-    $('[data-multi]').addEventListener('change', async e => { for (const f of e.target.files) { toast('Envoi de ' + f.name + '…'); try { photos.push({ src: await uploadFile(f), alt: form.titre.value }); draw(); dirty(); } catch (err) { toast(err.message, true); } } toast('Photos ajoutées.'); });
-    $('[data-pickp]').addEventListener('click', async () => { const u = await pickMedia(); if (u) { photos.push({ src: u, alt: form.titre.value }); draw(); dirty(); } });
+    const box = $('#photos');
+    box.addEventListener('dragstart', e => { const f = e.target.closest?.('[data-i]'); dragI = f ? +f.dataset.i : null; });
+    box.addEventListener('dragend', () => { dragI = null; box.classList.remove('survol'); });
+    box.addEventListener('dragover', e => { e.preventDefault(); if (dragI == null) box.classList.add('survol'); });
+    box.addEventListener('dragleave', e => { if (!box.contains(e.relatedTarget)) box.classList.remove('survol'); });
+    box.addEventListener('drop', e => {
+      e.preventDefault(); box.classList.remove('survol');
+      if (dragI == null) { if (e.dataTransfer?.files?.length) envoyer(e.dataTransfer.files); return; }
+      const t = e.target.closest('[data-i]'); const de = dragI; dragI = null;
+      if (t == null || +t.dataset.i === de) return;
+      const [m] = photos.splice(de, 1); photos.splice(+t.dataset.i, 0, m); draw(); sauvePhotos();
+    });
+    box.addEventListener('change', e => { if (e.target.matches('[data-multi]')) { envoyer(e.target.files); e.target.value = ''; } });
+    box.addEventListener('click', async e => { if (!e.target.closest('[data-pickp]')) return; const u = await pickMedia(); if (u) { photos.push({ src: u, alt: form.titre.value }); draw(); sauvePhotos(); toast('Photo ajoutée et enregistrée.'); } });
     form.addEventListener('submit', async e => {
       e.preventDefault();
       const f = new FormData(form);
@@ -964,7 +1048,7 @@
       const next = { ...p, titre: f.get('titre'), rubrique: f.get('rubrique'), sous: f.get('rubrique') === p.rubrique ? (f.get('sous') ?? p.sous ?? '') : '', autresSous: f.get('rubrique') === p.rubrique ? f.getAll('autresSous').filter(x => x !== f.get('sous')) : [], rangement: f.get('rangement') ?? p.rangement ?? '', statut: f.get('statut'), maison: !!f.get('maison'), extrait: f.get('extrait'), description: lignesNettes(f.get('description')), sousPhoto: lignesSousPhoto(f.get('sousPhoto')),
         prixCents: toCents(f.get('prix')), unite: f.get('unite'), contenuPortion: String(f.get('contenuPortion') || '').trim(), min: +f.get('min') || 1, minimumTexte: '', prixTexte: '', coutCents: toCents(f.get('cout')), tva: +f.get('tva'),
         regles: { ...(p.regles || {}), personnel: f.get('r_personnel') ? (p.regles?.personnel || 'service') : null, packs: !!f.get('r_packs') },
-        variantes: String(f.get('variantes')).split('\n').map(x => x.trim()).filter(Boolean), photos, video: f.get('video') ? { src: f.get('video'), poster: f.get('poster') || '' } : null,
+        variantes: String(f.get('variantes')).split('\n').map(x => x.trim()).filter(Boolean), photos: photos.filter(x => !x.envoi).map(({ src, alt }) => ({ src, alt })), video: f.get('video') ? { src: f.get('video'), poster: f.get('poster') || '' } : null,
         sections, details: String(f.get('details')).split('\n').map(x => x.trim()).filter(Boolean), groupes, allergenes: f.getAll('al'), allergenesAuto: false };
       try { await api(`${A}/produits/${id}`, { method: 'PUT', body: next }); cache.p = next; cache.produits = null; $('#dirty').textContent = ''; toast('Enregistré : visible sur le site immédiatement.'); }
       catch (err) { toast(err.message, true); }
