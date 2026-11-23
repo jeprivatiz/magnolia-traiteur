@@ -699,6 +699,24 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('produits/' + slug, { ...x, photos: photos.map(([src, alt]) => ({ src, alt })), vraiesPhotos: [...(x.vraiesPhotos || []), ver] });
   }
 
+  /* Buffet antillais — Plat seul (Jean-Luc, 2026-11-23) : plus de vidéo dans la galerie, la photo du colombo de poulet en premier. Une fois. */
+  {
+    const x = await store.get('produits/buffet-antillais-plat-seul');
+    if (x && !x.sansVideo) {
+      const COLOMBO = '/site/c/antilles-site/colombo-de-poulet-1-20261101.webp.webp';
+      const photos = x.photos || [];
+      const c = photos.find(ph => ph.src === COLOMBO);
+      const { video, ...reste } = x;
+      await store.set('produits/buffet-antillais-plat-seul', { ...reste, photos: c ? [c, ...photos.filter(ph => ph !== c)] : photos, sansVideo: true });
+    }
+  }
+
+  for (const [slug, src, alt] of PHOTOS_BUFFETS_EN_TETE) {
+    const x = await store.get('produits/' + slug);
+    if (!x || (x.photoBuffet || '') === src) continue;
+    await store.set('produits/' + slug, { ...x, photos: [{ src, alt }, ...(x.photos || []).filter(ph => ph.src !== src)], photoBuffet: src });
+  }
+
   /* plateaux de sushis : compositions, prix et photos du site actuel magnoliatraiteur.fr/plateaux-de-sushis (Jean-Luc, 2026-11-22).
      Une fois. Le plateau 80 pièces n'existe plus et le « Plateau de 75 sushis » des coffrets faisait doublon : masqués, leur adresse renvoie au grand plateau. */
   const RSu = await store.get('site/reglages');
@@ -937,12 +955,34 @@ const DOUBLONS = [
 ];
 /* [titre, photo, texte alternatif] ; sources dans data/credits-photos-univers.md */
 /* [fiche, version, [[photo, description]…]] */
+/* « Nos buffets » des spécialités (Jean-Luc, 2026-11-23) : une photo de buffet en tête de chaque formule, choisie d'après son contenu
+   (jamais une pièce à l'unité). Les autres photos de la fiche restent dans sa galerie. Sources dans data/credits-photos-univers.md. */
+const PHOTOS_BUFFETS_EN_TETE = [
+  ['buffet-antillais-entrees-seules', 'https://images.pexels.com/photos/16868526/pexels-photo-16868526.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Plateau d’entrées : beignets, bouchées frites et crevettes'],
+  ['buffet-antillais-entree-et-plat-ou-plat-et-dessert', 'https://images.pexels.com/photos/9638804/pexels-photo-9638804.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Repas antillais : riz aux haricots rouges, plats en sauce et dessert'],
+  ['buffet-antillais-entree-plat-dessert', '/site/c/antilles-menus/buffet-complet.jpg.webp', 'Buffet antillais complet servi en chafing dishes'],
+  ['buffet-indien-entrees-a-l-unite', 'https://images.pexels.com/photos/958547/pexels-photo-958547.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Entrées indiennes : pakoras, naans et chutneys'],
+  ['buffet-indien-entree-plat-ou-plat-dessert', 'https://images.pexels.com/photos/7182077/pexels-photo-7182077.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Table indienne : currys, riz et accompagnements'],
+  ['buffet-indien-entree-plat-dessert', 'https://images.unsplash.com/photo-1682862279256-b2a9e4f3d22c?auto=format&fit=crop&w=1600&q=80', 'Grand buffet indien : entrées, currys, naans et desserts'],
+];
 const VRAIES_PHOTOS = [
   /* Buffet chinois, section « Nos buffets » (Jean-Luc, 2026-11-23) : des photos de buffet en chafing dishes, jamais de pièce à l'unité.
      Images tirées de sa vidéo chinois-boucle.mp4 (ses médias). */
   ['buffet-chinois-entrees-plat', 'buffet1', [['/site/c/chinois-menus/buffet-chafing-1.webp', 'Buffet chinois servi en chafing dishes'], ['/site/c/chinois-menus/buffet-chafing-2.webp', 'Rangée de chafing dishes ouverts sur un buffet asiatique'], ['/site/c/chinois-menus/buffet-chafing-3.webp', 'Buffet asiatique : plusieurs plats chauds en chafing dishes']]],
   ['buffet-chinois-assortiment-13-pieces-salees', 'buffet1', [['/site/c/chinois-menus/buffet-chafing-3.webp', 'Buffet asiatique : plusieurs plats chauds en chafing dishes'], ['/site/c/chinois-menus/buffet-chafing-1.webp', 'Buffet chinois servi en chafing dishes'], ['/site/c/chinois-menus/buffet-chafing-2.webp', 'Rangée de chafing dishes ouverts sur un buffet asiatique']]],
   ['buffet-chinois-entrees-plat-dessert', 'buffet1', [['/site/c/chinois-menus/buffet-chafing-2.webp', 'Rangée de chafing dishes ouverts sur un buffet asiatique'], ['/site/c/chinois-menus/buffet-chafing-3.webp', 'Buffet asiatique : plusieurs plats chauds en chafing dishes'], ['/site/c/chinois-menus/buffet-chafing-1.webp', 'Buffet chinois servi en chafing dishes']]],
+  /* Buffet libanais, section « Nos buffets » (Jean-Luc, 2026-11-23) : photos de buffets et de grands plateaux selon le texte de chaque fiche,
+     jamais de pièce à l'unité. Pexels et Unsplash, licences libres, vérifiées une à une ; sources dans data/credits-photos-univers.md */
+  ['buffet-libanais-8-mezzes-au-choix', 'buffet1', [['https://images.pexels.com/photos/19386650/pexels-photo-19386650.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Grande table de mezzés libanais'], ['https://images.unsplash.com/photo-1777891257688-cdf5c386bbb2?auto=format&fit=crop&w=1600&q=80', 'Mezzés et dessert oriental aux noix']]],
+  ['buffet-libanais-plat-seul', 'buffet1', [['https://images.unsplash.com/photo-1771285119318-b342c3ecc51c?auto=format&fit=crop&w=1600&q=80', 'Grand plateau de grillades libanaises'], ['https://images.pexels.com/photos/23025180/pexels-photo-23025180.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Kafta, kebbé et mezzés servis à partager']]],
+  ['buffet-libanais-6-mezzes-1-plat', 'buffet1', [['https://images.unsplash.com/photo-1786174045055-1eb50942e273?auto=format&fit=crop&w=1600&q=80', 'Plateau de mezzés et de grillades'], ['https://images.pexels.com/photos/19386650/pexels-photo-19386650.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Grande table de mezzés libanais']]],
+  ['buffet-libanais-6-mezzes-1-plat-1-dessert', 'buffet1', [['https://images.pexels.com/photos/29177219/pexels-photo-29177219.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Table de buffet libanais : mezzés et plats chauds'], ['https://images.unsplash.com/photo-1777891257688-cdf5c386bbb2?auto=format&fit=crop&w=1600&q=80', 'Mezzés et dessert oriental aux noix']]],
+  ['buffet-libanais-8-mezzes-1-plat', 'buffet1', [['https://images.pexels.com/photos/23025180/pexels-photo-23025180.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Kafta, kebbé et mezzés servis à partager'], ['https://images.pexels.com/photos/19386650/pexels-photo-19386650.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Grande table de mezzés libanais']]],
+  ['buffet-libanais-8-mezzes-1-plat-1-dessert', 'buffet1', [['https://images.unsplash.com/photo-1777891257688-cdf5c386bbb2?auto=format&fit=crop&w=1600&q=80', 'Mezzés et dessert oriental aux noix'], ['https://images.pexels.com/photos/29177219/pexels-photo-29177219.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Table de buffet libanais : mezzés et plats chauds']]],
+  /* Buffet chinois : une vraie photo de buffet en chafing dishes différente par fiche (Pexels), puis les images de sa vidéo */
+  ['buffet-chinois-entrees-plat', 'buffet2', [['https://images.pexels.com/photos/39388375/pexels-photo-39388375.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Buffet asiatique en chafing dishes'], ['/site/c/chinois-menus/buffet-chafing-1.webp', 'Buffet chinois servi en chafing dishes']]],
+  ['buffet-chinois-assortiment-13-pieces-salees', 'buffet2', [['https://images.pexels.com/photos/2291367/pexels-photo-2291367.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Rangée de chafing dishes ouverts'], ['/site/c/chinois-menus/buffet-chafing-3.webp', 'Buffet asiatique : plats chauds en chafing dishes']]],
+  ['buffet-chinois-entrees-plat-dessert', 'buffet2', [['https://images.pexels.com/photos/39388382/pexels-photo-39388382.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Invités qui se servent au buffet asiatique'], ['/site/c/chinois-menus/buffet-chafing-2.webp', 'Rangée de chafing dishes sur un buffet asiatique']]],
   /* Jeux et animations sans photo (Jean-Luc, 2026-11-22) : Pexels et Unsplash, licences libres ; sources dans data/credits-photos-univers.md */
   ['puissance-4-geant', 'v1', [['https://images.pexels.com/photos/3009788/pexels-photo-3009788.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Puissance 4 géant bleu joué en soirée']]],
   ['taureau-mecanique', 'v1', [['https://images.unsplash.com/photo-1539070519374-cd87b6cf7624?auto=format&fit=crop&w=1600&q=80', 'Taureau mécanique sur son matelas gonflable']]],

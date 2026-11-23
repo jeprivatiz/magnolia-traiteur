@@ -84,3 +84,19 @@ Licence Pexels : usage commercial gratuit, sans obligation de citer l'auteur (ht
 | Musique & spectacles, « livre-d-or-audio-telephone-a-messages » (Téléphone rétro pour livre d’or audio, voile de mariée) | https://www.pexels.com/photo/37276787/ | 22/11/2026 (demande directe) |
 | Musique & spectacles, « photobooth-borne-photo-avec-impressions » (Invités qui posent dans le photobooth) | https://www.pexels.com/photo/9342943/ | 22/11/2026 (demande directe) |
 | Musique & spectacles, « hermine-animatrice-pour-les-enfants-de-3-a-8-ans » (Maquillage d’enfant pendant une animation) | https://www.pexels.com/photo/8385028/ | 22/11/2026 (demande directe) |
+
+## Buffet libanais et buffet chinois, « Nos buffets » (2026-11-23)
+Photos regardées une à une avant usage (vraies photos, sans texte ni logo). Licences Pexels et Unsplash (usage commercial libre).
+- Grande table de mezzés : Pexels 19386650 (Anthony Rahayel), https://www.pexels.com/photo/19386650/
+- Mezzés et dessert aux noix : Unsplash AlYYc8JRAs (Husien Bisky), photo-1777891257688-cdf5c386bbb2
+- Plateau de grillades : Unsplash o__sIR_14dA (Gang Hao), photo-1771285119318-b342c3ecc51c
+- Mezzés et grillades : Unsplash dcgMs7GEj2M (Chez Le Libanais), photo-1786174045055-1eb50942e273
+- Table de buffet libanais : Pexels 29177219 (Ali Dashti), https://www.pexels.com/photo/29177219/
+- Kafta, kebbé et mezzés : Pexels 23025180 (Ali Dashti), https://www.pexels.com/photo/23025180/
+- Buffet asiatique en chafing dishes : Pexels 39388375 et 39388382 (sejio402), Pexels 2291367 (naimbic)
+- Entrées antillaises (beignets, bouchées, crevettes) : Pexels 16868526 (kay-vo), https://www.pexels.com/photo/16868526/
+- Repas antillais (riz aux haricots, plats, dessert) : Pexels 9638804 (iamabdullahsheik), https://www.pexels.com/photo/9638804/
+- Entrée + plat + dessert antillais : photo de Jean-Luc (buffet-complet.jpg, brouillon)
+- Entrées indiennes (pakoras, naans) : Pexels 958547 (chanwalrus), https://www.pexels.com/photo/958547/
+- Table indienne : Pexels 7182077 (pure-punjabi), https://www.pexels.com/photo/7182077/
+- Grand buffet indien : Unsplash photo-1682862279256-b2a9e4f3d22c (Takashi Yamada)
