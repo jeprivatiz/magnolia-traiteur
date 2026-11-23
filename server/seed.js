@@ -975,6 +975,14 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('site/reglages', { ...(await store.get('site/reglages')), chinoisPrixJL1: true });
   }
 
+  /* Carte Magnolia : le bandeau du chef doit se voir même si une autre photo avait été réglée au back-office (Jean-Luc, 2026-11-23). */
+  const RCb = await store.get('site/reglages');
+  if (RCb && !RCb.carteBandeauChef2) {
+    const cm = await store.get('rubriques/carte-magnolia');
+    if (cm) await store.set('rubriques/carte-magnolia', { ...cm, photo: '/site/c/carte-magnolia-bandeau-chef.webp', bandeauPhoto: '', photoAccueil: '' });
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), carteBandeauChef2: true });
+  }
+
   /* Paëlla royale : retirer de la galerie les 3 photos d'ingrédients seuls (poulet, chorizo, crevettes) (Jean-Luc, 2026-11-23). */
   const RPr = await store.get('site/reglages');
   if (RPr && !RPr.paellaSansIngredients) {
@@ -1045,7 +1053,7 @@ async function initSousRubriques(store, { log = console } = {}) {
       await store.set('produits/' + id, { ...p, photos: p.photos.map(ph => ph && ph.src === SAM ? { ...ph, src: M + 'samoussas-legumes.webp' } : ph) });
     }
     const cm = await store.get('rubriques/carte-magnolia');
-    if (cm) await store.set('rubriques/carte-magnolia', { ...cm, photo: '/site/c/carte-magnolia-bandeau-chef.webp', bandeauPhoto: '', photoAccueil: '' }); /* une photo réglée au back-office ne doit pas masquer la nouvelle */
+    if (cm) await store.set('rubriques/carte-magnolia', { ...cm, photo: '/site/c/carte-magnolia-bandeau-chef.webp' });
     await store.set('site/reglages', { ...(await store.get('site/reglages')), materielPhotos1: true });
   }
 
