@@ -537,10 +537,10 @@ function selection(c) {
   return layout(c, { title: 'Ma sélection', body, path: '/ma-selection', bodyClass: 'p-sel' });
 }
 
-function texte(c, { titre, chapo = '', html, path, photo = '', land = '', image = '', large = false }) {
+function texte(c, { titre, chapo = '', html, path, photo = '', land = '', image = '', large = false, bodyClass = '' }) {
   const body = `${land ? bandeau(c, land) : photo ? `<section class="phero${kb(c, photo, titre)}">${img(photo, '')}<div class="phero-c wrap">${crumbs([[titre]])}<h1>${esc(titre)}</h1>${chapo ? `<p class="lead">${esc(chapo)}</p>` : ''}</div></section>` : `<section class="wrap page-h">${crumbs([[titre]])}<h1>${esc(titre)}</h1>${chapo ? `<p class="lead">${esc(chapo)}</p>` : ''}</section>`}
   <section class="wrap prose${large ? ' prose-l' : ''}">${html}</section>`;
-  return layout(c, { title: titre, description: chapo, body, path, image: image || photo });
+  return layout(c, { title: titre, description: chapo, body, path, image: image || photo, bodyClass });
 }
 
 /* texte brut (pages reprises du brouillon) → paragraphes ; les lignes courtes deviennent des intertitres */
@@ -553,7 +553,7 @@ function maison(c) {
   const html = `<div class="cols2"><div><h2>Une seule maison, une seule demande</h2><p>Anniversaire, mariage, fête de famille ou réception professionnelle : Magnolia Traiteur vous propose des idées et des prestations pour construire votre événement.</p><p>Cocktails, buffets, spécialités du monde, repas à composer, animations culinaires, boissons et douceurs ; mais aussi le personnel, le matériel, les artistes et les lieux de la brochure.</p><p>Tout est préparé dans notre laboratoire de Villebon-sur-Yvette et avec nos traiteurs partenaires, et livré 7 jours sur 7 sur toute l’Île-de-France.</p><p class="row"><a class="btn btn-vert" href="/boutique">Découvrir nos propositions</a></p></div>${img(R.accueil?.photoMaisonIntro || '/site/c/staff81/maitre-hotel.webp.webp', 'Réception d’entreprise : invités en tenue de soirée qui discutent, une coupe à la main')}</div>
   <h2>Vos interlocuteurs</h2><div class="equipe">${(R.equipe || []).map(e => `<figure class="membre">${e.photo ? img(e.photo, e.nom) : `<div class="avatar">${esc((e.nom || '?')[0])}</div>`}<figcaption><b>${esc(e.nom)}</b><span>${esc(e.role)}</span>${e.citation ? `<blockquote>${esc(e.citation)}<cite>${esc(e.auteur || '')}</cite></blockquote>` : ''}</figcaption></figure>`).join('')}</div>`;
   const B = bandeauDe(c, 'maison');
-  return texte(c, { titre: B.titre, chapo: B.chapo, html: html + '</section>' + etapes(c) + avisBloc(c) + '<section>', path: '/maison', land: 'maison', image: B.photo, large: true });
+  return texte(c, { titre: B.titre, chapo: B.chapo, html: html + '</section>' + etapes(c) + avisBloc(c) + '<section>', path: '/maison', land: 'maison', image: B.photo, large: true, bodyClass: 'p-maison' });
 }
 
 /* ---------- page Zone de livraison (carte 3D de l'Île-de-France, flotte, tarifs) ---------- */

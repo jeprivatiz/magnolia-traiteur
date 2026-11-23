@@ -993,3 +993,7 @@ body.noscroll .partage { display: none; }
 .sm-globe.sm-plat { background: #10261c; }
 .sm-globe.sm-plat .sm-tete h2, .sm-globe.sm-plat .sm-phrase { color: #fff; text-shadow: 0 2px 12px rgba(0, 0, 0, .6); }
 .sm-globe .maplibregl-marker { z-index: 3; }
+
+/* La Maison Magnolia : toutes les photos en noir et blanc, pour un rendu plus classe (Jean-Luc, 2026-11-23).
+   Seulement dans le contenu de cette page : l’en-tête, le pied de page et les logos (Google, clients) gardent leurs couleurs. */
+.p-maison main img:not([src$=".svg"]):not(.marquee img), .p-maison main video, .p-maison main [style*="background-image"] { filter: grayscale(1); }
