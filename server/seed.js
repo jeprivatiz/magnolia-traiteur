@@ -1045,7 +1045,7 @@ async function initSousRubriques(store, { log = console } = {}) {
       await store.set('produits/' + id, { ...p, photos: p.photos.map(ph => ph && ph.src === SAM ? { ...ph, src: M + 'samoussas-legumes.webp' } : ph) });
     }
     const cm = await store.get('rubriques/carte-magnolia');
-    if (cm) await store.set('rubriques/carte-magnolia', { ...cm, photo: '/site/c/carte-magnolia-bandeau-chef.webp' });
+    if (cm) await store.set('rubriques/carte-magnolia', { ...cm, photo: '/site/c/carte-magnolia-bandeau-chef.webp', bandeauPhoto: '', photoAccueil: '' }); /* une photo réglée au back-office ne doit pas masquer la nouvelle */
     await store.set('site/reglages', { ...(await store.get('site/reglages')), materielPhotos1: true });
   }
 
