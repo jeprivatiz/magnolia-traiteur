@@ -153,7 +153,7 @@ async function createApp(opts = {}) {
   /* pages du site trouvées par la recherche (ex. « zone de livraison » sur téléphone → la page, pas la boutique) */
   const norm = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(' ').map(w => w.length > 3 ? w.replace(/s$/, '') : w).join(' '); /* « livraisons » = « livraison » */
   const PAGES_RECHERCHE = [
-    { titre: 'Zone de livraison', href: '/zone-de-livraison', info: 'Carte, frais de livraison, livraison offerte dès 700 € TTC', mots: ['zone de livraison', 'zones de livraison', 'livraison', 'livrer', 'livrez', 'frais de livraison', 'tarif livraison', 'prix livraison', 'zone', 'livraison offerte', 'livraison gratuite', 'flotte', 'camion', 'vehicule'] },
+    { titre: 'Nos zones de livraison', href: '/zone-de-livraison', info: 'Carte, frais de livraison, livraison offerte dès 700 € TTC', mots: ['zone de livraison', 'zones de livraison', 'livraison', 'livrer', 'livrez', 'frais de livraison', 'tarif livraison', 'prix livraison', 'zone', 'livraison offerte', 'livraison gratuite', 'flotte', 'camion', 'vehicule'] },
     { titre: 'Avis clients', href: '/temoignages', info: 'Ce que disent nos clients', mots: ['avis', 'avis clients', 'temoignages', 'temoignage', 'note google'] },
     { titre: 'La maison', href: '/maison', info: 'Qui sommes-nous', mots: ['la maison', 'maison', 'qui sommes nous'] },
     { titre: 'Comment commander', href: '/comment-commander', info: 'Les étapes de votre demande', mots: ['comment commander', 'commander', 'commande', 'devis'] },
