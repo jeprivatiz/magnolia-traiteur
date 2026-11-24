@@ -1220,3 +1220,5 @@ td.nw { white-space: nowrap; }
 .seobox .seohead { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
 .seobox [data-seo-n] { font-weight: 400; }
 .seobox [data-seo-n].trop { color: #b3261e; }
+.ia-ligne { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: -4px 0 10px; }
+.ia-btn { white-space: nowrap; }
