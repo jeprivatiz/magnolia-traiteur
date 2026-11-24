@@ -182,14 +182,16 @@ function videoAccueil(slug) {
   return `<video class="tile-v" muted loop playsinline preload="none" disablepictureinpicture aria-hidden="true" poster="/site/v/accueil/${n}.jpg" data-vignette="${src}"></video>`;
 }
 function univers(c) {
+  /* vignette vidéo = la vidéo seule, son image d'attente vient de la vidéo (pas de photo dessous, Jean-Luc 2026-11-24) */
   /* la vignette Lieux prend la place de la rubrique « lieux » (ordre du back-office) */
-  const lieux = `<a class="tile" href="/lieux">${img(c.lieux[0]?.photos?.[0], '')}${videoAccueil('lieux')}<span class="tile-t"><b>Lieux de réception</b><small>${c.lieux.filter(l => l.statut !== 'masque').length} lieux à privatiser</small></span></a>`;
+  const vLieux = videoAccueil('lieux');
+  const lieux = `<a class="tile" href="/lieux">${vLieux || img(c.lieux[0]?.photos?.[0], '')}<span class="tile-t"><b>Lieux de réception</b><small>${c.lieux.filter(l => l.statut !== 'masque').length} lieux à privatiser</small></span></a>`;
   const rubs = c.rubriques.filter(r => r.statut !== 'masque');
   /* Saveurs du monde : seule vignette animée, un petit globe qui tourne sur fond de verdure (Jean-Luc, 2026-11-24) */
   const globe = r => { const ids = sousVisibles(r).map(x => (lieuDe(x)?.[2] || []).map(String)).filter(g => g.length).concat([['250']]); // un groupe de pays par spécialité (France en dernier)
     return `<a class="tile vg" href="${rubHref(r)}" data-vg='${esc(JSON.stringify(ids))}'>${img('/site/c/paysages/antilles.webp', '')}<canvas aria-hidden="true"></canvas><span class="tile-t"><b>${esc(r.nom)}</b><small>${esc(r.accroche || 'Dix traiteurs, une seule maison')}</small></span></a>`; };
   return rubs.map(r => r.slug === 'lieux' ? lieux : r.slug === 'saveurs-du-monde' ? globe(r) : `<a class="tile" href="${rubHref(r)}">
-    ${img(r.photoAccueil || r.photo, '')}${r.slug === 'carte-magnolia' ? MENU_TABLE : videoAccueil(r.slug)}<span class="tile-t"><b>${esc(r.nom).replace(/^(Plateaux?) (?=de fruits de mer)/i, '$1<br class="br-m"> ')}</b>${r.accroche ? `<small>${esc(r.accroche)}</small>` : `<small>${c.byRub.get(r.slug)?.length || 0} prestations</small>`}</span></a>`).join('')
+    ${r.slug === 'carte-magnolia' ? img(r.photoAccueil || r.photo, '') + MENU_TABLE : videoAccueil(r.slug) || img(r.photoAccueil || r.photo, '')}<span class="tile-t"><b>${esc(r.nom).replace(/^(Plateaux?) (?=de fruits de mer)/i, '$1<br class="br-m"> ')}</b>${r.accroche ? `<small>${esc(r.accroche)}</small>` : `<small>${c.byRub.get(r.slug)?.length || 0} prestations</small>`}</span></a>`).join('')
     + (rubs.some(r => r.slug === 'lieux') ? '' : lieux);
 }
 
