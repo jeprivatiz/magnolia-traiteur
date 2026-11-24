@@ -8,9 +8,10 @@
   const cv = tile.querySelector('canvas');
   const ctx = cv.getContext('2d');
   const calme = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const nos = new Set(JSON.parse(tile.dataset.vg || '[]').map(String));
-  const D = Math.PI / 180, INCL = -18 * D, VITESSE = 9; // degrés par seconde
-  let pts = null, ors = null, lon0 = -10, W = 0, H = 0, R = 0, cx = 0, cy = 0, dpr = 1, vu = false, t0 = 0, raf = 0;
+  const groupes = JSON.parse(tile.dataset.vg || '[]').map(g => (Array.isArray(g) ? g : [g]).map(String));
+  const nos = new Set(groupes.flat());
+  const D = Math.PI / 180, INCL = 24 * D, VITESSE = 9; // axe basculé vers nous : l'Europe et l'hémisphère nord bien visibles (Jean-Luc, 2026-11-24) // degrés par seconde
+  let pts = null, ors = null, flashs = [], lon0 = 15, W = 0, H = 0, R = 0, cx = 0, cy = 0, dpr = 1, vu = false, t0 = 0, raf = 0;
 
   /* point dans un polygone (anneaux GeoJSON) */
   const dans = (x, y, ring) => {
@@ -29,6 +30,13 @@
     });
     pts = []; ors = [];
     points.forEach(([x, y]) => (polys.some(r => dans(x, y, r)) ? ors : pts).push([x * D, y * D]));
+    /* un point lumineux par spécialité, au centre de ses pays */
+    flashs = groupes.map(g => {
+      const P = monde.features.filter(f => g.includes(String(f.properties.id))).flatMap(f => f.geometry.type === 'Polygon' ? [f.geometry.coordinates] : f.geometry.coordinates);
+      let vx = 0, vy = 0, vz = 0;
+      P.forEach(p => p[0].forEach(([x, y]) => { const la = y * D, lo = x * D; vx += Math.cos(la) * Math.cos(lo); vy += Math.cos(la) * Math.sin(lo); vz += Math.sin(la); }));
+      return vx || vy || vz ? [Math.atan2(vy, vx), Math.atan2(vz, Math.hypot(vx, vy))] : null;
+    }).filter(Boolean);
     /* les petits pays (Liban, Antilles…) n'ont parfois aucun point : on ajoute leur centre */
     monde.features.filter(f => nos.has(String(f.properties.id))).forEach(f => {
       const P = f.geometry.type === 'Polygon' ? [f.geometry.coordinates] : f.geometry.coordinates;
@@ -59,10 +67,13 @@
     ctx.fillStyle = mer; ctx.beginPath(); ctx.arc(cx, cy, R, 0, 7); ctx.fill();
     if (pts) {
       const cl = Math.cos(L * D), sl = Math.sin(L * D), ci = Math.cos(INCL), si = Math.sin(INCL);
-      const proj = (lo, la, taille, coul) => {
+      const xyz = (lo, la) => {
         const cla = Math.cos(la), x0 = cla * Math.sin(lo), z0 = cla * Math.cos(lo), y0 = Math.sin(la);
         const x = x0 * cl - z0 * sl, z1 = x0 * sl + z0 * cl;
-        const y = y0 * ci - z1 * si, z = y0 * si + z1 * ci;
+        return [x, y0 * ci - z1 * si, y0 * si + z1 * ci];
+      };
+      const proj = (lo, la, taille, coul) => {
+        const [x, y, z] = xyz(lo, la);
         if (z <= 0) return;
         ctx.globalAlpha = .35 + .65 * z; ctx.fillStyle = coul;
         ctx.beginPath(); ctx.arc(cx + x * R, cy - y * R, taille * (.6 + .4 * z), 0, 7); ctx.fill();
@@ -71,6 +82,19 @@
       pts.forEach(([lo, la]) => proj(lo, la, p, '#e9dcc0'));
       ors.forEach(([lo, la]) => proj(lo, la, p * 1.5, '#e2b55f'));
       ctx.globalAlpha = 1;
+      /* chaque spécialité s'allume à son tour comme un flash puis s'éteint (Jean-Luc, 2026-11-24) */
+      const s = (t - t0) / 1000;
+      flashs.forEach(([lo, la], i) => {
+        const [x, y, z] = xyz(lo, la); if (z <= .15) return;
+        const ph = ((s / 1.1 + i * 2.37) % 3.2) / 3.2; // cycle propre à chaque pays, décalé
+        if (ph > .45) return;
+        const k = ph / .45, eclat = Math.sin(k * Math.PI), X = cx + x * R, Y = cy - y * R;
+        const g = ctx.createRadialGradient(X, Y, 0, X, Y, R * .22);
+        g.addColorStop(0, `rgba(255,244,214,${.95 * eclat})`); g.addColorStop(.35, `rgba(242,196,106,${.55 * eclat})`); g.addColorStop(1, 'rgba(242,196,106,0)');
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(X, Y, R * .22, 0, 7); ctx.fill();
+        ctx.strokeStyle = `rgba(255,236,190,${.7 * (1 - k)})`; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(X, Y, 3 + k * R * .2, 0, 7); ctx.stroke();
+        ctx.fillStyle = `rgba(255,255,255,${eclat})`; ctx.beginPath(); ctx.arc(X, Y, 2.2, 0, 7); ctx.fill();
+      });
     }
     /* reflet et liseré or */
     const ref = ctx.createRadialGradient(cx - R * .45, cy - R * .5, 0, cx - R * .45, cy - R * .5, R * 1.1);
