@@ -987,6 +987,28 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('site/reglages', { ...(await store.get('site/reglages')), douceursSections: true });
   }
 
+  /* Animations culinaires salées et sucrées en vidéo (Jean-Luc, 2026-11-24) : chaque fiche reçoit une courte vidéo en boucle,
+     muette (vraies vidéos libres de droits, sources dans data/credits-videos-animations.md, jamais d'IA). La vidéo passe en premier
+     dans la galerie de la fiche et s'anime sur la vignette de la liste ; la photo reste dessous comme image d'attente.
+     Une fois (réglage animationsVideos1) et seulement sur une fiche sans vidéo : modifiable ensuite dans Catalogue > fiche > Vidéo.
+     Sans vidéo correcte trouvée (photo gardée) : pâtes à la meule de parmesan, les trois fiches sorbet coco. */
+  const RAv = await store.get('site/reglages');
+  if (RAv && !RAv.animationsVideos1) {
+    const VA = {
+      'pizzaiolo-a-domicile': 'pizzaiolo', 'bar-a-burrata': 'burrata', 'animation-barbecue': 'barbecue', 'animation-ti-punch-acras-et-boudins': 'acras',
+      'stand-a-burgers': 'burgers', 'bar-a-pates': 'bar-a-pates', 'chef-sushi-a-domicile': 'sushi', 'bar-a-saumon-fume': 'saumon',
+      'bar-a-foie-gras': 'foie-gras', 'bar-a-huitres': 'huitres', 'saint-jacques-a-la-plancha': 'saint-jacques', 'stand-show-a-volonte-pieces-chaudes': 'show',
+      'animation-barbe-a-papa-a-volonte': 'barbe-a-papa', 'animation-fontaine-a-chocolat': 'fontaine-chocolat', 'crepes-a-volonte': 'crepes',
+      'stand-de-churros': 'churros', 'brioche-perdue': 'brioche-perdue', 'animation-pop-corn': 'pop-corn', 'animation-de-gaufre': 'gaufres'
+    };
+    for (const { id, data: p } of await store.list('produits')) {
+      const n = VA[p.slug || id];
+      if (!n || p.video?.src) continue;
+      await store.set('produits/' + id, { ...p, video: { src: `/site/v/animations/${n}.mp4`, poster: `/site/v/animations/${n}.jpg` } });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), animationsVideos1: true });
+  }
+
   /* La carte Magnolia en sections : Entrées, Plats, Plateau de fromages, Desserts (Jean-Luc, 2026-11-22).
      Pas d'accompagnements : les plats sont déjà accompagnés. Une fois ; chaque fiche reste modifiable (liste « Section »). */
   const RCm = await store.get('site/reglages');

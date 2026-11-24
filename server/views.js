@@ -143,7 +143,7 @@ function card(p, c, { rubNom = true } = {}) {
   const { prix, unite } = prixCourt(p, euros);
   const ph = p.photos?.[0];
   return `<a class="card" href="${prodHref(p)}" data-card data-rub="${esc([p.rubrique, ...(p.autresRubriques || [])].join(' '))}" data-prix="${p.prixCents ?? ''}" data-ordre="${p.ordre ?? 0}" data-titre="${esc(p.titre || '')}">
-    <div class="card-img">${img(ph?.src, ph?.alt || titreTexte(p.titre))}${rubNom && r ? `<span class="tag">${esc(r.nom)}</span>` : ''}</div>
+    <div class="card-img">${img(ph?.src || p.video?.poster, ph?.alt || titreTexte(p.titre))}${p.video?.src ? `<video class="card-v" muted loop playsinline preload="none" disablepictureinpicture aria-hidden="true" data-vignette="${esc(p.video.src)}"></video>` : ''}${rubNom && r ? `<span class="tag">${esc(r.nom)}</span>` : ''}</div>
     <div class="card-b"><h3>${titreHtml(p.titre)}</h3><p>${esc(trunc(p.extrait, 110))}</p>
     <div class="card-f"><span class="prix">${esc(prix)} <small>${esc(unite)}</small></span><span class="more">Découvrir ${icon.arrow}</span></div></div>
   </a>`;
