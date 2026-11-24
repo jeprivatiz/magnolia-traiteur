@@ -107,6 +107,30 @@ async function createApp(opts = {}) {
     for (const { id, data: r } of await store.list('rubriques')) if (r && 'picto' in r) { const { picto, ...reste } = r; await store.set('rubriques/' + id, reste); }
     await store.set('_migr/sansPictos', { at: new Date().toISOString() });
   }
+  /* une seule fois (règle de Jean-Luc, 2026-11-24) : « Demandes de devis » ne garde que les demandes sur lesquelles personne n'est intervenu ;
+     les demandes déjà travaillées (devis, note, appel, rendez-vous, attribution, changement d'étape) passent dans « Suivi client » */
+  if (!(await store.get('_migr/priseEnCharge'))) {
+    const devisL = (await store.list('devis')).map(x => x.data), clientsL = await store.list('clients'), rdvL = (await store.list('rdv')).map(x => x.data).filter(Boolean);
+    for (const { id, data: d } of await store.list('demandes')) {
+      if (!d || d.type === 'contact' || d.priseEnCharge) continue;
+      const c = clientsL.find(x => x.id === d.clientId)?.data || (d.contact?.email && clientsL.find(x => x.data?.email === d.contact.email)?.data) || null;
+      const apres = t => t && String(t) >= String(d.createdAt || '');
+      const traces = [
+        ...devisL.filter(v => v.demandeId === id).map(v => ({ at: v.createdAt, par: v.commercial?.nom || v.creePar || '', quoi: 'devis' })),
+        ...(d.historique || []).slice(1).filter(h => h.par && !/^site|client/i.test(h.par)).map(h => ({ at: h.at, par: h.par, quoi: 'étape' })),
+        ...(d.relancesNotees || []).map(r => ({ at: r.at, par: r.par || '', quoi: 'appel' })),
+        ...(c?.journal || []).filter(j => apres(j.at) && ['note', 'appel', 'voeux'].includes(j.type)).map(j => ({ at: j.at, par: j.par || '', quoi: j.type })),
+        ...rdvL.filter(r => c && r.clientId === (d.clientId || c.id) && apres(r.createdAt)).map(r => ({ at: r.createdAt, par: r.par || '', quoi: 'rendez-vous' })),
+        ...(d.notes ? [{ at: d.updatedAt || d.createdAt, par: '', quoi: 'note' }] : []),
+        ...(d.commercial && d.statut === 'demande' && (d.historique || [])[0]?.par !== 'site' ? [{ at: d.createdAt, par: d.commercial, quoi: 'attribution' }] : []),
+        ...(d.statut !== 'demande' ? [{ at: d.updatedAt || d.createdAt, par: '', quoi: 'étape' }] : [])
+      ].filter(x => x.at).sort((x, y) => String(x.at).localeCompare(String(y.at)));
+      if (!traces.length) continue;
+      const t = traces.find(x => x.par) || traces[0];
+      await store.set('demandes/' + id, { ...d, commercial: d.commercial || t.par || '', priseEnCharge: { at: traces[0].at, par: t.par || '', quoi: traces[0].quoi, reprise: true } });
+    }
+    await store.set('_migr/priseEnCharge', { at: new Date().toISOString() });
+  }
   /* une seule fois (règle de Jean-Luc, 2026-11-24) : fiches existantes en « Prénom NOM » (factures déjà émises inchangées) */
   if (!(await store.get('_migr/nomsClients'))) {
     for (const { id, data: c } of await store.list('clients')) { const n = nomPropre(c.nom); if (c.nom && n !== c.nom) await store.set('clients/' + id, { ...c, nom: n }); }
@@ -465,8 +489,23 @@ async function createApp(opts = {}) {
   async function changerStatut(demandeId, statut, par) {
     const d = await store.get('demandes/' + demandeId);
     if (!d || d.statut === statut) return;
-    await store.set('demandes/' + demandeId, { ...d, statut, historique: [...(d.historique || []), { at: new Date().toISOString(), statut, par }] });
+    await store.set('demandes/' + demandeId, priseDe({ ...d, statut, historique: [...(d.historique || []), { at: new Date().toISOString(), statut, par }] }, par, 'étape : ' + statut));
   }
+  /* première action de l'équipe sur une demande (devis, e-mail, SMS, appel, note, rendez-vous, attribution, étape) :
+     elle quitte « Demandes de devis » et passe dans « Suivi client », au nom de celui qui l'a traitée (s'il n'y avait personne) */
+  const equipier = par => { const n = String(par || '').trim(); return n && !/^(site|client)\b/i.test(n) ? n : ''; };
+  function priseDe(d, par, quoi) {
+    if (!d || d.type === 'contact' || d.priseEnCharge) return d;
+    const qui = equipier(par);
+    return { ...d, commercial: d.commercial || qui, priseEnCharge: { at: new Date().toISOString(), par: qui, quoi } };
+  }
+  async function prendreEnCharge(f, par, quoi) {
+    for (const { id, data: d } of await store.list('demandes')) {
+      if (!d || d.priseEnCharge || d.type === 'contact' || !f({ ...d, id })) continue;
+      await store.set('demandes/' + id, priseDe(d, par, quoi));
+    }
+  }
+  const demandesDuClient = c => d => d.clientId === c.id || (!!c.email && String(d.contact?.email || '').toLowerCase() === String(c.email).toLowerCase());
 
   /* avis déposé par un client : publié seulement après relecture de l'équipe */
   app.post('/api/avis', sameSite, json, wrap(async (req, res) => {
@@ -549,6 +588,7 @@ async function createApp(opts = {}) {
     const nomDe = x => String((typeof x === 'string' ? x : x?.nom) || '').trim();
     /* commercial d'une demande : celui de la fiche, sinon celui de son devis principal (même règle que le Suivi client) */
     const devisDe = id => devisTous.filter(v => v.demandeId === id).sort((x, y) => String(y.createdAt).localeCompare(String(x.createdAt)));
+    const aTraiterSrv = d => d.type !== 'contact' && !d.classee && !d.priseEnCharge && d.statut === 'demande' && !devisDe(d.id).length;
     const comDem = d => { const l = devisDe(d.id); const m = l.find(x => x.statut === 'accepte') || l.find(x => x.statut === 'envoye') || l[0]; return nomDe(d.commercial) || nomDe(m?.commercial); };
     const demById = new Map(demandesTous.map(d => [d.id, d]));
     const comDevis = v => nomDe(v.commercial) || (v.demandeId && demById.has(v.demandeId) ? nomDe(demById.get(v.demandeId).commercial) : '');
@@ -572,8 +612,8 @@ async function createApp(opts = {}) {
     const rdvDuJour = rdv0.map(d => d.data).filter(r => r && r.clientId && r.type && !r.fait && r.date === aujourdHui && (!com || !(r.commerciaux || []).length || (com !== '—' && r.commerciaux.includes(com))));
     res.set('Cache-Control', 'no-store').json({
       com, commerciaux,
-      nouvellesTous: demandesTous.filter(d => d.statut === 'demande').length,
-      nouvelles: demandes.filter(d => d.statut === 'demande').length,
+      nouvellesTous: demandesTous.filter(aTraiterSrv).length,
+      nouvelles: demandes.filter(aTraiterSrv).length,
       parStatut,
       caSigneMoisCents: signes.filter(d => moisSigne(d) === mois).reduce((t, d) => t + totaux(d).ttcCents, 0),
       caSigneCents: signes.reduce((t, d) => t + totaux(d).ttcCents, 0),
@@ -678,6 +718,11 @@ async function createApp(opts = {}) {
       data.token = before?.token || data.token;
     }
     if (coll === 'demandes' && before && data.statut && data.statut !== before.statut) data.historique = [...(before.historique || []), { at: new Date().toISOString(), statut: data.statut, par: req.ctx.name || req.ctx.email }];
+    if (coll === 'demandes' && before) {
+      if (before.priseEnCharge && !data.priseEnCharge) data.priseEnCharge = before.priseEnCharge;
+      const bouge = (data.statut && data.statut !== before.statut) || (data.commercial || '') !== (before.commercial || '') || (data.notes || '') !== (before.notes || '') || (data.relancesNotees || []).length !== (before.relancesNotees || []).length;
+      if (bouge) data = priseDe(data, data.commercial && data.commercial !== before.commercial ? data.commercial : (req.ctx.name || req.ctx.email), data.commercial !== before.commercial ? 'attribution' : 'suivi');
+    }
     if (coll === 'produits' && !data.slug) data.slug = id;
     if (coll === 'produits' || coll === 'rubriques') {
       /* cases Google : un texte tapé est gardé ; une case vide est remplie ; un produit renommé reçoit des textes à son nouveau nom */
@@ -751,6 +796,7 @@ async function createApp(opts = {}) {
     res.json({ ok: true, id: await devisDepuisDemande(d, req.ctx) });
   }));
   async function devisDepuisDemande(d, ctx, extra = {}) {
+    await prendreEnCharge(x => x.id === d.id, ctx?.name || ctx?.email, 'devis créé');
     const c = await cat.get();
     const T = c.reglages.tarifs || {};
     const id = 'v_' + rid(8), token = rid(18);
@@ -862,7 +908,7 @@ async function createApp(opts = {}) {
       livraison: km ? { km, cents: offerte ? 0 : km * (T.kmCents || 100), ...(offerte ? { offerte: true } : {}) } : null,
       lignes, sousTotalCents: sousTotal, totalEstimeCents: sousTotal + (km && !offerte ? km * (T.kmCents || 100) : 0),
       message: [f.notes, 'Commande préparée avec l’IA à partir de : ' + s(req.body?.texte, 6000)].filter(Boolean).join('\n\n'), statut: 'demande',
-      historique: [{ at: now, statut: 'demande', par }], createdAt: now, commercial: par,
+      historique: [{ at: now, statut: 'demande', par }], createdAt: now, commercial: par, priseEnCharge: { at: now, par, quoi: 'commande prise par l’équipe' },
     };
     await store.set('demandes/' + id, demande);
     audit(req.ctx, 'commande préparée avec l’IA', 'demandes/' + id, ref);
@@ -1184,6 +1230,7 @@ async function createApp(opts = {}) {
     const b = req.body || {}, type = b.type === 'visio' ? 'visio' : 'appel';
     if (!/^\d{4}-\d{2}-\d{2}$/.test(b.date || '') || !/^\d{2}:\d{2}$/.test(b.heure || '')) return res.status(400).json({ error: 'Choisissez la date et l’heure.' });
     if (parisMs(b.date, b.heure) < Date.now() - 36e5) return res.status(400).json({ error: 'Cette date est déjà passée.' });
+    await prendreEnCharge(demandesDuClient(c), req.ctx.name || req.ctx.email, type === 'visio' ? 'visio programmée' : 'appel programmé');
     const R = (await cat.get()).reglages;
     const id = 'r_' + rid(7), duree = [15, 30, 45, 60, 90].includes(+b.duree) ? +b.duree : 30;
     const perso = /^https:\/\/\S+$/.test(String(b.lienVisio || '').trim()) ? String(b.lienVisio).trim().slice(0, 300) : '';
@@ -1353,6 +1400,7 @@ async function createApp(opts = {}) {
     if (type === 'note' && !texte) return res.status(400).json({ error: 'Écrivez la note.' });
     const now = new Date().toISOString();
     await store.set('clients/' + c.id, { ...c, derniereActivite: now, journal: [...(c.journal || []), { id: rid(6), at: now, type, texte, par: req.ctx.name || req.ctx.email || '' }] });
+    await prendreEnCharge(demandesDuClient(c), req.ctx.name || req.ctx.email, type === 'appel' ? 'appel noté' : 'note');
     audit(req.ctx, type === 'appel' ? 'appel noté' : 'note client', 'clients/' + c.id, texte.slice(0, 80));
     res.json({ ok: true });
   }));
