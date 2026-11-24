@@ -20,6 +20,16 @@
     return j;
   }
   const A = '/api/admin';
+  /* « Prénom NOM » (même règle que server/util.js nomPropre) : appliqué dès qu'on quitte la case du nom */
+  const majPrenom = w => w.toLocaleLowerCase('fr-FR').replace(/(^|[-'’\s])(\p{L})/gu, (m, a, b) => a + b.toLocaleUpperCase('fr-FR'));
+  function nomPropre(v) {
+    const t = String(v ?? '').replace(/\s+/g, ' ').trim(); if (!t) return '';
+    const w = t.split(' '); if (w.length === 1) return /^\p{Lu}[\p{Lu}'’-]+$/u.test(t) ? t : majPrenom(t);
+    const tout = x => /\p{L}{2}/u.test(x) && x === x.toLocaleUpperCase('fr-FR') && x !== x.toLocaleLowerCase('fr-FR');
+    let i = w.findIndex((x, k) => k >= 1 && tout(x)); if (i < 1) i = 1;
+    return majPrenom(w.slice(0, i).join(' ')) + ' ' + w.slice(i).join(' ').toLocaleUpperCase('fr-FR');
+  }
+  document.addEventListener('focusout', e => { const i = e.target; if (!i.matches || !String(i.value || "").trim()) return; if (i.matches("input[data-nomclient]")) i.value = nomPropre(i.value); else if (i.matches("input[data-prenom]")) i.value = majPrenom(i.value.trim()); else if (i.matches("input[data-nomfam]")) i.value = i.value.trim().toLocaleUpperCase("fr-FR"); });
   const STATUTS = { demande: 'Demande', devis_envoye: 'Devis envoyé', relance: 'Relance', accord: 'Accord', reserve: 'Réservé', refuse: 'Refusé', termine: 'Terminé' };
   const DSTAT = { brouillon: 'Brouillon', envoye: 'Envoyé', accepte: 'Signé', refuse: 'Refusé' };
   const UNITES = ['personne', 'pièce', 'portion', 'plateau', 'coffret', 'corbeille', 'gâteau', 'forfait', 'prestation', 'heure', 'location', 'bouteille', 'lot de 6', 'conditionnement', 'litre', 'table', 'chaise', 'km', 'unité'];
@@ -464,7 +474,7 @@
       else if (st.step === 2) { const f = st.f;
         m.innerHTML = `<div class="modal-in aq-in">${tete('Vérifiez la fiche client', 'L’IA a rempli ce qu’elle a compris. Corrigez si besoin, puis composez la commande.')}
         <form id="aqForm" class="aq-g" autocomplete="off">
-          <label>Prénom<input name="prenom" value="${esc(f.prenom)}"></label><label>Nom<input name="nom" value="${esc(f.nom)}"></label>
+          <label>Prénom<input name="prenom" value="${esc(f.prenom)}" data-prenom></label><label>NOM<input name="nom" value="${esc(f.nom)}" data-nomfam></label>
           <label>Téléphone<input name="tel" type="tel" value="${esc(f.tel)}"></label><label>E-mail<input name="email" type="email" value="${esc(f.email)}"></label>
           <label>Société<input name="societe" value="${esc(f.societe)}"></label><label>Événement<select name="type">${opt(conf.evenements || [], f.type, 'Choisir')}</select></label>
           <label>Date<input name="date" type="date" value="${esc(f.date)}"></label><label>Heure de livraison<input name="horaire" value="${esc(f.horaire)}" placeholder="ex. 19 h"></label>
@@ -802,7 +812,7 @@
           <details class="box hc-form"><summary><h2>Coordonnées du client</h2><span class="lnk">Modifier</span></summary><form id="cf">${formClient(c)}<button class="btn">Enregistrer</button></form></details>
         </div></div>`);
   }
-  const formClient = c => `<label>Nom et prénom<input name="nom" value="${esc(c.nom)}" required></label><label>Société<input name="societe" value="${esc(c.societe || '')}"></label><div class="g2"><label>E-mail<input type="email" name="email" value="${esc(c.email)}" required></label><label>Téléphone<input name="tel" value="${esc(c.tel || '')}"></label></div><label>Adresse de facturation<textarea name="adresse" rows="2">${esc(c.adresse || '')}</textarea></label><label>Notes internes (fixes)<textarea name="notes" rows="3">${esc(c.notes || '')}</textarea></label>`;
+  const formClient = c => `<label>Prénom et NOM<input name="nom" value="${esc(c.nom)}" required data-nomclient placeholder="ex. Jean-Luc BERNARD"></label><label>Société<input name="societe" value="${esc(c.societe || '')}"></label><div class="g2"><label>E-mail<input type="email" name="email" value="${esc(c.email)}" required></label><label>Téléphone<input name="tel" value="${esc(c.tel || '')}"></label></div><label>Adresse de facturation<textarea name="adresse" rows="2">${esc(c.adresse || '')}</textarea></label><label>Notes internes (fixes)<textarea name="notes" rows="3">${esc(c.notes || '')}</textarea></label>`;
   client.after = id => {
     $('#cf').addEventListener('submit', async e => {
       e.preventDefault(); const f = Object.fromEntries(new FormData(e.target));
