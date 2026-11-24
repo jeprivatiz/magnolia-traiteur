@@ -1145,6 +1145,16 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('site/reglages', { ...(await store.get('site/reglages')), introSaveursDuMonde: true });
   }
 
+  /* Personnel de réception : nouvelle photo de bandeau (Jean-Luc, 2026-11-24 : l'ancienne était floue, 570 px).
+     Serveur souriant avec son plateau, Pexels 3769740 (Andrea Piacquadio), 2400 px. Une fois : modifiable ensuite au back-office.
+     Seul le bandeau change (bandeauPhoto) : la vignette de l'accueil reste la même. */
+  const RPers = await store.get('site/reglages');
+  if (RPers && !RPers.personnelBandeau1) {
+    const rp = await store.get('rubriques/personnel');
+    if (rp) await store.set('rubriques/personnel', { ...rp, bandeauPhoto: '/site/c/personnel-bandeau-serveur.webp', bandeauVideo: '' });
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), personnelBandeau1: true });
+  }
+
   /* vraies photos à la place des images qui font « IA » (règle de Jean-Luc, 2026-11-22 : 95 % de vraies photos).
      Chaque remplacement est fait une fois, et seulement si la photo n'a pas déjà été changée dans le back-office. */
   const RP = await store.get('site/reglages');
