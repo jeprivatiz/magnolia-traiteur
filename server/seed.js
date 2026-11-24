@@ -345,7 +345,7 @@ const CARTE_INDIEN = [
   ['desserts', 'Salade de fruits de Goa', 650], ['desserts', 'Pista kulfi', 650], ['desserts', 'Mango kulfi', 650], ['desserts', 'Halwa maison', 450], ['desserts', 'Kheer (riz au lait indien)', 450],
 ];
 const AMBIANCE_INDIEN = ['menu-client-1', 'menu-client-2', 'menu-client-3', 'menu-client-4', 'plat-seul-client-1', 'plat-seul-client-2', 'plat-seul-client-3'].map(n => N + n + '.webp.webp');
-const RANGEMENTS = [['buffets', 'Nos buffets'], ['entrees', 'Nos entrées à l’unité'], ['plats', 'Nos plats à l’unité'], ['accompagnements', 'Nos accompagnements à l’unité'], ['fromages', 'Nos fromages'], ['desserts', 'Nos desserts à l’unité'], ['divers', 'Produits divers à l’unité']];
+const RANGEMENTS = [['buffets', 'Nos buffets'], ['mezzes-froids', 'Nos mezzés froids à l’unité'], ['mezzes-chauds', 'Nos mezzés chauds à l’unité'], ['entrees', 'Nos entrées à l’unité'], ['plats', 'Nos plats à l’unité'], ['accompagnements', 'Nos accompagnements à l’unité'], ['fromages', 'Nos fromages'], ['desserts', 'Nos desserts à l’unité'], ['divers', 'Produits divers à l’unité']];
 /* « Riz oriental : + 1,50 € HT/personne. » → « Riz oriental » (supplément d'un menu, pas un nom de plat) */
 const SUPPL = /\s*:\s*\+\s*[\d.,]+\s*€.*$/;
 /* accompagnements (riz, gratins, alloco…) : demande de Jean-Luc du 2026-11-22 */
@@ -485,6 +485,19 @@ async function initSousRubriques(store, { log = console } = {}) {
     const rt = await store.get('produits/repas-servi-a-table-elabore-par-le-chef');
     if (rt && rt.prixCents == null) await store.set('produits/repas-servi-a-table-elabore-par-le-chef', { ...rt, prixCents: 4990, prixTexte: null, unite: 'personne', regles: { ...(rt.regles || {}), personnel: 'service' }, aCompleter: false });
     await store.set('site/reglages', { ...(await store.get('site/reglages')), carteSansDevis: true });
+  }
+  // une fois (Jean-Luc, 2026-11-24) : buffet libanais, « Nos entrées à l'unité » devient « Nos mezzés froids » et « Nos mezzés chauds ».
+  // Modifiable ensuite dans chaque fiche (liste « Section sur la page de la spécialité »).
+  const RLm = await store.get('rubriques/saveurs-du-monde');
+  if (RLm && !RLm.libanaisMezzes) {
+    const net = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+    const FROIDS = /^(houmous|feuilles? de vigne|salade|moutabal|taboule|caviar|moussake|labne|mouhamara|chankliche)/;
+    for (const d of await store.list('produits')) {
+      const p = d.data;
+      if (!p || p.sous !== 'buffet-libanais' || rangementDe(p) !== 'entrees') continue;
+      await store.set('produits/' + d.id, { ...p, rangement: FROIDS.test(net(p.titre)) ? 'mezzes-froids' : 'mezzes-chauds' });
+    }
+    await store.set('rubriques/saveurs-du-monde', { ...(await store.get('rubriques/saveurs-du-monde')), libanaisMezzes: true });
   }
   // une fois (Jean-Luc, 2026-11-22) : « Brochettes de Chich Taouk », 1 portion = 4 brochettes ; beignets libanais, 1 portion = 2 pièces
   const RLq = await store.get('rubriques/saveurs-du-monde');
