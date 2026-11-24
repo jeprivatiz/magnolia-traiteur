@@ -14,7 +14,7 @@ const { createCatalogue } = require('./catalogue');
 const { seed, importerAvisAncienSite, initSousRubriques } = require('./seed');
 const views = require('./views');
 const { preparerAlerte } = require('./relances');
-const { totaux, controleMarge, prochainNumero, lignesDepuisDemande, estimerLigne } = require('./devis');
+const { regleAcompte, totaux, controleMarge, prochainNumero, lignesDepuisDemande, estimerLigne } = require('./devis');
 const { rid, sha, esc, euros, limiter, dateFr, slugify } = require('./util');
 const IA = require('./ia');
 
@@ -320,9 +320,10 @@ async function createApp(opts = {}) {
     const t = totaux(d);
     if (accepte) {
       const cl = await store.get('clients/' + d.clientId); const R = (await cat.get()).reglages;
+      const ac = regleAcompte(t.ttcCents, d, R.tarifs);
       if (cl?.email) brevo.sendEmail({ to: cl.email, name: cl.nom, replyTo: R.email, subject: `Magnolia Traiteur : votre devis ${d.numero} est signé`,
-        html: `<p>Bonjour ${esc((cl.nom || '').split(' ')[0])},</p><p>Merci pour votre confiance ! Votre devis ${esc(d.numero)} (${euros(t.ttcCents)} TTC) est bien signé.</p><p>Pour réserver définitivement votre date, il reste à régler l’acompte : <a href="${SITE}/devis/${d.token}">voir le devis et payer l’acompte</a>.</p><p>À très vite,<br>L’équipe Magnolia Traiteur<br>${esc(R.telephone)}</p>`,
-        text: `Votre devis ${d.numero} est signé. Acompte : ${SITE}/devis/${d.token}` }).catch(e => log.error?.(e));
+        html: `<p>Bonjour ${esc((cl.nom || '').split(' ')[0])},</p><p>Merci pour votre confiance ! Votre devis ${esc(d.numero)} (${euros(t.ttcCents)} TTC) est bien signé.</p><p>Pour réserver définitivement votre date, il reste à régler ${ac.total ? `la totalité (${euros(ac.cents)})` : `l’acompte de ${ac.pct} % (${euros(ac.cents)})`} : <a href=\"${SITE}/devis/${d.token}\">voir le devis et payer</a>.</p><p>À très vite,<br>L’équipe Magnolia Traiteur<br>${esc(R.telephone)}</p>`,
+        text: `Votre devis ${d.numero} est signé. Paiement : ${SITE}/devis/${d.token}` }).catch(e => log.error?.(e));
     }
     alerterEquipe(`Devis ${d.numero} ${accepte ? 'SIGNÉ' : 'refusé'} par le client`, `<p>Le devis ${esc(d.numero)} (${euros(t.ttcCents)} TTC) a été ${accepte ? 'signé en ligne par <b>' + esc(nom) + '</b>' : 'refusé'}.</p><p><a href="${SITE}/admin#/devis/${d.id}">Ouvrir</a></p>`, `Magnolia : devis ${d.numero} ${accepte ? 'signé' : 'refusé'}`).catch(() => {});
     res.json({ ok: true });
@@ -525,7 +526,7 @@ async function createApp(opts = {}) {
       id, numero, token, demandeId: d.id, clientId: d.clientId, clientNom: d.contact?.nom || '', statut: 'brouillon',
       evenement: { type: d.evenement?.type, date: d.evenement?.date, invites: d.evenement?.invites, lieu: [d.evenement?.cp, d.evenement?.ville].filter(Boolean).join(' ') },
       intro: `Madame, Monsieur, suite à votre demande, voici notre proposition pour votre ${String(d.evenement?.type || 'événement').toLowerCase()}.`,
-      lignes: lignesDepuisDemande(d, c, T), remiseCents: 0, acomptePct: T.acomptePct ?? 30, validiteJusquau: validite,
+      lignes: lignesDepuisDemande(d, c, T), remiseCents: 0, acomptePct: null, validiteJusquau: validite,
       conditions: 'Prix TTC. Acompte à la signature, solde au plus tard 7 jours avant l’événement. Nombre définitif d’invités à confirmer 7 jours avant.',
       lienPaiement: '', createdAt: new Date().toISOString(), creePar: ctx.name,
     };
@@ -596,13 +597,29 @@ async function createApp(opts = {}) {
     const devisId = await devisDepuisDemande(demande, req.ctx, { iaDraft: true });
     res.json({ ok: true, demandeId: id, devisId, ref });
   }));
+  /* plusieurs devis pour un même client : copie d'un devis (lignes, événement, textes) en nouveau brouillon */
+  A.post('/actions/dupliquer-devis/:id', sameSite, json, wrap(async (req, res) => {
+    const src = await store.get('devis/' + req.params.id);
+    if (!src) return res.status(404).json({ error: 'Devis introuvable.' });
+    const T = (await cat.get()).reglages.tarifs || {};
+    const id = 'v_' + rid(8), token = rid(18);
+    const numero = await prochainNumero(store, 'devis');
+    const copie = { id, numero, token, clientId: src.clientId || null, clientNom: src.clientNom || '', demandeId: src.demandeId || null, statut: 'brouillon',
+      evenement: { ...(src.evenement || {}) }, lignes: (src.lignes || []).map(l => ({ ...l })), remiseCents: src.remiseCents || 0, acomptePct: src.acomptePct ?? null,
+      commercial: src.commercial, intro: src.intro || '', conditions: src.conditions || '', lienPaiement: src.lienPaiement || '', copieDe: src.numero,
+      validiteJusquau: new Date(Date.now() + (T.validiteDevisJours || 15) * 86400e3).toISOString().slice(0, 10), createdAt: new Date().toISOString(), creePar: req.ctx.name };
+    await store.set('devis/' + id, copie);
+    await store.set('_devistoken/' + sha(token), { id });
+    audit(req.ctx, 'devis dupliqué', 'devis/' + id, `${numero} (copie de ${src.numero})`);
+    res.json({ ok: true, id, numero });
+  }));
   A.post('/actions/devis-vierge', sameSite, json, wrap(async (req, res) => {
     const T = (await cat.get()).reglages.tarifs || {};
     const clientId = req.body?.clientId || null;
     const cl = clientId ? await store.get('clients/' + clientId) : null;
     const id = 'v_' + rid(8), token = rid(18);
     const numero = await prochainNumero(store, 'devis');
-    await store.set('devis/' + id, { id, numero, token, clientId, clientNom: cl?.nom || '', statut: 'brouillon', evenement: {}, lignes: [], remiseCents: 0, acomptePct: T.acomptePct ?? 30, validiteJusquau: new Date(Date.now() + (T.validiteDevisJours || 15) * 86400e3).toISOString().slice(0, 10), createdAt: new Date().toISOString(), creePar: req.ctx.name });
+    await store.set('devis/' + id, { id, numero, token, clientId, clientNom: cl?.nom || '', statut: 'brouillon', evenement: {}, lignes: [], remiseCents: 0, acomptePct: null, validiteJusquau: new Date(Date.now() + (T.validiteDevisJours || 15) * 86400e3).toISOString().slice(0, 10), createdAt: new Date().toISOString(), creePar: req.ctx.name });
     await store.set('_devistoken/' + sha(token), { id });
     audit(req.ctx, 'devis créé', 'devis/' + id, numero);
     res.json({ ok: true, id });
@@ -666,9 +683,10 @@ async function createApp(opts = {}) {
     const acompteFacture = autres.filter(f => f.type === 'acompte').reduce((s2, f) => s2 + totaux(f).ttcCents, 0);
     let lignes = d.lignes, remiseCents = d.remiseCents || 0, dejaRegleCents = 0;
     if (type === 'acompte') {
-      const montant = Math.round(t.ttcCents * (d.acomptePct ?? 30) / 100);
+      const acR = regleAcompte(t.ttcCents, d, (await cat.get()).reglages.tarifs);
+      const montant = acR.cents;
       /* acompte réparti au prorata des taux de TVA du devis */
-      lignes = Object.entries(t.tva).map(([taux, tv]) => { const ttc = tv + Math.round(tv / (taux / 100)); return { designation: `Acompte ${d.acomptePct ?? 30} % sur devis ${d.numero} (TVA ${taux} %)`, qte: 1, unite: '', puCents: Math.round(montant * ttc / t.ttcCents), tva: +taux }; });
+      lignes = Object.entries(t.tva).map(([taux, tv]) => { const ttc = tv + Math.round(tv / (taux / 100)); return { designation: `Acompte ${acR.pct} % sur devis ${d.numero} (TVA ${taux} %)`, qte: 1, unite: '', puCents: Math.round(montant * ttc / t.ttcCents), tva: +taux }; });
       if (lignes.length) lignes[lignes.length - 1].puCents += montant - lignes.reduce((s2, l) => s2 + l.puCents, 0); /* le centime d'arrondi va sur la dernière ligne */
       remiseCents = 0;
     } else if (type === 'solde') dejaRegleCents = acompteFacture;

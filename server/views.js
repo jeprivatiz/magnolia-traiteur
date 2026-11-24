@@ -6,6 +6,7 @@ function logoExiste(src) { if (!src) return false; if (!src.startsWith('/site/')
 const { esc, euros, dateFr } = require('./util');
 const _euros = euros;
 const { prixCourt } = require('./catalogue');
+const { regleAcompte } = require('./devis');
 
 const V = (process.env.RAILWAY_GIT_COMMIT_SHA || '').slice(0, 8) || Date.now().toString(36); /* change à chaque mise en ligne : force le rechargement du CSS et du JS */
 const MONO = '<img class="mono" src="/brand/monogramme.svg" alt="" width="40" height="34">';
@@ -760,7 +761,7 @@ function commander(c) {
   <li><b>Relisez, puis validons votre devis</b><span>Vous recevez une référence et un accès à votre espace client. L’équipe vérifie les disponibilités et vous envoie votre devis, que vous signez en ligne. Un acompte valide la réservation, par un lien de paiement sécurisé.</span></li></ol>
   <h2>Questions fréquentes</h2>
   <details><summary>Est-ce une commande ?</summary><p>Non : votre envoi est une demande à étudier. L’équipe vérifie les disponibilités, les détails et le montant avant validation.</p></details>
-  <details><summary>Quand payer ?</summary><p>Après validation du devis : un acompte réserve la date, le solde est réglé avant l’événement. Aucun paiement n’est demandé sur le site.</p></details>
+  <details><summary>Quand payer ?</summary><p>Après validation du devis : pour une commande de moins de 800 € TTC, la totalité est réglée à la signature ; au-delà, un acompte de 50 % réserve la date et le solde est réglé avant l’événement. Aucun paiement n’est demandé sur le site.</p></details>
   <details><summary>Puis-je modifier ma sélection ?</summary><p>Oui, à tout moment avant l’envoi ; ensuite l’équipe ajuste le devis avec vous.</p></details>
   <details><summary>Et les allergies ?</summary><p>Indiquez-les dans la note de chaque prestation ou dans votre message ; l’équipe vous répond plat par plat. Voir aussi <a href="/allergenes">l’information allergènes</a>.</p></details>
   <p class="row"><a class="btn btn-vert" href="/boutique">Commencer ma sélection</a></p>`;
@@ -845,29 +846,33 @@ function devisPage(c, d0, t, { client, demande, apercu = false }) {
   const d = apercu && d0.statut === 'brouillon' ? { ...d0, statut: 'envoye', envoyeLe: d0.envoyeLe || new Date().toISOString() } : d0;
   const signe = d.statut === 'accepte';
   const expire = d.validiteJusquau && d.validiteJusquau < new Date().toISOString().slice(0, 10) && !signe;
-  const acompte = Math.round(t.ttcCents * (d.acomptePct ?? R.tarifs?.acomptePct ?? 30) / 100);
+  const ac = regleAcompte(t.ttcCents, d, R.tarifs), acompte = ac.cents;
+  const com = d.commercial === null ? null : (d.commercial || (R.alertes?.personnes || []).find(x => x.nom) || null);
+  const quoi = ac.total ? `Règlement de la totalité, soit <b>${euros(acompte)}</b>` : `Acompte de <b>${euros(acompte)}</b> (${ac.pct} %)`;
+  const cgv = (c.pages?.['/cgv']?.texte || '').split('\n').map(l => l.trim()).filter(l => l && !/À compléter|^Les articles ci-dessous|^Conditions générales de vente$|^Voir aussi|^et la politique|^\.$/.test(l));
   const https = u => /^https:\/\/[^\s"'<>]+$/.test(String(u || '')) ? String(u) : '';
   const payer = https(d.lienPaiement) || https(R.paiement?.lien);
   const body = `${apercu ? `<div class="apercu-bar noprint"><p><b>👁 Aperçu du devis</b> · exactement ce que le client recevra.${d0.statut === 'brouillon' ? ' Rien n’a été envoyé.' : ''}</p><button class="btn btn-line" type="button" onclick="window.close()">Fermer l’aperçu</button></div>` : ''}<section class="wrap doc">
   <header class="doc-h"><div>${MONO}<p class="brand-txt">Magnolia<small>${esc(R.sousNom || '')}</small></p><p class="small">${esc(R.adresse)}<br>${esc(R.telephone)} · ${esc(R.email)}</p></div>
   <div class="doc-ref"><h1>Devis ${esc(d.numero)}</h1><p>Émis le ${esc(dateFr(d.envoyeLe || d.createdAt))}${d.validiteJusquau ? `<br>Valable jusqu’au ${esc(dateFr(d.validiteJusquau))}` : ''}</p><span class="pill p-${esc(d.statut)}">${esc({ envoye: 'À signer', accepte: 'Signé', refuse: 'Refusé', brouillon: 'Brouillon' }[d.statut] || '')}</span></div></header>
   <div class="doc-parties"><div><p class="eyebrow">Client</p><p><b>${esc(client?.nom || '')}</b>${client?.societe ? '<br>' + esc(client.societe) : ''}<br>${esc(client?.email || '')}<br>${esc(client?.tel || '')}</p></div>
-  <div><p class="eyebrow">Événement</p><p><b>${esc(d.evenement?.type || demande?.evenement?.type || '')}</b><br>${esc(dateFr(d.evenement?.date || demande?.evenement?.date))}<br>${esc(d.evenement?.invites || demande?.evenement?.invites || '')} invités · ${esc(d.evenement?.lieu || demande?.evenement?.ville || '')}</p></div></div>
+  <div><p class="eyebrow">Événement</p><p><b>${esc(d.evenement?.type || demande?.evenement?.type || '')}</b><br>${esc(dateFr(d.evenement?.date || demande?.evenement?.date))}<br>${esc(d.evenement?.invites || demande?.evenement?.invites || '')} invités · ${esc(d.evenement?.lieu || demande?.evenement?.ville || '')}</p></div>${com?.nom ? `<div><p class="eyebrow">Votre conseiller</p><p><b>${esc(com.nom)}</b>${com.tel ? `<br><a href="tel:${esc(com.tel.replace(/\s/g, ''))}">${esc(com.tel)}</a>` : ''}${com.email ? `<br>${esc(com.email)}` : ''}</p></div>` : ''}</div>
   ${d.intro ? `<p class="doc-intro">${esc(d.intro)}</p>` : ''}
   ${devisLignesHtml(d)}
   ${totauxHtml(t)}
   ${d.conditions ? `<p class="small">${esc(d.conditions)}</p>` : ''}
   <div class="sign"${apercu ? ' data-apercu' : ` data-sign="${esc(d.token)}"`}>
   ${signe ? `<p class="ok">✓ Devis signé en ligne par <b>${esc(d.signature?.nom || '')}</b> le ${esc(dateFr(d.signature?.at, { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }))}.</p>
-     ${payer ? `<p>Acompte de <b>${euros(acompte)}</b> (${d.acomptePct ?? R.tarifs?.acomptePct ?? 30} %) pour réserver votre date :</p><p><a class="btn btn-or" href="${esc(payer)}" rel="noopener">Régler l’acompte par carte</a></p>` : ''}
-     ${R.paiement?.iban ? `<div class="virement"><p class="eyebrow">${payer ? 'Ou par virement' : `Acompte de ${euros(acompte)} par virement`}</p><p>Titulaire : <b>${esc(R.paiement.titulaire || 'Magnolia Traiteur')}</b><br>IBAN : <b class="mono">${esc(R.paiement.iban)}</b>${R.paiement.bic ? `<br>BIC : <b class="mono">${esc(R.paiement.bic)}</b>` : ''}<br>Référence à indiquer : <b>${esc(d.numero)}</b></p></div>` : ''}
-     ${!payer && !R.paiement?.iban ? `<p>L’équipe vous envoie le lien de paiement de l’acompte (${euros(acompte)}).</p>` : ''}`
+     ${payer ? `<p>${quoi} pour réserver votre date :</p><p><a class="btn btn-or" href="${esc(payer)}" rel="noopener">${ac.total ? 'Régler par carte' : 'Régler l’acompte par carte'}</a></p>` : ''}
+     ${R.paiement?.iban ? `<div class="virement"><p class="eyebrow">${payer ? 'Ou par virement' : `${ac.total ? 'Règlement' : 'Acompte'} de ${euros(acompte)} par virement`}</p><p>Titulaire : <b>${esc(R.paiement.titulaire || 'Magnolia Traiteur')}</b><br>IBAN : <b class="mono">${esc(R.paiement.iban)}</b>${R.paiement.bic ? `<br>BIC : <b class="mono">${esc(R.paiement.bic)}</b>` : ''}<br>Référence à indiquer : <b>${esc(d.numero)}</b></p></div>` : ''}
+     ${!payer && !R.paiement?.iban ? `<p>L’équipe vous envoie le lien de paiement ${ac.total ? 'de la totalité' : 'de l’acompte'} (${euros(acompte)}).</p>` : ''}`
     : d.statut === 'refuse' ? '<p>Ce devis a été clôturé. Appelez-nous pour en établir un nouveau.</p>'
     : expire ? `<p>Ce devis a expiré. Appelez-nous au ${esc(R.telephone)} : nous le mettons à jour.</p>`
-    : `<h2>Bon pour accord</h2><p>Acompte de ${euros(acompte)} (${d.acomptePct ?? R.tarifs?.acomptePct ?? 30} %) à la signature, solde avant l’événement. En signant, vous acceptez les <a href="/cgv" target="_blank">conditions générales de vente</a>.</p>
+    : `<h2>Bon pour accord</h2><p>${quoi} à la signature${ac.total ? (ac.auto ? ' (commande inférieure à ' + euros(ac.seuil) + ' TTC)' : '') : ', solde avant l’événement'}. En signant, vous acceptez les conditions générales de vente ci-dessous.</p>
      <form class="card-form"${apercu ? ' onsubmit="return false"' : ' data-accept'} novalidate><label>Votre nom et prénom<input name="nom" required autocomplete="name"></label><label class="check"><input type="checkbox" name="ok" required> Je déclare accepter ce devis « bon pour accord ».</label><div class="row"><button class="btn btn-vert"${apercu ? ' disabled' : ''}>Signer le devis</button><button class="btn btn-line" type="button"${apercu ? ' disabled' : ' data-refuse'}>Je ne donne pas suite</button></div><p class="small" data-accept-msg>${apercu ? 'Aperçu : la signature est désactivée ici.' : ''}</p></form>`}
   </div>
   <p class="row noprint"><button class="btn btn-line" type="button" onclick="print()">Imprimer / PDF</button><a class="lnk" href="tel:${esc((R.telephone || '').replace(/\s/g, ''))}">Une question ? ${esc(R.telephone)}</a></p>
+  ${cgv.length ? `<section class="doc-cgv" id="cgv"><h2>Conditions générales de vente</h2>${cgv.map(l => /^Article \d+/.test(l) ? `<h3>${esc(l)}</h3>` : `<p>${esc(l)}</p>`).join('')}</section>` : ''}
   </section>`;
   return layout(c, { title: 'Devis ' + d.numero, body, bodyClass: 'p-doc' }).replace('<head>', '<head><meta name="robots" content="noindex">');
 }
