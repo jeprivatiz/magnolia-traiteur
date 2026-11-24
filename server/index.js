@@ -21,6 +21,7 @@ const IA = require('./ia');
 const SEO = require('./seo');
 const TXT = require('./textes');
 const DIF = require('./diffusion');
+const PROFIL = require('./profil-contact');
 const FAC = require('./factures');
 const { creerEntreprises } = require('./entreprises');
 const DR = require('./droits');
@@ -774,7 +775,17 @@ async function createApp(opts = {}) {
     if (typeof data.cp === 'string') { data.cp = data.cp.replace(/\s/g, ''); if (data.cp !== (before?.cp || '')) data.departement = departementDe(data.cp) || data.departement || ''; }
     if (typeof data.tel === 'string' && data.tel !== (before?.tel || '')) { const t = normTel(data.tel); data.telE164 = t?.ok ? t.e164 : ''; if (t?.ok) data.tel = t.tel; }
     if (typeof data.email === 'string') data.email = data.email.trim().toLowerCase();
+    /* profil prestataire (métiers, DJ…) : listes propres, sans doublon */
+    for (const k of ['metiers', 'djStyles']) if (k in data) { data[k] = PROFIL.uniques((Array.isArray(data[k]) ? data[k] : []).map(x => String(x || '').trim().slice(0, 60))).slice(0, 30); if (!data[k].length) delete data[k]; }
+    for (const k of ['independant', 'permis', 'nePasContacter']) if (k in data && typeof data[k] !== 'boolean') data[k] = data[k] === 'on' || data[k] === 'true' || data[k] === true;
+    if ('djDepuis' in data) { const an = String(data.djDepuis || '').match(/(19|20)\d{2}/); data.djDepuis = an ? an[0] : ''; }
   }
+  /* listes de la fiche « Profil prestataire » : métiers et styles de DJ proposés, plus ceux déjà tapés */
+  A.get('/actions/profil-contact', wrap(async (req, res) => {
+    const { facettes } = await annuaireServeur();
+    const avec = (base, vus) => [...base, ...vus.map(x => x[0]).filter(x => !base.includes(x)).sort((a, b) => a.localeCompare(b, 'fr'))];
+    res.json({ metiers: avec(PROFIL.METIERS, facettes.metiers), djStyles: avec(PROFIL.DJ_STYLES, facettes.dj), contactDe: facettes.contactDe.map(x => x[0]) });
+  }));
   /* ---------- import du fichier clients (Excel / CSV) ---------- */
   const importClients = creerImportClients({ store, log });
   importClients.routes(A, { sameSite, manager: peut('fichiers'), wrap, audit });
@@ -799,12 +810,58 @@ async function createApp(opts = {}) {
     const items = cl.map(({ id, data: c }) => ({
       c: { ...c, id, journal: undefined }, id, nb: nbDem.get(id) || 0, lie: lies.has(id) || (c.journal || []).length > 0,
       importe: c.source === 'import CRM', last: String(c.derniereActivite || ''),
-      hay: sansAcc([c.nom, c.prenom, c.nomFamille, c.societe, c.email, c.ville, c.cp, extra.get(id)].join(' ')),
+      hay: sansAcc([c.nom, c.prenom, c.nomFamille, c.societe, c.email, c.ville, c.cp, c.fonction, (c.metiers || []).join(' '), (c.djStyles || []).join(' '), c.contactDe, extra.get(id)].join(' ')),
       tels: [c.tel, c.telE164, c.telAutre].map(telK).filter(Boolean),
+      k: critereClient(c),
     }));
     items.sort((a, b) => b.last.localeCompare(a.last));
-    idxClients = { v, items };
+    idxClients = { v, items, facettes: facettesClients(items) };
     return idxClients;
+  }
+  /* recherche multicritère de la liste Clients (listes déroulantes) */
+  function critereClient(c) {
+    const dep = String(c.departement || DIF.departement(c.cp) || '').toUpperCase();
+    return {
+      metiers: Array.isArray(c.metiers) ? c.metiers : [], dj: Array.isArray(c.djStyles) ? c.djStyles : [], contactDe: String(c.contactDe || '').trim(),
+      dep, civ: c.civilite === 'Mme' || c.civilite === 'M.' ? c.civilite : '', pro: !!String(c.societe || '').trim(),
+      email: /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(String(c.email || '').trim()), mobile: !!DIF.mobile(c.telE164 || c.tel),
+      stopEmail: !!c.desinscrit?.email, stopSms: !!c.desinscrit?.sms, npc: !!c.nePasContacter || !!(c.desinscrit?.email && c.desinscrit?.sms),
+      indep: c.independant === true, permis: c.permis === true, ville: String(c.ville || '').trim(),
+    };
+  }
+  function facettesClients(items) {
+    const m = { metiers: new Map(), dj: new Map(), contactDe: new Map(), dep: new Map() };
+    const n = (map, x) => { if (x) map.set(x, (map.get(x) || 0) + 1); };
+    for (const { k } of items) { k.metiers.forEach(x => n(m.metiers, x)); k.dj.forEach(x => n(m.dj, x)); n(m.contactDe, k.contactDe); n(m.dep, k.dep); }
+    const tri = map => [...map].sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0]), 'fr'));
+    return {
+      metiers: tri(m.metiers), dj: tri(m.dj), contactDe: tri(m.contactDe), dep: [...m.dep].sort((a, b) => a[0].localeCompare(b[0], 'fr', { numeric: true })),
+      indep: items.filter(a => a.k.indep).length, permis: items.filter(a => a.k.permis).length, npc: items.filter(a => a.k.npc).length,
+    };
+  }
+  const CRIT_CLIENTS = ['metier', 'dj', 'contactDe', 'dep', 'civ', 'pro', 'joignable', 'indep', 'permis', 'npc'];
+  function filtrerCriteres(items, q) {
+    const v = x => String(q[x] || '').slice(0, 80);
+    if (!CRIT_CLIENTS.some(x => v(x))) return items;
+    return items.filter(({ k }) => {
+      if (v('metier') && !(v('metier') === '*' ? k.metiers.length : k.metiers.includes(v('metier')))) return false;
+      if (v('dj') && !k.dj.includes(v('dj'))) return false;
+      if (v('contactDe') && k.contactDe !== v('contactDe')) return false;
+      if (v('dep') && !(v('dep') === 'idf' ? ['75', '77', '78', '91', '92', '93', '94', '95'].includes(k.dep) : v('dep') === 'aucun' ? !k.dep : k.dep === v('dep'))) return false;
+      if (v('civ') && k.civ !== (v('civ') === 'aucune' ? '' : v('civ'))) return false;
+      if (v('pro') === 'pro' && !k.pro) return false;
+      if (v('pro') === 'part' && k.pro) return false;
+      const j = v('joignable');
+      if (j === 'email' && !(k.email && !k.stopEmail)) return false;
+      if (j === 'sms' && !(k.mobile && !k.stopSms)) return false;
+      if (j === 'les2' && !(k.email && !k.stopEmail && k.mobile && !k.stopSms)) return false;
+      if (j === 'aucun' && ((k.email && !k.stopEmail) || (k.mobile && !k.stopSms))) return false;
+      if (v('indep') && !k.indep) return false;
+      if (v('permis') && !k.permis) return false;
+      if (v('npc') === 'oui' && !k.npc) return false;
+      if (v('npc') === 'non' && k.npc) return false;
+      return true;
+    });
   }
   function filtrerClients(items, q) {
     const words = sansAcc(q).trim().split(/\s+/).filter(Boolean);
@@ -816,15 +873,15 @@ async function createApp(opts = {}) {
   A.get('/clients', wrap(async (req, res, next) => {
     const q = req.query;
     if (q.q === undefined && q.page === undefined && !q.vue && !q.ids) return next();
-    const { items } = await annuaireServeur();
+    const { items, facettes } = await annuaireServeur();
     res.set('Cache-Control', 'no-store');
     /* clients « en activité » : tous, sauf les contacts importés qui n'ont encore ni demande, ni devis, ni note */
     if (q.vue === 'actifs') return res.json(items.filter(a => !a.importe || a.lie).map(a => a.c));
     if (q.ids) { const ids = new Set(String(q.ids).split(',').slice(0, 200)); return res.json(items.filter(a => ids.has(a.id)).map(a => a.c)); }
-    let l = filtrerClients(items, String(q.q || '').slice(0, 80));
+    let l = filtrerCriteres(filtrerClients(items, String(q.q || '').slice(0, 80)), q);
     if (q.filtre === 'importes') l = l.filter(a => a.importe); else if (q.filtre === 'autres') l = l.filter(a => !a.importe);
     const par = Math.min(200, Math.max(10, parseInt(q.par, 10) || 50)), page = Math.max(1, parseInt(q.page, 10) || 1);
-    res.json({ total: l.length, tous: items.length, importes: items.filter(a => a.importe).length, entreprises: await ENT.nombre(), page, par, items: l.slice((page - 1) * par, page * par).map(a => ({ ...a.c, nbDemandes: a.nb })) });
+    res.json({ total: l.length, tous: items.length, importes: items.filter(a => a.importe).length, entreprises: await ENT.nombre(), facettes, page, par, items: l.slice((page - 1) * par, page * par).map(a => ({ ...a.c, nbDemandes: a.nb })) });
   }));
 
   A.get('/:coll', wrap(async (req, res, next) => {
@@ -1596,7 +1653,7 @@ async function createApp(opts = {}) {
   }
   const lienDesinscription = async id => SITE + '/desinscription?c=' + encodeURIComponent(id) + '&t=' + DIF.jeton(await secretDesinscription(), id);
   const canalDe = v => (v === 'sms' ? 'sms' : 'email');
-  const critDe = b => ({ statut: ['commandes', 'prospects'].includes(b?.statut) ? b.statut : '', montantMin: Math.max(0, Math.round(+b?.montantMin || 0)), deps: (Array.isArray(b?.deps) ? b.deps : []).map(x => s(x, 3)).slice(0, 120), types: (Array.isArray(b?.types) ? b.types : []).map(x => s(x, 60)).slice(0, 40), pro: ['pro', 'part'].includes(b?.pro) ? b.pro : '', accord: !!b?.accord });
+  const critDe = b => ({ statut: ['commandes', 'prospects'].includes(b?.statut) ? b.statut : '', montantMin: Math.max(0, Math.round(+b?.montantMin || 0)), deps: (Array.isArray(b?.deps) ? b.deps : []).map(x => s(x, 3)).slice(0, 120), types: (Array.isArray(b?.types) ? b.types : []).map(x => s(x, 60)).slice(0, 40), pro: ['pro', 'part'].includes(b?.pro) ? b.pro : '', accord: !!b?.accord, metiers: (Array.isArray(b?.metiers) ? b.metiers : []).map(x => s(x, 60)).slice(0, 40), dj: (Array.isArray(b?.dj) ? b.dj : []).map(x => s(x, 60)).slice(0, 40), contactDe: (Array.isArray(b?.contactDe) ? b.contactDe : []).map(x => s(x, 80)).slice(0, 60), civ: ['Mme', 'M.'].includes(b?.civ) ? b.civ : '' });
   /* destinataires : mode « critères » (tous ceux qui correspondent, moins ceux décochés) ou « un par un » (seulement ceux cochés) */
   function destinataires(l, canal, b) {
     const base = DIF.filtrer(l, canal, critDe(b?.criteres));
@@ -1606,13 +1663,15 @@ async function createApp(opts = {}) {
   }
   A.get('/diffusion/criteres', wrap(async (req, res) => {
     profilsCache = null; /* chaque ouverture de l'écran repart de données fraîches */
-    const l = await lesProfils(), deps = new Map(), types = new Map();
-    for (const p of l) { for (const d of p.deps) deps.set(d, (deps.get(d) || 0) + 1); for (const t of p.types) types.set(t, (types.get(t) || 0) + 1); }
+    const l = await lesProfils(), deps = new Map(), types = new Map(), mets = new Map(), djs = new Map(), cde = new Map();
+    const plus1 = (m, x) => { if (x) m.set(x, (m.get(x) || 0) + 1); };
+    for (const p of l) { for (const d of p.deps) plus1(deps, d); for (const t of p.types) plus1(types, t); p.metiers.forEach(x => plus1(mets, x)); p.dj.forEach(x => plus1(djs, x)); plus1(cde, p.contactDe); }
+    const parNb = m => [...m].sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0]), 'fr'));
     const R = (await cat.get()).reglages;
     res.json({
       total: l.length, email: DIF.filtrer(l, 'email').length, sms: DIF.filtrer(l, 'sms').length,
       stopEmail: l.filter(p => p.stopEmail).length, stopSms: l.filter(p => p.stopSms).length,
-      deps: [...deps].sort((a, b) => a[0].localeCompare(b[0], 'fr', { numeric: true })), types: [...types].sort((a, b) => b[1] - a[1]),
+      deps: [...deps].sort((a, b) => a[0].localeCompare(b[0], 'fr', { numeric: true })), types: [...types].sort((a, b) => b[1] - a[1]), metiers: parNb(mets), dj: parNb(djs), contactDe: parNb(cde),
       ia: ia.actif, brevo: brevo.live, lienSms: await lienSms(), moi: { email: req.ctx.email || '', tel: String(R.alertes?.sms || '').split(/[,;]/)[0].trim() }, creneauSms: DIF.creneauSms(),
     });
   }));

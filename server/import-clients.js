@@ -11,6 +11,7 @@
 const multer = require('multer');
 const { lireTableau, ecrireXlsx } = require('./tableur');
 const { rid, sha, nomPropre: nomCommun } = require('./util');
+const PC = require('./profil-contact');
 
 const CHAMPS = [
   ['', '— Ne pas importer —'],
@@ -22,13 +23,25 @@ const CHAMPS = [
   ['email', 'E-mail'],
   ['tel', 'Téléphone portable'],
   ['tel2', 'Autre téléphone (fixe…)'],
+  ['numero', 'N° dans la rue'],
   ['adresse', 'Adresse (rue)'],
   ['cp', 'Code postal'],
   ['ville', 'Ville'],
   ['departement', 'Département'],
+  ['pays', 'Pays'],
   ['caCrm', 'Montant déjà commandé (€ TTC)'],
   ['derniereCommande', 'Date de la dernière commande'],
   ['creeLe', 'Client depuis (date)'],
+  ['metier', 'Métier (1 / oui = le métier du titre de la colonne)'],
+  ['independant', 'Indépendant(e) (oui / non)'],
+  ['permis', 'Permis de conduire (oui / non)'],
+  ['remuneration', 'Rémunération demandée'],
+  ['djStyles', 'Styles de DJ'],
+  ['djDepuis', 'DJ depuis (date ou année)'],
+  ['djTarifs', 'Tarifs DJ'],
+  ['contactDe', 'Contact de (qui l’a apporté)'],
+  ['siteWeb', 'Site internet'],
+  ['nePasContacter', 'NE PAS CONTACTER (1 / oui)'],
   ['notes', 'Autre information → Notes'],
 ];
 const CLES = new Set(CHAMPS.map(c => c[0]));
@@ -38,10 +51,26 @@ const sansAccent = t => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '')
 
 /* titre de colonne -> champ le plus probable */
 function devinerChamp(titre, dejaPris) {
-  const t = sansAccent(titre).replace(/[^a-z0-9]+/g, ' ').trim();
+  /* « Adresse postale: Ville » : on reconnaît la partie après les deux-points */
+  const tout = sansAccent(titre).replace(/[^a-z0-9:]+/g, ' ').trim();
+  const t = (tout.includes(':') && tout.split(':').pop().trim() ? tout.split(':').pop() : tout).replace(/:/g, ' ').replace(/\s+/g, ' ').trim();
   const r = (() => {
     if (!t) return '';
-    if (/^(civ|civilite|titre|genre)$/.test(t)) return 'civilite';
+    if (/iban|\bbic\b|\brib\b|compte bancaire|mot de passe|password/.test(t)) return ''; /* jamais de données bancaires ni de mot de passe dans la fiche */
+    if (/ne pas (contacter|appeler|solliciter)|ne plus contacter|blacklist|liste rouge/.test(t)) return 'nePasContacter';
+    if (/^(contact de|apporte par|apporteur|source du contact|recommande par)/.test(t)) return 'contactDe';
+    if (/destinataire|province|region|etat$/.test(t)) return '';
+    if (/^dj (specialite|style|genre|musique)/.test(t)) return 'djStyles';
+    if (/^dj (experience|depuis|debut)/.test(t)) return 'djDepuis';
+    if (/^dj (remuneration|tarif|prix|cachet)/.test(t)) return 'djTarifs';
+    if (/^(independant|auto entrepreneur|micro entrepreneur|statut independant)/.test(t)) return 'independant';
+    if (/^permis/.test(t)) return 'permis';
+    if (/^(remuneration|salaire|taux horaire|cachet|tarif horaire)/.test(t)) return 'remuneration';
+    if (/(^| )(site web|site internet|website|url)$/.test(t)) return 'siteWeb';
+    if (/(^| )pays$|^country/.test(t)) return 'pays';
+    if (/^(n|no|numero|num|n de rue|numero de rue)$/.test(t) && /adr|adresse|rue/.test(tout)) return 'numero';
+    if (PC.metierDe(t)) return 'metier';
+    if (/^(civ|civilite|titre|genre|sexe)$/.test(t)) return 'civilite';
     if (/^(prenom|first ?name|prenoms)/.test(t)) return 'prenom';
     if (/(nom (et|&)? ?prenom|prenom (et|&)? ?nom|nom complet|full ?name|contact|client)$/.test(t) && !/societe|entreprise/.test(t)) return 'nom';
     if (/^(nom|name|last ?name|nom de famille|patronyme)( du client)?$/.test(t)) return 'nomFamille';
@@ -52,7 +81,7 @@ function devinerChamp(titre, dejaPris) {
     if (/^(ville|commune|localite|city)/.test(t)) return 'ville';
     if (/^(dep|dept|departement)/.test(t)) return 'departement';
     if (/(adresse|rue|address|voie)/.test(t)) return 'adresse';
-    if (/(societe|entreprise|raison sociale|company|organisation|structure)/.test(t)) return 'societe';
+    if (/(societe|entreprise|raison sociale|company|organisation|structure)/.test(t)) return dejaPris.has('societe') ? 'notes' : 'societe';
     if (/(derniere (commande|prestation|vente|facture|achat)|dernier achat|date derniere)/.test(t)) return 'derniereCommande';
     if (/(^ca\b|chiffre d affaires|montant|total|depense)/.test(t)) return 'caCrm';
     if (/(date (de )?creation|cree le|client depuis|premiere commande|date d ajout)/.test(t)) return 'creeLe';
@@ -60,6 +89,18 @@ function devinerChamp(titre, dejaPris) {
   })();
   dejaPris.add(r);
   return r;
+}
+
+/* propositions pour tout le fichier : une colonne « adresse postale » qui existe aussi en morceaux
+   (« adresse postale: Rue », « … : Code postal »…) n'est pas reprise une seconde fois */
+function proposer(entetes) {
+  const pris = new Set();
+  const l = entetes.map(h => devinerChamp(h, pris));
+  const n = entetes.map(h => sansAccent(h).replace(/\s+/g, ' ').trim());
+  /* la colonne « Mobile » / « Portable » devient le téléphone principal (celui des SMS), l'autre passe en second */
+  const iTel = l.indexOf('tel'), iMob = n.findIndex((x, j) => l[j] === 'tel2' && /mobile|portable|gsm|cellulaire/.test(x));
+  if (iTel >= 0 && iMob >= 0 && !/mobile|portable|gsm|cellulaire/.test(n[iTel])) { l[iTel] = 'tel2'; l[iMob] = 'tel'; }
+  return l.map((c, i) => (c && n[i] && n.some((x, j) => j !== i && x.startsWith(n[i] + ':')) ? '' : c));
 }
 
 /* ---------- normalisation ---------- */
@@ -83,6 +124,7 @@ function normTel(brut) {
   } else if (d.length === 10 && d[0] === '0') nat = d;
   else if (d.length === 9 && /^[1-9]/.test(d)) nat = '0' + d; /* Excel a mangé le 0 */
   else if (d.length === 11 && d.startsWith('33')) nat = '0' + d.slice(2);
+  else if (d.length === 12 && /^(590|594|596|262)/.test(d)) nat = '0' + d.slice(3); /* 596 696… sans le + */
   if (!nat) return { tel: s, e164: '', mobile: false, ok: false };
   const ind = (DOM_MOBILE.find(([p]) => nat.startsWith(p)) || DOM_FIXE.find(([p]) => nat.startsWith(p)) || [, '33'])[1];
   return { tel: nat.replace(/(\d{2})(?=\d)/g, '$1 '), e164: '+' + ind + nat.slice(1), mobile: /^0[67]/.test(nat), ok: true };
@@ -124,15 +166,45 @@ function normEuros(v) {
 }
 
 /* une ligne du fichier -> fiche client */
+/* lignes d'essai laissées par un logiciel ou un testeur : jamais importées */
+const ESSAI = /\[test|\btest agent\b/i;
+const EMAIL_ESSAI = /@(example|test)\.(com|fr|org|net)$/i;
+/* faux numéros tapés pour remplir une case obligatoire */
+const TEL_FAUX = new Set(['612345678', '123456789', '600000000', '700000000', '611111111', '606060606', '102030405']);
+const telFaux = t => { const k = telCle(t); return !k || TEL_FAUX.has(k) || /^(\d)\1+$/.test(k.slice(1)); };
+/* « Inconnu », « Onbekend », « - », « . » : case vide */
+const VIDE = /^(inconnu|inconnue|onbekend|unknown|n\/?a|nc|sans nom|aucun|none|null|[-._\s?]+)$/i;
+const DATE_EXCEL = /^(\d{4})-(\d{2})-(\d{2})(?:[ T]00:00:00(?:\.0+)?Z?)?$/;
+
 function construire(ligne, colonnes, entetes) {
-  const f = {}, notes = [], soucis = [], tels = [], emails = [];
+  const f = {}, notes = [], soucis = [], tels = [], emails = [], metiers = [], styles = [];
+  let numero = '';
   const ajout = (k, v) => { f[k] = f[k] ? f[k] + (k === 'adresse' ? ', ' : ' ') + v : v; };
   colonnes.forEach((champ, i) => {
     const v = String(ligne[i] ?? '').trim();
     if (!champ || !v) return;
+    /* « 0 » dans une case à cocher (ou une remarque) = rien */
+    if (v === '0' && !['cp', 'tel', 'tel2', 'caCrm'].includes(champ)) return;
     switch (champ) {
+      case 'metier': if (PC.oui(v)) metiers.push(PC.metierDe(entetes[i]) || String(entetes[i] || '').trim()); else if (!PC.non(v)) for (const x of PC.liste(v)) metiers.push(PC.metierDe(x) || x); break;
+      case 'independant': case 'permis': case 'nePasContacter': if (PC.oui(v)) f[champ] = true; else if (PC.non(v)) { if (champ !== 'nePasContacter') f[champ] = false; } else notes.push(`${entetes[i]} : ${v}`); break;
+      case 'djStyles': for (const x of PC.liste(v)) styles.push(PC.styleDe(x)); break;
+      case 'djDepuis': { const m = v.match(DATE_EXCEL); const d = m ? `${m[1]}-${m[2]}-${m[3]}` : normDate(v); const an = (d || v).match(/(19|20)\d{2}/); if (an) f.djDepuis = an[0]; else notes.push(`${entetes[i]} : ${v}`); break; }
+      case 'djTarifs': case 'remuneration': ajout(champ, v.replace(/\s+/g, ' ')); break;
+      case 'numero': numero = v; break;
+      case 'societe': {
+        /* « ## vendue ## LA PENICHE D'EVA, LE BATEAU DE POSEIDON » : la première société, les autres en remarque */
+        let x = v; const m = x.match(/^#+\s*([^#]+?)\s*#+\s*/); if (m) { notes.push(`${entetes[i] || 'Société'} : ${m[1]}`); x = x.slice(m[0].length); }
+        const parts = x.split(/\s*,\s+/).filter(Boolean);
+        if (parts[0]) { if (f.societe) notes.push(`${entetes[i] || 'Société'} : ${parts[0]}`); else f.societe = parts[0]; }
+        if (parts.length > 1) notes.push('Autres sociétés : ' + parts.slice(1).join(', '));
+        break;
+      }
+      case 'pays': if (!/^(fr|fra|france)$/i.test(v)) f.pays = v; break;
+      case 'siteWeb': if (/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(v)) emails.push(v.toLowerCase()); else f.siteWeb = f.siteWeb || v; break;
+      case 'civilite': { const g = v.toLowerCase(); if (/^(f|femme|female|w)$/.test(g)) f.civilite = 'Mme'; else if (/^(m|h|homme|male)$/.test(g)) f.civilite = 'M.'; else if (!/^(unknown|non_binary|nb|inconnu|autre|x)$/.test(g)) ajout('civilite', v); break; }
       case 'email': for (const e of v.split(/[\s;,]+/).filter(Boolean)) { const n = normEmail(e); if (n) emails.push(n); else { soucis.push('email'); notes.push(`${entetes[i] || 'E-mail'} : ${e}`); } } break;
-      case 'tel': case 'tel2': for (const t of v.split(/\s*[/;|]\s*|\s+(?:ou|et)\s+/i).filter(Boolean)) { const n = normTel(t); if (n?.ok) tels.push({ ...n, autre: champ === 'tel2' }); else if (n) { soucis.push('tel'); notes.push(`${entetes[i] || 'Téléphone'} : ${t}`); } } break;
+      case 'tel': case 'tel2': for (const t of v.split(/\s*[/;|]\s*|\s+(?:ou|et)\s+/i).filter(Boolean)) { const n = normTel(t); if (n?.ok) { if (!telFaux(n.e164)) tels.push({ ...n, autre: champ === 'tel2' }); } else if (n) { soucis.push('tel'); notes.push(`${entetes[i] || 'Téléphone'} : ${t}`); } } break;
       case 'cp': { const cp = normCp(v); if (cp) f.cp = cp; else notes.push(`${entetes[i] || 'Code postal'} : ${v}`); break; }
       case 'departement': { const d = normDep(v); if (d) f.departement = d; break; }
       case 'caCrm': { const c = normEuros(v); if (c != null) f.caCrmCents = (f.caCrmCents || 0) + c; else notes.push(`${entetes[i]} : ${v}`); break; }
@@ -141,6 +213,27 @@ function construire(ligne, colonnes, entetes) {
       default: ajout(champ, v);
     }
   });
+  if (numero && f.adresse && !f.adresse.includes(numero)) f.adresse = numero + ' ' + f.adresse;
+  if (metiers.length) f.metiers = PC.uniques(metiers);
+  if (styles.filter(Boolean).length) f.djStyles = PC.uniques(styles);
+  if (f.contactDe) f.contactDe = PC.sansAcc(f.contactDe) ? f.contactDe.replace(/\s+/g, ' ').trim() : '';
+  if (!f.contactDe) delete f.contactDe;
+  /* nom et prénom mal rangés par l'ancien logiciel */
+  if (VIDE.test(f.prenom || '')) delete f.prenom;
+  if (f.nomFamille != null) {
+    let n = String(f.nomFamille).replace(/\s+/g, ' ').trim();
+    /* « SOAVE - Soc. Prosolia », « - CSE ERCOMSUNERIS » : la société est après le tiret */
+    const m = n.match(/^(.*?)\s*(?:^|\s)-\s+(.+)$/);
+    if (m && /[a-z]/i.test(m[2])) { if (!f.societe) f.societe = m[2].replace(/^(soc\.?|ste\.?|société)\s+/i, '').trim(); n = m[1]; }
+    if (VIDE.test(n) || !/\p{L}/u.test(n)) delete f.nomFamille; else f.nomFamille = n;
+  }
+  /* « Cecilia JEAN-LOUIS » dans la case prénom et rien dans la case nom */
+  if (f.prenom && !f.nomFamille) {
+    const mots = f.prenom.trim().split(/\s+/), maj = mots.filter(w => w.length > 1 && /\p{Lu}/u.test(w) && w === w.toLocaleUpperCase('fr-FR'));
+    if (maj.length && maj.length < mots.length) { f.nomFamille = maj.join(' '); f.prenom = mots.filter(w => !maj.includes(w)).join(' '); }
+  }
+  const essai = ESSAI.test([f.prenom, f.nomFamille, f.nom, f.societe].join(' ')) || emails.some(e => EMAIL_ESSAI.test(e));
+  for (const k of ['prenom', 'nomFamille', 'nom']) if (f[k]) f[k] = f[k].replace(/\[[^\]]*\]/g, '').trim();
   if (f.prenom) f.prenom = prenomPropre(f.prenom);
   if (f.nomFamille) f.nomFamille = nomPropre(f.nomFamille);
   /* même règle que partout dans le back-office : « Jean-Luc BERNARD » */
@@ -154,7 +247,7 @@ function construire(ligne, colonnes, entetes) {
   if (uniq[0]) { f.tel = uniq[0].tel; f.telE164 = uniq[0].e164; }
   if (uniq[1]) f.telAutre = uniq.slice(1).map(t => t.tel).join(' / ');
   if (notes.length) f.notes = notes.join('\n');
-  return { f, soucis };
+  return { f, soucis, essai };
 }
 
 function creerImportClients({ store, log }) {
@@ -172,13 +265,17 @@ function creerImportClients({ store, log }) {
     return { email, tel };
   }
 
-  const CHAMPS_FICHE = ['civilite', 'prenom', 'nomFamille', 'nom', 'societe', 'email', 'tel', 'telE164', 'telAutre', 'adresse', 'cp', 'ville', 'departement', 'caCrmCents', 'derniereCommande'];
+  const CHAMPS_FICHE = ['civilite', 'prenom', 'nomFamille', 'nom', 'societe', 'email', 'tel', 'telE164', 'telAutre', 'adresse', 'cp', 'ville', 'departement', 'pays', 'caCrmCents', 'derniereCommande', 'independant', 'permis', 'nePasContacter', 'remuneration', 'djDepuis', 'djTarifs', 'contactDe', 'siteWeb'];
   /* cases vides de la fiche qu'on peut remplir avec la ligne */
   function completer(c, f) {
     const p = {};
     for (const k of CHAMPS_FICHE) if (f[k] != null && f[k] !== '' && (c[k] == null || c[k] === '')) p[k] = f[k];
     if (p.tel && c.tel) delete p.telE164;
-    if (f.notes && !String(c.notes || '').includes(f.notes)) p.notes = (c.notes ? c.notes + '\n' : '') + f.notes;
+    /* listes (métiers, styles de DJ) : on ajoute ce qui manque, sans rien retirer */
+  for (const k of ['metiers', 'djStyles']) if (f[k]?.length) { const u = PC.uniques([...(Array.isArray(c[k]) ? c[k] : []), ...f[k]]); if (u.length !== (c[k] || []).length) p[k] = u; }
+  /* « NE PAS CONTACTER » : plus aucun e-mail ni SMS d'information (on ne fait jamais l'inverse) */
+  if (f.nePasContacter && (!c.desinscrit?.email || !c.desinscrit?.sms)) { const now = new Date().toISOString(); p.desinscrit = { ...(c.desinscrit || {}), email: true, sms: true, le: c.desinscrit?.le || now, ...(c.desinscrit?.email ? {} : { leEmail: now }), ...(c.desinscrit?.sms ? {} : { leSms: now }), source: 'fichier importé : NE PAS CONTACTER' }; }
+  if (f.notes && !String(c.notes || '').includes(f.notes)) p.notes = (c.notes ? c.notes + '\n' : '') + f.notes;
     return p;
   }
 
@@ -186,7 +283,8 @@ function creerImportClients({ store, log }) {
   async function traiter(S, colonnes, debut, fin, ecrire, R, meta) {
     const now = new Date().toISOString();
     for (let i = debut; i < fin; i++) {
-      const { f, soucis } = construire(S.lignes[i], colonnes, S.entetes);
+      const { f, soucis, essai } = construire(S.lignes[i], colonnes, S.entetes);
+      if (essai) { R.essais++; continue; }
       if (soucis.includes('tel')) R.telIllisibles++;
       if (soucis.includes('email')) R.emailsIllisibles++;
       if (!f.email && !f.tel && !f.nom && !f.societe) { R.sansCoordonnees++; continue; }
@@ -204,6 +302,7 @@ function creerImportClients({ store, log }) {
           id, ...f, notes: f.notes || '', creeLe: f.creeLe ? f.creeLe + 'T12:00:00.000Z' : now, derniereActivite: f.derniereCommande ? f.derniereCommande + 'T12:00:00.000Z' : (f.creeLe ? f.creeLe + 'T12:00:00.000Z' : ''),
           source: 'import CRM', importId: meta.id, importCree: meta.id, statutContact: 'client existant',
           consentement: { email: true, sms: true, base: 'client existant (a contacté Magnolia)', le: now, source: `import CRM « ${meta.fichier} »`, par: meta.par },
+          ...(f.nePasContacter ? { desinscrit: { email: true, sms: true, le: now, leEmail: now, leSms: now, source: 'fichier importé : NE PAS CONTACTER' } } : {}),
         });
         if (f.email && !(await store.get('_clientemail/' + sha(f.email)))) await store.set('_clientemail/' + sha(f.email), { id });
         S.idx.email.set(f.email, id); if (tk) S.idx.tel.set(tk, id);
@@ -238,7 +337,7 @@ function creerImportClients({ store, log }) {
       if (p.email && !(await store.get('_clientemail/' + sha(p.email)))) await store.set('_clientemail/' + sha(p.email), { id: existant });
     }
   }
-  const compteurs = () => ({ nouveaux: 0, completes: 0, identiques: 0, doublonsFichier: 0, sansCoordonnees: 0, sansContact: 0, telIllisibles: 0, emailsIllisibles: 0, exemples: [] });
+  const compteurs = () => ({ essais: 0, nouveaux: 0, completes: 0, identiques: 0, doublonsFichier: 0, sansCoordonnees: 0, sansContact: 0, telIllisibles: 0, emailsIllisibles: 0, exemples: [] });
   const lireColonnes = (S, v) => {
     const c = Array.isArray(v) ? v.slice(0, S.entetes.length).map(x => (CLES.has(String(x || '')) ? String(x || '') : '')) : [];
     while (c.length < S.entetes.length) c.push('');
@@ -266,8 +365,7 @@ function creerImportClients({ store, log }) {
       menage();
       const tok = rid(12);
       sessions.set(tok, { tok, fichier: String(req.file.originalname || 'fichier').slice(0, 120), entetes, lignes: data, at: Date.now(), par: req.ctx.name || req.ctx.email || '' });
-      const pris = new Set();
-      res.json({ ok: true, tok, fichier: req.file.originalname, total: data.length, entetes, apercu: data.slice(0, 6), proposition: entetes.map(h => devinerChamp(h, pris)), champs: CHAMPS });
+      res.json({ ok: true, tok, fichier: req.file.originalname, total: data.length, entetes, apercu: data.slice(0, 6), proposition: proposer(entetes), champs: CHAMPS });
     }));
 
     A.post('/actions/import-clients/verifier', sameSite, manager, json, wrap(async (req, res) => {
@@ -343,7 +441,11 @@ function creerImportClients({ store, log }) {
         }
         await store.delete('_imports/' + id + '/avant/' + cid);
       }
-      await store.set('_imports/' + id, { ...doc, statut: 'annulé', annuleLe: new Date().toISOString(), annulePar: req.ctx.name || req.ctx.email || '', annulation: { retires, gardes, remis } });
+      /* entreprises créées toutes seules pour les contacts de cet import, restées sans contact */
+      const encore = new Set((await store.list('clients')).map(x => x.data?.entrepriseId).filter(Boolean));
+      let entreprisesRetirees = 0;
+      for (const { id: eid, data: e } of await store.list('entreprises')) if (e?.source === 'reprise' && String(e.createdAt || '') >= String(doc.at || '') && !encore.has(eid)) { await store.delete('entreprises/' + eid); entreprisesRetirees++; }
+      await store.set('_imports/' + id, { ...doc, statut: 'annulé', annuleLe: new Date().toISOString(), annulePar: req.ctx.name || req.ctx.email || '', annulation: { retires, gardes, remis, entreprisesRetirees } });
       audit(req.ctx, 'import clients annulé', '_imports/' + id, `${retires} retiré(s), ${remis} remis comme avant, ${gardes} gardé(s)`);
       await store.flush?.();
       res.json({ ok: true, retires, gardes, remis });
@@ -376,4 +478,4 @@ function fichierModele() {
   ]);
 }
 
-module.exports = { creerImportClients, construire, normTel, telCle, devinerChamp, departementDe, fichierModele, CHAMPS, prenomPropre, nomPropre };
+module.exports = { creerImportClients, construire, proposer, normTel, telCle, devinerChamp, departementDe, fichierModele, CHAMPS, prenomPropre, nomPropre };

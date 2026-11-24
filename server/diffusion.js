@@ -53,6 +53,7 @@ function profils({ clients, demandes, devis, factures, totaux }) {
       id: c.id, nom: c.nom || '', societe: c.societe || '', email: c.email || '', tel: c.tel || '',
       emailOk: /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(String(c.email || '').trim()), mobile: mobile(c.telE164 || c.tel),
       deps: [...deps].sort(), types, pro: !!c.societe,
+      metiers: Array.isArray(c.metiers) ? c.metiers : [], dj: Array.isArray(c.djStyles) ? c.djStyles : [], contactDe: String(c.contactDe || '').trim(), civ: c.civilite === 'Mme' || c.civilite === 'M.' ? c.civilite : '',
       nbCommandes: commandes.length + (crm ? 1 : 0), totalCents: commandes.reduce((t, x) => t + x, 0) + crm,
       nbDemandes: dem.filter(d => d.type !== 'contact').length,
       derniere: dates[dates.length - 1] || '',
@@ -74,6 +75,10 @@ function filtrer(liste, canal, k = {}) {
     if (types.length && !p.types.some(t => types.includes(t))) return false;
     if (k.pro === 'pro' && !p.pro) return false;
     if (k.pro === 'part' && p.pro) return false;
+    if (k.metiers?.length && !p.metiers.some(x => k.metiers.includes(x))) return false;
+    if (k.dj?.length && !p.dj.some(x => k.dj.includes(x))) return false;
+    if (k.contactDe?.length && !k.contactDe.includes(p.contactDe)) return false;
+    if (k.civ && p.civ !== k.civ) return false;
     if (k.accord && !(canal === 'email' ? p.accordEmail : p.accordSms)) return false;
     if (q && !(p.nom + ' ' + p.societe + ' ' + p.email + ' ' + p.tel).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes(q)) return false;
     return true;
