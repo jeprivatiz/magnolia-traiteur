@@ -809,7 +809,7 @@ async function createApp(opts = {}) {
     for (const { data: d } of fac) { if (d.clientId) { lies.add(d.clientId); plus(d.clientId, d.numero); } }
     const items = cl.map(({ id, data: c }) => ({
       c: { ...c, id, journal: undefined }, id, nb: nbDem.get(id) || 0, lie: lies.has(id) || (c.journal || []).length > 0,
-      importe: c.source === 'import CRM', last: String(c.derniereActivite || ''),
+      importe: c.source === 'import CRM', last: String(c.derniereActivite || ''), verrou: lies.has(id),
       hay: sansAcc(texteFiche(c) + ' ' + (extra.get(id) || '')),
       tels: [c.tel, c.telE164, c.telAutre].map(telK).filter(Boolean),
       k: critereClient(c),
@@ -892,7 +892,57 @@ async function createApp(opts = {}) {
     let l = filtrerCriteres(filtrerClients(items, String(q.q || '').slice(0, 80)), q);
     if (q.filtre === 'importes') l = l.filter(a => a.importe); else if (q.filtre === 'autres') l = l.filter(a => !a.importe);
     const par = Math.min(200, Math.max(10, parseInt(q.par, 10) || 50)), page = Math.max(1, parseInt(q.page, 10) || 1);
-    res.json({ total: l.length, tous: items.length, importes: items.filter(a => a.importe).length, entreprises: await ENT.nombre(), facettes, page, par, items: l.slice((page - 1) * par, page * par).map(a => ({ ...a.c, nbDemandes: a.nb })) });
+    res.json({ total: l.length, tous: items.length, importes: items.filter(a => a.importe).length, entreprises: await ENT.nombre(), facettes, page, par, items: l.slice((page - 1) * par, page * par).map(a => ({ ...a.c, nbDemandes: a.nb, verrou: a.verrou })), effacables: q.ids === undefined && q.avecIds ? l.filter(a => !a.verrou).map(a => a.id) : undefined });
+  }));
+
+  /* effacer des contacts cochés (Jean-Luc, 2026-11-24) : jamais un contact qui a une demande, un devis ou une facture ;
+     chaque effacement est gardé dans _effacements/<id> pour pouvoir tout remettre */
+  A.post('/actions/effacer-clients', sameSite, peut('effacerContacts'), json, wrap(async (req, res) => {
+    const ids = [...new Set((Array.isArray(req.body?.ids) ? req.body.ids : []).map(String).filter(x => /^[A-Za-z0-9_-]{1,120}$/.test(x)))].slice(0, 100000);
+    if (!ids.length) return res.status(400).json({ error: 'Aucun contact coché.' });
+    const { items } = await annuaireServeur();
+    const parId = new Map(items.map(a => [a.id, a]));
+    const lot = 'eff_' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '_' + rid(5).replace(/[^A-Za-z0-9]/g, 'x');
+    const gardes = [], effaces = [];
+    for (const id of ids) {
+      const a = parId.get(id);
+      if (!a) continue;
+      if (a.verrou) { gardes.push(a.c.nom || a.c.email || id); continue; }
+      const c = await store.get('clients/' + id);
+      if (!c) continue;
+      await store.set('_effacements/' + lot + '/' + id, { id, data: c });
+      await store.delete('clients/' + id);
+      if (c.email) { const k = '_clientemail/' + sha(String(c.email).toLowerCase()); const ix = await store.get(k); if (ix?.id === id) await store.delete(k); }
+      effaces.push(id);
+    }
+    if (effaces.length) {
+      await store.set('_effacements/' + lot, { id: lot, at: new Date().toISOString(), par: req.ctx.name || req.ctx.email || '', nb: effaces.length, statut: 'effacé' });
+      audit(req.ctx, 'contacts effacés', '_effacements/' + lot, `${effaces.length} contact(s)`);
+      await store.flush?.();
+    }
+    res.json({ ok: true, lot: effaces.length ? lot : null, effaces: effaces.length, gardes: gardes.length, exemplesGardes: gardes.slice(0, 5) });
+  }));
+  A.post('/actions/effacer-clients/:lot/remettre', sameSite, peut('effacerContacts'), wrap(async (req, res) => {
+    const lot = String(req.params.lot);
+    const doc = await store.get('_effacements/' + lot);
+    if (!doc || doc.statut !== 'effacé') return res.status(404).json({ error: 'Rien à remettre.' });
+    let remis = 0;
+    for (const { id, data } of await store.list('_effacements/' + lot)) {
+      const cid = data?.id || id;
+      if (data?.data && !(await store.get('clients/' + cid))) {
+        await store.set('clients/' + cid, data.data);
+        if (data.data.email) { const k = '_clientemail/' + sha(String(data.data.email).toLowerCase()); if (!(await store.get(k))) await store.set(k, { id: cid }); }
+        remis++;
+      }
+      await store.delete('_effacements/' + lot + '/' + id);
+    }
+    await store.set('_effacements/' + lot, { ...doc, statut: 'remis', remisLe: new Date().toISOString() });
+    audit(req.ctx, 'contacts remis', '_effacements/' + lot, `${remis} contact(s)`);
+    await store.flush?.();
+    res.json({ ok: true, remis });
+  }));
+  A.get('/actions/effacer-clients/historique', wrap(async (req, res) => {
+    res.json((await store.list('_effacements')).map(d => d.data).filter(d => d?.statut).sort((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, 10));
   }));
 
   A.get('/:coll', wrap(async (req, res, next) => {

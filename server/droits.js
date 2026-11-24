@@ -12,6 +12,7 @@ const DROITS = [
   { k: 'diffusion', nom: 'Envois groupés e-mail et SMS', aide: 'Envoyer un e-mail ou un SMS à plusieurs clients d’un coup.' },
   { k: 'factures', nom: 'Factures et règlements', aide: 'Créer et envoyer les factures, noter les paiements, faire un avoir.' },
   { k: 'effacerDevis', nom: 'Effacer des devis', aide: 'Mettre des devis à la corbeille (jamais un devis signé ou facturé).' },
+  { k: 'effacerContacts', nom: 'Effacer des contacts', aide: 'Cocher des contacts dans Clients et les effacer (jamais un contact qui a une demande, un devis ou une facture). Annulable.' },
   { k: 'devisSignes', nom: 'Modifier un devis signé', aide: 'Changer un devis déjà signé par le client.' },
   { k: 'site', nom: 'Photos et textes du site', aide: 'Bandeaux, textes de l’accueil, avis clients, médiathèque.' },
   { k: 'entreprise', nom: 'Mon entreprise', aide: 'SIRET, assurance, banque et IBAN, logo des devis et factures.' },
