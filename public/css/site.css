@@ -1193,3 +1193,16 @@ h1 .formule { font-size: .5em; margin-top: .45em; }
 .opts { grid-template-columns: repeat(auto-fill, minmax(min(100%, 175px), 1fr)); }
 .opt, .optq { min-width: 0; overflow: hidden; }
 .opt > span, .optq > span { min-width: 0; flex: 1 1 auto; overflow-wrap: anywhere; word-break: normal; }
+
+/* devis : « Laisser un commentaire » (envoyé au commercial du devis) */
+.doc-com { border: 1px solid rgba(176,138,79,.35); border-radius: var(--rayon); padding: 22px; margin: 24px 0; background: #fff; }
+.doc-com h2 { margin: 0 0 6px; }
+.doc-com .card-form { padding: 4px 0 0; background: none; }
+.doc-com textarea { min-height: 110px; border: 1px solid rgba(0,0,0,.2); padding: 12px; font: inherit; background: #fffdf8; }
+.doc-com[data-apercu] button[disabled] { opacity: .55; cursor: not-allowed; }
+.com-liste { list-style: none; margin: 14px 0 4px; padding: 0; display: grid; gap: 10px; }
+.com-liste li { background: var(--creme); border-left: 3px solid #b08a4f; border-radius: 10px; padding: 10px 14px; }
+.com-liste p { margin: 0 0 4px; white-space: pre-line; }
+.doc-com .btn { white-space: normal; text-align: center; line-height: 1.25; max-width: 100%; }
+@media (max-width: 600px) { .doc-com .btn { width: 100%; } .doc-com { padding: 18px; margin-bottom: 90px; } }
+.com-liste small { color: #777; }
