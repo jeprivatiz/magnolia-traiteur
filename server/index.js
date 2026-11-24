@@ -15,7 +15,7 @@ const { seed, importerAvisAncienSite, initSousRubriques } = require('./seed');
 const views = require('./views');
 const { preparerAlerte } = require('./relances');
 const { regleAcompte, totaux, controleMarge, prochainNumero, lignesDepuisDemande, estimerLigne } = require('./devis');
-const { rid, sha, esc, euros, limiter, dateFr, slugify } = require('./util');
+const { rid, sha, esc, euros, limiter, dateFr, slugify, nomPropre } = require('./util');
 const IA = require('./ia');
 
 const ROOT = path.join(__dirname, '..');
@@ -80,6 +80,13 @@ async function createApp(opts = {}) {
   if (env.ADMIN_EMAIL && env.ADMIN_PASSWORD && !(await store.list('_users')).length) {
     await createUser({ email: env.ADMIN_EMAIL, name: env.ADMIN_NAME || 'Liam Bernard', role: 'manager', password: env.ADMIN_PASSWORD });
     log.log?.('[comptes] compte Manager créé pour ' + env.ADMIN_EMAIL);
+  }
+  /* une seule fois (règle de Jean-Luc, 2026-11-24) : fiches existantes en « Prénom NOM » (factures déjà émises inchangées) */
+  if (!(await store.get('_migr/nomsClients'))) {
+    for (const { id, data: c } of await store.list('clients')) { const n = nomPropre(c.nom); if (c.nom && n !== c.nom) await store.set('clients/' + id, { ...c, nom: n }); }
+    for (const { id, data: d } of await store.list('demandes')) { const n = nomPropre(d.contact?.nom); if (d.contact?.nom && n !== d.contact.nom) await store.set('demandes/' + id, { ...d, contact: { ...d.contact, nom: n } }); }
+    for (const { id, data: v } of await store.list('devis')) { const n = nomPropre(v.clientNom); if (v.clientNom && n !== v.clientNom) await store.set('devis/' + id, { ...v, clientNom: n }); }
+    await store.set('_migr/nomsClients', { at: new Date().toISOString() });
   }
   /* une seule fois (demande de Jean-Luc, 2026-11-24) : le compte nommé « Manager » s'appelle Liam Bernard, partout où ce nom était repris */
   if (!(await store.get('_migr/nomManager'))) {
@@ -238,7 +245,7 @@ async function createApp(opts = {}) {
     const b = req.body || {};
     const c = await cat.get();
     const T = c.reglages.tarifs || {};
-    const contact = { nom: s(b.nom, 120), email: s(b.email, 160).toLowerCase(), tel: s(b.tel, 30), societe: s(b.societe, 120) };
+    const contact = { nom: nomPropre(s(b.nom, 120)), email: s(b.email, 160).toLowerCase(), tel: s(b.tel, 30), societe: s(b.societe, 120) };
     if (!contact.nom || !isEmail(contact.email)) return res.status(400).json({ error: 'Merci d’indiquer votre nom et un e-mail valide.' });
     const lignesIn = Array.isArray(b.lignes) ? b.lignes.slice(0, 80) : [];
     if (!lignesIn.length && b.type !== 'contact') return res.status(400).json({ error: 'Votre sélection est vide.' });
@@ -491,6 +498,8 @@ async function createApp(opts = {}) {
     }
     if (coll === 'demandes' && before && data.statut && data.statut !== before.statut) data.historique = [...(before.historique || []), { at: new Date().toISOString(), statut: data.statut, par: req.ctx.name || req.ctx.email }];
     if (coll === 'produits' && !data.slug) data.slug = id;
+    if (coll === 'clients' && typeof data.nom === 'string') data.nom = nomPropre(data.nom);
+    if (coll === 'demandes' && typeof data.contact?.nom === 'string') data.contact = { ...data.contact, nom: nomPropre(data.contact.nom) };
     if (coll === 'clients') { if (before?.journal) data.journal = before.journal; else delete data.journal; } /* notes et appels de l'historique jamais effacés par une fiche ouverte avant */
     data.updatedAt = new Date().toISOString();
     await store.set(coll + '/' + id, data);
@@ -512,6 +521,7 @@ async function createApp(opts = {}) {
     let id = coll === 'produits' || coll === 'lieux' ? slugify(req.body?.titre || req.body?.nom) : coll === 'rubriques' ? slugify(req.body?.nom) : coll.slice(0, 1) + '_' + rid(7);
     if (await store.get(coll + '/' + id)) id = id + '-' + rid(3).toLowerCase().replace(/[^a-z0-9]/g, 'x');
     const data = { ...(req.body || {}), createdAt: new Date().toISOString() };
+    if (coll === 'clients' && typeof data.nom === 'string') data.nom = nomPropre(data.nom);
     if (coll === 'produits') Object.assign(data, { id, slug: id, statut: data.statut || 'masque', maison: true, photos: data.photos || [], description: data.description || [], sections: data.sections || [], groupes: [], variantes: [], details: [], regles: data.regles || { packs: true, personnel: 'service' }, ordre: -1 });
     if (coll === 'lieux') Object.assign(data, { slug: id, statut: data.statut || 'masque', photos: data.photos || [], equipements: data.equipements || [] });
     if (coll === 'rubriques') Object.assign(data, { slug: id, statut: data.statut || 'visible', ordre: data.ordre ?? 99, tva: data.tva || 10 });
@@ -588,7 +598,7 @@ async function createApp(opts = {}) {
   A.post('/actions/commande-ia', sameSite, json, wrap(async (req, res) => {
     const c = await cat.get(), T = c.reglages.tarifs || {};
     const f = IA.nettoyerFiche(req.body?.fiche || {}, c.reglages.evenements || []);
-    const nom = [f.prenom, f.nom].filter(Boolean).join(' ');
+    const nom = nomPropre(f.prenom || '', f.nom || '');
     if (!nom) return res.status(400).json({ error: 'Indiquez au moins le nom du client.' });
     if (f.email && !isEmail(f.email)) return res.status(400).json({ error: 'L’e-mail du client n’est pas valide.' });
     const { visibles } = IA.catalogueCompact(c);

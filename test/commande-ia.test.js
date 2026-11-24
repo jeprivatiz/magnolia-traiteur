@@ -57,7 +57,7 @@ test('commande avec l’IA : fiche → prestations → demande + devis', async (
     assert.equal(dv.iaDraft, true);
     const dem = (await call('/api/admin/demandes/' + cmd.j.demandeId)).j;
     assert.equal(dem.source, 'Téléphone (IA)');
-    assert.equal(dem.contact.nom, 'Sophie Durand');
+    assert.equal(dem.contact.nom, 'Sophie DURAND', 'fiche en « Prénom NOM »');
     const cl = (await call('/api/admin/clients/' + dem.clientId)).j;
     assert.equal(cl.tel, '06 12 34 56 78');
     /* société corrigée dans la fiche client → reportée sur la demande (carte du Suivi client) */
