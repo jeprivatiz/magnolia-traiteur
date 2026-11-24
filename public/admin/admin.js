@@ -247,7 +247,7 @@
     return { d, dv, main, envoyeLe, relances, late, last, montant, cat, at, estime: !main, com: String(d.commercial || main?.commercial?.nom || '').trim() };
   }
   async function suivi() {
-    const [dem, devisL, eq, cl, fac, R] = await Promise.all([api(A + '/demandes'), api(A + '/devis'), api(A + '/actions/equipe').catch(() => []), api(A + '/clients').catch(() => []), api(A + '/factures').catch(() => []), cache.R ? Promise.resolve(cache.R) : api(A + '/site').catch(() => ({}))]);
+    const [dem, devisL, eq, cl, fac, R] = await Promise.all([api(A + '/demandes'), api(A + '/devis'), api(A + '/actions/equipe').catch(() => []), api(A + '/clients?vue=actifs').catch(() => []), api(A + '/factures').catch(() => []), cache.R ? Promise.resolve(cache.R) : api(A + '/site').catch(() => ({}))]);
     cache.devisL = devisL; cache.equipe = eq.filter(u => !u.desactive); cache.R = cache.R || R;
     cache.opps = dem.filter(d => d.type !== 'contact').map(d => opportunite(d, devisL));
     cache.annuaire = annuaire(cl, dem, devisL, fac);
@@ -285,7 +285,20 @@
     if (!q.trim()) { box.hidden = true; box.innerHTML = ''; return; }
     const l = chercherClients(q);
     box.hidden = false;
-    box.innerHTML = l.length ? l.map((a, i) => `<a class="cf-r${i ? '' : ' on'}" href="#/clients/${esc(a.c.id)}"><span class="qs-av">${esc(initiales(a.c.nom))}</span><span class="cf-t"><b>${esc(a.c.nom || '—')}</b><small>${esc([a.c.societe, a.c.tel, a.c.email].filter(Boolean).join(' · '))}</small></span><span class="cf-m">${a.nbDevis ? `${a.nbDevis} devis${a.dv ? ` · dernier n° ${esc(a.dv.numero)} <span class="pill d-${a.dv.statut}">${DSTAT[a.dv.statut] || ''}</span>` : ''}` : a.nb ? a.nb + ' demande' + (a.nb > 1 ? 's' : '') : 'aucun devis'}<small>${a.last ? 'dernière activité le ' + dateFr(a.last) : ''}</small></span><span class="cf-go">Historique ›</span></a>`).join('')
+    /* contacts du fichier importé (pas encore de demande ni de devis) : cherchés sur le serveur */
+    clearTimeout(dessinerRecherche.t);
+    if (l.length < 12 && q.trim().length >= 2) dessinerRecherche.t = setTimeout(async () => {
+      try {
+        const r = await api(A + '/clients?par=20&q=' + encodeURIComponent(q.trim()));
+        if (($('[data-cf]')?.value || '') !== q) return;
+        const deja = new Set(l.map(a => a.c.id)), plus = r.items.filter(c => !deja.has(c.id)).slice(0, 12 - l.length).map(c => ({ c, nb: c.nbDemandes || 0, nbDevis: 0, last: c.derniereActivite || '', importe: c.source === 'import CRM' }));
+        if (plus.length) dessinerListe(box, q, [...l, ...plus]);
+      } catch { /* recherche locale déjà affichée */ }
+    }, 250);
+    dessinerListe(box, q, l);
+  }
+  function dessinerListe(box, q, l) {
+    box.innerHTML = l.length ? l.map((a, i) => `<a class="cf-r${i ? '' : ' on'}" href="#/clients/${esc(a.c.id)}"><span class="qs-av">${esc(initiales(a.c.nom))}</span><span class="cf-t"><b>${esc(a.c.nom || '—')}</b><small>${esc([a.c.societe, a.c.tel, a.c.email].filter(Boolean).join(' · '))}</small></span><span class="cf-m">${a.nbDevis ? `${a.nbDevis} devis${a.dv ? ` · dernier n° ${esc(a.dv.numero)} <span class="pill d-${a.dv.statut}">${DSTAT[a.dv.statut] || ''}</span>` : ''}` : a.nb ? a.nb + ' demande' + (a.nb > 1 ? 's' : '') : a.importe ? 'fichier clients importé' : 'aucun devis'}<small>${a.last ? 'dernière activité le ' + dateFr(a.last) : ''}</small></span><span class="cf-go">Historique ›</span></a>`).join('')
       : `<p class="cf-none">Aucun client ne correspond à « ${esc(q)} ». Essayez le nom seul, les derniers chiffres du téléphone ou le n° du devis.</p>`;
   }
   const SV = { p: 'all', o: null, f: 'all', s: '', d1: '', d2: '' };
@@ -599,7 +612,8 @@
   }
 
   async function devisEdit(id) {
-    const [d, clientsL, cat] = await Promise.all([api(A + '/devis/' + id), api(A + '/clients'), cache.produits ? cache.produits : api(A + '/produits')]);
+    const [d, clientsL, cat] = await Promise.all([api(A + '/devis/' + id), api(A + '/clients?vue=actifs'), cache.produits ? cache.produits : api(A + '/produits')]);
+    if (d.clientId && !clientsL.some(c => c.id === d.clientId)) clientsL.push(...await api(A + '/clients?ids=' + encodeURIComponent(d.clientId)).catch(() => []));
     cache.produits = cat; cache.devis = d; cache.clients = clientsL;
     const [modeles, R0, tous] = await Promise.all([api(A + '/modeles'), cache.R ? cache.R : api(A + '/site'), api(A + '/devis')]);
     cache.R = R0; cache.tousDevis = tous;
@@ -610,7 +624,7 @@
       ${signe ? `<p class="okbox">✓ Signé en ligne par <b>${esc(d.signature?.nom)}</b> le ${dateH(d.signature?.at)}.${lock ? ' Seul le Manager peut le modifier.' : ''}</p>` : ''}
       <form id="dv" class="${lock ? 'lock' : ''}">
       <div class="cols">
-        <section class="box"><h2>Client</h2><label>Client<select name="clientId"><option value="">— Choisir —</option>${clientsL.sort((a, b) => (a.nom || '').localeCompare(b.nom || '')).map(c => `<option value="${c.id}"${c.id === d.clientId ? ' selected' : ''}>${esc(c.nom)} · ${esc(c.email)}</option>`).join('')}</select></label><p class="muted sm"><a href="#/clients/nouveau">+ Nouveau client</a>${d.clientId ? ` · <a href="#/clients/${esc(d.clientId)}">Fiche client</a>` : ''}</p>${(() => { const autres = (cache.tousDevis || []).filter(x => x.clientId && x.clientId === d.clientId && x.id !== d.id); return autres.length ? `<p class="sm"><b>Autres devis de ce client</b></p><ul class="histo">${autres.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).map(x => `<li><a href="#/devis/${x.id}">${esc(x.numero)}</a> · ${euros(tot(x).ttc)} <span class="pill d-${x.statut}">${DSTAT[x.statut]}</span></li>`).join('')}</ul>` : ''; })()}${d.copieDe ? `<p class="muted sm">Copie du devis ${esc(d.copieDe)}.</p>` : ''}</section>
+        <section class="box"><h2>Client</h2><label class="dv-clq">Chercher dans tous les clients <small>(dont le fichier importé)</small><input type="search" data-dvclq placeholder="🔍 Nom, téléphone, e-mail, ville…" autocomplete="off"></label><label>Client<select name="clientId"><option value="">— Choisir —</option>${clientsL.sort((a, b) => (a.nom || '').localeCompare(b.nom || '')).map(c => `<option value="${c.id}"${c.id === d.clientId ? ' selected' : ''}>${esc(c.nom)} · ${esc(c.email)}</option>`).join('')}</select></label><p class="muted sm"><a href="#/clients/nouveau">+ Nouveau client</a>${d.clientId ? ` · <a href="#/clients/${esc(d.clientId)}">Fiche client</a>` : ''}</p>${(() => { const autres = (cache.tousDevis || []).filter(x => x.clientId && x.clientId === d.clientId && x.id !== d.id); return autres.length ? `<p class="sm"><b>Autres devis de ce client</b></p><ul class="histo">${autres.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).map(x => `<li><a href="#/devis/${x.id}">${esc(x.numero)}</a> · ${euros(tot(x).ttc)} <span class="pill d-${x.statut}">${DSTAT[x.statut]}</span></li>`).join('')}</ul>` : ''; })()}${d.copieDe ? `<p class="muted sm">Copie du devis ${esc(d.copieDe)}.</p>` : ''}</section>
         <section class="box"><h2>Événement</h2><div class="g2"><label>Type<select name="ev_type">${['Anniversaire', 'Fête de famille', 'Entreprise', 'Mariage', 'Baptême', 'Cocktail', 'Autre'].map(e => `<option${d.evenement?.type === e ? ' selected' : ''}>${e}</option>`).join('')}</select></label><label>Date<input type="date" name="ev_date" value="${esc(d.evenement?.date || '')}"></label><label>Invités<input type="number" name="ev_invites" value="${esc(d.evenement?.invites || '')}"></label><label>Lieu<input name="ev_lieu" value="${esc(d.evenement?.lieu || '')}"></label></div></section>
         <section class="box"><h2>Conditions</h2><div class="g2"><label>Valable jusqu’au<input type="date" name="validiteJusquau" value="${esc(d.validiteJusquau || '')}"></label><label>Acompte<select name="acomptePct"><option value="">Automatique</option>${[0, 20, 30, 40, 50, 100].map(p => `<option value="${p}"${d.acomptePct != null && d.acomptePct !== '' && +d.acomptePct === p ? ' selected' : ''}>${p} % (forcé)</option>`).join('')}</select></label></div><p class="muted sm">Automatique : totalité à la signature sous ${euros(R0.tarifs?.seuilAcompteCents ?? 80000)} TTC ou si l’événement a lieu dans moins de ${R0.tarifs?.delaiDeuxFoisJours ?? 10} jours ; sinon acompte de ${R0.tarifs?.acomptePct ?? 50} %.</p>
           ${(() => { const P = (R0.alertes?.personnes || []).filter(x => x.nom); const cur = d.commercial?.nom || (P.find(x => x.email && x.email === session.email) || P[0] || {}).nom || ''; const L = [...P]; if (d.commercial?.nom && !P.some(x => x.nom === d.commercial.nom)) L.unshift(d.commercial); return `<label>Commercial (nom et téléphone sur le devis)<select name="commercial"><option value="">— Aucun —</option>${L.map(x => `<option value="${esc(x.nom)}"${x.nom === cur ? ' selected' : ''}>${esc(x.nom)}${x.tel ? ' · ' + esc(x.tel) : ''}</option>`).join('')}</select></label><p class="muted sm">La liste vient de <a href="#/equipe">Équipe &amp; activité</a> › Alertes de l’équipe (nom, portable, e-mail).</p>`; })()}
@@ -638,6 +652,21 @@
   }
   devisEdit.after = id => {
     const d = cache.devis, form = $('#dv');
+    /* recherche d'un client dans tout le fichier (60 000 contacts importés ne tiennent pas dans une liste) */
+    const clq = $('[data-dvclq]');
+    clq?.addEventListener('input', () => {
+      clearTimeout(clq._t);
+      clq._t = setTimeout(async () => {
+        const q = clq.value.trim(), sel = form.elements.clientId; if (q.length < 2) return;
+        try {
+          const r = await api(A + '/clients?par=30&q=' + encodeURIComponent(q));
+          for (const c of r.items) if (!cache.clients.some(x => x.id === c.id)) cache.clients.push(c);
+          const cur = sel.value;
+          sel.innerHTML = `<option value="">— ${r.total ? r.total + ' client' + (r.total > 1 ? 's' : '') + ' trouvé' + (r.total > 1 ? 's' : '') + (r.total > 30 ? ' (30 premiers)' : '') + ' : choisir' : 'Aucun client trouvé'} —</option>` + (cur && !r.items.some(c => c.id === cur) ? `<option value="${esc(cur)}" selected>${esc(cache.clients.find(c => c.id === cur)?.nom || 'Client actuel')}</option>` : '') + r.items.map(c => `<option value="${esc(c.id)}"${c.id === cur ? ' selected' : ''}>${esc(c.nom)} · ${esc(c.email || c.tel || '')}${c.ville ? ' · ' + esc(c.ville) : ''}</option>`).join('');
+          if (r.items.length === 1 && !cur) { sel.value = r.items[0].id; sel.dispatchEvent(new Event('change', { bubbles: true })); }
+        } catch (e) { toast(e.message, true); }
+      }, 300);
+    });
     let lignes = (d.lignes || []).map(l => ({ ...l }));
     const body = $('#lines');
     const draw = () => {
@@ -813,19 +842,134 @@
     $('#rdv')?.addEventListener('submit', async e => { e.preventDefault(); const f = Object.fromEntries(new FormData(e.target)); await api(A + '/rdv', { method: 'POST', body: { ...f, titre: (f.heure ? f.heure + ' · ' : '') + f.titre, statut: 'rdv' } }); toast('Rendez-vous ajouté.'); render(); });
   };
 
-  /* ---------- clients ---------- */
+  /* ---------- clients (liste en pages : le fichier importé compte des dizaines de milliers de fiches) ---------- */
+  const CL = { q: '', page: 1, filtre: '' };
   async function clients(id) {
     if (id === 'email' || id === 'sms') return diffusion(id);
+    if (id === 'importer') return importerClients();
     if (id) return client(id);
-    const [list, dem] = await Promise.all([api(A + '/clients'), api(A + '/demandes')]);
-    return page('Clients', '<a class="btn" href="#/clients/nouveau">+ Nouveau client</a><input type="search" placeholder="Rechercher…" data-q>', `${ongletsClients('')}<div class="table"><table><thead><tr><th>Nom</th><th>Société</th><th>Contact</th><th class="n">Demandes</th><th>Dernière activité</th></tr></thead><tbody>
-      ${list.sort((a, b) => String(b.derniereActivite).localeCompare(String(a.derniereActivite))).map(c => `<tr data-href="#/clients/${c.id}"><td><b>${esc(c.nom)}</b></td><td>${esc(c.societe || '')}</td><td>${esc(c.email)}<small>${esc(c.tel || '')}</small></td><td class="n">${dem.filter(d => d.clientId === c.id).length}</td><td>${dateFr(c.derniereActivite)}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">Aucun client pour le moment.</td></tr>'}</tbody></table></div>`);
+    const r = await api(`${A}/clients?par=50&page=${CL.page}&filtre=${CL.filtre}&q=${encodeURIComponent(CL.q)}`);
+    return page('Clients', `${session.role === 'manager' ? '<a class="btn ghost" href="#/clients/importer">⬆ Importer des clients</a>' : ''}<a class="btn" href="#/clients/nouveau">+ Nouveau client</a>`, `
+      ${ongletsClients('')}<div class="cl-bar"><input type="search" placeholder="🔍 Nom, prénom, téléphone, e-mail, société, ville, code postal…" data-q value="${esc(CL.q)}" aria-label="Rechercher un client">
+        <div class="cl-f">${[['', `Tous (${r.tous.toLocaleString('fr-FR')})`], ['importes', `Fichier importé (${r.importes.toLocaleString('fr-FR')})`], ['autres', 'Site et back-office']].map(([k, l]) => `<button type="button" class="qs-own-b${CL.filtre === k ? ' on' : ''}" data-clf="${k}">${l}</button>`).join('')}</div></div>
+      <div id="clTable">${tableClients(r)}</div>`);
+  }
+  function tableClients(r) {
+    const pages = Math.max(1, Math.ceil(r.total / r.par));
+    return `<div class="table"><table><thead><tr><th>Nom</th><th>Société</th><th>Contact</th><th>Ville</th><th class="n">Demandes</th><th>Dernière activité</th></tr></thead><tbody>
+      ${r.items.map(c => `<tr data-href="#/clients/${esc(c.id)}"><td><b>${esc(c.nom || '—')}</b>${c.source === 'import CRM' ? '<small class="cl-imp">fichier importé</small>' : ''}</td><td>${esc(c.societe || '')}</td><td>${esc(c.email || '')}<small>${esc(c.tel || '')}</small></td><td>${esc([c.cp, c.ville].filter(Boolean).join(' '))}</td><td class="n">${c.nbDemandes || ''}</td><td>${dateFr(c.derniereActivite)}</td></tr>`).join('') || `<tr><td colspan="6" class="muted">${r.tous ? 'Aucun client ne correspond.' : 'Aucun client pour le moment.'}</td></tr>`}</tbody></table></div>
+      ${r.total > r.par ? `<div class="cl-pages"><button type="button" class="btn ghost sm" data-clp="-1"${r.page <= 1 ? ' disabled' : ''}>‹ Précédents</button><span>${((r.page - 1) * r.par + 1).toLocaleString('fr-FR')} à ${Math.min(r.total, r.page * r.par).toLocaleString('fr-FR')} sur ${r.total.toLocaleString('fr-FR')}</span><button type="button" class="btn ghost sm" data-clp="1"${r.page >= pages ? ' disabled' : ''}>Suivants ›</button></div>` : `<p class="muted sm cl-nb">${r.total.toLocaleString('fr-FR')} client${r.total > 1 ? 's' : ''}</p>`}`;
   }
   clients.after = id => {
     if (id === 'email' || id === 'sms') return diffusion.after(id);
+    if (id === 'importer') return importerClients.after();
     if (id) return client.after(id);
-    $$('tr[data-href]').forEach(tr => tr.addEventListener('click', () => { location.hash = tr.dataset.href; }));
-    $('[data-q]')?.addEventListener('input', e => { const q = e.target.value.toLowerCase(); $$('tr[data-href]').forEach(tr => { tr.hidden = !tr.textContent.toLowerCase().includes(q); }); });
+    const recharger = async () => { try { const r = await api(`${A}/clients?par=50&page=${CL.page}&filtre=${CL.filtre}&q=${encodeURIComponent(CL.q)}`); $('#clTable').innerHTML = tableClients(r); brancher(); } catch (e) { toast(e.message, true); } };
+    const brancher = () => {
+      $$('tr[data-href]').forEach(tr => tr.addEventListener('click', () => { location.hash = tr.dataset.href; }));
+      $$('[data-clp]').forEach(b => b.addEventListener('click', () => { CL.page += +b.dataset.clp; recharger(); window.scrollTo(0, 0); }));
+    };
+    brancher();
+    const q = $('[data-q]');
+    q?.addEventListener('input', () => { clearTimeout(q._t); q._t = setTimeout(() => { CL.q = q.value.trim(); CL.page = 1; recharger(); }, 250); });
+    $$('[data-clf]').forEach(b => b.addEventListener('click', () => { CL.filtre = b.dataset.clf; CL.page = 1; $$('[data-clf]').forEach(x => x.classList.toggle('on', x === b)); recharger(); }));
+  };
+
+  /* ---------- importer le fichier clients de l'ancien CRM ---------- */
+  const IMP = {};
+  async function importerClients() {
+    const hist = await api(A + '/actions/import-clients/historique').catch(() => []);
+    const n = v => (v || 0).toLocaleString('fr-FR');
+    return page('Importer des clients', '<a class="btn ghost" href="#/clients">← Clients</a>', `
+      <p class="muted intro">Reprenez le fichier clients de votre ancien logiciel (Excel ou CSV), même très gros (60 000 contacts et plus). Rien n’est écrasé : si un client existe déjà (même e-mail ou même téléphone), seules ses cases vides sont complétées. Et un import peut toujours être annulé.</p>
+      <section class="box imp-step"><h2><span class="imp-n">1</span> Choisissez le fichier</h2>
+        <label class="imp-drop" id="impDrop"><input type="file" id="impFile" accept=".xlsx,.csv,.txt,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" hidden><b>📄 Cliquez ici ou glissez le fichier</b><small>Excel (.xlsx) ou CSV · la première ligne doit contenir les titres des colonnes</small></label>
+        <p class="muted sm">Pas encore de fichier ? <a class="lnk" href="${A}/actions/import-clients/modele.xlsx">⬇ Télécharger le fichier modèle Excel</a> (avec deux exemples et le mode d’emploi). Conseil : faites d’abord un essai avec une vingtaine de lignes, puis annulez-le si besoin.</p>
+        <p class="imp-err" id="impErr" hidden></p></section>
+      <div id="impSuite"></div>
+      <section class="box"><h2>Imports déjà faits</h2>${hist.length ? `<div class="table"><table><thead><tr><th>Date</th><th>Fichier</th><th class="n">Lignes</th><th class="n">Créés</th><th class="n">Complétés</th><th>État</th><th></th></tr></thead><tbody>${hist.map(h => `<tr><td>${dateH(h.at)}<small>${esc(h.par || '')}</small></td><td>${esc(h.fichier)}</td><td class="n">${n(h.total)}</td><td class="n">${n(h.compteurs?.nouveaux)}</td><td class="n">${n(h.compteurs?.completes)}</td><td>${h.statut === 'annulé' ? `<span class="pill d-refuse">Annulé</span><small>le ${dateH(h.annuleLe)}</small>` : h.statut === 'terminé' ? '<span class="pill d-accepte">Terminé</span>' : '<span class="pill d-envoye">Interrompu</span>'}</td><td>${h.statut !== 'annulé' && session.role === 'manager' ? `<button type="button" class="btn ghost sm" data-annul="${esc(h.id)}">↶ Annuler cet import</button>` : ''}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Aucun import pour le moment.</p>'}</section>`);
+  }
+  function etapeColonnes() {
+    const r = IMP.r;
+    const opts = v => r.champs.map(([k, l]) => `<option value="${k}"${k === v ? ' selected' : ''}>${esc(l)}</option>`).join('');
+    return `<section class="box imp-step"><h2><span class="imp-n">2</span> Associez chaque colonne à une case</h2>
+      <p class="muted sm">« ${esc(r.fichier)} » · <b>${r.total.toLocaleString('fr-FR')}</b> ligne${r.total > 1 ? 's' : ''}. Nous avons deviné chaque case d’après le titre de la colonne : vérifiez et corrigez si besoin. Les colonnes « Autre information » vont dans les notes de la fiche.</p>
+      <div class="table imp-cols"><table><thead><tr><th>Colonne du fichier</th><th>Exemples</th><th>Case de la fiche client</th></tr></thead><tbody>
+      ${r.entetes.map((h, i) => `<tr><td><b>${esc(h)}</b></td><td class="imp-ex">${r.apercu.map(l => l[i]).filter(Boolean).slice(0, 3).map(v => `<span>${esc(String(v).slice(0, 60))}</span>`).join('') || '<span class="muted">(vide)</span>'}</td><td><select data-col="${i}">${opts(IMP.colonnes[i])}</select></td></tr>`).join('')}</tbody></table></div>
+      <div class="row"><button type="button" class="btn" data-verif>Vérifier le fichier</button><span class="muted sm">Rien n’est encore importé.</span></div></section>
+      <div id="impVerif"></div>`;
+  }
+  function etapeVerif(v) {
+    const n = x => (x || 0).toLocaleString('fr-FR');
+    const ex = v.exemples[0];
+    return `<section class="box imp-step"><h2><span class="imp-n">3</span> Ce qui va se passer</h2>
+      <div class="kpis qk imp-k"><div><b>${n(v.nouveaux)}</b><span>nouveaux clients créés</span></div><div><b>${n(v.completes)}</b><span>clients déjà connus, complétés</span></div><div><b>${n(v.identiques)}</b><span>déjà connus, rien de nouveau</span></div><div><b>${n(v.doublonsFichier)}</b><span>doublons dans le fichier (regroupés)</span></div><div><b>${n(v.sansCoordonnees)}</b><span>lignes vides ignorées</span></div></div>
+      ${v.telIllisibles || v.emailsIllisibles || v.sansContact ? `<p class="muted sm">${[v.telIllisibles ? `${n(v.telIllisibles)} téléphone(s) illisible(s)` : '', v.emailsIllisibles ? `${n(v.emailsIllisibles)} e-mail(s) illisible(s)` : '', v.sansContact ? `${n(v.sansContact)} fiche(s) avec un nom mais ni e-mail ni téléphone` : ''].filter(Boolean).join(' · ')} : ils sont gardés tels quels dans les notes de la fiche.</p>` : ''}
+      ${ex ? `<div class="imp-ex1"><p class="muted sm">Exemple : la ligne ${ex.ligne} du fichier donnera cette fiche</p><dl>${[['Nom', ex.nom], ['Société', ex.societe], ['E-mail', ex.email], ['Téléphone', ex.tel + (ex.telE164 ? ' (SMS : ' + ex.telE164 + ')' : '')], ['Autre téléphone', ex.telAutre], ['Adresse', [ex.adresse, ex.cp, ex.ville].filter(Boolean).join(' ')], ['Département', ex.departement], ['Déjà commandé', ex.caCrmCents != null ? euros(ex.caCrmCents) : ''], ['Dernière commande', ex.derniereCommande ? dateFr(ex.derniereCommande) : ''], ['Notes', ex.notes]].filter(x => x[1] && x[1] !== 'undefined').map(([k, val]) => `<dt>${k}</dt><dd>${esc(val)}</dd>`).join('')}</dl></div>` : ''}
+      <label class="chk imp-ok"><input type="checkbox" id="impOk"> Je confirme que ces personnes sont nos clients ou nous ont contactés d’elles-mêmes (aucun fichier de prospection acheté). Elles pourront recevoir nos e-mails et SMS ; chaque message garde le lien de désinscription et « STOP ».</label>
+      <div class="row"><button type="button" class="btn" data-go disabled>⬆ Importer ${n(v.nouveaux + v.completes)} client${v.nouveaux + v.completes > 1 ? 's' : ''}</button><button type="button" class="btn ghost" data-recol>Modifier les colonnes</button></div>
+      <div id="impProg"></div></section>`;
+  }
+  importerClients.after = () => {
+    const err = m => { const e = $('#impErr'); e.textContent = m || ''; e.hidden = !m; };
+    const envoyer = async file => {
+      err(''); if (!file) return;
+      $('#impSuite').innerHTML = `<section class="box"><p>Lecture de « ${esc(file.name)} »…</p></section>`;
+      const fd = new FormData(); fd.append('fichier', file);
+      try {
+        IMP.r = await api(A + '/actions/import-clients/fichier', { method: 'POST', form: fd });
+        IMP.colonnes = [...IMP.r.proposition];
+        $('#impSuite').innerHTML = etapeColonnes(); brancherColonnes();
+      } catch (e) { $('#impSuite').innerHTML = ''; err(e.message); }
+    };
+    const drop = $('#impDrop');
+    $('#impFile').addEventListener('change', e => envoyer(e.target.files[0]));
+    drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('on'); });
+    drop.addEventListener('dragleave', () => drop.classList.remove('on'));
+    drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('on'); envoyer(e.dataTransfer.files[0]); });
+    function brancherColonnes() {
+      $$('[data-col]').forEach(sel => sel.addEventListener('change', () => { IMP.colonnes[+sel.dataset.col] = sel.value; $('#impVerif').innerHTML = ''; }));
+      $('[data-verif]').addEventListener('click', async e => {
+        const b = e.currentTarget; b.disabled = true; b.textContent = 'Vérification…';
+        try {
+          const v = await api(A + '/actions/import-clients/verifier', { method: 'POST', body: { tok: IMP.r.tok, colonnes: IMP.colonnes } });
+          $('#impVerif').innerHTML = etapeVerif(v); brancherVerif(v); $('#impVerif').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } catch (x) { toast(x.message, true); }
+        b.disabled = false; b.textContent = 'Vérifier le fichier';
+      });
+    }
+    function brancherVerif() {
+      const go = $('[data-go]');
+      $('#impOk').addEventListener('change', e => { go.disabled = !e.target.checked; });
+      $('[data-recol]').addEventListener('click', () => { $('#impVerif').innerHTML = ''; $('[data-verif]').scrollIntoView({ behavior: 'smooth', block: 'center' }); });
+      go.addEventListener('click', async () => {
+        go.disabled = true; $('[data-recol]').disabled = true; $('#impOk').disabled = true;
+        const prog = $('#impProg'), total = IMP.r.total;
+        prog.innerHTML = `<div class="imp-bar"><i style="width:0"></i></div><p class="sm" id="impTxt">Import en cours… gardez cette page ouverte.</p>`;
+        let debut = 0, r = null, essais = 0;
+        while (true) {
+          try { r = await api(A + '/actions/import-clients/lot', { method: 'POST', body: { tok: IMP.r.tok, colonnes: IMP.colonnes, debut, consentement: true } }); essais = 0; }
+          catch (x) { if (++essais <= 3 && !/mémoire|Cochez/.test(x.message)) { await new Promise(ok => setTimeout(ok, 1500 * essais)); continue; } prog.insertAdjacentHTML('beforeend', `<p class="imp-err">${esc(x.message)} L’import s’est arrêté à la ligne ${debut.toLocaleString('fr-FR')} ; ce qui a déjà été importé peut être annulé plus bas.</p>`); return; }
+          debut = r.fait;
+          $('.imp-bar i', prog).style.width = Math.round(debut / total * 100) + '%';
+          $('#impTxt').textContent = `${debut.toLocaleString('fr-FR')} lignes sur ${total.toLocaleString('fr-FR')} (${Math.round(debut / total * 100)} %)…`;
+          if (r.fini) break;
+        }
+        const n = x => (x || 0).toLocaleString('fr-FR');
+        prog.innerHTML = `<div class="okbox imp-rap"><b>✓ Import terminé.</b><ul><li><b>${n(r.nouveaux)}</b> nouveaux clients créés</li><li><b>${n(r.completes)}</b> clients déjà connus, complétés</li><li><b>${n(r.identiques)}</b> déjà connus, rien de nouveau</li><li><b>${n(r.doublonsFichier)}</b> doublons du fichier regroupés</li><li><b>${n(r.sansCoordonnees)}</b> lignes vides ignorées</li></ul><div class="row"><a class="btn sm" href="#/clients">Voir les clients</a><button type="button" class="btn ghost sm" data-annul="${esc(r.impId)}">↶ Annuler cet import</button></div></div>`;
+        brancherAnnul(prog);
+        toast('Import terminé.');
+      });
+    }
+    function brancherAnnul(root = document) {
+      $$('[data-annul]', root).forEach(b => b.addEventListener('click', async () => {
+        if (!confirm('Annuler cet import ?\n\nLes clients créés par cet import seront retirés (sauf ceux qui ont depuis une demande, un devis ou une note), et les cases complétées sur les clients existants seront remises comme avant.')) return;
+        b.disabled = true; b.textContent = 'Annulation…';
+        try { const r = await api(`${A}/actions/import-clients/${encodeURIComponent(b.dataset.annul)}/annuler`, { method: 'POST' }); toast(`Import annulé : ${r.retires.toLocaleString('fr-FR')} retiré(s), ${r.remis.toLocaleString('fr-FR')} remis comme avant${r.gardes ? `, ${r.gardes} gardé(s) car ils ont une demande ou un devis` : ''}.`); render(); }
+        catch (x) { toast(x.message, true); b.disabled = false; b.textContent = '↶ Annuler cet import'; }
+      }));
+    }
+    brancherAnnul();
   };
   /* ---------- Clients › « Envoyer un e-mail » / « Envoyer un SMS » : sélection multicritère, rédaction par l'IA, aperçu, essai, envoi ---------- */
   const ongletsClients = cur => `<nav class="df-tabs" aria-label="Clients">${[['', '👥 Liste des clients'], ['email', '✉️ Envoyer un e-mail'], ['sms', '💬 Envoyer un SMS']].map(([k, l]) => `<a href="#/clients${k ? '/' + k : ''}" class="df-tab${cur === k ? ' on' : ''}"${cur === k ? ' aria-current="page"' : ''}>${l}</a>`).join('')}</nav>`;
@@ -1085,7 +1229,7 @@
     return page(esc(c.nom || 'Client'), `<a class="btn ghost" href="#/suivi">← Suivi client</a><button class="btn" data-newdv>+ Devis pour ce client</button>`, `
       <section class="box hc-head"><div class="hc-who"><span class="qs-av hc-av">${esc(initiales(c.nom))}</span><div><div class="hc-nm">${esc(c.nom || '—')}</div>${c.societe ? `<div class="hc-co">${esc(c.societe)}</div>` : ''}
         <div class="hc-ct">${tel ? `<a class="qs-pill" href="tel:${esc(tel)}" data-happel>📞 ${esc(c.tel)}</a>` : ''}${c.email ? `<a class="qs-pill" href="mailto:${esc(c.email)}">✉ ${esc(c.email)}</a>` : ''}</div>
-        <div class="hc-since">Client depuis le ${dateFr(c.creeLe || h.events[h.events.length - 1]?.at)}${coms.length ? ' · suivi par ' + esc(coms.join(', ')) : ''}</div></div></div>
+        <div class="hc-since">Client depuis le ${dateFr(c.creeLe || h.events[h.events.length - 1]?.at)}${coms.length ? ' · suivi par ' + esc(coms.join(', ')) : ''}</div>${c.source === 'import CRM' || c.consentement ? `<div class="hc-since hc-cons">${c.source === 'import CRM' ? '📥 Repris du fichier clients de l’ancien CRM' : '✓ Client existant'}${c.consentement ? ` · accepte nos ${[c.consentement.email && !c.desinscrit?.email ? 'e-mails' : '', c.consentement.sms && !c.desinscrit?.sms ? 'SMS' : ''].filter(Boolean).join(' et ') || '—'}` : ''}${c.desinscrit?.email || c.desinscrit?.sms ? ` · <b>désinscrit des ${[c.desinscrit.email ? 'e-mails' : '', c.desinscrit.sms ? 'SMS' : ''].filter(Boolean).join(' et ')}</b>` : ''}${c.caCrmCents ? ` · déjà commandé (ancien CRM) : ${euros(c.caCrmCents)}` : ''}${c.derniereCommande ? ` · dernière commande le ${dateFr(c.derniereCommande)}` : ''}</div>` : ''}</div></div>
         <div class="kpis qk hc-k"><div><b>${euros(r.signeCents)}</b><span>signé (TTC)</span></div><div><b>${euros(r.regleCents)}</b><span>déjà réglé</span></div><div><b>${euros(r.aEncaisserCents)}</b><span>factures à encaisser</span></div><div><b>${r.nbSignes} / ${r.nbDevis}</b><span>devis signés</span></div></div></section>
       <div class="hc-cols">
         <section class="box hc-tl"><div class="hc-th"><h2>Tout l’historique</h2><span class="muted sm">${h.events.length} événement${h.events.length > 1 ? 's' : ''}</span></div>
@@ -1099,7 +1243,7 @@
           <details class="box hc-form"><summary><h2>Coordonnées du client</h2><span class="lnk">Modifier</span></summary><form id="cf">${formClient(c)}<button class="btn">Enregistrer</button></form></details>
         </div></div>`);
   }
-  const formClient = c => `<label>Prénom et NOM<input name="nom" value="${esc(c.nom)}" required data-nomclient placeholder="ex. Jean-Luc BERNARD"></label><label>Société<input name="societe" value="${esc(c.societe || '')}"></label><div class="g2"><label>E-mail<input type="email" name="email" value="${esc(c.email)}" required></label><label>Téléphone<input name="tel" value="${esc(c.tel || '')}"></label></div><label>Adresse de facturation<textarea name="adresse" rows="2">${esc(c.adresse || '')}</textarea></label><label>Notes internes (fixes)<textarea name="notes" rows="3">${esc(c.notes || '')}</textarea></label><fieldset class="df-fs"><legend>E-mails et SMS d’information</legend><label class="check"><input type="checkbox" name="_accord"${c.consentement?.email ? ' checked' : ''}> A accepté de recevoir nos offres</label><label class="check"><input type="checkbox" name="_stopEmail"${c.desinscrit?.email ? ' checked' : ''}> Ne plus lui envoyer d’e-mails d’information</label><label class="check"><input type="checkbox" name="_stopSms"${c.desinscrit?.sms ? ' checked' : ''}> Ne plus lui envoyer de SMS d’information</label></fieldset>`;
+  const formClient = c => `<label>Prénom et NOM<input name="nom" value="${esc(c.nom)}" required data-nomclient placeholder="ex. Jean-Luc BERNARD"></label><label>Société<input name="societe" value="${esc(c.societe || '')}"></label><div class="g2"><label>E-mail<input type="email" name="email" value="${esc(c.email || '')}"></label><label>Téléphone<input name="tel" value="${esc(c.tel || '')}"></label></div><label>Adresse de facturation<textarea name="adresse" rows="2">${esc(c.adresse || '')}</textarea></label><div class="g2"><label>Code postal<input name="cp" value="${esc(c.cp || '')}" inputmode="numeric" maxlength="5"></label><label>Ville<input name="ville" value="${esc(c.ville || '')}"></label></div><label>Notes internes (fixes)<textarea name="notes" rows="3">${esc(c.notes || '')}</textarea></label><fieldset class="df-fs"><legend>E-mails et SMS d’information</legend><label class="check"><input type="checkbox" name="_accord"${c.consentement?.email ? ' checked' : ''}> A accepté de recevoir nos offres</label><label class="check"><input type="checkbox" name="_stopEmail"${c.desinscrit?.email ? ' checked' : ''}> Ne plus lui envoyer d’e-mails d’information</label><label class="check"><input type="checkbox" name="_stopSms"${c.desinscrit?.sms ? ' checked' : ''}> Ne plus lui envoyer de SMS d’information</label></fieldset>`;
   client.after = id => {
     $('#cf').addEventListener('submit', async e => {
       e.preventDefault(); const f = Object.fromEntries(new FormData(e.target));

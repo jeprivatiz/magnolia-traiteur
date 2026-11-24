@@ -16,6 +16,7 @@ const views = require('./views');
 const { preparerAlerte } = require('./relances');
 const { regleAcompte, totaux, controleMarge, prochainNumero, lignesDepuisDemande, estimerLigne } = require('./devis');
 const { rid, sha, esc, euros, limiter, dateFr, slugify, nomPropre } = require('./util');
+const { creerImportClients, normTel, departementDe } = require('./import-clients');
 const IA = require('./ia');
 const DIF = require('./diffusion');
 
@@ -491,6 +492,60 @@ async function createApp(opts = {}) {
     res.json({ ok: true });
   }));
 
+  /* code postal -> département, téléphone -> format SMS (comme pour les fiches importées) */
+  function ficheClientNette(data, before) {
+    if (typeof data.cp === 'string') { data.cp = data.cp.replace(/\s/g, ''); if (data.cp !== (before?.cp || '')) data.departement = departementDe(data.cp) || data.departement || ''; }
+    if (typeof data.tel === 'string' && data.tel !== (before?.tel || '')) { const t = normTel(data.tel); data.telE164 = t?.ok ? t.e164 : ''; if (t?.ok) data.tel = t.tel; }
+    if (typeof data.email === 'string') data.email = data.email.trim().toLowerCase();
+  }
+  /* ---------- import du fichier clients (Excel / CSV) ---------- */
+  const importClients = creerImportClients({ store, log });
+  importClients.routes(A, { sameSite, manager, wrap, audit });
+
+  /* ---------- clients : recherche et pages côté serveur (le fichier importé compte ~60 000 fiches) ---------- */
+  const sansAcc = t => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const telK = t => { const d = String(t || '').replace(/\D/g, ''); return d.length >= 9 ? d.slice(-9) : ''; };
+  let idxClients = null;
+  async function annuaireServeur() {
+    const v = (await Promise.all(['clients', 'demandes', 'devis', 'factures'].map(k => store.version(k)))).join('|');
+    if (idxClients?.v === v) return idxClients;
+    const [cl, dem, dv, fac] = await Promise.all(['clients', 'demandes', 'devis', 'factures'].map(k => store.list(k)));
+    const nbDem = new Map(), lies = new Set(), extra = new Map();
+    const plus = (id, t) => { if (!id) return; extra.set(id, (extra.get(id) || '') + ' ' + t); };
+    for (const { data: d } of dem) { if (!d.clientId) continue; lies.add(d.clientId); if (d.type !== 'contact') nbDem.set(d.clientId, (nbDem.get(d.clientId) || 0) + 1); plus(d.clientId, [d.ref, d.contact?.nom, d.contact?.email].join(' ')); }
+    for (const { data: d } of dv) { if (d.clientId) { lies.add(d.clientId); plus(d.clientId, d.numero); } }
+    for (const { data: d } of fac) { if (d.clientId) { lies.add(d.clientId); plus(d.clientId, d.numero); } }
+    const items = cl.map(({ id, data: c }) => ({
+      c: { ...c, id, journal: undefined }, id, nb: nbDem.get(id) || 0, lie: lies.has(id) || (c.journal || []).length > 0,
+      importe: c.source === 'import CRM', last: String(c.derniereActivite || ''),
+      hay: sansAcc([c.nom, c.prenom, c.nomFamille, c.societe, c.email, c.ville, c.cp, extra.get(id)].join(' ')),
+      tels: [c.tel, c.telE164, c.telAutre].map(telK).filter(Boolean),
+    }));
+    items.sort((a, b) => b.last.localeCompare(a.last));
+    idxClients = { v, items };
+    return idxClients;
+  }
+  function filtrerClients(items, q) {
+    const words = sansAcc(q).trim().split(/\s+/).filter(Boolean);
+    if (!words.length) return items;
+    const chiffres = String(q).replace(/[\s.+()-]/g, '');
+    if (/^\d{3,}$/.test(chiffres)) { const k = chiffres.length >= 9 ? chiffres.slice(-9) : chiffres.replace(/^0+/, ''); const l = items.filter(a => a.tels.some(t => t.includes(k)) || a.hay.includes(chiffres)); if (l.length) return l; }
+    return items.filter(a => words.every(w => a.hay.includes(w) || (/^\d{3,}$/.test(w) && a.tels.some(t => t.includes(w.replace(/^0+/, ''))))));
+  }
+  A.get('/clients', wrap(async (req, res, next) => {
+    const q = req.query;
+    if (q.q === undefined && q.page === undefined && !q.vue && !q.ids) return next();
+    const { items } = await annuaireServeur();
+    res.set('Cache-Control', 'no-store');
+    /* clients « en activité » : tous, sauf les contacts importés qui n'ont encore ni demande, ni devis, ni note */
+    if (q.vue === 'actifs') return res.json(items.filter(a => !a.importe || a.lie).map(a => a.c));
+    if (q.ids) { const ids = new Set(String(q.ids).split(',').slice(0, 200)); return res.json(items.filter(a => ids.has(a.id)).map(a => a.c)); }
+    let l = filtrerClients(items, String(q.q || '').slice(0, 80));
+    if (q.filtre === 'importes') l = l.filter(a => a.importe); else if (q.filtre === 'autres') l = l.filter(a => !a.importe);
+    const par = Math.min(200, Math.max(10, parseInt(q.par, 10) || 50)), page = Math.max(1, parseInt(q.page, 10) || 1);
+    res.json({ total: l.length, tous: items.length, importes: items.filter(a => a.importe).length, page, par, items: l.slice((page - 1) * par, page * par).map(a => ({ ...a.c, nbDemandes: a.nb })) });
+  }));
+
   A.get('/:coll', wrap(async (req, res, next) => {
     if (!COLLECTIONS.includes(req.params.coll)) return next();
     const docs = (await store.list(req.params.coll)).map(d => ({ id: d.id, ...d.data, _maj: d.updatedAt }));
@@ -517,6 +572,7 @@ async function createApp(opts = {}) {
     if (coll === 'demandes' && before && data.statut && data.statut !== before.statut) data.historique = [...(before.historique || []), { at: new Date().toISOString(), statut: data.statut, par: req.ctx.name || req.ctx.email }];
     if (coll === 'produits' && !data.slug) data.slug = id;
     if (coll === 'clients' && typeof data.nom === 'string') data.nom = nomPropre(data.nom);
+    if (coll === 'clients') ficheClientNette(data, before);
     if (coll === 'demandes' && typeof data.contact?.nom === 'string') data.contact = { ...data.contact, nom: nomPropre(data.contact.nom) };
     if (coll === 'clients') { if (before?.journal) data.journal = before.journal; else delete data.journal; } /* notes et appels de l'historique jamais effacés par une fiche ouverte avant */
     data.updatedAt = new Date().toISOString();
@@ -540,6 +596,7 @@ async function createApp(opts = {}) {
     if (await store.get(coll + '/' + id)) id = id + '-' + rid(3).toLowerCase().replace(/[^a-z0-9]/g, 'x');
     const data = { ...(req.body || {}), createdAt: new Date().toISOString() };
     if (coll === 'clients' && typeof data.nom === 'string') data.nom = nomPropre(data.nom);
+    if (coll === 'clients') ficheClientNette(data, null);
     if (coll === 'produits') Object.assign(data, { id, slug: id, statut: data.statut || 'masque', maison: true, photos: data.photos || [], description: data.description || [], sections: data.sections || [], groupes: [], variantes: [], details: [], regles: data.regles || { packs: true, personnel: 'service' }, ordre: -1 });
     if (coll === 'lieux') Object.assign(data, { slug: id, statut: data.statut || 'masque', photos: data.photos || [], equipements: data.equipements || [] });
     if (coll === 'rubriques') Object.assign(data, { slug: id, statut: data.statut || 'visible', ordre: data.ordre ?? 99, tva: data.tva || 10 });
@@ -1122,8 +1179,9 @@ async function createApp(opts = {}) {
       rows = [['Réf.', 'Reçue le', 'Type', 'Nom', 'Société', 'E-mail', 'Téléphone', 'Événement', 'Date', 'Invités', 'Code postal', 'Ville', 'Estimé TTC (€)', 'Étape'],
         ...(await store.list('demandes')).map(d => d.data).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).map(d => [d.ref, String(d.createdAt || '').slice(0, 10), d.type, d.contact?.nom, d.contact?.societe, d.contact?.email, d.contact?.tel, d.evenement?.type || d.sujet, d.evenement?.date, d.evenement?.invites, d.evenement?.cp, d.evenement?.ville, eurCsv(d.totalEstimeCents), d.statut])];
     } else if (q === 'clients') {
-      rows = [['Nom', 'Société', 'E-mail', 'Téléphone', 'Adresse', 'Créé le', 'Dernière activité', 'Source'],
-        ...(await store.list('clients')).map(d => d.data).map(c => [c.nom, c.societe, c.email, c.tel, c.adresse, String(c.creeLe || '').slice(0, 10), String(c.derniereActivite || '').slice(0, 10), c.source])];
+      rows = [['Nom', 'Société', 'E-mail', 'Téléphone', 'Autre téléphone', 'Adresse', 'Code postal', 'Ville', 'Département', 'Créé le', 'Dernière activité', 'Source', 'Accepte les e-mails', 'Accepte les SMS'],
+        ...(await store.list('clients')).map(d => d.data).map(c => [c.nom, c.societe, c.email, c.tel, c.telAutre, c.adresse, c.cp, c.ville, c.departement, String(c.creeLe || '').slice(0, 10), String(c.derniereActivite || '').slice(0, 10), c.source,
+          c.desinscrit?.email ? 'non (désinscrit)' : c.consentement?.email ? 'oui' : '', c.desinscrit?.sms ? 'non (STOP)' : c.consentement?.sms ? 'oui' : ''])];
     } else if (q === 'devis' || q === 'factures') {
       const docs = (await store.list(q)).map(d => d.data);
       rows = [[q === 'devis' ? 'N° devis' : 'N° facture', 'Client', 'Date', 'Total TTC (€)', 'Total HT (€)', 'Marge (€)', 'Statut'],
@@ -1302,6 +1360,8 @@ if (require.main === module) {
   createApp().then(app => {
     const port = +(process.env.PORT || 3000);
     app.listen(port, () => console.log(`Magnolia Traiteur : http://localhost:${port}`));
+    /* arrêt demandé par l'hébergeur (mise en ligne) : on termine d'écrire la base avant de quitter */
+    for (const sig of ['SIGTERM', 'SIGINT']) process.once(sig, () => { Promise.resolve(app.locals.store.flush?.()).catch(e => console.error(e)).finally(() => process.exit(0)); });
   }).catch(e => { console.error(e); process.exit(1); });
 }
 

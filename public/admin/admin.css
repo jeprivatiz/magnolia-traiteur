@@ -972,3 +972,41 @@ td.ck input, th.ck input { width: 20px; height: 20px; accent-color: #1f3d34; cur
 .grp-l input { width: 20px; height: 20px; flex: none; margin-top: 2px; accent-color: #1f3d34; }
 .apm { width: min(720px, 100%); }
 .apm-f { width: 100%; height: min(60vh, 520px); border: 1px solid #e6dcc6; border-radius: 10px; background: #fff; }
+
+/* ---------- Clients : liste en pages + import du fichier clients ---------- */
+.cl-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
+.cl-bar input[type=search] { flex: 1 1 380px; width: auto; max-width: none; min-width: 0; background: var(--carte); }
+.cl-f { display: flex; flex-wrap: wrap; gap: 6px; }
+.cl-imp { display: inline-block; margin-left: 8px; font-size: .72rem; color: var(--or); font-weight: 500; }
+td .cl-imp { display: block; margin: 2px 0 0; }
+.cl-pages { display: flex; align-items: center; justify-content: center; gap: 14px; margin: 14px 0; font-size: .9rem; color: var(--gris); }
+.cl-nb { text-align: right; margin-top: 8px; }
+.imp-step h2 { display: flex; align-items: center; gap: 10px; }
+.imp-n { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--vert); color: #fff; font: 600 .9rem var(--sans); flex: none; }
+.imp-drop { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 30px 16px; border: 2px dashed var(--or); border-radius: 14px; background: var(--doux); cursor: pointer; text-align: center; margin: 6px 0 12px; transition: background .15s; }
+.imp-drop:hover, .imp-drop.on { background: rgba(176, 138, 79, .14); }
+.imp-drop b { font-size: 1.02rem; color: var(--vert); }
+.imp-drop small { color: var(--gris); }
+.imp-err { color: var(--rouge); background: rgba(180, 65, 47, .08); border: 1px solid rgba(180, 65, 47, .3); border-radius: 10px; padding: 10px 12px; margin: 10px 0 0; }
+.imp-cols td { vertical-align: middle; }
+.imp-cols select { min-width: 220px; background: var(--carte); }
+.imp-ex span { display: inline-block; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: var(--doux); border: 1px solid var(--ligne); border-radius: 6px; padding: 2px 7px; margin: 2px 4px 2px 0; font-size: .82rem; vertical-align: middle; }
+.imp-k { margin-top: 6px; }
+.imp-ex1 { background: var(--doux); border: 1px solid var(--ligne); border-radius: 12px; padding: 12px 14px; margin: 12px 0; }
+.imp-ex1 dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 6px 0 0; }
+.imp-ex1 dt { color: var(--gris); font-size: .86rem; }
+.imp-ex1 dd { margin: 0; white-space: pre-line; }
+.imp-ok { align-items: flex-start; gap: 10px; margin: 14px 0; line-height: 1.45; background: rgba(176, 138, 79, .1); border: 1px solid rgba(176, 138, 79, .35); border-radius: 10px; padding: 12px 14px; }
+.imp-ok input { margin-top: 2px; flex: none; }
+.imp-bar { height: 14px; border-radius: 999px; background: var(--doux); border: 1px solid var(--ligne); overflow: hidden; margin: 14px 0 6px; }
+.imp-bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--vert), var(--or)); transition: width .3s; }
+.imp-rap ul { margin: 8px 0 12px; padding-left: 20px; }
+.hc-cons { color: var(--vert-ok); }
+.dv-clq small { color: var(--gris); font-weight: 400; }
+@media (max-width: 640px) {
+  .imp-cols select { min-width: 0; width: 100%; }
+  .imp-cols thead { display: none; }
+  .imp-cols tr { display: block; border-bottom: 1px solid var(--ligne); padding: 8px 0; }
+  .imp-cols td { display: block; border: 0; padding: 3px 0; }
+  .cl-pages { gap: 8px; font-size: .82rem; }
+}
