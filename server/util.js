@@ -78,10 +78,9 @@ function dateNaissance(v) {
    le nom du buffet sur une ligne puis la formule en dessous, plus petit. Le titre enregistré ne change pas (adresses, recherche). */
 const FORMULE_RE = /^(Buffets?\s[^—·()]+?)\s+[—·–-]\s+(\S.*)$/u;
 /* taille d'une portion, ajoutée au nom partout où il s'affiche (Jean-Luc, 2026-11-24) : tous les accras = 4 accras, samoussas = 1 samoussa, boudins = 1 boudin.
-   Pas ajoutée quand le nom donne déjà un nombre de triangles (« Samossa Chicken : 2 triangles… »).
    Copiée dans public/js/site.js et public/admin/admin.js. */
 const PORTIONS = [[/^a?c+ras?\b/i, '1 portion = 4 accras'], [/^sam[ou]+s+as?\b/i, '1 portion = 1 samoussa'], [/^boudins?\b/i, '1 portion = 1 boudin']];
-const avecPortion = t => { t = String(t ?? ''); const x = PORTIONS.find(([re]) => re.test(t)); if (!x || t.includes(x[1]) || /\d\s*triangles?/i.test(t)) return t; const i = t.indexOf(' : '); return i > 0 ? `${t.slice(0, i)} (${x[1]})${t.slice(i)}` : `${t} (${x[1]})`; };
+const avecPortion = t => { t = String(t ?? ''); const x = PORTIONS.find(([re]) => re.test(t)); if (!x || t.includes(x[1])) return t; const i = t.indexOf(' : '); return i > 0 ? `${t.slice(0, i)} (${x[1]})${t.slice(i)}` : `${t} (${x[1]})`; };
 const coupeTitre = t => { t = avecPortion(t); const m = FORMULE_RE.exec(String(t ?? '').trim()); return m ? [m[1], m[2].charAt(0).toUpperCase() + m[2].slice(1)] : [String(t ?? ''), '']; };
 const titreHtml = t => { const [n, f] = coupeTitre(t); return f ? `${esc(n)}<span class="formule">${esc(f)}</span>` : esc(n); };
 const titreTexte = t => { const [n, f] = coupeTitre(t); return f ? `${n} (${f.charAt(0).toLowerCase() + f.slice(1)})` : n; };
