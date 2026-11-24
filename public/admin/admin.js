@@ -1032,7 +1032,7 @@
   }
   function champsMessage(canal, m) {
     if (canal === 'sms') return `<label>Texte du SMS<textarea rows="5" data-m="texte" placeholder="Magnolia Traiteur : Bonjour {prenom}, …">${esc(m.texte || '')}</textarea></label>
-      <p class="df-cpt" data-cpt></p><p class="muted sm">{prenom} est remplacé par le prénom de chaque client. La mention « STOP au 36173 » est ajoutée automatiquement à la fin (elle compte dans la longueur). Les accents ê, â, î, ô, û et ç sont remplacés (fete, garcon) pour rester au format SMS standard, 3 fois moins cher.</p>`;
+      <p class="df-cpt" data-cpt></p><p class="muted sm">{prenom} est remplacé par le prénom de chaque client. L’adresse du site${cache.dif?.conf?.lienSms ? ' (' + esc(cache.dif.conf.lienSms) + ')' : ''} et la mention « STOP au 36173 » sont ajoutées automatiquement à la fin (elles comptent dans la longueur). Les accents ê, â, î, ô, û et ç sont remplacés (fete, garcon) pour rester au format SMS standard, 3 fois moins cher.</p>`;
     const b = m.bouton || {};
     return `<label>Objet de l’e-mail<input data-m="objet" value="${esc(m.objet || '')}" maxlength="150" placeholder="ex. Nouveau : notre buffet libanais 🌿"></label>
       <label>Grand titre <small>(en haut de l’e-mail, facultatif)</small><input data-m="titre" value="${esc(m.titre || '')}" maxlength="150"></label>
@@ -1165,7 +1165,8 @@
   const GSM7 = '@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !"#¤%&\'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà', GSM7X = '^{}\\[~]|€';
   const versGsm = t => String(t || '').replace(/[’‘]/g, "'").replace(/[“”«»]/g, '"').replace(/[–—]/g, '-').replace(/…/g, '...').replace(/ | /g, ' ').replace(/ç/g, 'c').replace(/[êë]/g, 'e').replace(/[îï]/g, 'i').replace(/[ôö]/g, 'o').replace(/[û]/g, 'u').replace(/[â]/g, 'a').replace(/[ÊË]/g, 'E').replace(/[ÎÏ]/g, 'I').replace(/[Ô]/g, 'O').replace(/[ÛÙ]/g, 'U').replace(/[ÂÀ]/g, 'A').replace(/[È]/g, 'E');
   function smsCompte(texte) {
-    const t = versGsm(texte).replace(/\{prenom\}/gi, 'Alexandra').trim() + '\nSTOP au 36173';
+    const lien = cache.dif?.conf?.lienSms || '', b = versGsm(texte).replace(/\{prenom\}/gi, 'Alexandra').trim();
+    const t = b + (lien && !b.toLowerCase().includes(lien.toLowerCase()) ? '\n' + lien : '') + '\nSTOP au 36173';
     const uni = [...t].some(ch => !GSM7.includes(ch) && !GSM7X.includes(ch));
     const car = uni ? [...t].length : [...t].reduce((n, ch) => n + (GSM7X.includes(ch) ? 2 : 1), 0);
     return { car, unicode: uni, sms: car <= (uni ? 70 : 160) ? 1 : Math.ceil(car / (uni ? 67 : 153)) };
@@ -1187,7 +1188,7 @@
     m.innerHTML = sms
       ? `<div class="df-tel-wrap"><button type="button" class="x df-x" data-x aria-label="Fermer">×</button><div class="df-tel" aria-label="Aperçu du SMS sur un téléphone"><div class="df-ile"></div><div class="df-st"><b>${heure}</b><span>▂▄▆ 5G ▭</span></div>
           <div class="df-hd"><span class="df-av">M</span><b>Magnolia</b><small>SMS</small></div>
-          <div class="df-fil"><p class="df-date">Aujourd’hui ${heure}</p><div class="df-bulle">${esc(r.texte).replace(/\n/g, '<br>')}</div></div>
+          <div class="df-fil"><p class="df-date">Aujourd’hui ${heure}</p><div class="df-bulle">${(() => { const L = cache.dif?.conf?.lienSms; let h = esc(r.texte); if (L) h = h.split(esc(L)).join(`<u class="df-lien">${esc(L)}</u>`); return h.replace(/\n/g, '<br>'); })()}</div></div>
           <div class="df-saisie"><span>SMS</span></div></div>
           <p class="df-tel-info">${r.car} caractères · ${r.sms} SMS par client${r.unicode ? ' · contient un caractère spécial' : ''}<br>Exemple avec le prénom « Alexandra ».</p></div>`
       : `<div class="modal-in df-mail"><div class="df-mh"><div><p class="aq-eye">Aperçu de l’e-mail</p><p class="sm"><b>De :</b> Magnolia Traiteur &lt;infos@magnoliatraiteur.fr&gt;<br><b>Objet :</b> ${esc(message.objet || '(sans objet)')}</p></div><button type="button" class="x" data-x aria-label="Fermer">×</button></div>
@@ -1799,7 +1800,7 @@
     return page('🏢 Mon entreprise', '<a class="btn ghost" href="/cgv" target="_blank">Voir les CGV ↗</a>', `<p class="muted">Ces informations apparaissent sur les devis, les factures et les conditions générales de vente. Une modification s’applique tout de suite, y compris aux devis déjà envoyés.</p><form id="ef">
       <section class="box"><h2>Identité</h2><div class="g2">${photoField('logo', E.logo || '', 'Logo sur les devis et factures (vide = logo Magnolia)')}<div>
         ${ch('raisonSociale', 'Raison sociale', E.raisonSociale ?? 'Magnolia Traiteur')}${ch('forme', 'Forme juridique <small>(SAS, SARL…)</small>', E.forme)}${ch('capital', 'Capital social <small>(ex. 10 000 €)</small>', E.capital)}</div></div></section>
-      <section class="box"><h2>Coordonnées</h2><div class="g2">${ch('adresse', 'Adresse', R.adresse)}${ch('telephone', 'Téléphone', R.telephone)}${ch('email', 'E-mail', R.email, 'type="email"')}${ch('site', 'Site internet', E.site ?? 'magnoliatraiteur.fr')}</div><p class="muted sm">Aussi affichées sur tout le site (en-tête, pied de page, contact).</p></section>
+      <section class="box"><h2>Coordonnées</h2><div class="g2">${ch('adresse', 'Adresse', R.adresse)}${ch('telephone', 'Téléphone', R.telephone)}${ch('email', 'E-mail', R.email, 'type="email"')}${ch('site', 'Site internet', E.site ?? 'magnoliatraiteur.fr')}</div><p class="muted sm">Aussi affichées sur tout le site (en-tête, pied de page, contact). Le site internet est ajouté à la fin de chaque SMS envoyé aux clients.</p></section>
       <section class="box"><h2>Numéros officiels</h2><div class="g3">${ch('siren', 'SIREN', E.siren ?? '992 979 856')}${ch('siret', 'SIRET <small>(14 chiffres)</small>', E.siret)}${ch('rcs', 'RCS <small>(ville du greffe)</small>', E.rcs ?? 'Évry')}${ch('ape', 'Code APE / NAF <small>(ex. 5621Z)</small>', E.ape)}${ch('tva', 'N° de TVA intracommunautaire', E.tva ?? 'FR31992979856')}${ch('tribunal', 'Tribunal compétent (clients pros)', E.tribunal ?? 'tribunal de commerce d’Évry')}</div></section>
       <section class="box"><h2>Assurance et médiation</h2><div class="g2">${ch('assurance', 'Assurance responsabilité civile pro <small>(compagnie et n° de contrat)</small>', E.assurance)}${ch('mediateur', 'Médiateur de la consommation <small>(nom, site internet)</small>', E.mediateur, 'placeholder="ex. CM2C, www.cm2c.net"')}</div></section>
       <section class="box"><h2>Banque et paiement</h2><p class="muted sm">Affichés au client dès qu’il a signé son devis. Un lien de paiement mis dans un devis passe avant le lien général.</p><div class="g2">${ch('pay_lien', 'Lien de paiement par carte (SumUp, Stripe…)', P.lien, 'placeholder="https://"')}${ch('banque', 'Banque', E.banque)}${ch('pay_tit', 'Titulaire du compte', P.titulaire)}${ch('pay_iban', 'IBAN', P.iban)}${ch('pay_bic', 'BIC', P.bic)}</div></section>

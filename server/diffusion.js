@@ -99,10 +99,19 @@ function comptage(texte) {
   return { car, sms, unicode, parSms: sms > 1 ? plusieurs : un };
 }
 /* texte final d'un SMS d'information : prénom, signature, mention STOP */
-function smsFinal(texte, { prenom = '' } = {}) {
+/* adresse du site à mettre dans chaque SMS (Mon entreprise › Site internet), sans https:// ni www */
+const lienCourt = u => String(u || '').trim().replace(/^https?:\/\//i, '').replace(/^www\./i, '').replace(/\/+$/, '');
+/* ajoute l'adresse du site à un SMS qui n'a pas déjà un lien vers le site (avant la mention STOP s'il y en a une) */
+function avecLien(texte, lien, autres = []) {
+  const t = String(texte || ''), bas = t.toLowerCase();
+  if (!lien || [lien, ...autres].filter(Boolean).some(x => bas.includes(String(x).toLowerCase()))) return t;
+  const m = t.match(/\n?STOP(\s+au)?\s+(\[STOP_CODE\]|\d+)\s*$/i);
+  return m ? t.slice(0, m.index).trimEnd() + '\n' + lien + '\n' + m[0].replace(/^\n/, '') : t.trimEnd() + '\n' + lien;
+}
+function smsFinal(texte, { prenom = '', lien = '' } = {}) {
   let t = versGsm(texte).replace(/\{prenom\}/gi, prenom || '').replace(/ +([,.])/g, '$1').replace(/Bonjour\s+,/i, 'Bonjour,').trim();
   t = t.replace(/\s*STOP(\s+au)?\s+(\[STOP_CODE\]|\d+)\s*\.?$/i, '').trim();
-  return t + '\n' + STOP;
+  return avecLien(t, lien) + '\n' + STOP;
 }
 
 /* ---------- créneaux des SMS publicitaires en France : pas avant 8 h, pas après 22 h, ni dimanche ni jour férié ---------- */
@@ -187,4 +196,4 @@ function pageDesinscription({ etat, action = '', R = {} }) {
 
 const prenomDe = nom => { const p = String(nom || '').trim().split(/\s+/)[0] || ''; return p.length > 1 ? p.charAt(0).toUpperCase() + p.slice(1).toLowerCase() : ''; };
 
-module.exports = { pageDesinscription, filtrer, departement, mobile, profils, comptage, smsFinal, versGsm, STOP, STOP_AFFICHE, creneauSms, feries, jeton, jetonOk, emailHtml, emailTexte, corpsHtml, prenomDe, euros };
+module.exports = { lienCourt, avecLien, pageDesinscription, filtrer, departement, mobile, profils, comptage, smsFinal, versGsm, STOP, STOP_AFFICHE, creneauSms, feries, jeton, jetonOk, emailHtml, emailTexte, corpsHtml, prenomDe, euros };

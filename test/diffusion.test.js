@@ -20,6 +20,9 @@ test('comptage SMS, mention STOP et créneaux', () => {
   assert.equal(DIF.creneauSms(new Date('2026-11-24T22:30:00Z')).ok, false, 'nuit');
   assert.ok(DIF.feries(2027).includes('2027-03-29'), 'lundi de Pâques 2027');
   assert.equal(DIF.departement('20190'), '2A'); assert.equal(DIF.departement('97200'), '972');
+  assert.equal(DIF.avecLien('Bonjour', 'magnoliatraiteur.fr'), 'Bonjour\nmagnoliatraiteur.fr');
+  assert.equal(DIF.avecLien('Voir https://magnoliatraiteur.fr/x', 'magnoliatraiteur.fr'), 'Voir https://magnoliatraiteur.fr/x');
+  assert.equal(DIF.lienCourt('https://www.magnoliatraiteur.fr/'), 'magnoliatraiteur.fr');
   assert.equal(DIF.mobile('01 69 00 00 00'), ''); assert.equal(DIF.mobile('+33 7 12 34 56 78'), '33712345678');
 });
 
@@ -76,7 +79,7 @@ test('envoi groupé de bout en bout', async () => {
     const ap = (await call('/api/admin/diffusion/apercu', { method: 'POST', body: { canal: 'email', message: m, prenom: 'Claire' } })).j;
     assert.match(ap.html, /Bonjour Claire,/); assert.match(ap.html, /<b>15 mezzés<\/b>/); assert.match(ap.html, /Se désinscrire/); assert.match(ap.html, /http:\/\/site\.test\/saveurs-du-monde/);
     const as = (await call('/api/admin/diffusion/apercu', { method: 'POST', body: { canal: 'sms', message: sm } })).j;
-    assert.match(as.texte, /STOP au 36173$/); assert.equal(as.sms, 1);
+    assert.match(as.texte, /\nmagnoliatraiteur\.fr\nSTOP au 36173$/, 'adresse du site avant STOP'); assert.equal(as.sms, 1);
     /* essai */
     assert.equal((await call('/api/admin/diffusion/essai', { method: 'POST', body: { canal: 'email', message: m, a: 'moi@ex.test' } })).status, 200);
     assert.match(envoyes.at(-1).subject, /^\[ESSAI\]/);
@@ -102,8 +105,19 @@ test('envoi groupé de bout en bout', async () => {
     assert.equal((await sel('email', {})).nb, 2, 'Claire désinscrite n’est plus proposée');
     assert.equal((await sel('sms', {})).nb, 2, 'les SMS restent possibles');
     assert.ok((await call('/api/admin/actions/historique-client/' + cid)).j.events.some(e => /Désinscrit/.test(e.titre)));
-    /* SMS : mention STOP, type marketing */
-    const camps = (await call('/api/admin/diffusion/campagnes')).j; assert.equal(camps.length, 1);
+    /* SMS groupé : adresse du site + STOP, type marketing */
+    const goS = await call('/api/admin/diffusion/envoyer', { method: 'POST', body: { canal: 'sms', message: sm, confirme: 2 } });
+    if (goS.status === 200) {
+      for (let i = 0; i < 50 && (await call('/api/admin/diffusion/campagnes/' + goS.j.id)).j.statut !== 'termine'; i++) await new Promise(r => setTimeout(r, 20));
+      const sms = envoyes.filter(x => x.k === 'sms' && x.type === 'marketing');
+      assert.ok(sms.length >= 1); for (const x of sms) { assert.match(x.content, /magnoliatraiteur\.fr\nSTOP au \[STOP_CODE\]$/); assert.equal(x.content.match(/magnoliatraiteur\.fr/g).length, 1); }
+    } else assert.match(goS.j.error, /dimanche|férié|8 h/);
+    /* tout autre SMS au client reçoit l'adresse du site ; un SMS qui a déjà un lien vers le site n'est pas doublé ; pas les alertes de l'équipe */
+    envoyes.length = 0;
+    await call('/api/admin/actions/envoyer-devis/' + d.id, { method: 'POST', body: { canaux: ['sms'] } });
+    const dsms = envoyes.find(x => x.k === 'sms');
+    assert.ok(dsms, 'SMS du devis'); assert.ok(/site\.test\/devis\//.test(dsms.content) && !/magnoliatraiteur\.fr/.test(dsms.content), dsms.content);
+    const camps = (await call('/api/admin/diffusion/campagnes')).j; assert.ok(camps.length >= 1);
     cookie = '';
     assert.equal((await call('/api/admin/diffusion/criteres')).status, 401);
   } finally { srv.close(); }
