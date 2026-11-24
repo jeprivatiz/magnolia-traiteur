@@ -166,6 +166,19 @@ async function createApp(opts = {}) {
     for (const { id, data: c } of await store.list('clients')) if ((c.journal || []).some(j => j.par === 'Manager')) await store.set('clients/' + id, { ...c, journal: parMaj(c.journal) });
     await store.set('_migr/nomManager', { at: new Date().toISOString() });
   }
+  /* une seule fois (demande de Jean-Luc, 2026-11-24) : « Hot Gulab Jamun » faisait doublon avec « Gulab Jamun » (même plat, même prix, même photo).
+     On retire la fiche à l'unité et le choix « Hot Gulab Jamun » des formules du Buffet indien ; on garde « Gulab Jamun ». */
+  if (!(await store.get('_migr/sansHotGulab'))) {
+    const net = t => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+    const estHot = t => /^hot gulab jamun\b/.test(net(t));
+    for (const { id, data: p } of await store.list('produits')) {
+      if (!p) continue;
+      if (estHot(p.titre)) { await store.delete('produits/' + id); continue; }
+      if ((p.groupes || []).some(g => (g.options || []).some(o => o.id === 'hot-gulab-jamun' || estHot(o.label))))
+        await store.set('produits/' + id, { ...p, groupes: p.groupes.map(g => ({ ...g, options: (g.options || []).filter(o => !(o.id === 'hot-gulab-jamun' || estHot(o.label))) })) });
+    }
+    await store.set('_migr/sansHotGulab', { at: new Date().toISOString() });
+  }
 
   /* ---------- titres et descriptions « dans Google » (Jean-Luc, 2026-11-24) ----------
      À chaque démarrage : les cases vides des produits, rubriques et spécialités sont remplies (jamais un texte tapé à la main).
