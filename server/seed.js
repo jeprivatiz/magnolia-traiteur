@@ -1230,6 +1230,13 @@ async function initSousRubriques(store, { log = console } = {}) {
     if (rp) await store.set('rubriques/personnel', { ...rp, bandeauPhoto: '/site/c/personnel-bandeau-serveur.webp', bandeauVideo: '' });
     await store.set('site/reglages', { ...(await store.get('site/reglages')), personnelBandeau1: true });
   }
+  /* « Pizzaïolo · personnel » devient « Pizzaïolo » (Jean-Luc, 2026-11-24). Adresse /personnel/pizzaiolo-personnel inchangée. Une fois. */
+  const RPz = await store.get('site/reglages');
+  if (RPz && !RPz.pizzaioloTitre1) {
+    const pz = await store.get('produits/pizzaiolo-personnel');
+    if (pz && /·\s*personnel\s*$/i.test(pz.titre || '')) await store.set('produits/pizzaiolo-personnel', { ...pz, titre: pz.titre.replace(/\s*·\s*personnel\s*$/i, '') });
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), pizzaioloTitre1: true });
+  }
   /* Régisseur : pour Magnolia, c'est une personne en costume qui assiste l'hôte (Jean-Luc, 2026-11-24), pas un technicien son/lumière.
      Texte remplacé une fois, seulement s'il n'a pas déjà été retouché au back-office. */
   const RReg = await store.get('site/reglages');
