@@ -311,7 +311,7 @@ function bandeauHtml(c, B, fil) {
   const media = B.video
     ? `<video src="${esc(B.video)}" poster="${esc(B.poster || B.photo || '')}"${B.position ? ` style="object-position:${esc(B.position)}"` : ''} autoplay muted loop playsinline preload="metadata" aria-hidden="true" data-autoplay></video>`
     : img(B.photo, '', '', 'fetchpriority="high"').replace(' loading="lazy"', '');
-  return `<section class="phero land${kb(c, B.video ? '' : B.photo, B.titre)}">${media}<div class="phero-c wrap">${crumbs(fil || [[B.titre]])}<h1>${esc(B.titre)}</h1>${B.chapo ? `<p class="lead">${esc(B.chapo)}</p>` : ''}
+  return `<section class="phero land${kb(c, B.video ? '' : B.photo, B.titre)}">${media}<div class="phero-c wrap">${crumbs(fil || [[B.titre]])}<h1>${esc(B.titre)}</h1>${B.signature ? `<p class="phero-sig">${esc(B.signature)}</p>` : ''}${B.chapo ? `<p class="lead">${esc(B.chapo)}</p>` : ''}
   <div class="row land-cta"><a class="btn btn-or" href="${esc(B.ancre || '/boutique')}">${esc(B.bouton || 'Découvrir')}</a><a class="btn btn-ghost-light" href="tel:${esc(tel)}">${icon.phone}<span>${esc(R.telephone || '')}</span></a></div>
   <p class="confiance"><span><span class="etoiles" aria-hidden="true">★★★★★</span> <b>${esc(G.note || '4,9')}/5</b> sur Google${G.nombre ? `, ${esc(G.nombre)} avis` : ''}</span><span>Livraison 7 j/7 sur Paris et toute l’Île-de-France</span></p></div></section>`;
 }
@@ -384,8 +384,8 @@ function pageGlobe(c, r) {
   const fr = c.rubriques.find(x => x.slug === 'cocktails-buffets' && x.statut !== 'masque');
   if (fr) items.push({ slug: 'france', nom: 'Cocktail et buffet français', pays: 'France', n: (c.byRub.get(fr.slug) || []).filter(p => p.statut !== 'masque').length, href: '/' + fr.slug,
     photo: fr.photoGlobe || fr.bandeauPhoto || fr.photo || '', vignette: fr.photo || '', phrase: fr.phraseGlobe || PHRASES_GLOBE.france, ids: [250], centre: CENTRES_GLOBE.france });
-  const body = `${bandeauHtml(c, { /* vidéo : une brochette de chefs de tous horizons qui sourient face caméra (Jean-Luc, 2026-11-24), à la place des îles et palmiers */
-    photo: '/site/v/monde/chefs.jpg', video: '/site/v/monde/chefs.mp4', titre: r.titrePage || r.nom, chapo: r.chapo || r.accroche || 'Choisissez votre spécialité : chaque cuisine a ses buffets, ses plats et ses douceurs.', bouton: 'Choisir ma spécialité', ancre: '#specialites' }, [['La boutique', '/boutique'], [r.nom]])}
+  const body = `${bandeauHtml(c, { /* vidéo : une brochette de chefs de tous horizons qui sourient face caméra (Jean-Luc, 2026-11-24), dont cuisiniers africain, antillais en madras et indien ; sources : data/credits-videos-monde.md */
+    photo: '/site/v/monde/chefs.jpg', video: '/site/v/monde/chefs.mp4', signature: r.signature ?? 'par la Maison Magnolia' /* Jean-Luc, 2026-11-24 */, titre: r.titrePage || r.nom, chapo: r.chapo || r.accroche || 'Choisissez votre spécialité : chaque cuisine a ses buffets, ses plats et ses douceurs.', bouton: 'Choisir ma spécialité', ancre: '#specialites' }, [['La boutique', '/boutique'], [r.nom]])}
 <section class="sm-globe" id="specialites" data-sm data-sm-paris="[2.35,48.86]">
   <div class="sm-map" data-sm-map aria-label="Globe des saveurs du monde : faites-le tourner, touchez un pays"></div>
   <svg class="sm-fleche" data-sm-fleche aria-hidden="true"><defs><marker id="sm-pointe" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="#e2c495"/></marker><linearGradient id="sm-grad" x1="0" x2="1"><stop offset="0" stop-color="#e2c495" stop-opacity=".25"/><stop offset="1" stop-color="#e2c495"/></linearGradient></defs><path data-sm-trait d="" fill="none" stroke="url(#sm-grad)" stroke-width="2.2" stroke-linecap="round" marker-end="url(#sm-pointe)"/></svg>
