@@ -1115,15 +1115,16 @@
   };
 
   /* ---------- clients (liste en pages : le fichier importé compte des dizaines de milliers de fiches) ---------- */
-  const CL = { q: '', page: 1, filtre: '', k: {} };
+  const CL = { q: '', page: 1, filtre: '', k: {}, sel: new Set() };
   /* recherche multicritère de la liste Clients (demande de Jean-Luc, 2026-11-24) */
   const urlClients = () => `${A}/clients?par=50&page=${CL.page}&filtre=${CL.filtre}&q=${encodeURIComponent(CL.q)}${Object.entries(CL.k).filter(([, v]) => v).map(([k, v]) => `&${k}=${encodeURIComponent(v)}`).join('')}`;
-  function filtresClients(F) {
+  const compteClients = n => `<b>${Number(n).toLocaleString('fr-FR')}</b> contact${n > 1 ? 's' : ''}`;
+  function filtresClients(F, total) {
     const n = x => Number(x).toLocaleString('fr-FR');
     const sel = (k, lab, opts) => `<label class="cl-crit"><span>${lab}</span><select data-ck="${k}"${CL.k[k] ? ' class="on"' : ''}>${opts.map(([v, l]) => `<option value="${esc(v)}"${String(CL.k[k] || '') === String(v) ? ' selected' : ''}>${l}</option>`).join('')}</select></label>`;
     const liste = (l, tous) => [['', tous], ...l.map(([v, c]) => [v, `${esc(v)} (${n(c)})`])];
     const nb = Object.values(CL.k).filter(Boolean).length;
-    return `<details class="box cl-multi"${nb || mem.get('mg_clmulti') === '1' ? ' open' : ''}><summary>🔎 Recherche multicritère${nb ? ` <span class="cl-nbk">${nb} critère${nb > 1 ? 's' : ''}</span>` : ''}</summary>
+    return `<details class="box cl-multi"${nb || mem.get('mg_clmulti') === '1' ? ' open' : ''}><summary>🔎 Recherche multicritère${nb ? ` <span class="cl-nbk">${nb} critère${nb > 1 ? 's' : ''}</span>` : ''}<span class="cl-cpt" data-clcpt aria-live="polite">${compteClients(total)}</span></summary>
       <div class="cl-gr"><p class="cl-gt">👤 Le contact</p><div class="cl-crits">
         ${sel('pro', 'Particulier ou entreprise', [['', 'Tous'], ['part', 'Particuliers'], ['pro', 'Entreprises (société renseignée)']])}
         ${sel('civ', 'Civilité', [['', 'Toutes'], ['Mme', 'Madame'], ['M.', 'Monsieur'], ['aucune', 'Non renseignée']])}
@@ -1137,7 +1138,7 @@
       <div class="cl-gr"><p class="cl-gt">✉ Pour le joindre</p><div class="cl-crits">
         ${sel('joignable', 'Joignable par', [['', 'Peu importe'], ['email', 'E-mail'], ['sms', 'SMS (portable)'], ['les2', 'E-mail et SMS'], ['aucun', 'Ni e-mail ni SMS']])}
         ${sel('npc', 'NE PAS CONTACTER', [['', 'Peu importe'], ['non', 'Sauf « ne pas contacter »'], ['oui', `Seulement « ne pas contacter » (${n(F.npc)})`]])}</div></div>
-      ${nb ? '<div class="row"><button type="button" class="btn ghost sm" data-ckclear>✕ Effacer les critères</button></div>' : ''}</details>`;
+      <div class="row cl-res"><span class="cl-cpt grand" data-clcpt>${compteClients(total)}</span><span class="muted sm">correspondent à votre sélection</span>${nb ? '<button type="button" class="btn ghost sm" data-ckclear>✕ Effacer les critères</button>' : ''}</div></details>`;
   }
   async function clients(id, sub) {
     if (id === 'entreprises') return sub ? ficheEntreprise(sub) : entreprises();
@@ -1151,12 +1152,15 @@
     return page('Clients', `${peut('fichiers') ? '<a class="btn ghost" href="#/clients/importer">⬆ Importer des clients</a>' : ''}<a class="btn" href="#/clients/nouveau">+ Nouveau client</a>`, `
       ${ongletsClients('')}${bandeauClients('', r.tous, r.entreprises)}<div class="cl-bar"><input type="search" placeholder="🔍 Chercher dans toutes les cases des fiches : nom, téléphone, e-mail, société, ville, métier, remarque, rue…" data-q value="${esc(CL.q)}" aria-label="Rechercher un client">
         <div class="cl-f">${[['', `Tous (${r.tous.toLocaleString('fr-FR')})`], ['importes', `Fichier importé (${r.importes.toLocaleString('fr-FR')})`], ['autres', 'Site et back-office']].map(([k, l]) => `<button type="button" class="qs-own-b${CL.filtre === k ? ' on' : ''}" data-clf="${k}">${l}</button>`).join('')}</div></div>
-      <div id="clMulti">${filtresClients(r.facettes)}</div><div id="clTable">${tableClients(r)}</div>`);
+      ${CL.dernier ? `<div class="okbox cl-remet"><span>🗑 ${CL.dernier.nb.toLocaleString('fr-FR')} contact${CL.dernier.nb > 1 ? 's' : ''} effacé${CL.dernier.nb > 1 ? 's' : ''}.</span><button type="button" class="btn ghost sm" data-clremet>↶ Remettre</button></div>` : ''}<div id="clMulti">${filtresClients(r.facettes, r.total)}</div><div id="clTable">${tableClients(r)}</div>`);
   }
   function tableClients(r) {
     const pages = Math.max(1, Math.ceil(r.total / r.par));
-    return `<div class="table"><table><thead><tr><th>Nom</th><th>Société</th><th>Contact</th><th>Ville</th><th class="n">Demandes</th><th>Dernière activité</th><th></th></tr></thead><tbody>
-      ${r.items.map(c => `<tr data-href="#/clients/${esc(c.id)}"><td><b>${esc(c.nom || '—')}</b>${c.nePasContacter ? ' <span class="pill d-refuse" title="NE PAS CONTACTER">⛔</span>' : ''}${(c.metiers || []).length ? `<small class="cl-met">🎭 ${esc(c.metiers.join(', '))}</small>` : ''}${c.source === 'import CRM' ? '<small class="cl-imp">fichier importé</small>' : ''}</td><td>${esc(c.societe || '')}</td><td>${esc(c.email || '')}<small>${esc(c.tel || '')}</small></td><td>${esc([c.cp, c.ville].filter(Boolean).join(' '))}</td><td class="n">${c.nbDemandes || ''}</td><td>${dateFr(c.derniereActivite)}</td><td class="n"><a class="qs-back cl-edit" href="#/clients/${esc(c.id)}?edit=1" title="Modifier la fiche">✏ Modifier</a></td></tr>`).join('') || `<tr><td colspan="7" class="muted">${r.tous ? 'Aucun client ne correspond.' : 'Aucun client pour le moment.'}</td></tr>`}</tbody></table></div>
+    const ef = peut('effacerContacts'), libres = r.items.filter(c => !c.verrou);
+    const ckTete = ef ? `<th class="ck"><input type="checkbox" data-cltout aria-label="Cocher toute la page" title="Cocher toute la page"${libres.length && libres.every(c => CL.sel.has(c.id)) ? ' checked' : ''}></th>` : '';
+    const ck = c => !ef ? '' : c.verrou ? '<td class="ck" title="A une demande, un devis ou une facture : ne peut pas être effacé">🔒</td>' : `<td class="ck"><input type="checkbox" data-clsel="${esc(c.id)}" aria-label="Cocher ${esc(c.nom || '')}"${CL.sel.has(c.id) ? ' checked' : ''}></td>`;
+    return `${ef ? `<div class="row sel-bar cl-sel"><button type="button" class="btn danger sm" data-cleff${CL.sel.size ? '' : ' disabled'}>🗑 Effacer${CL.sel.size ? ' ' + CL.sel.size.toLocaleString('fr-FR') + ' contact' + (CL.sel.size > 1 ? 's' : '') : ''}</button><span class="muted sm">${CL.sel.size ? `${CL.sel.size.toLocaleString('fr-FR')} coché${CL.sel.size > 1 ? 's' : ''} · <button type="button" class="lnk" data-clnone>Tout décocher</button>` : 'Cochez les contacts à effacer.'}${r.total > libres.length ? ` · <button type="button" class="lnk" data-clall>Cocher les ${r.total.toLocaleString('fr-FR')} contacts de cette recherche</button>` : ''}</span></div>` : ''}<div class="table"><table><thead><tr>${ckTete}<th>Nom</th><th>Société</th><th>Contact</th><th>Ville</th><th class="n">Demandes</th><th>Dernière activité</th><th></th></tr></thead><tbody>
+      ${r.items.map(c => `<tr data-href="#/clients/${esc(c.id)}">${ck(c)}<td><b>${esc(c.nom || '—')}</b>${c.nePasContacter ? ' <span class="pill d-refuse" title="NE PAS CONTACTER">⛔</span>' : ''}${(c.metiers || []).length ? `<small class="cl-met">🎭 ${esc(c.metiers.join(', '))}</small>` : ''}${c.source === 'import CRM' ? '<small class="cl-imp">fichier importé</small>' : ''}</td><td>${esc(c.societe || '')}</td><td>${esc(c.email || '')}<small>${esc(c.tel || '')}</small></td><td>${esc([c.cp, c.ville].filter(Boolean).join(' '))}</td><td class="n">${c.nbDemandes || ''}</td><td>${dateFr(c.derniereActivite)}</td><td class="n"><a class="qs-back cl-edit" href="#/clients/${esc(c.id)}?edit=1" title="Modifier la fiche">✏ Modifier</a></td></tr>`).join('') || `<tr><td colspan="${ef ? 8 : 7}" class="muted">${r.tous ? 'Aucun client ne correspond.' : 'Aucun client pour le moment.'}</td></tr>`}</tbody></table></div>
       ${r.total > r.par ? `<div class="cl-pages"><button type="button" class="btn ghost sm" data-clp="-1"${r.page <= 1 ? ' disabled' : ''}>‹ Précédents</button><span>${((r.page - 1) * r.par + 1).toLocaleString('fr-FR')} à ${Math.min(r.total, r.page * r.par).toLocaleString('fr-FR')} sur ${r.total.toLocaleString('fr-FR')}</span><button type="button" class="btn ghost sm" data-clp="1"${r.page >= pages ? ' disabled' : ''}>Suivants ›</button></div>` : `<p class="muted sm cl-nb">${r.total.toLocaleString('fr-FR')} client${r.total > 1 ? 's' : ''}</p>`}`;
   }
   clients.after = (id, sub) => {
@@ -1165,7 +1169,7 @@
     if (id === 'importer') return importerClients.after();
     if (id === 'appels') return appelsClients.after();
     if (id) return client.after(id);
-    const recharger = async (multi) => { try { const r = await api(urlClients()); $('#clTable').innerHTML = tableClients(r); if (multi) { $('#clMulti').innerHTML = filtresClients(r.facettes); brancherMulti(); } brancher(); } catch (e) { toast(e.message, true); } };
+    const recharger = async (multi) => { try { const r = await api(urlClients()); $('#clTable').innerHTML = tableClients(r); if (multi) { $('#clMulti').innerHTML = filtresClients(r.facettes, r.total); brancherMulti(); } else $$('[data-clcpt]').forEach(x => { x.innerHTML = compteClients(r.total); x.classList.remove('pop'); void x.offsetWidth; x.classList.add('pop'); }); brancher(); } catch (e) { toast(e.message, true); } };
     const brancherMulti = () => {
       $$('[data-ck]').forEach(x => x.addEventListener('change', () => { CL.k[x.dataset.ck] = x.value; CL.page = 1; recharger(true); }));
       $('[data-ckclear]')?.addEventListener('click', () => { CL.k = {}; CL.page = 1; recharger(true); });
@@ -1173,7 +1177,27 @@
     };
     brancherMulti();
     const brancher = () => {
-      $$('tr[data-href]').forEach(tr => tr.addEventListener('click', e => { if (!e.target.closest('a')) location.hash = tr.dataset.href; }));
+      $$('tr[data-href]').forEach(tr => tr.addEventListener('click', e => { if (!e.target.closest('a') && !e.target.closest('.ck')) location.hash = tr.dataset.href; }));
+      /* cases à cocher + « Effacer » (Jean-Luc, 2026-11-24) */
+      const majSel = () => { const b = $('[data-cleff]'); if (!b) return; b.disabled = !CL.sel.size; b.textContent = '🗑 Effacer' + (CL.sel.size ? ` ${CL.sel.size.toLocaleString('fr-FR')} contact${CL.sel.size > 1 ? 's' : ''}` : ''); };
+      $$('[data-clsel]').forEach(x => x.addEventListener('change', () => { if (x.checked) CL.sel.add(x.dataset.clsel); else CL.sel.delete(x.dataset.clsel); majSel(); }));
+      $('[data-cltout]')?.addEventListener('change', e => { $$('[data-clsel]').forEach(x => { x.checked = e.target.checked; if (x.checked) CL.sel.add(x.dataset.clsel); else CL.sel.delete(x.dataset.clsel); }); recharger(); });
+      $('[data-clnone]')?.addEventListener('click', () => { CL.sel.clear(); recharger(); });
+      $('[data-clall]')?.addEventListener('click', async () => { try { const r = await api(urlClients() + '&avecIds=1&par=10'); r.effacables.forEach(x => CL.sel.add(x)); toast(`${r.effacables.length.toLocaleString('fr-FR')} contacts cochés${r.total > r.effacables.length ? ` (${(r.total - r.effacables.length).toLocaleString('fr-FR')} protégés 🔒 laissés de côté)` : ''}.`); recharger(); } catch (e) { toast(e.message, true); } });
+      $('[data-cleff]')?.addEventListener('click', async () => {
+        const n = CL.sel.size; if (!n) return;
+        if (!confirm(`Effacer ${n > 1 ? 'ces ' + n.toLocaleString('fr-FR') + ' contacts' : 'ce contact'} ?\n\nLes contacts qui ont une demande, un devis ou une facture sont protégés et ne seront pas effacés.\nVous pourrez tout remettre avec « ↶ Remettre ».`)) return;
+        try {
+          const r = await api(A + '/actions/effacer-clients', { method: 'POST', body: { ids: [...CL.sel] } });
+          CL.sel.clear();
+          CL.dernier = r.lot ? { lot: r.lot, nb: r.effaces } : null;
+          toast(`${r.effaces.toLocaleString('fr-FR')} contact${r.effaces > 1 ? 's' : ''} effacé${r.effaces > 1 ? 's' : ''}.${r.gardes ? ` ${r.gardes} protégé${r.gardes > 1 ? 's' : ''} 🔒 gardé${r.gardes > 1 ? 's' : ''}.` : ''}`);
+          render();
+        } catch (e) { toast(e.message, true); }
+      });
+      const rb = $('[data-clremet]'); if (rb) rb.onclick = async () => {
+        try { const r = await api(`${A}/actions/effacer-clients/${encodeURIComponent(CL.dernier.lot)}/remettre`, { method: 'POST' }); CL.dernier = null; toast(`${r.remis.toLocaleString('fr-FR')} contact${r.remis > 1 ? 's' : ''} remis.`); render(); } catch (e) { toast(e.message, true); }
+      };
       $$('[data-clp]').forEach(b => b.addEventListener('click', () => { CL.page += +b.dataset.clp; recharger(); window.scrollTo(0, 0); }));
     };
     brancher();
