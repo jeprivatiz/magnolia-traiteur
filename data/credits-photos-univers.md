@@ -273,3 +273,4 @@ Photos et textes repris de corbeillesparis.fr (partenaire de Magnolia, à la dem
 | Photo | Source | Date |
 |---|---|---|
 | Table ronde dressée pour un mariage (public/site/c/accueil/table-ronde-mariage.webp), recadrée en portrait ; carton imprimé remplacé par un bouquet d'hortensias, logos des tasses et numéro de table effacés | https://www.pexels.com/photo/round-dining-table-2306282/ (licence Pexels) | 24/11/2026 |
+| Fiche « regisseur » v2 (homme en smoking aux côtés d’invités élégants, Ron Lach, recadrée) | https://www.pexels.com/photo/five-people-in-the-restaurant-8921562/ | 24/11/2026 (demande directe : la v1 faisait visite d’appartement) |

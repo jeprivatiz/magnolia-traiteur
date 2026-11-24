@@ -1750,6 +1750,8 @@ const VRAIES_PHOTOS_SITE = [
      une personne en costume qui accueille les invités (plus l'ingénieur du son à sa console). Photos locales, sources dans data/credits-photos-univers.md */
   { id: 'pizzaiolo-personnel-1', produit: 'pizzaiolo-personnel', avant: '/site/c/italien22-produits/mozzarella-tomates-sans-logo-20261106.webp.webp', photo: '/site/c/personnel-pizzaiolo-pexels.webp', alt: 'Pizzaïolo qui lance sa pâte à pizza' },
   { id: 'regisseur-1', produit: 'regisseur', avant: '/site/c/staff81/regisseur.webp.webp', photo: '/site/c/personnel-regisseur-pexels.webp', alt: 'Régisseur en costume qui accueille les invités' },
+  /* Jean-Luc (2026-11-24) : la photo « visite d'appartement » ne va pas. Régisseur en smoking, souriant, aux côtés d'invités élégants dans un grand salon. */
+  { id: 'regisseur-2', produit: 'regisseur', avant: '/site/c/personnel-regisseur-pexels.webp', photo: '/site/c/personnel-regisseur-soiree.webp', alt: 'Régisseur en smoking aux côtés des invités lors d’une soirée' },
 ];
 const VIGNETTES_UNIVERS = {
   'traiteur-vegetarien-vegan': pexels(41063196),
