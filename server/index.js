@@ -81,14 +81,14 @@ async function createApp(opts = {}) {
     const idx = await store.get('_useremail/' + sha(String(email).trim().toLowerCase()));
     return idx ? { id: idx.id, ...(await store.get('_users/' + idx.id)) } : null;
   }
-  async function createUser({ email, name, role, password, droits }) {
+  async function createUser({ email, name, role, password, droits, prenom, nomFamille, portable }) {
     email = String(email || '').trim().toLowerCase();
     if (!isEmail(email)) throw Object.assign(new Error('E-mail invalide.'), { status: 400 });
     if (await findUserByEmail(email)) throw Object.assign(new Error('Ce compte existe déjà.'), { status: 409 });
     if (String(password || '').length < 10) throw Object.assign(new Error('Mot de passe : 10 caractères minimum.'), { status: 400 });
     const id = 'u_' + rid(9);
     const d = droits ? DR.nettoyer(droits) : null;
-    await store.set('_users/' + id, { email, name: String(name || '').trim(), role: d ? DR.roleDe(d) : role === 'manager' ? 'manager' : 'collab', ...(d ? { droits: d } : {}), passHash: await bcrypt.hash(password, 11), createdAt: new Date().toISOString(), disabled: false });
+    await store.set('_users/' + id, { email, name: String(name || '').trim(), role: d ? DR.roleDe(d) : role === 'manager' ? 'manager' : 'collab', ...(d ? { droits: d } : {}), ...(prenom !== undefined ? { prenom, nomFamille } : {}), ...(portable ? { portable } : {}), passHash: await bcrypt.hash(password, 11), createdAt: new Date().toISOString(), disabled: false });
     await store.set('_useremail/' + sha(email), { id });
     return id;
   }
@@ -539,7 +539,9 @@ async function createApp(opts = {}) {
     const R = (await cat.get()).reglages, P = (R.alertes?.personnes || []).filter(x => x.nom);
     const c0 = d.commercial === null ? null : (d.commercial || P[0] || null);
     const users = c0?.nom ? (await store.list('_users')).map(x => x.data).filter(u => u && !u.disabled) : [];
-    const com = c0?.nom ? { nom: c0.nom, email: P.find(x => x.nom === c0.nom)?.email || c0.email || users.find(u => u.name === c0.nom)?.email || '', tel: P.find(x => x.nom === c0.nom)?.tel || c0.tel || '' } : null;
+    const memeNom = n => x => nomCle(x) === nomCle(n);
+    const uCom = c0?.nom ? users.find(u => nomCle(u.name) === nomCle(c0.nom)) : null;
+    const com = c0?.nom ? { nom: c0.nom, email: P.find(memeNom(c0.nom))?.email || c0.email || uCom?.email || '', tel: P.find(memeNom(c0.nom))?.tel || c0.tel || uCom?.portable || '' } : null;
     const t = totaux(d), lien = `${SITE}/admin#/devis/${d.id}`;
     const sujet = `Commentaire de ${nom} sur le devis ${d.numero}`;
     const html = `<p>Bonjour${com?.nom ? ' ' + esc(com.nom.split(' ')[0]) : ''},</p><p><b>${esc(nom)}</b>${cl?.societe ? ' (' + esc(cl.societe) + ')' : ''} a laissé un commentaire sur le devis <b>${esc(d.numero)}</b> (${euros(t.ttcCents)} TTC) :</p><blockquote style="border-left:3px solid #c9a45c;margin:12px 0;padding:8px 14px;background:#f7f3ea">${esc(texte).replace(/\n/g, '<br>')}</blockquote><p>${cl?.tel ? `Téléphone : <a href="tel:${esc(cl.tel.replace(/\s/g, ''))}">${esc(cl.tel)}</a><br>` : ''}${cl?.email ? `E-mail : <a href="mailto:${esc(cl.email)}">${esc(cl.email)}</a><br>` : ''}<a href="${lien}">Ouvrir le devis dans le back-office</a></p>`;
@@ -1383,7 +1385,7 @@ async function createApp(opts = {}) {
     const R = (await cat.get()).reglages, P = (R.alertes?.personnes || []).filter(x => x.nom);
     const users = (await store.list('_users')).map(d => d.data).filter(u => !u.disabled);
     const qui = r.commerciaux?.length ? r.commerciaux : [...new Set([...P.map(x => x.nom), ...users.map(u => u.name)])];
-    return qui.map(nom => { const p = P.find(x => x.nom === nom) || {}, u = users.find(x => x.name === nom) || {}; return { nom, email: p.email || u.email || '', tel: p.tel || '' }; });
+    return qui.map(nom => { const p = P.find(x => nomCle(x.nom) === nomCle(nom)) || {}, u = users.find(x => nomCle(x.name) === nomCle(nom)) || {}; return { nom, email: p.email || u.email || '', tel: p.tel || u.portable || '' }; });
   }
   A.post('/actions/rdv-client/:id', sameSite, json, wrap(async (req, res) => {
     const c0 = await store.get('clients/' + req.params.id), c = c0 && { ...c0, id: req.params.id }; /* une fiche créée dans le back-office n'a pas toujours son id dans le document */
@@ -1745,7 +1747,11 @@ async function createApp(opts = {}) {
   }));
 
   /* équipe */
-  A.get('/actions/equipe', wrap(async (req, res) => res.json((await store.list('_users')).map(d => ({ id: d.id, email: d.data.email, nom: d.data.name, role: d.data.role, droits: DR.droitsDe(d.data), desactive: !!d.data.disabled, creeLe: d.data.createdAt })))));
+  /* fiche d'un membre : Prénom, Nom (en MAJUSCULES) et Portable ; les anciens comptes n'ont qu'un nom complet, découpé à l'affichage */
+  const decouperNom = n => { const w = String(n || '').trim().split(/\s+/).filter(Boolean); if (w.length < 2) return { prenom: w[0] || '', nomFamille: '' }; let i = w.findIndex((x, k) => k >= 1 && /\p{L}{2}/u.test(x) && x === x.toLocaleUpperCase('fr-FR')); if (i < 1) i = 1; return { prenom: w.slice(0, i).join(' '), nomFamille: w.slice(i).join(' ') }; };
+  const partiesNom = u => { if (u.prenom !== undefined) return { prenom: u.prenom || '', nomFamille: u.nomFamille || '' }; const d = decouperNom(u.name); return { ...d, nomFamille: d.nomFamille.toLocaleUpperCase('fr-FR') }; };
+  const portableNet = v => { const t = String(v || '').trim(); if (!t) return { ok: true, tel: '' }; const n = normTel(t); return n?.ok ? { ok: true, tel: n.tel } : { ok: false }; };
+  A.get('/actions/equipe', wrap(async (req, res) => res.json((await store.list('_users')).map(d => ({ id: d.id, email: d.data.email, nom: d.data.name, ...partiesNom(d.data), portable: d.data.portable || '', role: d.data.role, droits: DR.droitsDe(d.data), desactive: !!d.data.disabled, creeLe: d.data.createdAt })))));
   A.get('/actions/droits', (req, res) => res.json({ droits: DR.DROITS, modeles: DR.MODELES }));
   /* on ne donne jamais un droit qu'on n'a pas soi-même (sinon : se créer un compte Administrateur) */
   const droitsInterdits = (req, d) => DR.CLES.filter(k => d[k] && !req.ctx.droits[k]);
@@ -1762,9 +1768,15 @@ async function createApp(opts = {}) {
     const b = req.body || {};
     const droits = b.droits ? DR.nettoyer(b.droits) : DR.nettoyer(b.role === 'manager' ? { admin: true } : DR.COLLAB_AVANT);
     const trop = droitsInterdits(req, droits); if (trop.length) return refus(res, trop[0]);
-    if (String(b.nom || '').trim().length < 2) return res.status(400).json({ error: 'Écrivez le prénom et le nom.' });
+    const prenom = String(b.prenom ?? '').trim(), nomF = String(b.nomFamille ?? '').trim();
+    const nomComplet = b.prenom !== undefined ? nomPropre(prenom, nomF) : nomPropre(String(b.nom || '').trim());
+    if (b.prenom !== undefined && (!prenom || !nomF)) return res.status(400).json({ error: 'Écrivez le prénom et le nom.' });
+    if (nomComplet.length < 2) return res.status(400).json({ error: 'Écrivez le prénom et le nom.' });
+    const tel = portableNet(b.portable); if (!tel.ok) return res.status(400).json({ error: 'Portable illisible : écrivez-le comme 06 12 34 56 78.' });
+    b.nom = nomComplet;
     try {
-      const id = await createUser({ email: b.email, name: nomPropre(String(b.nom).trim()).slice(0, 80), password: b.password, droits });
+      const parts = decouperNom(nomComplet);
+      const id = await createUser({ email: b.email, name: nomComplet.slice(0, 80), password: b.password, droits, prenom: b.prenom !== undefined ? nomPropre(prenom, '') : parts.prenom, nomFamille: b.prenom !== undefined ? nomF.toLocaleUpperCase('fr-FR') : parts.nomFamille, portable: tel.tel });
       audit(req.ctx, 'compte créé', '_users/' + id, b.email);
       let mail = null;
       if (b.envoyerAcces) { const r = await mailAcces({ email: String(b.email).trim().toLowerCase(), nom: nomPropre(String(b.nom).trim()), password: String(b.password) }, req.ctx.name); mail = { ok: !r?.error, live: brevo.live, erreur: r?.error || '' }; }
@@ -1784,7 +1796,14 @@ async function createApp(opts = {}) {
     const next = { ...u };
     if (typeof b.desactive === 'boolean') next.disabled = b.desactive;
     if (droits) { next.droits = droits; next.role = DR.roleDe(droits); }
-    if (typeof b.nom === 'string') { const n = b.nom.trim().slice(0, 80); if (n.length < 2) return res.status(400).json({ error: 'Écrivez le prénom et le nom.' }); next.name = n; }
+    if (typeof b.nom === 'string') { const n = b.nom.trim().slice(0, 80); if (n.length < 2) return res.status(400).json({ error: 'Écrivez le prénom et le nom.' }); next.name = n; const pn = decouperNom(n); next.prenom = pn.prenom; next.nomFamille = pn.nomFamille; }
+    if (typeof b.prenom === 'string' || typeof b.nomFamille === 'string') {
+      const cur = partiesNom(u);
+      const pr = nomPropre(String(b.prenom ?? cur.prenom).trim(), ''), nf = String(b.nomFamille ?? cur.nomFamille).trim().toLocaleUpperCase('fr-FR');
+      if (!pr || !nf) return res.status(400).json({ error: 'Écrivez le prénom et le nom.' });
+      next.prenom = pr; next.nomFamille = nf; next.name = (pr + ' ' + nf).slice(0, 80);
+    }
+    if (typeof b.portable === 'string') { const t = portableNet(b.portable); if (!t.ok) return res.status(400).json({ error: 'Portable illisible : écrivez-le comme 06 12 34 56 78.' }); next.portable = t.tel; }
     if (b.password) { if (String(b.password).length < 10) return res.status(400).json({ error: 'Mot de passe : 10 caractères minimum.' }); next.passHash = await bcrypt.hash(String(b.password), 11); }
     await store.set('_users/' + req.params.id, next);
     audit(req.ctx, droits ? 'droits modifiés' : 'compte modifié', '_users/' + req.params.id, u.email + (droits ? ' : ' + (droits.admin ? 'Administrateur' : DR.DROITS.filter(d => droits[d.k]).map(d => d.nom).join(', ') || 'aucun droit') : ''));
