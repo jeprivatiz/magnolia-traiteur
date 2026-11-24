@@ -270,9 +270,9 @@ section { margin: clamp(56px, 8vw, 110px) auto; }
 .card-img { position: relative; aspect-ratio: 4 / 3; background: var(--creme-2); overflow: hidden; }
 .card-img img { width: 100%; height: 100%; object-fit: cover; transition: transform .6s; }
 .card:hover .card-img img { transform: scale(1.05); }
-/* vignette vidéo d'une fiche (animations culinaires) : la photo reste dessous et sert d'image d'attente */
-.card-img .card-v { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity .5s, transform .6s; pointer-events: none; }
-.card-img .card-v.on { opacity: 1; }
+/* vignette vidéo d'une fiche (animations culinaires) : plus de photo dessous (Jean-Luc, 2026-11-24) ; l'image d'attente est
+   la première image de la vidéo elle-même (poster), donc rien ne « saute » quand la vidéo démarre */
+.card-img .card-v { display: block; width: 100%; height: 100%; object-fit: cover; transition: transform .6s; pointer-events: none; background: var(--creme-2); }
 .card:hover .card-img .card-v { transform: scale(1.05); }
 .card-img .tag { z-index: 1; }
 .tag { position: absolute; top: 10px; left: 10px; background: rgba(255, 255, 255, .94); color: #1b211e; font-size: .64rem; letter-spacing: .14em; text-transform: uppercase; padding: 5px 9px; border-radius: 6px; font-weight: 500; }
