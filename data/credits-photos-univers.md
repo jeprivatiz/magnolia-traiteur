@@ -279,3 +279,9 @@ Photos et textes repris de corbeillesparis.fr (partenaire de Magnolia, à la dem
 - Entrée + plat ou plat + dessert : bas de sa photo buffet-equipe-colombo (colombo, haricots rouges, gratins), recadrée en public/site/c/antilles-menus/buffet-colombo-chafing.webp.
 - Entrées seules, formule complète et galeries : photos de Jean-Luc déjà dans le site (public/site/c/antilles-unit, antilles-menus, antilles-site).
 - Boudin à la crevette : photo de son site magnoliatraiteur.fr (wp-content/uploads/2026/04/boudin-a-la-crevette.jpg), copie public/site/c/antilles-unit/boudin-a-la-crevette.webp.
+
+## Bloc « Comment commander » (2026-11-24)
+
+| Photo | Source | Date |
+|---|---|---|
+| Femme à son bureau qui commande en ligne, carte bancaire en main (public/site/c/accueil/commande-en-ligne-bureau.webp), recadrée en portrait | https://www.pexels.com/photo/a-woman-doing-her-shopping-online-6969797/ (Tima Miroshnichenko, licence Pexels) | 24/11/2026 |

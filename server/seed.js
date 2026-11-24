@@ -70,7 +70,7 @@ const REGLAGES_DEFAUT = {
     suggestions: SUGGESTIONS_ACCUEIL,
     incontournables: ['grand-cocktail-magnolia', 'paella-royale', 'buffet-antillais-entree-plat-dessert', 'buffet-chinois-entrees-plat-dessert', 'buffet-indien-entree-plat-dessert', 'buffet-libanais-6-mezzes-1-plat', 'bar-a-burrata', 'couscous-royal'],
     photoMaison: '/site/c/antilles-menus/buffet-equipe-colombo-20261103-sans-logo-20261106.webp.webp',
-    photoCommande: '/site/c/accueil/personnel80-client-20261102.webp',
+    photoCommande: '/site/c/accueil/commande-en-ligne-bureau.webp',
   },
   logosClients: ['aircaraibes', 'doctolib', 'villedeparis', 'nestle', 'bnpparibas', 'loreal', 'accenture', 'armani', 'radisson', 'canon', 'cnrs', 'bpifrance', 'creditagricole', 'lcl']
     .map(k => ({ src: `/site/logos/${k}.svg`, nom: { aircaraibes: 'Air Caraïbes', doctolib: 'Doctolib', villedeparis: 'Ville de Paris', nestle: 'Nestlé', bnpparibas: 'BNP Paribas', loreal: 'L’Oréal', accenture: 'Accenture', armani: 'Giorgio Armani', radisson: 'Radisson Blu', canon: 'Canon', cnrs: 'CNRS', bpifrance: 'Bpifrance', creditagricole: 'Crédit Agricole', lcl: 'LCL' }[k] })),
@@ -1341,6 +1341,15 @@ async function initSousRubriques(store, { log = console } = {}) {
     const rp = await store.get('rubriques/personnel');
     if (rp) await store.set('rubriques/personnel', { ...rp, bandeauPhoto: '/site/c/personnel-bandeau-serveur.webp', bandeauVideo: '' });
     await store.set('site/reglages', { ...(await store.get('site/reglages')), personnelBandeau1: true });
+  }
+  /* Bloc « Comment commander » : femme à son bureau qui passe commande en ligne (Jean-Luc, 2026-11-24), à la place du personnel au buffet.
+     Pexels 6969797 (Tima Miroshnichenko), recadrée. Une fois, et seulement si la photo n'a pas été changée au back-office. */
+  const RCmd = await store.get('site/reglages');
+  if (RCmd && !RCmd.photoCommande1) {
+    const ac = RCmd.accueil || {};
+    const anc = ac.photoCommande || '';
+    const accueil = (!anc || /personnel80-client-20261102/.test(anc)) ? { ...ac, photoCommande: '/site/c/accueil/commande-en-ligne-bureau.webp' } : ac;
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), accueil, photoCommande1: true });
   }
   /* « Pizzaïolo · personnel » devient « Pizzaïolo » (Jean-Luc, 2026-11-24). Adresse /personnel/pizzaiolo-personnel inchangée. Une fois. */
   const RPz = await store.get('site/reglages');
