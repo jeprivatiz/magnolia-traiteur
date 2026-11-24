@@ -1109,3 +1109,4 @@ body.noscroll .partage { display: none; }
 .doc-cgv h3 { font-size: 13px; margin: 14px 0 4px; letter-spacing: .02em; }
 .doc-cgv p { margin: 0 0 6px; }
 @media print { .doc-cgv { break-before: page; font-size: 9.5pt; color: #000; } }
+.note-paiement { background: #fff6dc; border-left: 3px solid #c9a24a; padding: 10px 14px; border-radius: 6px; }

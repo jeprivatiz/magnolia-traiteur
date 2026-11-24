@@ -34,11 +34,16 @@ function controleMarge(doc) {
 
 /* Règle d'acompte (Jean-Luc, 2026-11-24) : commande sous 800 € TTC = paiement de la totalité à la signature ;
    à partir de 800 € TTC = acompte de 50 %. Un devis peut forcer un autre pourcentage (champ acomptePct). */
-function regleAcompte(ttcCents, doc = {}, T = {}) {
-  const seuil = T.seuilAcompteCents ?? 80000;
+function regleAcompte(ttcCents, doc = {}, T = {}, now = new Date()) {
+  const seuil = T.seuilAcompteCents ?? 80000, delai = T.delaiDeuxFoisJours ?? 10;
   const force = doc.acomptePct != null && doc.acomptePct !== '' && !Number.isNaN(+doc.acomptePct);
-  const pct = force ? +doc.acomptePct : ttcCents < seuil ? 100 : (T.acomptePct ?? 50);
-  return { pct, auto: !force, seuil, cents: Math.round(ttcCents * pct / 100), total: pct >= 100 };
+  /* événement dans moins de 10 jours (à la signature, ou aujourd'hui si pas encore signé) : pas de paiement en 2 fois */
+  const ref = doc.signature?.at ? new Date(doc.signature.at) : now;
+  const ev = doc.evenement?.date ? new Date(doc.evenement.date + 'T12:00:00') : null;
+  const proche = !!ev && !Number.isNaN(+ev) && (ev - ref) / 86400e3 < delai;
+  const raison = force ? '' : ttcCents < seuil ? 'seuil' : proche ? 'proche' : '';
+  const pct = force ? +doc.acomptePct : raison ? 100 : (T.acomptePct ?? 50);
+  return { pct, auto: !force, seuil, delai, raison, cents: Math.round(ttcCents * pct / 100), total: pct >= 100 };
 }
 
 async function prochainNumero(store, type) {

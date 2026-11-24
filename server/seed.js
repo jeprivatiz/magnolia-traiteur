@@ -1183,6 +1183,15 @@ async function initSousRubriques(store, { log = console } = {}) {
       if (['brouillon', 'envoye'].includes(d.statut) && d.acomptePct != null) await store.set('devis/' + id, { ...d, acomptePct: null });
     }
   }
+  /* CGV de traiteur (Jean-Luc, 2026-11-24) : remplacent celles de loueur de salle reprises du brouillon. Une fois ;
+     ensuite modifiables dans Back-office > Outils (pages de texte). */
+  const RCg = await store.get('site/reglages');
+  if (RCg && !RCg.cgvTraiteur) {
+    const pid = slugify('/cgv'), avant = (await store.get('pages/' + pid)) || {};
+    const texte = fs.readFileSync(require('path').join(__dirname, '..', 'data', 'cgv-traiteur.txt'), 'utf8').trim();
+    await store.set('pages/' + pid, { ...avant, url: '/cgv', titre: 'Conditions générales de vente', texte, ...(avant.texte ? { texteAncien: avant.texte } : {}) });
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), cgvTraiteur: true });
+  }
   /* recherche multicritère de la page Lieux (Jean-Luc, 2026-11-23) : type de lieu, département et événements repris
      des fiches du brouillon. Une fois, sans écraser ce qui a été saisi au back-office (Back-office > Lieux). */
   const RLx = await store.get('site/reglages');

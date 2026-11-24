@@ -34,7 +34,8 @@ test('aperçu du devis réservé à l’équipe, brouillon non envoyé', async (
     assert.doesNotMatch(ap.j, /data-sign=/, 'pas de signature possible depuis l’aperçu');
     assert.match(ap.j, /Règlement de la totalité, soit <b>125,00/, 'commande sous 800 € : totalité');
     assert.match(ap.j, /Conditions générales de vente<\/h2>/);
-    assert.match(ap.j, /Article 10/);
+    assert.match(ap.j, /Article 7 · Matériel, vides et déchets/);
+    assert.doesNotMatch(ap.j, /69 € HT/);
     assert.doesNotMatch(ap.j, /À compléter/);
     const apres = (await call('/api/admin/devis/' + id)).j;
     assert.equal(apres.statut, 'brouillon'); assert.ok(!apres.vuLe && !(apres.envois || []).length, 'rien envoyé, pas marqué « vu »');
@@ -55,4 +56,21 @@ test('règle d’acompte : totalité sous 800 € TTC, 50 % au-dessus, pourcenta
   assert.equal(regleAcompte(150000, { acomptePct: 30 }).pct, 30);
   assert.equal(regleAcompte(150000, { acomptePct: null }).pct, 50);
   assert.equal(regleAcompte(50000, {}, { seuilAcompteCents: 40000, acomptePct: 40 }).pct, 40);
+});
+
+test('pas de paiement en 2 fois si l’événement a lieu dans moins de 10 jours', () => {
+  const { regleAcompte } = require('../server/devis');
+  const now = new Date('2026-11-24T10:00:00Z');
+  assert.equal(regleAcompte(150000, { evenement: { date: '2026-11-30' } }, {}, now).raison, 'proche');
+  assert.equal(regleAcompte(150000, { evenement: { date: '2026-11-30' } }, {}, now).pct, 100);
+  assert.equal(regleAcompte(150000, { evenement: { date: '2026-12-10' } }, {}, now).pct, 50);
+  assert.equal(regleAcompte(150000, { evenement: { date: '2026-11-30' }, signature: { at: '2026-11-01T10:00:00Z' } }, {}, now).pct, 50, 'signé assez tôt : reste en 2 fois');
+});
+
+test('CGV de traiteur : matériel repris par Magnolia, 800 €, 10 jours, tribunal d’Évry', () => {
+  const t = require('fs').readFileSync(require('path').join(__dirname, '..', 'data', 'cgv-traiteur.txt'), 'utf8');
+  assert.match(t, /récupère elle-même son matériel, ses vides et ses déchets/);
+  assert.match(t, /inférieur à 800 € TTC/); assert.match(t, /dans les 10 jours qui suivent la signature/);
+  assert.match(t, /tribunal de commerce d'Évry/);
+  assert.doesNotMatch(t, /69 € HT|LIEU MAGNOLIA|caution/i);
 });
