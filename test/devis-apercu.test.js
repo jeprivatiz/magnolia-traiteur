@@ -53,6 +53,22 @@ test('aperçu du devis réservé à l’équipe, brouillon non envoyé', async (
     assert.equal(copie.statut, 'brouillon'); assert.equal(copie.clientId, cl.j.id); assert.equal(copie.lignes[0].designation, 'Colombo de poulet');
     assert.equal((await call('/api/admin/devis/' + dup.j.id, { method: 'DELETE' })).status, 200, 'un brouillon s’efface');
     assert.equal((await call('/api/admin/devis/' + dup.j.id)).status, 404);
+    // envoi groupé : deux devis du même client dans un seul message
+    const d2 = (await call('/api/admin/actions/dupliquer-devis/' + id, { method: 'POST', body: {} })).j;
+    const d2v = (await call('/api/admin/devis/' + d2.id)).j;
+    await call('/api/admin/devis/' + d2.id, { method: 'PUT', body: { ...d2v, titre: 'Formule prestige' } });
+    const ap3 = await call('/api/admin/actions/envoyer-devis-groupe', { method: 'POST', body: { ids: [id, d2.id], apercu: true } });
+    assert.equal(ap3.status, 200, JSON.stringify(ap3.j));
+    assert.match(ap3.j.sujet, /Vos 2 devis/); assert.match(ap3.j.html, /Proposition A/); assert.match(ap3.j.html, /Formule prestige/);
+    assert.equal((await call('/api/admin/devis/' + id)).j.statut, 'brouillon', 'aperçu : rien envoyé');
+    const env = await call('/api/admin/actions/envoyer-devis-groupe', { method: 'POST', body: { ids: [id, d2.id], canaux: ['email'] } });
+    assert.equal(env.status, 200, JSON.stringify(env.j)); assert.equal(env.j.nb, 2);
+    for (const x of [id, d2.id]) assert.equal((await call('/api/admin/devis/' + x)).j.statut, 'envoye');
+    const autre = await call('/api/admin/clients', { method: 'POST', body: { nom: 'Autre', email: 'autre@example.test' } });
+    const d3 = (await call('/api/admin/actions/devis-vierge', { method: 'POST', body: { clientId: autre.j.id } })).j;
+    const d3v = (await call('/api/admin/devis/' + d3.id)).j;
+    await call('/api/admin/devis/' + d3.id, { method: 'PUT', body: { ...d3v, lignes: [{ designation: 'X', qte: 1, unite: 'forfait', puCents: 100, tva: 10 }] } });
+    assert.equal((await call('/api/admin/actions/envoyer-devis-groupe', { method: 'POST', body: { ids: [id, d3.id], apercu: true } })).status, 400, 'clients différents refusés');
     cookie = '';
     assert.equal((await call('/api/admin/devis/' + id + '/apercu')).status, 401);
   } finally { srv.close(); }
