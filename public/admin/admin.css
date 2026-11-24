@@ -848,3 +848,5 @@ a.qs-back { display: inline-flex; align-items: center; text-decoration: none; }
 @media(prefers-color-scheme:dark){.k-ok .hc-dot,.k-ko .hc-dot,.k-pay .hc-dot,.k-dv .hc-dot,.k-msg .hc-dot,.k-note .hc-dot{background:var(--bo-tint)}.k-ok .hc-b{border-color:var(--bo-line)}}
 @media(max-width:900px){.hc-head,.hc-cols{grid-template-columns:1fr}}
 @media(max-width:560px){.hc-e{grid-template-columns:30px minmax(0,1fr);gap:10px}.hc-dot{width:30px;height:30px;font-size:13px}.hc-e:before{left:14px;top:30px}.hc-mois{padding-left:40px}.hc-nm{font-size:19px}.hc-av{width:46px;height:46px;flex-basis:46px;font-size:16px}}
+
+.unom{min-height:36px;padding:6px 10px;font-weight:600;max-width:260px;display:block;margin-bottom:2px}
