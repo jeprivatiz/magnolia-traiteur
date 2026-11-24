@@ -49,4 +49,22 @@ function haversine(a, b) {
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
-module.exports = { rid, sha, esc, euros, parseEuros, slugify, norm, limiter, dateFr, haversine };
+/* Nom d'une fiche client : « Prénom NOM » (règle de Jean-Luc, 2026-11-24), ex. « jean-luc bernard » → « Jean-Luc BERNARD ».
+   Une seule case « Nom et prénom » : un mot déjà tout en MAJUSCULES (2 lettres ou plus) marque le début du nom ;
+   sinon le premier mot est le prénom et le reste le nom (particules comprises : « marie de la fontaine » → « Marie DE LA FONTAINE »).
+   Avec deux cases (IA, import) : nomPropre(prenom, nom). Une société ou un nom d'un seul mot reste tel quel, première lettre en majuscule. */
+const majPrenom = w => w.toLocaleLowerCase('fr-FR').replace(/(^|[-'’\s])(\p{L})/gu, (m, a, b) => a + b.toLocaleUpperCase('fr-FR'));
+const majNom = w => w.toLocaleUpperCase('fr-FR');
+function nomPropre(a, b) {
+  const net = s => String(s ?? '').replace(/\s+/g, ' ').trim();
+  if (b !== undefined) { const p = net(a), n = net(b); return [p && majPrenom(p), n && majNom(n)].filter(Boolean).join(' '); }
+  const s = net(a); if (!s) return '';
+  const w = s.split(' ');
+  if (w.length === 1) return /^\p{Lu}[\p{Lu}'’-]+$/u.test(s) ? s : majPrenom(s);
+  const tout = x => /\p{L}{2}/u.test(x) && x === x.toLocaleUpperCase('fr-FR') && x !== x.toLocaleLowerCase('fr-FR');
+  let i = w.findIndex((x, k) => k >= 1 && tout(x));
+  if (i < 1) i = 1;
+  return [majPrenom(w.slice(0, i).join(' ')), majNom(w.slice(i).join(' '))].join(' ');
+}
+
+module.exports = { nomPropre, rid, sha, esc, euros, parseEuros, slugify, norm, limiter, dateFr, haversine };
