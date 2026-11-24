@@ -1237,6 +1237,18 @@ async function initSousRubriques(store, { log = console } = {}) {
     if (pz && /·\s*personnel\s*$/i.test(pz.titre || '')) await store.set('produits/pizzaiolo-personnel', { ...pz, titre: pz.titre.replace(/\s*·\s*personnel\s*$/i, '') });
     await store.set('site/reglages', { ...(await store.get('site/reglages')), pizzaioloTitre1: true });
   }
+  /* Cocktails & buffets français (Jean-Luc, 2026-11-24) : le Grand Cocktail Magnolia montrait en 2e photo une capture d'écran d'un salon
+     (/media/capture-…). On retire de la galerie des fiches de la rubrique les captures d'écran envoyées par erreur. Une fois. */
+  const RCk = await store.get('site/reglages');
+  if (RCk && !RCk.cocktailsSansCapture1) {
+    for (const d of await store.list('produits')) {
+      const pr = d.data;
+      if (!pr || pr.rubrique !== 'cocktails-buffets' || !Array.isArray(pr.photos)) continue;
+      const photos = pr.photos.filter(ph => !(ph && /^\/media\/capture-/.test(ph.src || '')));
+      if (photos.length && photos.length !== pr.photos.length) await store.set('produits/' + d.id, { ...pr, photos });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), cocktailsSansCapture1: true });
+  }
   /* Régisseur : pour Magnolia, c'est une personne en costume qui assiste l'hôte (Jean-Luc, 2026-11-24), pas un technicien son/lumière.
      Texte remplacé une fois, seulement s'il n'a pas déjà été retouché au back-office. */
   const RReg = await store.get('site/reglages');
