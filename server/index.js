@@ -470,6 +470,14 @@ async function createApp(opts = {}) {
     data.updatedAt = new Date().toISOString();
     await store.set(coll + '/' + id, data);
     if (['produits', 'rubriques', 'lieux', 'avis', 'pages'].includes(coll)) cat.invalidate();
+    /* fiche client corrigée (nom, société, e-mail, téléphone) : on reporte sur ses demandes, pour que le Suivi client affiche la même chose */
+    if (coll === 'clients' && before) {
+      for (const { data: dm } of await store.list('demandes')) {
+        if (dm.clientId !== id) continue;
+        const contact = { ...(dm.contact || {}), nom: data.nom || '', email: data.email || '', tel: data.tel || '', societe: data.societe || '' };
+        if (JSON.stringify(contact) !== JSON.stringify(dm.contact || {})) await store.set('demandes/' + dm.id, { ...dm, contact });
+      }
+    }
     audit(req.ctx, before ? 'modification' : 'création', coll + '/' + id, data.titre || data.nom || data.numero || data.ref || '');
     res.json({ ok: true, id });
   }));

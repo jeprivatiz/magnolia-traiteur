@@ -60,6 +60,9 @@ test('commande avec l’IA : fiche → prestations → demande + devis', async (
     assert.equal(dem.contact.nom, 'Sophie Durand');
     const cl = (await call('/api/admin/clients/' + dem.clientId)).j;
     assert.equal(cl.tel, '06 12 34 56 78');
+    /* société corrigée dans la fiche client → reportée sur la demande (carte du Suivi client) */
+    assert.equal((await call('/api/admin/clients/' + dem.clientId, { method: 'PUT', body: { ...cl, societe: 'Société corrigée' } })).status, 200);
+    assert.equal((await call('/api/admin/demandes/' + cmd.j.demandeId)).j.contact.societe, 'Société corrigée');
     assert.equal((await call('/api/admin/actions/commande-ia', { method: 'POST', body: { fiche: {}, articles: [] } })).status, 400);
   } finally { srv.close(); }
 });
