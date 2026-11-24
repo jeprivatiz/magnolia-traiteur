@@ -544,10 +544,28 @@
     if (id === 'nouveau') { const r = await api(A + '/actions/devis-vierge', { method: 'POST', body: {} }); location.replace('#/devis/' + r.id); return ''; }
     if (id) return devisEdit(id);
     const list = (await api(A + '/devis')).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-    return page('Devis', '<button type="button" class="btn ghost aq-btn" data-aiq>✨ Devis avec l’IA</button><a class="btn" href="#/devis/nouveau">+ Nouveau devis</a>', list.length ? `<div class="table"><table><thead><tr><th>N°</th><th>Client</th><th>Événement</th><th class="n">Total TTC</th><th>Statut</th><th>Vu par le client</th></tr></thead><tbody>
-      ${list.map(d => `<tr data-href="#/devis/${d.id}"><td><b>${esc(d.numero)}</b></td><td>${esc(d.clientNom)}</td><td>${esc(d.evenement?.type || '')} ${dateFr(d.evenement?.date)}</td><td class="n">${euros(tot(d).ttc)}</td><td><span class="pill d-${d.statut}">${DSTAT[d.statut]}</span></td><td>${d.vuLe ? dateH(d.vuLe) : '—'}</td></tr>`).join('')}</tbody></table></div>` : '<div class="vide"><p>Aucun devis.</p><p class="muted">Créez un devis depuis une demande (les lignes sont reprises) ou partez d’un devis vierge.</p></div>');
+    const effacable = d => d.statut !== 'accepte';
+    return page('Devis', '<button type="button" class="btn ghost aq-btn" data-aiq>✨ Devis avec l’IA</button><a class="btn" href="#/devis/nouveau">+ Nouveau devis</a>', list.length ? `<div class="row sel-bar"><button type="button" class="btn danger sm" data-effacer disabled>🗑 Effacer</button><span class="muted sm" data-nbsel>Cochez les devis à effacer.</span></div><div class="table"><table><thead><tr><th class="ck"><input type="checkbox" data-tout aria-label="Tout cocher" title="Tout cocher"></th><th>N°</th><th>Client</th><th>Événement</th><th class="n">Total TTC</th><th>Statut</th><th>Vu par le client</th></tr></thead><tbody>
+      ${list.map(d => `<tr data-href="#/devis/${d.id}"><td class="ck">${effacable(d) ? `<input type="checkbox" data-sel="${esc(d.id)}" data-num="${esc(d.numero)}" data-st="${esc(d.statut)}" aria-label="Sélectionner ${esc(d.numero)}">` : '<span title="Devis signé : ne peut pas être effacé">🔒</span>'}</td><td><b>${esc(d.numero)}</b></td><td>${esc(d.clientNom)}</td><td>${esc(d.evenement?.type || '')} ${dateFr(d.evenement?.date)}</td><td class="n">${euros(tot(d).ttc)}</td><td><span class="pill d-${d.statut}">${DSTAT[d.statut]}</span></td><td>${d.vuLe ? dateH(d.vuLe) : '—'}</td></tr>`).join('')}</tbody></table></div>` : '<div class="vide"><p>Aucun devis.</p><p class="muted">Créez un devis depuis une demande (les lignes sont reprises) ou partez d’un devis vierge.</p></div>');
   }
-  devis.after = id => { if (id && id !== 'nouveau') return devisEdit.after(id); $$('tr[data-href]').forEach(tr => tr.addEventListener('click', () => { location.hash = tr.dataset.href; })); };
+  devis.after = id => {
+    if (id && id !== 'nouveau') return devisEdit.after(id);
+    $$('tr[data-href]').forEach(tr => tr.addEventListener('click', e => { if (e.target.closest('.ck')) return; location.hash = tr.dataset.href; }));
+    /* cases à cocher + « Effacer » (le devis part dans la corbeille ; signés et facturés protégés) */
+    const coches = () => $$('[data-sel]').filter(x => x.checked);
+    const maj = () => { const n = coches().length; const b = $('[data-effacer]'); if (!b) return; b.disabled = !n; b.textContent = n ? `🗑 Effacer ${n} devis` : '🗑 Effacer'; $('[data-nbsel]').textContent = n ? `${n} devis coché${n > 1 ? 's' : ''}` : 'Cochez les devis à effacer.'; const t = $('[data-tout]'); const all = $$('[data-sel]'); t.checked = all.length > 0 && n === all.length; t.indeterminate = n > 0 && n < all.length; };
+    $$('[data-sel]').forEach(x => x.addEventListener('change', maj));
+    $('[data-tout]')?.addEventListener('change', e => { $$('[data-sel]').forEach(x => { x.checked = e.target.checked; }); maj(); });
+    $('[data-effacer]')?.addEventListener('click', async () => {
+      const L = coches(); if (!L.length) return;
+      const envoyes = L.filter(x => x.dataset.st !== 'brouillon').length;
+      if (!confirm(`Effacer définitivement ${L.length > 1 ? 'ces ' + L.length + ' devis' : 'le devis ' + L[0].dataset.num} ?\n\n${L.map(x => x.dataset.num).join(', ')}${envoyes ? `\n\nAttention : ${envoyes} de ces devis a déjà été envoyé au client. Son lien ne fonctionnera plus.` : ''}`)) return;
+      let ok = 0; const err = [];
+      for (const x of L) { try { await api(`${A}/devis/${x.dataset.sel}`, { method: 'DELETE' }); ok++; } catch (e) { err.push(e.message); } }
+      if (err.length) toast((ok ? `${ok} devis effacé(s). ` : '') + err.join(' '), true); else toast(`${ok} devis effacé${ok > 1 ? 's' : ''}.`);
+      render();
+    });
+  };
 
   function tot(d) {
     const L = (d.lignes || []).filter(l => l.type !== 'titre');

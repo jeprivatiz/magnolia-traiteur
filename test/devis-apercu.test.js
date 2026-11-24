@@ -51,6 +51,8 @@ test('aperçu du devis réservé à l’équipe, brouillon non envoyé', async (
     const copie = (await call('/api/admin/devis/' + dup.j.id)).j;
     assert.notEqual(copie.numero, d.numero); assert.notEqual(copie.token, d.token);
     assert.equal(copie.statut, 'brouillon'); assert.equal(copie.clientId, cl.j.id); assert.equal(copie.lignes[0].designation, 'Colombo de poulet');
+    assert.equal((await call('/api/admin/devis/' + dup.j.id, { method: 'DELETE' })).status, 200, 'un brouillon s’efface');
+    assert.equal((await call('/api/admin/devis/' + dup.j.id)).status, 404);
     cookie = '';
     assert.equal((await call('/api/admin/devis/' + id + '/apercu')).status, 401);
   } finally { srv.close(); }

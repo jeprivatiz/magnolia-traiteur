@@ -527,6 +527,11 @@ async function createApp(opts = {}) {
     if (['devis', 'factures'].includes(coll) && req.ctx.role !== 'manager') return res.status(403).json({ error: 'Réservé au Manager.' });
     if (coll === 'factures') return res.status(400).json({ error: 'Une facture ne se supprime pas : créez un avoir.' });
     const before = await store.get(coll + '/' + id);
+    if (coll === 'devis' && before) {
+      /* un devis signé ou déjà facturé reste dans l'historique du client */
+      if (before.statut === 'accepte') return res.status(400).json({ error: `Le devis ${before.numero} est signé : il ne peut pas être effacé.` });
+      if ((await store.list('factures')).some(f => f.data.devisId === id)) return res.status(400).json({ error: `Le devis ${before.numero} a une facture : il ne peut pas être effacé.` });
+    }
     if (before) await store.set('_corbeille/' + coll + '-' + id + '-' + Date.now(), { path: coll + '/' + id, data: before, par: req.ctx.name, at: new Date().toISOString() });
     await store.delete(coll + '/' + id);
     cat.invalidate();

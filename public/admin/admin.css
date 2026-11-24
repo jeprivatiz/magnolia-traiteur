@@ -850,3 +850,10 @@ a.qs-back { display: inline-flex; align-items: center; text-decoration: none; }
 @media(max-width:560px){.hc-e{grid-template-columns:30px minmax(0,1fr);gap:10px}.hc-dot{width:30px;height:30px;font-size:13px}.hc-e:before{left:14px;top:30px}.hc-mois{padding-left:40px}.hc-nm{font-size:19px}.hc-av{width:46px;height:46px;flex-basis:46px;font-size:16px}}
 
 .unom{min-height:36px;padding:6px 10px;font-weight:600;max-width:260px;display:block;margin-bottom:2px}
+
+/* liste des devis : cases à cocher + Effacer */
+.sel-bar { margin: 0 0 10px; align-items: center; gap: 12px; }
+th.ck, td.ck { width: 44px; text-align: center; }
+td.ck input, th.ck input { width: 20px; height: 20px; accent-color: #1f3d34; cursor: pointer; }
+.btn.danger { background: #a3352b; color: #fff; border-color: #a3352b; }
+.btn.danger[disabled] { background: #e9dcd8; color: #8a6d68; border-color: #e0cfc9; cursor: not-allowed; }
