@@ -279,8 +279,9 @@
   };
 
   /* ---------- demandes ---------- */
-  /* une demande dont le devis est parti passe dans « Suivi client » : ici, seulement celles qui attendent encore leur devis */
-  const aTraiter = (d, dv) => d.type !== 'contact' && !d.classee && d.statut === 'demande' && !dv.some(x => x.demandeId === d.id && x.statut !== 'brouillon');
+  /* règle de Jean-Luc : ici, seulement les demandes sur lesquelles personne n'est intervenu ; dès la première action
+     (devis, e-mail, SMS, appel, note, rendez-vous, attribution), elles passent dans « Suivi client » */
+  const aTraiter = (d, dv) => d.type !== 'contact' && !d.classee && !d.priseEnCharge && d.statut === 'demande' && !dv.some(x => x.demandeId === d.id);
   async function demandes(id) {
     if (id) return demande(id);
     const [list0, dv] = await Promise.all([api(A + '/demandes'), api(A + '/devis')]);
@@ -305,10 +306,10 @@
       <td class="act">${action(d)}</td></tr>`;
     const onglet = (k, l, n) => `<button type="button" class="qs-chip${voir === k ? ' on' : ''}" data-voir="${k}">${l} <b>${n}</b></button>`;
     return page('Demandes de devis', '<button type="button" class="btn ghost aq-btn" data-aiq>✨ Devis avec l’IA</button><a class="btn" href="#/devis/nouveau">+ Nouveau devis</a>', `
-      <p class="muted intro">Les demandes envoyées depuis « Ma sélection » arrivent ici, avec une alerte par e-mail. Dès que leur devis est parti, elles passent dans « Suivi client ».</p>
+      <p class="muted intro">Les demandes envoyées depuis le site arrivent ici, avec une alerte par e-mail. Dès que quelqu’un s’en occupe (devis, e-mail, SMS, appel, note, rendez-vous ou attribution à un commercial), elles passent dans « Suivi client », à son nom.</p>
       <div class="qs-top"><div class="qs-chips">${onglet('todo', 'À traiter', todo.length)}${onglet('msg', 'Messages', msgs.length)}${onglet('done', 'Déjà traitées', done.length)}</div></div>
       ${shown.length ? `<div class="table jp"><table><thead><tr><th>Reçue</th><th>Client</th><th>Événement</th><th>Date</th><th class="n">Invités</th><th>Sélection et message</th><th></th></tr></thead><tbody>${shown.map(row).join('')}</tbody></table></div>`
-        : `<div class="vide"><p>${voir === 'todo' ? (list.length ? 'Aucune demande en attente : toutes ont reçu leur devis. Leur suivi est dans « Suivi client ».' : 'Aucune demande de devis pour l’instant.') : 'Rien ici pour l’instant.'}</p></div>`}`);
+        : `<div class="vide"><p>${voir === 'todo' ? (list.length ? 'Aucune demande en attente : elles sont toutes prises en charge. Leur suivi est dans « Suivi client ».' : 'Aucune demande de devis pour l’instant.') : 'Rien ici pour l’instant.'}</p></div>`}`);
   }
   demandes.after = id => {
     if (id) return demande.after(id);
@@ -359,7 +360,7 @@
   async function suivi() {
     const [dem, devisL, eq, cl, fac, R] = await Promise.all([api(A + '/demandes'), api(A + '/devis'), api(A + '/actions/equipe').catch(() => []), api(A + '/clients?vue=actifs').catch(() => []), api(A + '/factures').catch(() => []), cache.R ? Promise.resolve(cache.R) : api(A + '/site').catch(() => ({}))]);
     cache.devisL = devisL; cache.equipe = eq.filter(u => !u.desactive); cache.R = cache.R || R;
-    cache.opps = dem.filter(d => d.type !== 'contact').map(d => opportunite(d, devisL));
+    cache.opps = dem.filter(d => d.type !== 'contact' && !aTraiter(d, devisL)).map(d => opportunite(d, devisL));
     cache.annuaire = annuaire(cl, dem, devisL, fac);
     if (SV.o == null) { const m = mem.get('mg_commercial'); SV.o = m != null ? m : ''; }
     return page('Suivi client', '<button type="button" class="btn ghost aq-btn" data-aiq>✨ Devis avec l’IA</button><a class="btn" href="#/devis/nouveau">+ Nouveau devis</a>', `<p class="muted intro">Vos opportunités en cours, d’un coup d’œil. Une commande prise au téléphone ? Bouton « ✨ Devis avec l’IA » : tapez ou dictez tout en vrac, l’IA prépare la fiche client et le devis avec le catalogue.</p>
@@ -444,7 +445,7 @@
       <div class="qs-osum"><span><b>${base.length}</b> opportunité${base.length > 1 ? 's' : ''}</span><span><b>${signes.length}</b> signée${signes.length > 1 ? 's' : ''}</span><span><b>${perdus.length}</b> refusée${perdus.length > 1 ? 's' : ''}</span><em>${euros(sum(signes, o => o.montant))} signés</em></div></div>
       <div class="kpis qk">${kpis.map(([v, l]) => `<div><b>${esc(v)}</b><span>${esc(l)}</span></div>`).join('')}</div>
       <div class="qs-top"><div class="qs-chips">${arch ? `<button type="button" class="qs-chip" data-qf="all">← Opportunités en cours <b>${cnt('all')}</b></button><span class="qs-title">${SV.f === 'ok' ? 'Opportunités réservées' : 'Opportunités refusées (classées)'}</span>`
-        : [['all', 'En cours'], ['late', '⚠ À relancer'], ['sent', 'Envoyées'], ['acc', 'Attente d’acompte'], ['draft', 'En préparation']].map(([k, l]) => `<button type="button" class="qs-chip${SV.f === k ? ' on' : ''}${k === 'late' && cnt('late') ? ' hot' : ''}" data-qf="${k}">${esc(l)} <b>${cnt(k)}</b></button>`).join('')
+        : [['all', 'En cours'], ['late', '⚠ À relancer'], ['sent', 'Envoyées'], ['acc', 'Attente d’acompte'], ['draft', 'Devis à envoyer']].map(([k, l]) => `<button type="button" class="qs-chip${SV.f === k ? ' on' : ''}${k === 'late' && cnt('late') ? ' hot' : ''}" data-qf="${k}">${esc(l)} <b>${cnt(k)}</b></button>`).join('')
           + `<span class="qs-sp"></span><button type="button" class="qs-arch ok" data-qf="ok">Voir les opportunités réservées <b>${cnt('ok')}</b></button><button type="button" class="qs-arch ko" data-qf="ko">Voir les opportunités refusées <b>${cnt('ko')}</b></button>`}</div>
         <input class="qs-search" type="search" data-qs placeholder="🔍 Rechercher : nom, société, n° de devis…" aria-label="Rechercher un client" value="${esc(SV.s)}"></div>
       <div id="qsList">${list.length ? list.map(carte).join('') : `<div class="vide"><p>${all.length ? 'Aucune opportunité ici.' : 'Aucune demande pour l’instant. Les demandes envoyées depuis le site et les devis créés ici apparaissent dans ce suivi.'}</p></div>`}</div>`;
@@ -477,7 +478,7 @@
     if (o.cat === 'ok') return `<span class="qs-tag t-ok">${o.d.statut === 'termine' ? 'Terminé' : 'Réservé'}</span>`;
     if (o.cat === 'acc') return '<span class="qs-tag t-acc">En attente d’acompte</span>';
     if (o.late) return `<span class="qs-tag t-late">${o.late >= 48 ? Math.floor(o.late / 24) + ' jours' : o.late + ' h'} sans nouvelles</span>`;
-    if (o.cat === 'draft') return `<span class="qs-tag t-draft">${o.main ? 'Devis en préparation' : 'Nouvelle demande'}</span>`;
+    if (o.cat === 'draft') return `<span class="qs-tag t-draft">Devis à envoyer</span>`;
     return `<span class="qs-tag t-sent">${o.relances.length ? 'Relancé' : 'Envoyé'}</span>`;
   }
   function carte(o) {
