@@ -1,6 +1,6 @@
 Les présentes conditions générales de vente s'appliquent à toutes les prestations de traiteur de Magnolia Traiteur (buffets, cocktails, plateaux, boissons, personnel de service, matériel et animations associés), livrées sur le lieu choisi par le client. Elles sont jointes à chaque devis.
 Article 1 · Vendeur
-Magnolia Traiteur, 15 avenue de Norvège, 91140 Villebon-sur-Yvette. SIREN 992 979 856, TVA intracommunautaire FR31992979856. Téléphone : 07 63 66 98 92. E-mail : infos@magnoliatraiteur.fr.
+{{identite}}
 Article 2 · Devis et commande
 Chaque prestation fait l'objet d'un devis détaillé, valable jusqu'à la date indiquée sur celui-ci. La commande est ferme lorsque le client signe le devis « bon pour accord » (en ligne ou sur papier) et que le paiement prévu à l'article 4 est reçu. La signature du devis vaut acceptation des présentes conditions.
 Article 3 · Prix
@@ -31,4 +31,4 @@ Conformément à l'article L221-28 du Code de la consommation, le droit de rétr
 Article 14 · Réclamations
 Toute réclamation est à adresser par écrit à infos@magnoliatraiteur.fr dans les 48 heures qui suivent l'événement. Aucune réclamation ne peut être acceptée pour des denrées consommées.
 Article 15 · Médiation et litiges
-En cas de litige, le client particulier peut recourir gratuitement à un médiateur de la consommation, dont les coordonnées lui sont communiquées sur simple demande, et conserve le droit de saisir le tribunal de son domicile. Les présentes conditions sont soumises au droit français. Pour les clients professionnels, tout litige relève de la compétence du tribunal de commerce d'Évry.
+En cas de litige, le client particulier peut recourir gratuitement à {{mediateur}} et conserve le droit de saisir le tribunal de son domicile. Les présentes conditions sont soumises au droit français. Pour les clients professionnels, tout litige relève de la compétence du {{tribunal}}.

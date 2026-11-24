@@ -36,6 +36,12 @@ test('aperçu du devis réservé à l’équipe, brouillon non envoyé', async (
     assert.match(ap.j, /Conditions générales de vente<\/h2>/);
     assert.match(ap.j, /Article 7 · Matériel, vides et déchets/);
     assert.doesNotMatch(ap.j, /69 € HT/);
+    assert.match(ap.j, /tribunal de commerce d’Évry/, 'CGV remplies depuis Mon entreprise');
+    assert.match(ap.j, /SIREN 992 979 856/); assert.doesNotMatch(ap.j, /\{\{/);
+    const R = (await call('/api/admin/site')).j;
+    await call('/api/admin/site', { method: 'PUT', body: { entreprise: { ...R.entreprise, ape: '5621Z', siret: '992 979 856 00012', mediateur: 'CM2C' } } });
+    const ap2 = (await call('/api/admin/devis/' + id + '/apercu')).j;
+    assert.match(ap2, /APE 5621Z/); assert.match(ap2, /SIRET 992 979 856 00012/); assert.match(ap2, /le médiateur CM2C/);
     assert.doesNotMatch(ap.j, /À compléter/);
     const apres = (await call('/api/admin/devis/' + id)).j;
     assert.equal(apres.statut, 'brouillon'); assert.ok(!apres.vuLe && !(apres.envois || []).length, 'rien envoyé, pas marqué « vu »');
@@ -71,6 +77,6 @@ test('CGV de traiteur : matériel repris par Magnolia, 800 €, 10 jours, tribun
   const t = require('fs').readFileSync(require('path').join(__dirname, '..', 'data', 'cgv-traiteur.txt'), 'utf8');
   assert.match(t, /récupère elle-même son matériel, ses vides et ses déchets/);
   assert.match(t, /inférieur à 800 € TTC/); assert.match(t, /dans les 10 jours qui suivent la signature/);
-  assert.match(t, /tribunal de commerce d'Évry/);
+  assert.match(t, /\{\{tribunal\}\}/); assert.match(t, /\{\{identite\}\}/);
   assert.doesNotMatch(t, /69 € HT|LIEU MAGNOLIA|caution/i);
 });
