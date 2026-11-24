@@ -431,8 +431,8 @@ body { background: var(--bo-bg); }
 .side .tabs .chip.crm-sub { display: none; }
 .side .tabs.crm-open .chip.crm-sub { display: flex; background: var(--bo-tint); border-radius: 0; padding-left: 30px; font-size: 13.5px; }
 .side .tabs.crm-open .chip.crm-sub.on { background: var(--bo-green); border-radius: 10px; }
-.side .tabs.crm-open .chip.crm-sub[data-tab=factures] { border-radius: 0 0 10px 10px; margin-bottom: 8px; }
-.side .tabs.crm-open .chip.crm-sub[data-tab=factures].on { border-radius: 10px; }
+.side .tabs.crm-open .chip.crm-sub[data-tab=clients] { border-radius: 0 0 10px 10px; margin-bottom: 8px; }
+.side .tabs.crm-open .chip.crm-sub[data-tab=clients].on { border-radius: 10px; }
 .me { border-top: 1px solid var(--bo-line); }
 .me span small, .me .lnk { color: var(--bo-soft); }
 .me a { color: var(--bo-gold); }
