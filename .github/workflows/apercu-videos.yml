@@ -1,0 +1,35 @@
+name: Aperçu des vidéos candidates (temporaire)
+
+# TEMPORAIRE : télécharge les vidéos libres de droits candidates (Pexels, Mixkit) listées dans
+# apercu-videos/liste.txt et en fait des planches d'images pour choisir. À retirer avant la fusion.
+on:
+  push:
+    branches: [ 'claude/**' ]
+    paths:
+      - apercu-videos/liste.txt
+      - apercu-videos/finales.txt
+      - apercu-videos/photos.txt
+
+permissions:
+  contents: write
+
+jobs:
+  apercu:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Outils
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-dejavu-core >/dev/null
+      - name: Planches
+        run: bash apercu-videos/photos.sh
+      - name: Vidéos finales
+        run: if [ -s apercu-videos/finales.txt ]; then bash apercu-videos/finales.sh; fi
+      - name: Enregistrer
+        run: |
+          git config user.name "magnolia-bot"
+          git config user.email "magnolia-bot@users.noreply.github.com"
+          mkdir -p public/site/v/monde && git add apercu-videos public/site/v/monde
+          if git diff --cached --quiet; then echo "Rien de nouveau."; exit 0; fi
+          git commit -m "Aperçu des vidéos candidates"
+          git pull --rebase && git push
