@@ -1,0 +1,27 @@
+name: Vidéos des bandeaux (temporaire)
+# TEMPORAIRE : télécharge les vidéos libres (Pexels) de apercu-videos/bandeaux.txt et les encode. À retirer avant la fusion.
+on:
+  push:
+    branches: [ 'claude/**' ]
+    paths:
+      - apercu-videos/bandeaux.txt
+permissions:
+  contents: write
+jobs:
+  videos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Outils
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg >/dev/null
+      - name: Vidéos
+        run: bash apercu-videos/bandeaux.sh
+      - name: Enregistrer
+        run: |
+          git config user.name "magnolia-bot"
+          git config user.email "magnolia-bot@users.noreply.github.com"
+          git add apercu-videos public/site/v/bandeaux
+          if git diff --cached --quiet; then echo "Rien de nouveau."; exit 0; fi
+          git commit -m "Vidéos des bandeaux"
+          git pull --rebase && git push
