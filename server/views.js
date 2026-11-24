@@ -176,10 +176,13 @@ const VIDEOS_ACCUEIL = {
   personnel: 'personnel', indispensables: 'photobooth', 'petits-dejeuners': 'petit-dejeuner', douceurs: 'churros',
   'musique-animations': 'dj', lieux: 'peniche', 'grand-large': 'huitres', 'coffrets-plateaux': 'coffrets',
 };
+const _empreintes = new Map();
 function videoAccueil(slug) {
   const n = VIDEOS_ACCUEIL[slug], src = n && `/site/v/accueil/${n}.mp4`;
   if (!src || !logoExiste(src)) return '';
-  return `<video class="tile-v" muted loop playsinline preload="none" disablepictureinpicture aria-hidden="true" poster="/site/v/accueil/${n}.jpg" data-vignette="${src}"></video>`;
+  /* ?v= change dès que le fichier change : sinon téléphones et navigateurs gardent l'ancienne vidéo 30 jours en cache */
+  const v = f => { if (!_empreintes.has(f)) { try { _empreintes.set(f, `${f}?v=${require('crypto').createHash('md5').update(_fs.readFileSync(_path.join(__dirname, '..', 'public', f))).digest('hex').slice(0, 8)}`); } catch { _empreintes.set(f, f); } } return _empreintes.get(f); };
+  return `<video class="tile-v" muted loop playsinline preload="none" disablepictureinpicture aria-hidden="true" poster="${v(`/site/v/accueil/${n}.jpg`)}" data-vignette="${v(src)}"></video>`;
 }
 function univers(c) {
   /* vignette vidéo = la vidéo seule, son image d'attente vient de la vidéo (pas de photo dessous, Jean-Luc 2026-11-24) */

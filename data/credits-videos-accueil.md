@@ -6,7 +6,7 @@ Branchement : `VIDEOS_ACCUEIL` dans `server/views.js`, lecture dans `public/js/s
 
 | Vignette | Fichier | Source (Pexels) | Auteur |
 |---|---|---|---|
-| Cocktails & buffet français | cocktail | https://www.pexels.com/video/29966862/ (Delicious Meatball Appetizers with Fresh Basil : bouchées en plan lent, sans service) | khezez |
+| Cocktails & buffet français | cocktail | PHOTO https://www.pexels.com/photo/31970812/ (Appetizing Buffet Table with Savory Snacks : buffet nappé, rehausseur, mini pièces salées), animée en zoom lent aller-retour 10 s (aucune vidéo libre de ce genre trouvée) | Newman Photographs |
 | Boissons | boissons | https://www.pexels.com/video/7219888/ (Pouring a Cocktail Drink on a Crystal Glass) | ArtHouse Studio |
 | Traiteur végétarien et vegan | vegetarien | https://www.pexels.com/video/4959964/ (Person Making Salad) | ArtHouse Studio |
 | Animations salées | burgers | https://www.pexels.com/video/37296040/ (Close-up of Burgers Cooking on a Griddle) | Mihman Duğanlı |
