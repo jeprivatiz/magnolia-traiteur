@@ -1,0 +1,29 @@
+name: Photo du bandeau Personnel (temporaire)
+on:
+  push:
+    branches: [claude/project-thread-z09rrd]
+    paths: [.github/workflows/apercu-photos.yml]
+permissions:
+  contents: write
+jobs:
+  photo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          pip install --quiet pillow
+          curl -sSfL -o /tmp/p.jpg "https://images.pexels.com/photos/3769740/pexels-photo-3769740.jpeg"
+          python3 - <<'PY'
+          from PIL import Image, ImageOps
+          im = ImageOps.exif_transpose(Image.open('/tmp/p.jpg')).convert('RGB')
+          print(im.size)
+          im.thumbnail((2400, 2400))
+          im.save('public/site/c/personnel-bandeau-serveur.webp', 'WEBP', quality=84, method=6)
+          print(im.size)
+          PY
+          ls -la public/site/c/personnel-bandeau-serveur.webp
+          git config user.name "magnolia-bot"
+          git config user.email "magnolia-bot@users.noreply.github.com"
+          git add public/site/c/personnel-bandeau-serveur.webp
+          git commit -m "Photo du bandeau Personnel de réception (Pexels 3769740)"
+          git push
