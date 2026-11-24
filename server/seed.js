@@ -741,6 +741,16 @@ async function initSousRubriques(store, { log = console } = {}) {
     }
   }
 
+  /* boissons sans photo (Jean-Luc, 2026-11-24) : une fois par fiche, et seulement si elle n'a pas de photo */
+  {
+    const parSlug = new Map(PHOTOS_BOISSONS.map(([slug, src, alt]) => [slug, { src, alt }]));
+    for (const d of await store.list('produits')) {
+      const x = d.data, ph = x && parSlug.get(x.slug || d.id);
+      if (!ph || x.photoBoisson || (x.photos || []).length) continue;
+      await store.set('produits/' + d.id, { ...x, photos: [ph], photoBoisson: true });
+    }
+  }
+
   /* vraies photos à la place des photos qui font « IA » (Jean-Luc, 2026-11-22) : posées une fois par fiche et par version,
      modifiables ensuite dans le back-office. Sources dans data/credits-photos-univers.md. */
   for (const [slug, ver, photos] of VRAIES_PHOTOS) {
@@ -1405,6 +1415,26 @@ const VRAIES_PHOTOS = [
     ['/site/c/italien22-produits/gressins-sans-logo-20261106.webp.webp', 'Gressins'], ['/site/c/italien22-produits/olives-sans-logo-20261106.webp.webp', 'Olives noires']]],
   ['samoussa-legumes', 'v1', [['https://images.pexels.com/photos/9027521/pexels-photo-9027521.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Samoussas aux légumes croustillants, chutneys vert et tamarin']]],
   ['samoussas-legumes', 'v1', [['/site/c/materiel/samoussas-legumes.webp', 'Samoussas aux légumes dorés dans une corbeille, sauces à côté']]],
+];
+/* Boissons sans photo (Jean-Luc, 2026-11-24) : vraies photos libres, regardées une à une, sans étiquette lisible.
+   Posées une fois, seulement si la fiche n'a toujours pas de photo. Sources dans data/credits-photos-univers.md */
+const PHOTOS_BOISSONS = [
+  ['bordeaux-rouge-videau-origine', 'https://images.pexels.com/photos/2954929/pexels-photo-2954929.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Verre de vin rouge au milieu des vignes'],
+  ['chateau-la-gordonne-verite-du-terroir', 'https://images.pexels.com/photos/8473211/pexels-photo-8473211.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Bouteille et verre de vin rouge, grappe de raisin'],
+  ['cuvee-constance-2020-thunevin-calvet', 'https://images.pexels.com/photos/312080/pexels-photo-312080.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Vin rouge versé dans un verre'],
+  ['maranges-1er-cru-clos-des-loyeres-2022-chateau-de-la-charriere-yves-girardin', 'https://images.pexels.com/photos/3171158/pexels-photo-3171158.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Service d’un vin rouge de Bourgogne'],
+  ['bourgogne-hautes-cotes-de-beaune-2022', 'https://images.pexels.com/photos/391213/pexels-photo-391213.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Vin rouge versé dans un grand verre'],
+  ['cotes-de-provence-rose-cuvee-du-golfe-prestige', 'https://images.pexels.com/photos/4906328/pexels-photo-4906328.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Verre de rosé de Provence'],
+  ['pink-flamingo-origine-gris-de-camargue-bio', 'https://images.pexels.com/photos/9009956/pexels-photo-9009956.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Deux verres de gris de Camargue au bord de la mer'],
+  ['chardonnay-bio-du-domaine-royal-de-jarras', 'https://images.pexels.com/photos/3171735/pexels-photo-3171735.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Verre de vin blanc'],
+  ['chablis-1er-cru-montmains-2022-jean-marc-brocard', 'https://images.pexels.com/photos/30279443/pexels-photo-30279443.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Chablis versé dans un verre'],
+  ['sangria-maison-au-litre', '/site/c/boissons/sangria-maison.webp', 'Sangria rouge et blanche aux fruits frais'],
+  ['bar-a-shots-a-volonte-1-h-30', 'https://images.pexels.com/photos/17383864/pexels-photo-17383864.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Rangée de shots sur un bar'],
+  ['bar-a-cocktails-4-h-au-cocktail', 'https://images.pexels.com/photos/16807989/pexels-photo-16807989.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Barman qui prépare des cocktails'],
+  ['open-bar-vins-et-champagnes', 'https://images.pexels.com/photos/3171837/pexels-photo-3171837.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Invités qui trinquent au champagne'],
+  ['open-bar-alcools-forts-a-volonte-5-h', 'https://images.pexels.com/photos/28180061/pexels-photo-28180061.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Verre de whisky avec glaçons et citron'],
+  ['livraison-de-glacons-sac-de-20-kg', 'https://images.pexels.com/photos/11931271/pexels-photo-11931271.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Glaçons'],
+  ['gobelet-reutilisable-a-biere-50-cl', 'https://images.pexels.com/photos/4996689/pexels-photo-4996689.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Bière servie dans un gobelet réutilisable'],
 ];
 const PHOTOS_FICHES = [
   [/^air hockey/i, 'https://images.pexels.com/photos/5780929/pexels-photo-5780929.jpeg?auto=compress&cs=tinysrgb&w=1200', 'Table d’air hockey lumineuse'],
