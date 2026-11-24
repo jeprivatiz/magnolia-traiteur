@@ -54,6 +54,8 @@ test('parcours demande → devis → signature → facture', async () => {
     assert.match(page, new RegExp(devis.numero));
     assert.equal((await call(`/api/devis/${token}/accepter`, { method: 'POST', body: { nom: 'Claire Martin' } })).status, 200);
     assert.equal((await call('/api/admin/demandes/' + dem[0].id)).j.statut, 'accord');
+    const del = await call('/api/admin/devis/' + devis.id, { method: 'DELETE' });
+    assert.equal(del.status, 400, 'un devis signé ne s’efface pas'); assert.match(del.j.error, /signé/);
 
     // 5. facture d'acompte puis de solde : ensemble = total du devis
     const { totaux, regleAcompte } = require('../server/devis');
