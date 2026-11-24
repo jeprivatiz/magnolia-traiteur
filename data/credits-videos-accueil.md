@@ -6,7 +6,7 @@ Branchement : `VIDEOS_ACCUEIL` dans `server/views.js`, lecture dans `public/js/s
 
 | Vignette | Fichier | Source (Pexels) | Auteur |
 |---|---|---|---|
-| Cocktails & buffet français | cocktail | https://www.pexels.com/video/6760596/ (Close Up Shot of Food on the Table : petits fours salés sur plateaux, sans service) | Kampus Production |
+| Cocktails & buffet français | cocktail | https://www.pexels.com/video/29966862/ (Delicious Meatball Appetizers with Fresh Basil : bouchées en plan lent, sans service) | khezez |
 | Boissons | boissons | https://www.pexels.com/video/7219888/ (Pouring a Cocktail Drink on a Crystal Glass) | ArtHouse Studio |
 | Traiteur végétarien et vegan | vegetarien | https://www.pexels.com/video/4959964/ (Person Making Salad) | ArtHouse Studio |
 | Animations salées | burgers | https://www.pexels.com/video/37296040/ (Close-up of Burgers Cooking on a Griddle) | Mihman Duğanlı |
