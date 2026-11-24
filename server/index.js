@@ -19,6 +19,7 @@ const { rid, sha, esc, euros, limiter, dateFr, slugify, nomPropre, dateNaissance
 const { creerImportClients, normTel, departementDe } = require('./import-clients');
 const IA = require('./ia');
 const SEO = require('./seo');
+const TXT = require('./textes');
 const DIF = require('./diffusion');
 const FAC = require('./factures');
 
@@ -213,8 +214,45 @@ async function createApp(opts = {}) {
     if (faits) log.log?.(`[google ia] ${faits} produit(s) : titre et description Google rédigés par l'IA`);
     return faits;
   }
+  /* « Description sous la photo » vide : 2-3 phrases écrites une seule fois par l'IA (Jean-Luc, 2026-11-24).
+     `sousPhotoAuto` = { texte } une fois posée (même vidée ensuite à la main, on ne la remet pas), { essais } si l'IA a échoué. */
+  const sousPhotoVide = p => !(Array.isArray(p?.sousPhoto) ? p.sousPhoto : [p?.sousPhoto]).some(x => String(x || '').trim());
+  const sousPhotoAFaire = p => p && sousPhotoVide(p) && !p.sousPhotoAuto?.texte && (p.sousPhotoAuto?.essais || 0) < 2;
+  async function sousPhotoIaLot({ taille = 15, maxLots = 100 } = {}) {
+    if (!ia.actif) return 0;
+    let faits = 0;
+    for (let lot = 0; lot < maxLots; lot++) {
+      const c = await cat.get();
+      const nomsRub = Object.fromEntries(c.rubriques.map(r => [r.slug, r.nom])), nomsSous = Object.fromEntries(c.rubriques.flatMap(r => (r.sous || []).map(x => [x.slug, x.nom])));
+      const file = (await store.list('produits')).filter(d => sousPhotoAFaire(d.data)).sort((a, b) => (a.data.statut === 'masque') - (b.data.statut === 'masque')).slice(0, taille);
+      if (!file.length) break;
+      let rep;
+      try { rep = IA.json(await ia.demander(TXT.promptSousPhoto(file.map(d => TXT.infosProduit({ ...d.data, slug: d.id }, nomsRub, nomsSous))), { effort: 'low', maxTokens: 12000 })); }
+      catch (e) {
+        log.error?.('[sous la photo ia]', e.message);
+        for (const d of file) { const p = await store.get('produits/' + d.id); if (p) await store.set('produits/' + d.id, { ...p, sousPhotoAuto: { ...(p.sousPhotoAuto || {}), essais: (p.sousPhotoAuto?.essais || 0) + 1 } }); }
+        break;
+      }
+      const parSlug = new Map((Array.isArray(rep) ? rep : []).map(x => [String(x?.slug || ''), x]));
+      for (const d of file) {
+        const p = await store.get('produits/' + d.id); if (!p) continue;
+        if (!sousPhotoVide(p)) continue; /* écrite à la main entre-temps */
+        const t = TXT.texteValide(parSlug.get(d.id)?.texte);
+        if (t) { p.sousPhoto = [t]; p.sousPhotoAuto = { texte: t }; faits++; }
+        else p.sousPhotoAuto = { ...(p.sousPhotoAuto || {}), essais: (p.sousPhotoAuto?.essais || 0) + 1 };
+        await store.set('produits/' + d.id, p);
+      }
+      cat.invalidate();
+    }
+    if (faits) log.log?.(`[sous la photo ia] ${faits} produit(s) : description sous la photo rédigée par l'IA`);
+    return faits;
+  }
   /* une seule tâche à la fois ; relancée après chaque création ou modification de produit */
-  const lancerSeoIa = () => { if (!ia.actif || seoIaEnCours) return seoIaEnCours; seoIaEnCours = seoIaLot().catch(e => log.error?.('[google ia]', e)).finally(() => { seoIaEnCours = null; }); return seoIaEnCours; };
+  const lancerSeoIa = () => {
+    if (!ia.actif || seoIaEnCours) return seoIaEnCours;
+    seoIaEnCours = seoIaLot().catch(e => log.error?.('[google ia]', e)).then(() => sousPhotoIaLot()).catch(e => log.error?.('[sous la photo ia]', e)).finally(() => { seoIaEnCours = null; });
+    return seoIaEnCours;
+  };
   if (!opts.noTimers && env.JP_NO_TIMERS !== '1') setTimeout(lancerSeoIa, 30e3).unref?.();
 
   /* ---------- journal d'activité chaîné (toute modification se voit) ---------- */
@@ -731,6 +769,8 @@ async function createApp(opts = {}) {
       if (coll === 'rubriques') for (const x of Array.isArray(data.sous) ? data.sous : []) garder(x, (before?.sous || []).find(y => y.slug === x.slug));
       if (coll === 'produits') SEO.remplirProduit(data); else SEO.remplirRubrique(data);
     }
+    /* fiche ouverte avant que l'IA écrive la description sous la photo : on ne l'efface pas en enregistrant */
+    if (coll === 'produits' && before?.sousPhotoAuto?.texte && !data.sousPhotoAuto?.texte && sousPhotoVide(data)) { data.sousPhoto = before.sousPhoto; data.sousPhotoAuto = before.sousPhotoAuto; }
     if (coll === 'clients' && typeof data.nom === 'string') data.nom = nomPropre(data.nom);
     if (coll === 'clients' && 'naissance' in data) data.naissance = dateNaissance(data.naissance);
     if (coll === 'clients') ficheClientNette(data, before);
@@ -862,6 +902,23 @@ async function createApp(opts = {}) {
       const r = (Array.isArray(rep) ? rep[0] : rep) || {};
       res.json({ titre: SEO.titreValide(r.titre) || modele.titre, description: SEO.descriptionValide(r.description) || modele.description, ia: true });
     } catch (e) { res.json({ ...modele, ia: false }); }
+  }));
+  /* « ✨ Améliorer avec l'IA » à côté de la Description / de la Description sous la photo : propose, n'enregistre rien */
+  A.post('/ia/texte-produit', sameSite, json, wrap(async (req, res) => {
+    if (!iaLimit(req.ctx.uid)) return res.status(429).json({ error: 'Trop de demandes : réessayez dans une minute.' });
+    const b = req.body || {}, champ = b.champ === 'sousPhoto' ? 'sousPhoto' : 'description';
+    const p = await store.get('produits/' + s(b.id, 120));
+    if (!p) return res.status(404).json({ error: 'Produit introuvable.' });
+    const c = await cat.get();
+    const nomsRub = Object.fromEntries(c.rubriques.map(r => [r.slug, r.nom])), nomsSous = Object.fromEntries(c.rubriques.flatMap(r => (r.sous || []).map(x => [x.slug, x.nom])));
+    const lignes = (Array.isArray(b.lignes) ? b.lignes : String(b.lignes || '').split('\n')).map(x => s(x, 1500)).filter(Boolean).slice(0, 40);
+    const fiche = { ...p, ...(b.titre ? { titre: s(b.titre, 200) } : {}), ...(champ === 'sousPhoto' && b.description ? { description: String(b.description).split('\n').map(x => s(x, 1500)).filter(Boolean) } : {}) };
+    try {
+      const rep = IA.json(await ia.demander(TXT.promptAmeliorer(TXT.infosProduit({ ...fiche, slug: s(b.id, 120) }, nomsRub, nomsSous), champ, lignes), { effort: 'medium', maxTokens: 6000 }));
+      const l = TXT.lignesValides(rep?.lignes, champ);
+      if (!l) return res.status(502).json({ error: 'La proposition de l’IA ne convenait pas (trop longue ou mention interdite). Réessayez.' });
+      res.json({ lignes: l });
+    } catch (e) { iaErreur(res, e); }
   }));
   A.post('/ia/modifier-devis', sameSite, json, wrap(async (req, res) => {
     if (!iaLimit(req.ctx.uid)) return res.status(429).json({ error: 'Trop de demandes : réessayez dans une minute.' });

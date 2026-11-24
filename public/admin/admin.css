@@ -1225,3 +1225,5 @@ td.nw { white-space: nowrap; }
 .formule { display: block; font-size: .82em; font-weight: 400; opacity: .75; margin-top: .1em; }
 h1 .formule { font-size: .55em; margin-top: .3em; }
 .prow b .formule { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ia-ligne { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: -4px 0 10px; }
+.ia-btn { white-space: nowrap; }
