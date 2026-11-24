@@ -345,7 +345,7 @@ const CARTE_INDIEN = [
   ['desserts', 'Salade de fruits de Goa', 650], ['desserts', 'Pista kulfi', 650], ['desserts', 'Mango kulfi', 650], ['desserts', 'Halwa maison', 450], ['desserts', 'Kheer (riz au lait indien)', 450],
 ];
 const AMBIANCE_INDIEN = ['menu-client-1', 'menu-client-2', 'menu-client-3', 'menu-client-4', 'plat-seul-client-1', 'plat-seul-client-2', 'plat-seul-client-3'].map(n => N + n + '.webp.webp');
-const RANGEMENTS = [['buffets', 'Nos buffets'], ['mezzes-froids', 'Nos mezzés froids à l’unité'], ['mezzes-chauds', 'Nos mezzés chauds à l’unité'], ['entrees', 'Nos entrées à l’unité'], ['plats', 'Nos plats à l’unité'], ['accompagnements', 'Nos accompagnements à l’unité'], ['fromages', 'Nos fromages'], ['desserts', 'Nos desserts à l’unité'], ['divers', 'Produits divers à l’unité']];
+const RANGEMENTS = [['buffets', 'Nos buffets'], ['mezzes-froids', 'Nos mezzés froids à l’unité'], ['mezzes-chauds', 'Nos mezzés chauds à l’unité'], ['entrees', 'Nos entrées à l’unité'], ['plats', 'Nos plats à l’unité'], ['accompagnements', 'Nos accompagnements à l’unité'], ['fromages', 'Nos fromages'], ['desserts', 'Nos desserts à l’unité'], ['divers', 'Produits divers à l’unité'], ['animations', 'Nos animations'], ['corbeilles', 'Nos corbeilles de fruits'], ['pieces-montees', 'Nos pièces montées'], ['location', 'En location']];
 /* « Riz oriental : + 1,50 € HT/personne. » → « Riz oriental » (supplément d'un menu, pas un nom de plat) */
 const SUPPL = /\s*:\s*\+\s*[\d.,]+\s*€.*$/;
 /* accompagnements (riz, gratins, alloco…) : demande de Jean-Luc du 2026-11-22 */
@@ -924,6 +924,28 @@ async function initSousRubriques(store, { log = console } = {}) {
       if (chg) await store.set('produits/' + id, { ...p, groupes });
     }
     await store.set('site/reglages', { ...(await store.get('site/reglages')), buffetsPortions: true });
+  }
+
+  /* Animations sucrées & desserts en sections (Jean-Luc, 2026-11-24) : Nos animations, Nos corbeilles de fruits, Nos pièces montées,
+     Nos desserts, En location. Une fois ; chaque fiche reste modifiable (liste « Section » de la fiche). */
+  const RDs = await store.get('site/reglages');
+  if (RDs && !RDs.douceursSections) {
+    const ds = await store.get('rubriques/douceurs');
+    if (ds) await store.set('rubriques/douceurs', { ...ds, parSections: true, ordreSections: ['animations', 'corbeilles', 'pieces-montees', 'desserts', 'divers', 'location'], titresSections: { animations: 'Nos animations', corbeilles: 'Nos corbeilles de fruits', 'pieces-montees': 'Nos pièces montées', desserts: 'Nos desserts', location: 'En location', divers: 'Et aussi', ...(ds.titresSections || {}) } });
+    const sans = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const ORDRE_CORB = ['corbeille-de-fruits-de-saison-3-kg', 'corbeille-de-fruits-de-saison-5-kg', 'corbeille-de-fruits-de-saison-7-kg', 'corbeille-de-fruits-de-saison-9-kg-2',
+      'corbeille-special-fete-3-kg', 'corbeille-special-fete-5-kg', 'corbeille-special-fete-7-kg',
+      'corbeille-exotique-3-kg', 'corbeille-exotique-5-kg', 'corbeille-exotique-7-kg', 'corbeille-exotique-9-kg', 'corbeille-de-fruits-frais-a-composer'];
+    for (const { id, data: p } of await store.list('produits')) {
+      if (p.rubrique !== 'douceurs' && !(p.autresRubriques || []).includes('douceurs')) continue;
+      const t = sans(p.titre);
+      const k = /location|candy bar|bar a bonbons/.test(t) ? 'location' : /corbeille/.test(t) ? 'corbeilles'
+        : /piece montee|croquembouche|pyramide/.test(t) ? 'pieces-montees'
+        : /animation|stand|crepes|churros|brioche|gaufre|barbe a papa|pop-?corn|fontaine/.test(t) ? 'animations' : 'desserts';
+      const o = ORDRE_CORB.indexOf(p.slug || id);
+      await store.set('produits/' + id, { ...p, rangement: k, ...(o >= 0 ? { ordre: 71 + o * 0.1 } : {}) });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), douceursSections: true });
   }
 
   /* La carte Magnolia en sections : Entrées, Plats, Plateau de fromages, Desserts (Jean-Luc, 2026-11-22).
