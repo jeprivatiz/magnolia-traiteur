@@ -1175,3 +1175,9 @@ body.noscroll .partage { display: none; }
 .shop [data-grid] { transition: opacity .38s ease; }
 .shop [data-grid].demo-fondu { opacity: 0; }
 .chips[role="tablist"] .chip { transition: border-color .5s, background .5s, color .5s; }
+
+/* formules de buffet (Jean-Luc, 2026-11-24) : « Buffet antillais » puis, à la ligne et plus petit, « Entrée + plat + dessert » — sans tiret */
+.formule { display: block; font-size: .6em; line-height: 1.25; margin-top: .3em; letter-spacing: 0; color: var(--gris); }
+h1 .formule { font-size: .5em; margin-top: .45em; }
+.card-b h3 .formule, .sel-c h3 .formule { font-size: .8em; margin-top: .2em; }
+.live-i b .formule, .lignes .formule, .tab .formule, td .formule { font-size: .88em; font-weight: 400; margin-top: .1em; }

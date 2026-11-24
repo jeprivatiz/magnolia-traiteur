@@ -816,6 +816,13 @@ async function initSousRubriques(store, { log = console } = {}) {
     }
   }
 
+  /* formules de buffet écrites « Entrée + plat » partout (Jean-Luc, 2026-11-24) : « Entrée & plat ou plat & dessert » devient « Entrée + plat ou plat + dessert ».
+     Seulement pour les buffets ; l'adresse de la fiche ne change pas. */
+  for (const { id, data: x } of (await store.list('produits')) || []) {
+    if (!/^Buffets?\s/.test(x?.titre || '') || !/\s&\s/.test(x.titre)) continue;
+    await store.set('produits/' + id, { ...x, titre: x.titre.replace(/\s&\s/g, ' + ') });
+  }
+
   for (const [slug, src, alt] of PHOTOS_BUFFETS_EN_TETE) {
     const x = await store.get('produits/' + slug);
     if (!x || (x.photoBuffet || '') === src) continue;

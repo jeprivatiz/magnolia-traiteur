@@ -15,7 +15,7 @@ const { seed, importerAvisAncienSite, initSousRubriques } = require('./seed');
 const views = require('./views');
 const { preparerAlerte } = require('./relances');
 const { regleAcompte, totaux, controleMarge, prochainNumero, lignesDepuisDemande, estimerLigne } = require('./devis');
-const { rid, sha, esc, euros, limiter, dateFr, slugify, nomPropre, dateNaissance } = require('./util');
+const { rid, sha, esc, euros, limiter, dateFr, slugify, nomPropre, dateNaissance, titreTexte } = require('./util');
 const { creerImportClients, normTel, departementDe } = require('./import-clients');
 const IA = require('./ia');
 const SEO = require('./seo');
@@ -423,7 +423,7 @@ async function createApp(opts = {}) {
     await store.set('demandes/' + id, demande);
     const lien = await lienEspace(clientId);
     const R = c.reglages;
-    const recap = lignes.map(l => `<li>${esc(l.titre)}${l.variante ? ' · ' + esc(l.variante) : ''} — ${l.qte} ${esc(l.unite || '')}${l.surDevis ? ' (sur devis)' : ' · ' + euros(l.totalCents)}</li>`).join('');
+    const recap = lignes.map(l => `<li>${esc(titreTexte(l.titre))}${l.variante ? ' · ' + esc(l.variante) : ''} — ${l.qte} ${esc(l.unite || '')}${l.surDevis ? ' (sur devis)' : ' · ' + euros(l.totalCents)}</li>`).join('');
     brevo.sendEmail({ to: contact.email, name: contact.nom, subject: `Magnolia Traiteur : votre demande ${ref} est bien reçue`, replyTo: R.email,
       html: `<p>Bonjour ${esc(contact.nom.split(' ')[0])},</p><p>Merci pour votre demande${demande.evenement.date ? ' pour le ' + esc(dateFr(demande.evenement.date)) : ''}. Notre équipe vérifie les disponibilités et revient vers vous rapidement avec votre devis.</p>${recap ? `<ul>${recap}</ul><p>Total estimé : <b>${euros(demande.totalEstimeCents)} TTC</b> (à confirmer).</p>` : ''}<p>Suivez votre demande dans votre espace : <a href="${lien}">Mon espace Magnolia</a></p><p>À très vite,<br>L’équipe Magnolia Traiteur<br>${esc(R.telephone)}</p>`,
       text: `Merci pour votre demande ${ref}. Votre espace : ${lien}` }).catch(() => {});

@@ -1220,5 +1220,10 @@ td.nw { white-space: nowrap; }
 .seobox .seohead { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
 .seobox [data-seo-n] { font-weight: 400; }
 .seobox [data-seo-n].trop { color: #b3261e; }
+
+/* formules de buffet : la formule à la ligne sous le nom, plus petite */
+.formule { display: block; font-size: .82em; font-weight: 400; opacity: .75; margin-top: .1em; }
+h1 .formule { font-size: .55em; margin-top: .3em; }
+.prow b .formule { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ia-ligne { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: -4px 0 10px; }
 .ia-btn { white-space: nowrap; }

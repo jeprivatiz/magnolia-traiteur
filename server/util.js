@@ -74,4 +74,15 @@ function dateNaissance(v) {
   return ok ? `${m[1]}-${m[2]}-${m[3]}` : '';
 }
 
-module.exports = { dateNaissance, nomPropre, rid, sha, esc, euros, parseEuros, slugify, norm, limiter, dateFr, haversine };
+/* Formules de buffet (Jean-Luc, 2026-11-24) : « Buffet antillais — Entrée + plat + dessert » s'affiche sans tiret,
+   le nom du buffet sur une ligne puis la formule en dessous, plus petit. Le titre enregistré ne change pas (adresses, recherche). */
+const FORMULE_RE = /^(Buffets?\s[^—·()]+?)\s+[—·–-]\s+(\S.*)$/u;
+/* taille d'une portion, ajoutée au nom partout où il s'affiche (Jean-Luc, 2026-11-24 : « Accras de morue (1 portion = 4 accras) »).
+   Copiée dans public/js/site.js et public/admin/admin.js. */
+const PORTIONS = [[/accras?\s+de\s+morue/i, '1 portion = 4 accras']];
+const avecPortion = t => { t = String(t ?? ''); const x = PORTIONS.find(([re]) => re.test(t)); return x && !t.includes(x[1]) ? `${t} (${x[1]})` : t; };
+const coupeTitre = t => { t = avecPortion(t); const m = FORMULE_RE.exec(String(t ?? '').trim()); return m ? [m[1], m[2].charAt(0).toUpperCase() + m[2].slice(1)] : [String(t ?? ''), '']; };
+const titreHtml = t => { const [n, f] = coupeTitre(t); return f ? `${esc(n)}<span class="formule">${esc(f)}</span>` : esc(n); };
+const titreTexte = t => { const [n, f] = coupeTitre(t); return f ? `${n} (${f.charAt(0).toLowerCase() + f.slice(1)})` : n; };
+
+module.exports = { avecPortion, coupeTitre, titreHtml, titreTexte, dateNaissance, nomPropre, rid, sha, esc, euros, parseEuros, slugify, norm, limiter, dateFr, haversine };
