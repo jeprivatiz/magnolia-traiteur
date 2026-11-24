@@ -1,1 +1,19 @@
-# vide
+pizzaiolo https://videos.pexels.com/video-files/6603321/6603321-hd_1280_720_25fps.mp4 0 8 0.5 0.5 1
+burrata https://videos.pexels.com/video-files/29966863/12860215_720_1280_60fps.mp4 0 5 0.5 0.45 1
+barbecue https://videos.pexels.com/video-files/8522954/8522954-hd_1280_720_30fps.mp4 0 8 0.5 0.5 1
+acras https://videos.pexels.com/video-files/29544740/12717924_720_1280_30fps.mp4 0 6 0.2 0.38 1.6
+burgers https://videos.pexels.com/video-files/34556299/14641960_1280_720_24fps.mp4 2 8 0.5 0.5 1
+bar-a-pates https://videos.pexels.com/video-files/8964471/8964471-hd_1280_720_25fps.mp4 0 7 0.5 0.5 1
+sushi https://videos.pexels.com/video-files/8901981/8901981-hd_1280_720_25fps.mp4 1 9 0.5 0.5 1
+saumon https://videos.pexels.com/video-files/8901914/8901914-hd_1280_720_25fps.mp4 0 7 0.5 0.5 1
+foie-gras https://videos.pexels.com/video-files/32589417/13897617_720_1280_25fps.mp4 1 9 0.5 0.55 1
+huitres https://videos.pexels.com/video-files/6952917/6952917-hd_1366_720_25fps.mp4 20 9 0.5 0.5 1
+saint-jacques https://videos.pexels.com/video-files/10432185/10432185-hd_1280_720_30fps.mp4 0 6 0.5 0.5 1
+show https://videos.pexels.com/video-files/37080421/15708622_720_1280_24fps.mp4 0 6 0.5 0.55 1
+barbe-a-papa https://videos.pexels.com/video-files/34445164/14595023_1280_720_60fps.mp4 2 9 0.5 0.5 1
+fontaine-chocolat https://videos.pexels.com/video-files/4367397/4367397-hd_1280_720_30fps.mp4 2 9 0.5 0.5 1
+crepes https://videos.pexels.com/video-files/40792621/17424732_720_1280_60fps.mp4 6 9 0.5 0.6 1
+churros https://videos.pexels.com/video-files/40304302/17216507_720_1280_100fps.mp4 0 5 0.5 0.2 1
+brioche-perdue https://videos.pexels.com/video-files/5542105/5542105-hd_1280_720_24fps.mp4 10 9 0.4 0.5 1
+pop-corn https://videos.pexels.com/video-files/6148577/6148577-hd_720_1280_30fps.mp4 0 5 0.5 0.5 1
+gaufres https://videos.pexels.com/video-files/37210937/15763703_720_1280_30fps.mp4 0 4 0.5 0.5 1
