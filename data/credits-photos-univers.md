@@ -260,3 +260,4 @@ public/site/c/douceurs/ à sa demande ; le nom du partenaire n'apparaît jamais 
 | Macarons 36 / 72 pièces | Pexels 1346345, 239578 |
 | Fraisier, framboisine, tarte chocolat, craqueline, croquant caramel, gâteau chocolat | laromainville.fr (partenaire) |
 | Pièces montées Romantica, Bella Rosa, Élégance, croquembouche, pyramide de macarons | laromainville.fr (partenaire) |
+| Bandeau « Personnel de réception » (serveur avec plateau, Andrea Piacquadio) | https://www.pexels.com/photo/waiter-with-tray-working-in-stylish-restaurant-3769740/ | 24/11/2026 (demande directe : ancienne photo floue) |
