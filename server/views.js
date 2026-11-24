@@ -167,15 +167,29 @@ const MENU_TABLE = `<span class="cm-scene" aria-hidden="true"><span class="cm-om
 <span class="cm-page cm-dedans"><span class="cm-cadre"><i class="cm-l">Entrée</i><i class="cm-sep"></i><i class="cm-l">Plat</i><i class="cm-sep"></i><i class="cm-l">Dessert</i></span></span>
 <span class="cm-couv"><span class="cm-page cm-avant"><span class="cm-cadre">${FLEUR_MENU}<b>Menu</b><small>Magnolia</small></span></span><span class="cm-page cm-arriere"><span class="cm-cadre"><small>Le repas</small><b>servi à table</b>${FLEUR_MENU}</span></span></span>
 </span></span>`;
+/* Vignettes d'univers vivantes (Jean-Luc, 2026-11-24) : une courte vidéo en boucle, muette, par-dessus la photo de la vignette.
+   Vraies vidéos libres de droits (sources : data/credits-videos-accueil.md), jamais d'IA. Fichiers dans public/site/v/accueil :
+   <nom>.mp4 (H.264, 4:5, sans son) et <nom>.jpg (image d'attente). Chargées et jouées seulement quand la vignette est à l'écran
+   (public/js/site.js, « vignettes vidéo ») ; image fixe si l'utilisateur a demandé moins d'animations. Une vignette sans fichier garde sa photo. */
+const VIDEOS_ACCUEIL = {
+  'cocktails-buffets': 'cocktail', boissons: 'boissons', 'traiteur-vegetarien-vegan': 'vegetarien', 'animations-salees': 'burgers',
+  personnel: 'personnel', indispensables: 'photobooth', 'petits-dejeuners': 'petit-dejeuner', douceurs: 'churros',
+  'musique-animations': 'dj', lieux: 'peniche',
+};
+function videoAccueil(slug) {
+  const n = VIDEOS_ACCUEIL[slug], src = n && `/site/v/accueil/${n}.mp4`;
+  if (!src || !logoExiste(src)) return '';
+  return `<video class="tile-v" muted loop playsinline preload="none" disablepictureinpicture aria-hidden="true" poster="/site/v/accueil/${n}.jpg" data-vignette="${src}"></video>`;
+}
 function univers(c) {
   /* la vignette Lieux prend la place de la rubrique « lieux » (ordre du back-office) */
-  const lieux = `<a class="tile" href="/lieux">${img(c.lieux[0]?.photos?.[0], '')}<span class="tile-t"><b>Lieux de réception</b><small>${c.lieux.filter(l => l.statut !== 'masque').length} lieux à privatiser</small></span></a>`;
+  const lieux = `<a class="tile" href="/lieux">${img(c.lieux[0]?.photos?.[0], '')}${videoAccueil('lieux')}<span class="tile-t"><b>Lieux de réception</b><small>${c.lieux.filter(l => l.statut !== 'masque').length} lieux à privatiser</small></span></a>`;
   const rubs = c.rubriques.filter(r => r.statut !== 'masque');
   /* Saveurs du monde : seule vignette animée, un petit globe qui tourne sur fond de verdure (Jean-Luc, 2026-11-24) */
   const globe = r => { const ids = sousVisibles(r).map(x => (lieuDe(x)?.[2] || []).map(String)).filter(g => g.length).concat([['250']]); // un groupe de pays par spécialité (France en dernier)
     return `<a class="tile vg" href="${rubHref(r)}" data-vg='${esc(JSON.stringify(ids))}'>${img('/site/c/paysages/antilles.webp', '')}<canvas aria-hidden="true"></canvas><span class="tile-t"><b>${esc(r.nom)}</b><small>${esc(r.accroche || 'Dix traiteurs, une seule maison')}</small></span></a>`; };
   return rubs.map(r => r.slug === 'lieux' ? lieux : r.slug === 'saveurs-du-monde' ? globe(r) : `<a class="tile" href="${rubHref(r)}">
-    ${img(r.photoAccueil || r.photo, '')}${r.slug === 'carte-magnolia' ? MENU_TABLE : ''}<span class="tile-t"><b>${esc(r.nom)}</b>${r.accroche ? `<small>${esc(r.accroche)}</small>` : `<small>${c.byRub.get(r.slug)?.length || 0} prestations</small>`}</span></a>`).join('')
+    ${img(r.photoAccueil || r.photo, '')}${r.slug === 'carte-magnolia' ? MENU_TABLE : videoAccueil(r.slug)}<span class="tile-t"><b>${esc(r.nom)}</b>${r.accroche ? `<small>${esc(r.accroche)}</small>` : `<small>${c.byRub.get(r.slug)?.length || 0} prestations</small>`}</span></a>`).join('')
     + (rubs.some(r => r.slug === 'lieux') ? '' : lieux);
 }
 
