@@ -234,15 +234,51 @@
     const late = OUVERT.includes(d.statut) && age >= 24 && age < 720 ? Math.floor(age) : 0;
     const montant = main ? tot(main).ttc : d.totalEstimeCents;
     const cat = d.statut === 'refuse' ? 'ko' : ['reserve', 'termine'].includes(d.statut) ? 'ok' : d.statut === 'accord' ? 'acc' : !envoyeLe ? 'draft' : late ? 'late' : 'sent';
-    return { d, dv, main, envoyeLe, relances, late, last, montant, cat, at, estime: !main };
+    return { d, dv, main, envoyeLe, relances, late, last, montant, cat, at, estime: !main, com: String(d.commercial || main?.commercial?.nom || '').trim() };
   }
   async function suivi() {
-    const [dem, devisL, eq] = await Promise.all([api(A + '/demandes'), api(A + '/devis'), api(A + '/actions/equipe').catch(() => [])]);
-    cache.devisL = devisL; cache.equipe = eq.filter(u => !u.desactive);
+    const [dem, devisL, eq, cl, fac, R] = await Promise.all([api(A + '/demandes'), api(A + '/devis'), api(A + '/actions/equipe').catch(() => []), api(A + '/clients').catch(() => []), api(A + '/factures').catch(() => []), cache.R ? Promise.resolve(cache.R) : api(A + '/site').catch(() => ({}))]);
+    cache.devisL = devisL; cache.equipe = eq.filter(u => !u.desactive); cache.R = cache.R || R;
     cache.opps = dem.filter(d => d.type !== 'contact').map(d => opportunite(d, devisL));
-    return page('Suivi client', '<button type="button" class="btn ghost aq-btn" data-aiq>✨ Devis avec l’IA</button><a class="btn" href="#/devis/nouveau">+ Nouveau devis</a>', '<p class="muted intro">Vos opportunités en cours, d’un coup d’œil. Une commande prise au téléphone ? Bouton « ✨ Devis avec l’IA » : tapez ou dictez tout en vrac, l’IA prépare la fiche client et le devis avec le catalogue.</p><div id="qs"></div>');
+    cache.annuaire = annuaire(cl, dem, devisL, fac);
+    if (SV.o == null) { const m = mem.get('mg_commercial'); SV.o = m != null ? m : ''; }
+    return page('Suivi client', '<button type="button" class="btn ghost aq-btn" data-aiq>✨ Devis avec l’IA</button><a class="btn" href="#/devis/nouveau">+ Nouveau devis</a>', `<p class="muted intro">Vos opportunités en cours, d’un coup d’œil. Une commande prise au téléphone ? Bouton « ✨ Devis avec l’IA » : tapez ou dictez tout en vrac, l’IA prépare la fiche client et le devis avec le catalogue.</p>
+      <div class="cf-box"><label class="cf-lab" for="cfQ">Retrouver un client et tout son historique</label><div class="cf-in"><input id="cfQ" type="search" data-cf autocomplete="off" placeholder="🔍 Nom, prénom, téléphone, e-mail, société ou n° de devis…" aria-label="Rechercher un client"><div class="cf-res" id="cfRes" hidden></div></div></div>
+      <div id="qs"></div>`);
   }
-  const SV = { p: 'all', o: '', f: 'all', s: '', d1: '', d2: '' };
+  /* commerciaux : comptes du back-office + personnes de « Alertes de l’équipe » (la liste du devis) + noms déjà attribués */
+  const commerciaux = () => [...new Set([...(cache.equipe || []).map(u => u.nom), ...(cache.R?.alertes?.personnes || []).map(x => x.nom), ...(cache.opps || []).map(o => o.com)].map(n => String(n || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fr'));
+  /* ---------- recherche d'un client (nom, prénom, téléphone, e-mail, société, n° de devis / demande / facture) ---------- */
+  const sansAccent = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const telCourt = t => { let d = String(t || '').replace(/\D/g, ''); if (d.startsWith('0033')) d = d.slice(4); else if (d.startsWith('33') && d.length === 11) d = d.slice(2); return d.replace(/^0/, ''); };
+  function annuaire(cl, dem, devisL, fac) {
+    return cl.map(c => {
+      const ds = dem.filter(d => d.clientId === c.id), vs = devisL.filter(v => v.clientId === c.id || ds.some(d => d.id === v.demandeId)), fs = fac.filter(f => f.clientId === c.id || vs.some(v => v.id === f.devisId));
+      const tels = [c.tel, ...ds.map(d => d.contact?.tel)].filter(Boolean);
+      const last = [c.derniereActivite, ...ds.map(d => d.createdAt), ...vs.map(v => v.createdAt)].filter(Boolean).map(String).sort().pop() || '';
+      const dv = [...vs].sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))[0];
+      return { c, nb: ds.filter(d => d.type !== 'contact').length, nbDevis: vs.length, dv, last,
+        hay: sansAccent([c.nom, c.societe, c.email, ...ds.map(d => [d.contact?.nom, d.contact?.email, d.contact?.societe, d.ref].join(' ')), ...vs.map(v => v.numero), ...fs.map(f => f.numero)].join(' ')),
+        tels: tels.map(telCourt).filter(x => x.length >= 6) };
+    });
+  }
+  function chercherClients(q) {
+    const words = sansAccent(q).trim().split(/\s+/).filter(Boolean); if (!words.length) return [];
+    const telQ = q.replace(/[\s.+()-]/g, '');
+    if (/^\d{3,}$/.test(telQ)) { const k = telCourt(telQ) || telQ; const l = (cache.annuaire || []).filter(a => a.tels.some(t => t.includes(k)) || a.hay.includes(telQ)); if (l.length) return l.sort((x, y) => String(y.last).localeCompare(String(x.last))).slice(0, 12); }
+    return (cache.annuaire || []).filter(a => words.every(w => { const dg = w.replace(/\D/g, ''); return a.hay.includes(w) || (dg.length >= 3 && dg === w && a.tels.some(t => t.includes(telCourt(dg) || dg))); }))
+      .sort((x, y) => String(y.last).localeCompare(String(x.last))).slice(0, 12);
+  }
+  const initiales = n => (n || '?').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+  function dessinerRecherche(q) {
+    const box = $('#cfRes'); if (!box) return;
+    if (!q.trim()) { box.hidden = true; box.innerHTML = ''; return; }
+    const l = chercherClients(q);
+    box.hidden = false;
+    box.innerHTML = l.length ? l.map((a, i) => `<a class="cf-r${i ? '' : ' on'}" href="#/clients/${esc(a.c.id)}"><span class="qs-av">${esc(initiales(a.c.nom))}</span><span class="cf-t"><b>${esc(a.c.nom || '—')}</b><small>${esc([a.c.societe, a.c.tel, a.c.email].filter(Boolean).join(' · '))}</small></span><span class="cf-m">${a.nbDevis ? `${a.nbDevis} devis${a.dv ? ` · dernier n° ${esc(a.dv.numero)} <span class="pill d-${a.dv.statut}">${DSTAT[a.dv.statut] || ''}</span>` : ''}` : a.nb ? a.nb + ' demande' + (a.nb > 1 ? 's' : '') : 'aucun devis'}<small>${a.last ? 'dernière activité le ' + dateFr(a.last) : ''}</small></span><span class="cf-go">Historique ›</span></a>`).join('')
+      : `<p class="cf-none">Aucun client ne correspond à « ${esc(q)} ». Essayez le nom seul, les derniers chiffres du téléphone ou le n° du devis.</p>`;
+  }
+  const SV = { p: 'all', o: null, f: 'all', s: '', d1: '', d2: '' };
   function suiviDessin() {
     const box = $('#qs'); if (!box) return;
     const all = cache.opps || [];
@@ -253,7 +289,7 @@
       return null; })();
     const inR = x => { if (!R) return true; const t = Date.parse(x || ''); return !isNaN(t) && t >= R[0] && t < R[1]; };
     const inP = o => !R || [o.d.createdAt, o.envoyeLe, o.last, ...(o.d.historique || []).map(h => h.at)].some(inR);
-    const owner = o => o.d.commercial || '';
+    const owner = o => o.com;
     const mine = o => !SV.o || (SV.o === '—' ? !owner(o) : owner(o) === SV.o);
     const base = all.filter(o => mine(o) && inP(o));
     const sum = (l, f) => l.reduce((a, o) => a + (f(o) || 0), 0);
@@ -267,10 +303,11 @@
     const S = SV.s.trim().toLowerCase();
     const list = all.filter(o => inF(o, SV.f) && (!S || S.split(/\s+/).every(w => hay(o).includes(w))))
       .sort((x, y) => (y.late - x.late) || String(y.last).localeCompare(String(x.last)));
-    const owners = [...new Set([...(cache.equipe || []).map(u => u.nom).filter(Boolean), ...all.map(owner).filter(Boolean)])].sort((a, b) => a.localeCompare(b, 'fr'));
+    const owners = commerciaux();
     const arch = SV.f === 'ok' || SV.f === 'ko';
     box.innerHTML = `<div class="qs-owners"><div class="qs-orow"><span class="qs-olab">Période</span>${[['all', 'Tout'], ['mois', 'Mois en cours'], ['mprec', 'Mois dernier'], ['trim', 'Trimestre'], ['an', 'Année'], ['dates', 'De date à date']].map(([k, l]) => `<button type="button" class="qs-own-b${SV.p === k ? ' on' : ''}" data-qp="${k}">${l}</button>`).join('')}${SV.p === 'dates' ? `<span class="qs-dates">du <input type="date" data-qd="d1" value="${esc(SV.d1)}"> au <input type="date" data-qd="d2" value="${esc(SV.d2)}"></span>` : ''}</div>
-      <div class="qs-orow"><span class="qs-olab">Commercial</span><button type="button" class="qs-own-b${!SV.o ? ' on' : ''}" data-qo="">Tous</button>${owners.map(n => `<button type="button" class="qs-own-b${SV.o === n ? ' on' : ''}" data-qo="${esc(n)}">${esc(n)}</button>`).join('')}<button type="button" class="qs-own-b${SV.o === '—' ? ' on' : ''}" data-qo="—">Non attribués</button></div>
+      <div class="qs-orow qs-who-row"><span class="qs-olab">Commercial</span><label class="qs-csel"><span aria-hidden="true">👤</span><select data-qcom aria-label="Choisir le commercial"><option value=""${!SV.o ? ' selected' : ''}>Tous les commerciaux</option>${owners.map(n => `<option value="${esc(n)}"${SV.o === n ? ' selected' : ''}>${esc(n)}</option>`).join('')}<option value="—"${SV.o === '—' ? ' selected' : ''}>Non attribuées</option></select></label><button type="button" class="qs-own-b${!SV.o ? ' on' : ''}" data-qo="">Tous en même temps</button>
+        <div class="qs-cname${SV.o ? ' perso' : ''}">${!SV.o ? 'Vous voyez <b>toutes les opportunités</b>, tous commerciaux confondus' : SV.o === '—' ? 'Vous voyez les opportunités <b>sans commercial</b>' : `Vous voyez les fiches de <b>${esc(SV.o)}</b>`}</div></div>
       <div class="qs-osum"><span><b>${base.length}</b> opportunité${base.length > 1 ? 's' : ''}</span><span><b>${signes.length}</b> signée${signes.length > 1 ? 's' : ''}</span><span><b>${perdus.length}</b> refusée${perdus.length > 1 ? 's' : ''}</span><em>${euros(sum(signes, o => o.montant))} signés</em></div></div>
       <div class="kpis qk">${kpis.map(([v, l]) => `<div><b>${esc(v)}</b><span>${esc(l)}</span></div>`).join('')}</div>
       <div class="qs-top"><div class="qs-chips">${arch ? `<button type="button" class="qs-chip" data-qf="all">← Opportunités en cours <b>${cnt('all')}</b></button><span class="qs-title">${SV.f === 'ok' ? 'Opportunités réservées' : 'Opportunités refusées (classées)'}</span>`
@@ -318,11 +355,11 @@
     return `<article class="qs-card${o.late ? ' late' : ''}${o.cat === 'ko' ? ' lost' : ''}" data-open="${o.d.id}">
       <div class="qs-who"><div class="qs-av">${esc(ini)}</div><div><div class="qs-nm">${esc(c.nom || '—')}${badge(o)}</div>
         <div class="qs-co">${esc([c.societe, c.tel || c.email].filter(Boolean).join(' · '))}</div>
-        <div class="qs-co"><button type="button" class="qs-own-pick${o.d.commercial ? '' : ' none'}" data-qown="${o.d.id}" title="Attribuer ou changer le commercial">👤 ${esc(o.d.commercial || 'Non attribué')} <span aria-hidden="true">▾</span></button></div>
+        <div class="qs-co"><button type="button" class="qs-own-pick${o.com ? '' : ' none'}" data-qown="${o.d.id}" title="Attribuer ou changer le commercial">👤 ${esc(o.com || 'Non attribué')} <span aria-hidden="true">▾</span></button></div>
         <div class="qs-ev">${e.type ? '<b>' + esc(e.type) + '</b> · ' : ''}${esc([e.date ? dateFr(e.date, { day: 'numeric', month: 'short', year: 'numeric' }) : 'date à définir', e.invites ? e.invites + ' pers.' : '', e.ville || ''].filter(Boolean).join(' · '))}</div></div></div>
       <div class="qs-right"><div class="qs-amt">${o.montant ? euros(o.montant) : '—'}</div><div class="qs-ht">TTC · ${o.main ? 'devis n° ' + esc(o.main.numero) : 'estimation du site'}</div></div>
       ${frise(o)}
-      <div class="qs-foot"><div class="qs-info">${o.d.notes ? `<div class="qs-note">📝 ${esc(String(o.d.notes).slice(0, 140))}</div>` : ''}</div><div class="qs-acts">${o.late ? '' : icons}${['refuse', 'reserve', 'termine'].includes(o.d.statut) ? `<button class="qs-back" type="button" data-qback="${o.d.id}" title="Remettre dans les opportunités en cours">↺ Remettre en cours</button>` : ''}${o.main && o.main.statut !== 'brouillon' ? `<a class="qs-back" href="/devis/${esc(o.main.token)}" target="_blank" title="Le devis tel que le client le voit">📨 ${o.main.statut === 'accepte' ? 'Devis signé' : 'Devis envoyé'}</a>` : ''}<button class="qs-open" type="button" data-qopen="${o.d.id}">${o.cat === 'draft' ? 'Terminer' : 'Ouvrir'}</button></div></div>
+      <div class="qs-foot"><div class="qs-info">${o.d.notes ? `<div class="qs-note">📝 ${esc(String(o.d.notes).slice(0, 140))}</div>` : ''}</div><div class="qs-acts">${o.late ? '' : icons}${['refuse', 'reserve', 'termine'].includes(o.d.statut) ? `<button class="qs-back" type="button" data-qback="${o.d.id}" title="Remettre dans les opportunités en cours">↺ Remettre en cours</button>` : ''}${o.main && o.main.statut !== 'brouillon' ? `<a class="qs-back" href="/devis/${esc(o.main.token)}" target="_blank" title="Le devis tel que le client le voit">📨 ${o.main.statut === 'accepte' ? 'Devis signé' : 'Devis envoyé'}</a>` : ''}${o.d.clientId ? `<a class="qs-back" href="#/clients/${esc(o.d.clientId)}" title="Tout ce qui s’est passé avec ce client">🕘 Historique</a>` : ''}<button class="qs-open" type="button" data-qopen="${o.d.id}">${o.cat === 'draft' ? 'Terminer' : 'Ouvrir'}</button></div></div>
       ${o.late ? `<div class="qs-alert"><b>⚠ Plus de 24 h sans nouvelles.</b> <span>${o.envoyeLe ? `Rappelez ${esc(first || 'ce client')} ou relancez-le.` : `La demande de ${esc(first || 'ce client')} attend son devis.`}</span><span class="sp"></span>${tel ? `<a class="qs-pill dark" href="tel:${esc(tel)}" data-qappel="${o.d.id}">📞 Appeler</a>` : ''}${o.envoyeLe && c.email ? `<button class="qs-pill" type="button" data-qrel="${o.d.id}" data-canal="mail">✉ Relancer par e-mail</button>` : ''}${o.envoyeLe && tel ? `<button class="qs-pill" type="button" data-qrel="${o.d.id}" data-canal="sms">💬 Relancer par SMS</button>` : ''}${o.envoyeLe ? '' : `<button class="qs-pill dark" type="button" data-qdevis="${o.d.id}">✎ Préparer le devis</button>`}<button class="qs-pill" type="button" data-qfait="${o.d.id}">✓ Relance faite (noter)</button></div>` : ''}
     </article>`;
   }
@@ -337,11 +374,19 @@
     suiviDessin();
     const box = $('#qs');
     box.addEventListener('input', e => { if (e.target.matches('[data-qs]')) { SV.s = e.target.value; const p = e.target.selectionStart; suiviDessin(); const i = $('[data-qs]'); i.focus(); i.setSelectionRange(p, p); } });
-    box.addEventListener('change', e => { const i = e.target.closest('[data-qd]'); if (i) { SV[i.dataset.qd] = i.value; SV.p = 'dates'; suiviDessin(); } });
+    box.addEventListener('change', e => { if (e.target.matches('[data-qcom]')) { SV.o = e.target.value; mem.set('mg_commercial', SV.o); return suiviDessin(); } const i = e.target.closest('[data-qd]'); if (i) { SV[i.dataset.qd] = i.value; SV.p = 'dates'; suiviDessin(); } });
+    const q = $('[data-cf]');
+    q?.addEventListener('input', () => dessinerRecherche(q.value));
+    q?.addEventListener('keydown', e => {
+      const l = $$('#cfRes .cf-r'); if (!l.length) return; let i = l.findIndex(x => x.classList.contains('on'));
+      if (e.key === 'Enter') { e.preventDefault(); location.hash = l[Math.max(0, i)].getAttribute('href'); return; }
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return; e.preventDefault();
+      l[i]?.classList.remove('on'); i = (i + (e.key === 'ArrowDown' ? 1 : -1) + l.length) % l.length; l[i].classList.add('on'); l[i].scrollIntoView({ block: 'nearest' });
+    });
     box.addEventListener('click', async e => {
       const t = e.target.closest('button,a'); const o = id => (cache.opps || []).find(x => x.d.id === id);
       if (t?.dataset.qp != null) { SV.p = t.dataset.qp; return suiviDessin(); }
-      if (t?.dataset.qo != null) { SV.o = t.dataset.qo; return suiviDessin(); }
+      if (t?.dataset.qo != null) { SV.o = t.dataset.qo; mem.set('mg_commercial', SV.o); return suiviDessin(); }
       if (t?.dataset.qf) { SV.f = t.dataset.qf; return suiviDessin(); }
       if (t?.dataset.qappel) { majDemande(t.dataset.qappel, d => ({ ...d, relancesNotees: [...(d.relancesNotees || []), { at: new Date().toISOString(), how: 'appel', par: session.nom }] })); return; }
       if (t?.dataset.qfait) { e.stopPropagation(); return majDemande(t.dataset.qfait, d => ({ ...d, statut: d.statut === 'devis_envoye' ? 'relance' : d.statut, relancesNotees: [...(d.relancesNotees || []), { at: new Date().toISOString(), how: 'noté', par: session.nom }] }), 'Relance notée.'); }
@@ -361,9 +406,9 @@
       }
       if (t?.dataset.qback) { const x = o(t.dataset.qback); return majDemande(x.d.id, d => ({ ...d, statut: x.envoyeLe ? 'devis_envoye' : 'demande' }), 'Remis dans les opportunités en cours.'); }
       if (t?.dataset.qown) {
-        const x = o(t.dataset.qown), noms = (cache.equipe || []).map(u => u.nom).filter(Boolean);
+        const x = o(t.dataset.qown), noms = commerciaux();
         const pop = document.createElement('div'); pop.className = 'qs-om';
-        pop.innerHTML = noms.map(n => `<button type="button" data-n="${esc(n)}"${n === x.d.commercial ? ' class="on"' : ''}>${esc(n)}</button>`).join('') + '<button type="button" data-n="">Non attribué</button>';
+        pop.innerHTML = noms.map(n => `<button type="button" data-n="${esc(n)}"${n === x.com ? ' class="on"' : ''}>${esc(n)}</button>`).join('') + '<button type="button" data-n="">Non attribué</button>';
         t.after(pop);
         pop.addEventListener('click', ev => { const b = ev.target.closest('[data-n]'); if (!b) return; ev.stopPropagation(); majDemande(x.d.id, d => ({ ...d, commercial: b.dataset.n }), b.dataset.n ? 'Attribué à ' + b.dataset.n : 'Commercial retiré.'); });
         setTimeout(() => document.addEventListener('click', () => pop.remove(), { once: true }));
@@ -692,22 +737,70 @@
     $$('tr[data-href]').forEach(tr => tr.addEventListener('click', () => { location.hash = tr.dataset.href; }));
     $('[data-q]')?.addEventListener('input', e => { const q = e.target.value.toLowerCase(); $$('tr[data-href]').forEach(tr => { tr.hidden = !tr.textContent.toLowerCase().includes(q); }); });
   };
-  async function client(id) {
-    const c = id === 'nouveau' ? { nom: '', email: '', tel: '', societe: '', adresse: '', notes: '' } : await api(A + '/clients/' + id);
-    cache.client = c;
-    const [dem, dv] = id === 'nouveau' ? [[], []] : await Promise.all([api(A + '/demandes'), api(A + '/devis')]);
-    return page(id === 'nouveau' ? 'Nouveau client' : esc(c.nom), '<a class="btn ghost" href="#/clients">← Clients</a>', `<div class="cols"><section class="box"><form id="cf"><label>Nom et prénom<input name="nom" value="${esc(c.nom)}" required></label><label>Société<input name="societe" value="${esc(c.societe || '')}"></label><div class="g2"><label>E-mail<input type="email" name="email" value="${esc(c.email)}" required></label><label>Téléphone<input name="tel" value="${esc(c.tel || '')}"></label></div><label>Adresse de facturation<textarea name="adresse" rows="2">${esc(c.adresse || '')}</textarea></label><label>Notes internes<textarea name="notes" rows="3">${esc(c.notes || '')}</textarea></label><button class="btn">Enregistrer</button></form></section>
-      <section class="box"><h2>Historique</h2><ul class="list">${dem.filter(d => d.clientId === id).map(d => `<li><a href="#/demandes/${d.id}">${esc(d.ref)} · ${esc(d.evenement?.type || d.sujet || '')} ${dateFr(d.evenement?.date)}</a><span class="pill st-${d.statut}">${STATUTS[d.statut]}</span></li>`).join('')}${dv.filter(x => x.clientId === id).map(x => `<li><a href="#/devis/${x.id}">Devis ${esc(x.numero)} · ${euros(tot(x).ttc)}</a><span class="pill d-${x.statut}">${DSTAT[x.statut]}</span></li>`).join('') || '<li class="muted">Rien pour le moment.</li>'}</ul>${id !== 'nouveau' ? `<button class="btn ghost" data-newdv>+ Devis pour ce client</button>` : ''}</section></div>`);
+  /* ---------- fiche client : coordonnées + tout l'historique en frise (comme un CRM) ---------- */
+  const HTYPES = {
+    demande: ['📥', 'Demande', 'dem'], statut: ['➜', 'Étape', 'st'], devis: ['📄', 'Devis', 'dv'], envoi: ['📨', 'Envoi', 'dv'], vu: ['👁', 'Vu', 'dv'], relance: ['🔔', 'Relance', 'msg'],
+    signe: ['✍', 'Signature', 'ok'], refus: ['✕', 'Refus', 'ko'], facture: ['🧾', 'Facture', 'pay'], paiement: ['💶', 'Règlement', 'ok'], email: ['✉', 'E-mail', 'msg'], sms: ['💬', 'SMS', 'msg'],
+    appel: ['📞', 'Appel', 'note'], note: ['🗒', 'Note', 'note'], rdv: ['📅', 'Rendez-vous', 'note'], client: ['👤', 'Client', 'st'],
+  };
+  const HFILTRES = [['', 'Tout'], ['dv', 'Devis'], ['pay', 'Factures et règlements'], ['msg', 'E-mails, SMS et relances'], ['note', 'Notes et appels']];
+  const HF = { f: '' };
+  function friseClient(evs) {
+    const l = evs.filter(e => !HF.f || (HTYPES[e.type] || [])[2] === HF.f || (HF.f === 'pay' && e.type === 'paiement') || (HF.f === 'dv' && ['signe', 'refus'].includes(e.type)));
+    if (!l.length) return `<p class="muted hc-vide">${evs.length ? 'Rien de ce type pour ce client.' : 'Rien pour le moment.'}</p>`;
+    let mois = '';
+    return l.map(e => {
+      const t = HTYPES[e.type] || ['•', '', 'st'], m = new Date(e.at).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+      const head = m !== mois ? `<li class="hc-mois">${esc(m)}</li>` : ''; mois = m;
+      const ext = e.lien && e.lien.startsWith('/');
+      return `${head}<li class="hc-e k-${t[2]} t-${e.type}"><span class="hc-dot" aria-hidden="true">${t[0]}</span><div class="hc-b"><div class="hc-l1"><b>${esc(e.titre)}</b>${e.montantCents ? `<span class="hc-amt">${euros(e.montantCents)}${e.montantLib ? ' <small>' + esc(e.montantLib) + '</small>' : ''}</span>` : ''}</div>
+        <div class="hc-l2">${esc(new Date(e.at).toLocaleString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }))}${e.par ? ' · ' + esc(e.par) : ''}${e.statutDevis ? ` <span class="pill d-${e.statutDevis}">${DSTAT[e.statutDevis] || ''}</span>` : ''}</div>
+        ${e.detail ? `<div class="hc-d">${esc(e.detail)}</div>` : ''}${e.lien || e.jid ? `<div class="hc-a">${e.lien ? `<a class="lnk" href="${esc(e.lien)}"${ext ? ' target="_blank"' : ''}>${ext ? 'Voir comme le client ↗' : 'Ouvrir →'}</a>` : ''}${e.jid ? `<button type="button" class="lnk hc-del" data-hdel="${esc(e.jid)}">Supprimer</button>` : ''}</div>` : ''}</div></li>`;
+    }).join('');
   }
+  async function client(id) {
+    if (id === 'nouveau') {
+      cache.client = { nom: '', email: '', tel: '', societe: '', adresse: '', notes: '' };
+      return page('Nouveau client', '<a class="btn ghost" href="#/suivi">← Suivi client</a>', `<section class="box hc-form"><form id="cf">${formClient(cache.client)}<button class="btn">Enregistrer</button></form></section>`);
+    }
+    const h = await api(A + '/actions/historique-client/' + id);
+    const c = h.client; cache.client = c; cache.hist = h;
+    const tel = String(c.tel || '').replace(/[^\d+]/g, ''), r = h.resume;
+    const coms = [...new Set([...h.devis.map(x => x.commercial), ...(h.demandes || []).map(x => x.commercial)].filter(Boolean))];
+    return page(esc(c.nom || 'Client'), `<a class="btn ghost" href="#/suivi">← Suivi client</a><button class="btn" data-newdv>+ Devis pour ce client</button>`, `
+      <section class="box hc-head"><div class="hc-who"><span class="qs-av hc-av">${esc(initiales(c.nom))}</span><div><div class="hc-nm">${esc(c.nom || '—')}</div>${c.societe ? `<div class="hc-co">${esc(c.societe)}</div>` : ''}
+        <div class="hc-ct">${tel ? `<a class="qs-pill" href="tel:${esc(tel)}" data-happel>📞 ${esc(c.tel)}</a>` : ''}${c.email ? `<a class="qs-pill" href="mailto:${esc(c.email)}">✉ ${esc(c.email)}</a>` : ''}</div>
+        <div class="hc-since">Client depuis le ${dateFr(c.creeLe || h.events[h.events.length - 1]?.at)}${coms.length ? ' · suivi par ' + esc(coms.join(', ')) : ''}</div></div></div>
+        <div class="kpis qk hc-k"><div><b>${euros(r.signeCents)}</b><span>signé (TTC)</span></div><div><b>${euros(r.regleCents)}</b><span>déjà réglé</span></div><div><b>${euros(r.aEncaisserCents)}</b><span>factures à encaisser</span></div><div><b>${r.nbSignes} / ${r.nbDevis}</b><span>devis signés</span></div></div></section>
+      <div class="hc-cols">
+        <section class="box hc-tl"><div class="hc-th"><h2>Tout l’historique</h2><span class="muted sm">${h.events.length} événement${h.events.length > 1 ? 's' : ''}</span></div>
+          <div class="hc-add"><textarea rows="2" data-hnote placeholder="Ajouter une note : ce que le client a dit au téléphone, une préférence, un rappel…"></textarea><div class="row"><button type="button" class="btn sm" data-hadd="note">🗒 Ajouter la note</button><button type="button" class="btn ghost sm" data-hadd="appel">📞 Noter un appel</button></div></div>
+          <div class="hc-f">${HFILTRES.map(([k, l]) => `<button type="button" class="qs-own-b${HF.f === k ? ' on' : ''}" data-hf="${k}">${l}</button>`).join('')}</div>
+          <ol class="hc-list" id="hcList">${friseClient(h.events)}</ol></section>
+        <div class="hc-side">
+          <section class="box"><h2>Devis</h2>${h.devis.length ? `<ul class="list">${[...h.devis].sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).map(x => `<li><a href="#/devis/${x.id}"><b>${esc(x.numero)}</b> · ${euros(x.ttcCents)}<small class="muted"> ${esc([x.evenement?.type, x.evenement?.date ? dateFr(x.evenement.date) : ''].filter(Boolean).join(' · '))}</small></a><span class="pill d-${x.statut}">${DSTAT[x.statut]}</span></li>`).join('')}</ul>` : '<p class="muted">Aucun devis.</p>'}</section>
+          <section class="box"><h2>Factures et règlements</h2>${h.factures.length ? `<ul class="list">${h.factures.map(x => `<li><a href="#/factures/${x.id}"><b>${esc(x.numero)}</b> · ${euros(x.totalCents)}<small class="muted"> ${{ acompte: 'acompte', solde: 'solde', totale: 'totale' }[x.type] || ''}</small></a><span class="pill ${x.payee ? 'd-accepte' : 'd-envoye'}">${x.payee ? 'Payée' + (x.moyen ? ' · ' + esc(x.moyen) : '') : 'À encaisser'}</span></li>`).join('')}</ul>` : '<p class="muted">Aucune facture.</p>'}</section>
+          <section class="box"><h2>Demandes</h2>${h.demandes.length ? `<ul class="list">${h.demandes.map(d => `<li><a href="#/demandes/${d.id}"><b>${esc(d.ref || '')}</b> · ${esc(d.evenement?.type || (d.type === 'contact' ? 'message' : ''))} ${d.evenement?.date ? dateFr(d.evenement.date) : ''}</a><span class="pill st-${d.statut}">${STATUTS[d.statut] || ''}</span></li>`).join('')}</ul>` : '<p class="muted">Aucune demande.</p>'}</section>
+          <details class="box hc-form"><summary><h2>Coordonnées du client</h2><span class="lnk">Modifier</span></summary><form id="cf">${formClient(c)}<button class="btn">Enregistrer</button></form></details>
+        </div></div>`);
+  }
+  const formClient = c => `<label>Nom et prénom<input name="nom" value="${esc(c.nom)}" required></label><label>Société<input name="societe" value="${esc(c.societe || '')}"></label><div class="g2"><label>E-mail<input type="email" name="email" value="${esc(c.email)}" required></label><label>Téléphone<input name="tel" value="${esc(c.tel || '')}"></label></div><label>Adresse de facturation<textarea name="adresse" rows="2">${esc(c.adresse || '')}</textarea></label><label>Notes internes (fixes)<textarea name="notes" rows="3">${esc(c.notes || '')}</textarea></label>`;
   client.after = id => {
     $('#cf').addEventListener('submit', async e => {
       e.preventDefault(); const f = Object.fromEntries(new FormData(e.target));
       try {
         if (id === 'nouveau') { const r = await api(A + '/clients', { method: 'POST', body: { ...f, source: 'back-office', creeLe: new Date().toISOString(), derniereActivite: new Date().toISOString() } }); location.hash = '#/clients/' + r.id; }
-        else { await api(`${A}/clients/${id}`, { method: 'PUT', body: { ...cache.client, ...f } }); toast('Client enregistré.'); }
+        else { const cur = await api(A + '/clients/' + id); await api(`${A}/clients/${id}`, { method: 'PUT', body: { ...cur, ...f } }); toast('Client enregistré.'); render(); }
       } catch (err) { toast(err.message, true); }
     });
     $('[data-newdv]')?.addEventListener('click', async () => { const r = await api(A + '/actions/devis-vierge', { method: 'POST', body: { clientId: id } }); location.hash = '#/devis/' + r.id; });
+    if (id === 'nouveau') return;
+    const recharger = async () => { const h = await api(A + '/actions/historique-client/' + id); cache.hist = h; cache.client = h.client; $('#hcList').innerHTML = friseClient(h.events); $('.hc-th .muted').textContent = h.events.length + ' événement' + (h.events.length > 1 ? 's' : ''); };
+    const noter = async (type, texte) => { try { await api(`${A}/actions/client-journal/${id}`, { method: 'POST', body: { type, texte } }); await recharger(); return true; } catch (err) { toast(err.message, true); return false; } };
+    $$('[data-hadd]').forEach(b => b.addEventListener('click', async () => { const ta = $('[data-hnote]'); if (await noter(b.dataset.hadd, ta.value.trim())) { ta.value = ''; toast(b.dataset.hadd === 'appel' ? 'Appel noté dans l’historique.' : 'Note ajoutée.'); } }));
+    $('[data-happel]')?.addEventListener('click', () => { noter('appel', ''); });
+    $('.hc-f').addEventListener('click', e => { const b = e.target.closest('[data-hf]'); if (!b) return; HF.f = b.dataset.hf; $$('.hc-f [data-hf]').forEach(x => x.classList.toggle('on', x === b)); $('#hcList').innerHTML = friseClient(cache.hist.events); });
+    $('#hcList').addEventListener('click', async e => { const b = e.target.closest('[data-hdel]'); if (!b || !confirm('Supprimer cette note de l’historique ?')) return; try { await api(`${A}/actions/client-journal/${id}`, { method: 'POST', body: { supprimer: b.dataset.hdel } }); await recharger(); toast('Note supprimée.'); } catch (err) { toast(err.message, true); } });
   };
 
   /* ---------- catalogue ---------- */
