@@ -11,21 +11,13 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - name: Télécharger les candidates (sangria)
+      - name: Sangria en grand (Burst by Shopify, licence libre)
         run: |
-          mkdir -p apercu-photos/sangria && cd apercu-photos/sangria
-          UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
-          curl -fsSL -A "$UA" -o burst-page.html "https://www.shopify.com/stock-photos/photos/red-white-sangria" || echo "échec page burst"
-          grep -o 'https://burst.shopifycdn.com/photos/[^"?]*' burst-page.html | grep -i -E 'sangria|wine|pitcher' | sort -u | head -12 > burst-urls.txt || true
-          cat burst-urls.txt
-          i=0; for u in $(cat burst-urls.txt); do i=$((i+1)); curl -fsSL -A "$UA" -o "b$i.jpg" "$u?width=700" || echo "échec $u"; done
-          for s in dgiJ0EdpPFM QEccecQYks8 gfJ_5-5e0wU Ye7_hQ_-S7o; do
-            curl -fsSL -A "$UA" -o "u-$s.html" "https://unsplash.com/photos/$s" || { echo "échec page $s"; continue; }
-            u=$(grep -o 'https://images.unsplash.com/photo-[0-9a-f-]*' "u-$s.html" | head -1); echo "$s -> $u"
-            [ -n "$u" ] && curl -fsSL -o "u-$s.jpg" "$u?w=700" && echo "$s $u" >> unsplash.txt
-          done
-          rm -f *.html burst[0-9].jpg; ls -la; cat unsplash.txt || true
+          mkdir -p public/site/c/boissons
+          curl -fsSL -A "Mozilla/5.0" -o /tmp/s.jpg "https://burst.shopifycdn.com/photos/red-white-sangria.jpg?width=1600"
+          pip install --quiet pillow
+          python3 -c "from PIL import Image; im=Image.open('/tmp/s.jpg').convert('RGB'); print(im.size); im.thumbnail((1600,1600)); im.save('public/site/c/boissons/sangria-maison.webp','WEBP',quality=82)"
       - name: Enregistrer
         run: |
           git config user.name "magnolia-bot"; git config user.email "magnolia-bot@users.noreply.github.com"
-          git add apercu-photos; git commit -m "Temporaire : aperçus sangria 2" && git push
+          git add public/site/c/boissons; git commit -m "Photo de la sangria (Burst by Shopify)" && git push
