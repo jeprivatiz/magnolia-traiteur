@@ -810,13 +810,24 @@ async function createApp(opts = {}) {
     const items = cl.map(({ id, data: c }) => ({
       c: { ...c, id, journal: undefined }, id, nb: nbDem.get(id) || 0, lie: lies.has(id) || (c.journal || []).length > 0,
       importe: c.source === 'import CRM', last: String(c.derniereActivite || ''),
-      hay: sansAcc([c.nom, c.prenom, c.nomFamille, c.societe, c.email, c.ville, c.cp, c.fonction, (c.metiers || []).join(' '), (c.djStyles || []).join(' '), c.contactDe, extra.get(id)].join(' ')),
+      hay: sansAcc(texteFiche(c) + ' ' + (extra.get(id) || '')),
       tels: [c.tel, c.telE164, c.telAutre].map(telK).filter(Boolean),
       k: critereClient(c),
     }));
     items.sort((a, b) => b.last.localeCompare(a.last));
     idxClients = { v, items, facettes: facettesClients(items) };
     return idxClients;
+  }
+  /* recherche au clavier : TOUTES les cases de la fiche (anciennes et nouvelles), sauf les données techniques */
+  const HORS_RECHERCHE = new Set(['id', 'journal', 'consentement', 'desinscrit', 'importId', 'importIds', 'importCree', 'telE164', 'entrepriseId', 'creeLe', 'derniereActivite', 'statutContact', 'caCrmCents', '_maj']);
+  function texteFiche(c) {
+    const out = [];
+    const walk = v => { if (v == null || typeof v === 'boolean') return; if (Array.isArray(v)) v.forEach(walk); else if (typeof v === 'object') Object.values(v).forEach(walk); else out.push(String(v)); };
+    for (const [k, v] of Object.entries(c || {})) if (!HORS_RECHERCHE.has(k)) walk(v);
+    if (c?.civilite === 'Mme') out.push('madame'); if (c?.civilite === 'M.') out.push('monsieur');
+    if (c?.independant) out.push('independant independante'); if (c?.permis) out.push('permis de conduire');
+    if (c?.nePasContacter) out.push('ne pas contacter');
+    return out.join(' ');
   }
   /* recherche multicritère de la liste Clients (listes déroulantes) */
   function critereClient(c) {

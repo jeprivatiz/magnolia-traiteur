@@ -84,6 +84,9 @@ test('import MADER : doublons fusionnés, NE PAS CONTACTER, entreprises, recherc
     assert.equal((await q('civ=M.')).total, 1);
     assert.equal((await q('pro=pro')).total, 2);
     assert.equal((await q('q=barman')).total, 1, 'le métier se cherche aussi au clavier');
+    assert.equal((await q('q=' + encodeURIComponent('déjà là'))).total, 1, 'la remarque se cherche aussi');
+    assert.equal((await q('q=generaliste')).total, 1, 'le style de DJ aussi');
+    assert.equal((await q('q=permis')).total, 1);
     const zoe = (await q('npc=oui')).items[0];
     assert.equal(zoe.desinscrit.email, true); assert.equal(zoe.desinscrit.sms, true);
     /* entreprises : SOPRA STERIA, deux contacts */

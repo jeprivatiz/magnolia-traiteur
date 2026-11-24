@@ -1149,7 +1149,7 @@
     if (id) return client(id);
     const r = await api(urlClients());
     return page('Clients', `${peut('fichiers') ? '<a class="btn ghost" href="#/clients/importer">⬆ Importer des clients</a>' : ''}<a class="btn" href="#/clients/nouveau">+ Nouveau client</a>`, `
-      ${ongletsClients('')}${bandeauClients('', r.tous, r.entreprises)}<div class="cl-bar"><input type="search" placeholder="🔍 Nom, prénom, téléphone, e-mail, société, ville, code postal…" data-q value="${esc(CL.q)}" aria-label="Rechercher un client">
+      ${ongletsClients('')}${bandeauClients('', r.tous, r.entreprises)}<div class="cl-bar"><input type="search" placeholder="🔍 Chercher dans toutes les cases des fiches : nom, téléphone, e-mail, société, ville, métier, remarque, rue…" data-q value="${esc(CL.q)}" aria-label="Rechercher un client">
         <div class="cl-f">${[['', `Tous (${r.tous.toLocaleString('fr-FR')})`], ['importes', `Fichier importé (${r.importes.toLocaleString('fr-FR')})`], ['autres', 'Site et back-office']].map(([k, l]) => `<button type="button" class="qs-own-b${CL.filtre === k ? ' on' : ''}" data-clf="${k}">${l}</button>`).join('')}</div></div>
       <div id="clMulti">${filtresClients(r.facettes)}</div><div id="clTable">${tableClients(r)}</div>`);
   }
