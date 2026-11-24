@@ -199,6 +199,48 @@
     else if (lien) { location.replace(lien.getAttribute('href')); }
     else
     if (location.hash && location.pathname === '/boutique') $(`[data-filter="${CSS.escape(location.hash.slice(1))}"]`, shop)?.click();
+    /* Démonstration des filtres (Jean-Luc, 2026-11-24) : tant que le visiteur n'a rien touché, les boutons
+       s'allument doucement l'un après l'autre et les produits changent en fondu, en boucle. Au premier geste
+       (clic, toucher, molette, clavier, recherche, tri, défilement vers les produits) la démo s'arrête pour de bon. */
+    const row = $('.chips[role="tablist"]', shop), grid = $('[data-grid]', shop);
+    if (row && grid && location.pathname === '/boutique' && !location.hash && !new URLSearchParams(location.search).get('q')
+      && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      const chips = $$('.chip', row);
+      const slug = a => a.hasAttribute('data-filter') ? a.dataset.filter : (a.getAttribute('href') || '').slice(1);
+      const GESTES = ['pointerdown', 'touchstart', 'wheel', 'keydown', 'focusin'];
+      const PAS = 3500, FONDU = 380;
+      let k = 0, timer = null, vu = false, fini = false;
+      const montre = a => {
+        chips.forEach(x => x.classList.toggle('on', x === a));
+        /* la rangée défile seule (jamais la page) pour garder le bouton allumé au centre */
+        const g = a.offsetLeft - row.offsetLeft - (row.clientWidth - a.offsetWidth) / 2;
+        row.scrollTo({ left: Math.max(0, g), behavior: 'smooth' });
+        /* la grille ne raccourcit jamais au-dessus du bas de l'écran : rien ne saute */
+        const bas = innerHeight - grid.getBoundingClientRect().top;
+        grid.style.minHeight = bas > 0 ? Math.ceil(bas) + 'px' : '';
+        grid.classList.add('demo-fondu');
+        setTimeout(() => { if (fini) return; shop._f = slug(a); apply(); grid.classList.remove('demo-fondu'); }, FONDU);
+      };
+      const suivant = () => { if (fini) return; k = (k + 1) % chips.length; montre(chips[k]); };
+      const marche = () => { if (!fini && vu && !document.hidden && !timer) timer = setInterval(suivant, PAS); };
+      const pause = () => { clearInterval(timer); timer = null; };
+      const auDefil = () => { if (row.getBoundingClientRect().bottom < 0) stop(); };
+      const io = new IntersectionObserver(es => { vu = es[0].isIntersecting; if (vu) marche(); else pause(); });
+      function stop() {
+        if (fini) return;
+        fini = true; pause(); io.disconnect();
+        grid.classList.remove('demo-fondu');
+        GESTES.forEach(t => shop.removeEventListener(t, stop, true));
+        window.removeEventListener('scroll', auDefil);
+      }
+      /* premier geste du visiteur : la démo s'arrête avant le filtrage normal, son choix reste */
+      GESTES.forEach(t => shop.addEventListener(t, stop, { capture: true, passive: true }));
+      row.addEventListener('click', () => { grid.style.minHeight = ''; }, true);
+      /* le visiteur descend dans les produits : il regarde, on n'y touche plus */
+      window.addEventListener('scroll', auDefil, { passive: true });
+      io.observe(row);
+      document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); else marche(); });
+    }
     const qi = $('[data-shop-q]', shop);
     if (qi && location.pathname !== '/boutique') qi.form.addEventListener('submit', e => { e.preventDefault(); apply(); });
     qi?.addEventListener('input', () => { if (!new URLSearchParams(location.search).get('q')) apply(); });
