@@ -21,7 +21,7 @@ jobs:
       - name: Outils
         run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-dejavu-core >/dev/null
       - name: Planches
-        run: bash apercu-videos/planches.sh
+        run: [ -s apercu-videos/liste.txt ] && bash apercu-videos/planches.sh || true
       - name: Vidéos finales
         run: bash apercu-videos/finales.sh
       - name: Enregistrer
