@@ -8,8 +8,8 @@
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   /* formules de buffet : nom sur une ligne, formule en dessous, sans tiret (copie de server/util.js coupeTitre) */
   /* taille d'une portion, ajoutée au nom partout (Jean-Luc, 2026-11-24) — copie de server/util.js PORTIONS */
-  const PORTIONS = [[/accras?\s+de\s+morue/i, '1 portion = 4 accras']];
-  const avecPortion = t => { t = String(t ?? ''); const x = PORTIONS.find(([re]) => re.test(t)); return x && !t.includes(x[1]) ? `${t} (${x[1]})` : t; };
+  const PORTIONS = [[/^a?c+ras?\b/i, '1 portion = 4 accras'], [/^sam[ou]+s+as?\b/i, '1 portion = 1 samoussa'], [/^boudins?\b/i, '1 portion = 1 boudin']];
+  const avecPortion = t => { t = String(t ?? ''); const x = PORTIONS.find(([re]) => re.test(t)); if (!x || t.includes(x[1]) || /\d\s*triangles?/i.test(t)) return t; const i = t.indexOf(' : '); return i > 0 ? `${t.slice(0, i)} (${x[1]})${t.slice(i)}` : `${t} (${x[1]})`; };
   const titreHtml = t => { t = avecPortion(t); const m = /^(Buffets?\s[^—·()]+?)\s+[—·–-]\s+(\S.*)$/u.exec(String(t ?? '').trim()); return m ? `${esc(m[1])}<span class="formule">${esc(m[2].charAt(0).toUpperCase() + m[2].slice(1))}</span>` : esc(t); };
   const euros = c => c == null ? 'Sur devis' : (Math.round(c) / 100).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).replace(/ /g, ' ') + ' €';
   const store = {
