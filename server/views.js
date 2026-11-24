@@ -795,7 +795,7 @@ function contact(c) {
 
 function legal(c, url, fallbackTitre) {
   const pg = c.pages[url] || {};
-  return texte(c, { titre: pg.titre || fallbackTitre, html: textToHtml(pg.texte) || '<p>Page en cours de rédaction.</p>', path: url });
+  return texte(c, { titre: pg.titre || fallbackTitre, html: textToHtml(url === '/cgv' ? remplirCgv(pg.texte, c.reglages) : pg.texte) || '<p>Page en cours de rédaction.</p>', path: url });
 }
 
 function erreur(c, code = 404) {
@@ -840,6 +840,22 @@ function totauxHtml(t) {
   <div class="sm"><dt>Total HT</dt><dd>${euros(t.htCents)}</dd></div><div class="tot"><dt>Total TTC</dt><dd>${euros(t.ttcCents)}</dd></div></dl>`;
 }
 
+/* identité de l'entreprise (Back-office > Mon entreprise) : logo, mentions légales, CGV */
+function entrepriseInfos(R) {
+  const E = R.entreprise || {};
+  const nom = E.raisonSociale || 'Magnolia Traiteur';
+  const mentions = [nom + (E.forme ? ' ' + E.forme : '') + (E.capital ? ' au capital de ' + E.capital : ''), E.siret ? 'SIRET ' + E.siret : E.siren ? 'SIREN ' + E.siren : '', E.rcs && (E.siren || E.siret) ? 'RCS ' + E.rcs + ' ' + (E.siren || String(E.siret).replace(/\s/g, '').slice(0, 9)) : '', E.ape ? 'APE ' + E.ape : '', E.tva ? 'TVA ' + E.tva : '', E.assurance ? 'Assurance RC pro : ' + E.assurance : ''].filter(Boolean).join(' · ');
+  const identite = [nom + (E.forme ? ', ' + E.forme : '') + (E.capital ? ' au capital de ' + E.capital : '') + ', ' + (R.adresse || '') + '.', E.siren || E.siret ? `SIREN ${E.siren || String(E.siret).replace(/\s/g, '').slice(0, 9)}${E.siret ? ', SIRET ' + E.siret : ''}${E.rcs ? ', RCS ' + E.rcs : ''}.` : '', E.ape ? `Code APE ${E.ape}.` : '', E.tva ? `TVA intracommunautaire ${E.tva}.` : '', R.telephone ? `Téléphone : ${R.telephone}.` : '', R.email ? `E-mail : ${R.email}.` : '', E.assurance ? `Assurance responsabilité civile professionnelle : ${E.assurance}.` : ''].filter(Boolean).join(' ');
+  const logo = E.logo ? `<img class="doc-logo" src="${esc(E.logo)}" alt="${esc(nom)}">` : `${MONO}<p class="brand-txt">Magnolia<small>${esc(R.sousNom || '')}</small></p>`;
+  return { nom, mentions, identite, logo, mediateur: E.mediateur || '', tribunal: E.tribunal || 'tribunal de commerce d’Évry' };
+}
+/* les CGV (Back-office > Outils) peuvent utiliser {{identite}}, {{mediateur}}, {{tribunal}} : remplis depuis Mon entreprise */
+function remplirCgv(texte, R) {
+  const I = entrepriseInfos(R);
+  return String(texte || '').replace(/\{\{identite\}\}/g, I.identite).replace(/\{\{tribunal\}\}/g, I.tribunal)
+    .replace(/\{\{mediateur\}\}/g, I.mediateur ? `le médiateur ${I.mediateur}` : 'un médiateur de la consommation, dont les coordonnées lui sont communiquées sur simple demande,');
+}
+
 function devisPage(c, d0, t, { client, demande, apercu = false }) {
   const R = c.reglages;
   /* aperçu équipe : le devis tel que le client le recevra, sans rien envoyer ni signer */
@@ -849,11 +865,12 @@ function devisPage(c, d0, t, { client, demande, apercu = false }) {
   const ac = regleAcompte(t.ttcCents, d, R.tarifs), acompte = ac.cents;
   const com = d.commercial === null ? null : (d.commercial || (R.alertes?.personnes || []).find(x => x.nom) || null);
   const quoi = ac.total ? `Règlement de la totalité, soit <b>${euros(acompte)}</b>` : `Acompte de <b>${euros(acompte)}</b> (${ac.pct} %)`;
-  const cgv = (c.pages?.['/cgv']?.texte || '').split('\n').map(l => l.trim()).filter(l => l && !/À compléter|^Les articles ci-dessous|^Conditions générales de vente$|^Voir aussi|^et la politique|^\.$/.test(l));
+  const I = entrepriseInfos(R);
+  const cgv = remplirCgv(c.pages?.['/cgv']?.texte, R).split('\n').map(l => l.trim()).filter(l => l && !/À compléter|^Les articles ci-dessous|^Conditions générales de vente$|^Voir aussi|^et la politique|^\.$/.test(l));
   const https = u => /^https:\/\/[^\s"'<>]+$/.test(String(u || '')) ? String(u) : '';
   const payer = https(d.lienPaiement) || https(R.paiement?.lien);
   const body = `${apercu ? `<div class="apercu-bar noprint"><p><b>👁 Aperçu du devis</b> · exactement ce que le client recevra.${d0.statut === 'brouillon' ? ' Rien n’a été envoyé.' : ''}</p><button class="btn btn-line" type="button" onclick="window.close()">Fermer l’aperçu</button></div>` : ''}<section class="wrap doc">
-  <header class="doc-h"><div>${MONO}<p class="brand-txt">Magnolia<small>${esc(R.sousNom || '')}</small></p><p class="small">${esc(R.adresse)}<br>${esc(R.telephone)} · ${esc(R.email)}</p></div>
+  <header class="doc-h"><div>${entrepriseInfos(R).logo}<p class="small">${esc(R.adresse)}<br>${esc(R.telephone)} · ${esc(R.email)}</p></div>
   <div class="doc-ref"><h1>Devis ${esc(d.numero)}</h1><p>Émis le ${esc(dateFr(d.envoyeLe || d.createdAt))}${d.validiteJusquau ? `<br>Valable jusqu’au ${esc(dateFr(d.validiteJusquau))}` : ''}</p><span class="pill p-${esc(d.statut)}">${esc({ envoye: 'À signer', accepte: 'Signé', refuse: 'Refusé', brouillon: 'Brouillon' }[d.statut] || '')}</span></div></header>
   <div class="doc-parties"><div><p class="eyebrow">Client</p><p><b>${esc(client?.nom || '')}</b>${client?.societe ? '<br>' + esc(client.societe) : ''}<br>${esc(client?.email || '')}<br>${esc(client?.tel || '')}</p></div>
   <div><p class="eyebrow">Événement</p><p><b>${esc(d.evenement?.type || demande?.evenement?.type || '')}</b><br>${esc(dateFr(d.evenement?.date || demande?.evenement?.date))}<br>${esc(d.evenement?.invites || demande?.evenement?.invites || '')} invités · ${esc(d.evenement?.lieu || demande?.evenement?.ville || '')}</p></div>${com?.nom ? `<div><p class="eyebrow">Votre conseiller</p><p><b>${esc(com.nom)}</b>${com.tel ? `<br><a href="tel:${esc(com.tel.replace(/\s/g, ''))}">${esc(com.tel)}</a>` : ''}${com.email ? `<br>${esc(com.email)}` : ''}</p></div>` : ''}</div>
@@ -872,6 +889,7 @@ function devisPage(c, d0, t, { client, demande, apercu = false }) {
      <form class="card-form"${apercu ? ' onsubmit="return false"' : ' data-accept'} novalidate><label>Votre nom et prénom<input name="nom" required autocomplete="name"></label><label class="check"><input type="checkbox" name="ok" required> Je déclare accepter ce devis « bon pour accord ».</label><div class="row"><button class="btn btn-vert"${apercu ? ' disabled' : ''}>Signer le devis</button><button class="btn btn-line" type="button"${apercu ? ' disabled' : ' data-refuse'}>Je ne donne pas suite</button></div><p class="small" data-accept-msg>${apercu ? 'Aperçu : la signature est désactivée ici.' : ''}</p></form>`}
   </div>
   <p class="row noprint"><button class="btn btn-line" type="button" onclick="print()">Imprimer / PDF</button><a class="lnk" href="tel:${esc((R.telephone || '').replace(/\s/g, ''))}">Une question ? ${esc(R.telephone)}</a></p>
+  ${I.mentions ? `<p class="doc-mentions">${esc(I.mentions)}</p>` : ''}
   ${cgv.length ? `<section class="doc-cgv" id="cgv"><h2>Conditions générales de vente</h2>${cgv.map(l => /^Article \d+/.test(l) ? `<h3>${esc(l)}</h3>` : `<p>${esc(l)}</p>`).join('')}</section>` : ''}
   </section>`;
   return layout(c, { title: 'Devis ' + d.numero, body, bodyClass: 'p-doc' }).replace('<head>', '<head><meta name="robots" content="noindex">');
@@ -880,14 +898,15 @@ function devisPage(c, d0, t, { client, demande, apercu = false }) {
 function facturePage(c, f, t) {
   const R = c.reglages;
   const body = `<section class="wrap doc">
-  <header class="doc-h"><div>${MONO}<p class="brand-txt">Magnolia<small>${esc(R.sousNom || '')}</small></p><p class="small">${esc(R.adresse)}<br>${esc(R.telephone)} · ${esc(R.email)}</p></div>
+  <header class="doc-h"><div>${entrepriseInfos(R).logo}<p class="small">${esc(R.adresse)}<br>${esc(R.telephone)} · ${esc(R.email)}</p></div>
   <div class="doc-ref"><h1>Facture ${esc(f.numero)}</h1><p>Émise le ${esc(dateFr(f.date))}${f.devisNumero ? `<br>Devis ${esc(f.devisNumero)}` : ''}</p><span class="pill p-${f.payee ? 'accepte' : 'envoye'}">${f.payee ? 'Payée' : 'À régler'}</span></div></header>
   <div class="doc-parties"><div><p class="eyebrow">Client</p><p><b>${esc(f.client?.nom || '')}</b>${f.client?.societe ? '<br>' + esc(f.client.societe) : ''}<br>${esc(f.client?.adresse || '')}<br>${esc(f.client?.email || '')}</p></div><div><p class="eyebrow">Objet</p><p>${esc(f.objet || '')}</p></div></div>
   ${devisLignesHtml(f)}
   ${totauxHtml(t)}
   ${(f.dejaRegleCents || 0) ? `<dl class="totaux"><div><dt>Déjà réglé (acompte)</dt><dd>− ${euros(f.dejaRegleCents)}</dd></div><div class="tot"><dt>Reste à payer</dt><dd>${euros(t.ttcCents - f.dejaRegleCents)}</dd></div></dl>` : ''}
   <p class="small">${esc(f.mentions || 'Paiement à réception. En cas de retard, pénalités au taux légal et indemnité forfaitaire de 40 € pour frais de recouvrement (clients professionnels).')}</p>
-  <p class="row noprint"><button class="btn btn-line" type="button" onclick="print()">Imprimer / PDF</button></p></section>`;
+  <p class="row noprint"><button class="btn btn-line" type="button" onclick="print()">Imprimer / PDF</button></p>
+  ${entrepriseInfos(R).mentions ? `<p class="doc-mentions">${esc(entrepriseInfos(R).mentions)}</p>` : ''}</section>`;
   return layout(c, { title: 'Facture ' + f.numero, body, bodyClass: 'p-doc' }).replace('<head>', '<head><meta name="robots" content="noindex">');
 }
 

@@ -1192,6 +1192,18 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('pages/' + pid, { ...avant, url: '/cgv', titre: 'Conditions générales de vente', texte, ...(avant.texte ? { texteAncien: avant.texte } : {}) });
     await store.set('site/reglages', { ...(await store.get('site/reglages')), cgvTraiteur: true });
   }
+  /* Mon entreprise (2026-11-24) : CGV reliées aux informations de l'entreprise. Une fois, si le texte n'a pas été retouché. */
+  const REn = await store.get('site/reglages');
+  if (REn && !REn.cgvEntreprise) {
+    const pid = slugify('/cgv'), pg = await store.get('pages/' + pid);
+    if (pg?.texte && REn.cgvTraiteur) {
+      const neuf = fs.readFileSync(require('path').join(__dirname, '..', 'data', 'cgv-traiteur.txt'), 'utf8').trim();
+      const ancien = neuf.replace('{{identite}}', "Magnolia Traiteur, 15 avenue de Norvège, 91140 Villebon-sur-Yvette. SIREN 992 979 856, TVA intracommunautaire FR31992979856. Téléphone : 07 63 66 98 92. E-mail : infos@magnoliatraiteur.fr.")
+        .replace('{{mediateur}} et conserve', 'un médiateur de la consommation, dont les coordonnées lui sont communiquées sur simple demande, et conserve').replace('du {{tribunal}}.', "du tribunal de commerce d'Évry.");
+      if (pg.texte.trim() === ancien) await store.set('pages/' + pid, { ...pg, texte: neuf });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), entreprise: { raisonSociale: 'Magnolia Traiteur', siren: '992 979 856', tva: 'FR31992979856', rcs: 'Évry', tribunal: 'tribunal de commerce d’Évry', site: 'magnoliatraiteur.fr', ...(REn.entreprise || {}) }, cgvEntreprise: true });
+  }
   /* recherche multicritère de la page Lieux (Jean-Luc, 2026-11-23) : type de lieu, département et événements repris
      des fiches du brouillon. Une fois, sans écraser ce qui a été saisi au back-office (Back-office > Lieux). */
   const RLx = await store.get('site/reglages');

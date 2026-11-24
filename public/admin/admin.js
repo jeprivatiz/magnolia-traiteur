@@ -45,6 +45,7 @@
     ['avis', 'Avis clients'],
     ['medias', 'Médiathèque'],
     ['-'],
+    ['entreprise', 'Mon entreprise'],
     ['equipe', 'Équipe & activité'],
     ['outils', 'Outils'],
   ];
@@ -84,7 +85,7 @@
     }
     if (!session) return login();
     const [route, id, sub] = location.hash.replace(/^#\/?/, '').split('?')[0].split('/');
-    const views = { '': dashboard, demandes, suivi, devis, factures, agenda, clients, catalogue, produit, lieux, lieu, site, avis, medias, equipe, outils };
+    const views = { '': dashboard, demandes, suivi, devis, factures, agenda, clients, catalogue, produit, lieux, lieu, site, avis, medias, entreprise, equipe, outils };
     const fn = route === 'catalogue' && id ? produit : route === 'lieux' && id ? lieu : views[route] || dashboard;
     if (CRM.includes(route)) mem.set('mg_crm_last', route);
     if (!cache.nouvelles && cache.nouvelles !== 0) api(A + '/demandes').then(l => { cache.nouvelles = l.filter(d => aTraiter(d, cache.devisL || [])).length; $$('#side .chip[data-tab=demandes] span, #side .crm-btn span').forEach(x => { x.textContent = cache.nouvelles || ''; }); }).catch(() => {});
@@ -1164,9 +1165,8 @@
         <h3>Chiffres clés</h3><p class="muted sm">Les chiffres s’affichent tels que vous les saisissez. Une note « sur 5 » s’affiche avec des étoiles.</p><div class="g4">${[0, 1, 2, 3].map(i => `<div><input name="ch${i}_v" value="${esc(Ac.chiffres?.[i]?.valeur || '')}" placeholder="4,9/5"><input name="ch${i}_l" value="${esc(Ac.chiffres?.[i]?.label || '')}" placeholder="sur Google"></div>`).join('')}</div></section>
       <section class="box"><h2>Les incontournables</h2><p class="muted sm">Les prestations mises en avant sur l’accueil, dans l’ordre.</p><div class="incs">${[0, 1, 2, 3, 4, 5, 6, 7].map(i => `<select name="inc${i}"><option value="">—</option>${prods.filter(p => p.statut !== 'masque').sort((a, b) => a.titre.localeCompare(b.titre)).map(p => `<option value="${esc(p.slug)}"${(Ac.incontournables || [])[i] === p.slug ? ' selected' : ''}>${esc(p.titre)}</option>`).join('')}</select>`).join('')}</div></section>
       <section class="box"><h2>Photos des blocs</h2><div class="g2">${photoField('photoMaison', Ac.photoMaison, 'Bloc « La maison Magnolia »')}${photoField('photoCommande', Ac.photoCommande, 'Bloc « Comment commander »')}</div></section>
-      <section class="box"><h2>Coordonnées</h2><div class="g2"><label>Téléphone<input name="telephone" value="${esc(R.telephone || '')}"></label><label>E-mail<input name="email" value="${esc(R.email || '')}"></label><label>Adresse<input name="adresse" value="${esc(R.adresse || '')}"></label><label>Horaires<input name="horaires" value="${esc(R.horaires || '')}"></label><label>Slogan<input name="slogan" value="${esc(R.slogan || '')}"></label><label>Instagram<input name="instagram" value="${esc(R.instagram || '')}"></label><label>Note Google<input name="g_note" value="${esc(R.avisGoogle?.note || '')}"></label><label>Nombre d’avis Google<input name="g_nombre" value="${esc(R.avisGoogle?.nombre || '')}"></label></div><label>Mention en bas de page<input name="mentionPied" value="${esc(R.mentionPied || '')}"></label></section>
+      <section class="box"><h2>Coordonnées</h2><div class="g2"><p class="muted sm span2">Téléphone, e-mail, adresse, SIRET, banque… : dans <a href="#/entreprise">🏢 Mon entreprise</a>.</p><label>Horaires<input name="horaires" value="${esc(R.horaires || '')}"></label><label>Slogan<input name="slogan" value="${esc(R.slogan || '')}"></label><label>Instagram<input name="instagram" value="${esc(R.instagram || '')}"></label><label>Note Google<input name="g_note" value="${esc(R.avisGoogle?.note || '')}"></label><label>Nombre d’avis Google<input name="g_nombre" value="${esc(R.avisGoogle?.nombre || '')}"></label></div><label>Mention en bas de page<input name="mentionPied" value="${esc(R.mentionPied || '')}"></label></section>
       <section class="box"><h2>Tarifs communs (TTC)</h2><div class="g3"><label>Livraison (€ / km aller-retour)<input name="km" value="${fromCents(T.kmCents)}"></label><label>Livraison offerte dès (€ TTC de commande, 0 = jamais)<input name="offerte" inputmode="decimal" value="${fromCents(T.livraisonOfferteCents ?? 70000)}"></label><label>Personnel (€ / heure)<input name="ph" value="${fromCents(T.personnel?.heureCents)}"></label><label>Heures minimum<select name="pmin">${[2, 3, 4, 5, 6].map(n => `<option${(T.personnel?.minHeures || 4) === n ? ' selected' : ''}>${n}</option>`).join('')}</select></label><label>Petit pack (€ / pers.)<input name="pk0" value="${fromCents(T.packs?.[0]?.prixCents)}"></label><label>Grand pack (€ / pers.)<input name="pk1" value="${fromCents(T.packs?.[1]?.prixCents)}"></label><label>Acompte par défaut<select name="acompte">${[20, 30, 40, 50].map(n => `<option value="${n}"${(T.acomptePct ?? 50) === n ? ' selected' : ''}>${n} %</option>`).join('')}</select></label><label>Paiement total en dessous de (€ TTC)<input name="seuilAcompte" value="${fromCents(T.seuilAcompteCents ?? 80000)}" inputmode="decimal"></label></div></section>
-      <section class="box"><h2>Paiement de l’acompte</h2><p class="muted sm">Affiché au client dès qu’il a signé son devis. Un lien propre à un devis (dans le devis) passe avant le lien général.</p><div class="g2"><label>Lien de paiement par carte (SumUp, Stripe…)<input name="pay_lien" value="${esc(R.paiement?.lien || '')}" placeholder="https://"></label><label>Titulaire du compte<input name="pay_tit" value="${esc(R.paiement?.titulaire || '')}"></label><label>IBAN (virement)<input name="pay_iban" value="${esc(R.paiement?.iban || '')}"></label><label>BIC<input name="pay_bic" value="${esc(R.paiement?.bic || '')}"></label></div></section>
       <section class="box"><h2>Publicité Google Ads</h2><p class="muted sm">Renseignez l’identifiant du compte (AW-…) et les libellés de conversion donnés par Google Ads. Chaque demande de devis envoyée est alors comptée, avec son montant estimé. Rien n’est mesuré sans l’accord du visiteur.</p><div class="g3"><label>Identifiant du compte<input name="ads_id" value="${esc(R.suivi?.googleAdsId || '')}" placeholder="AW-123456789"></label><label>Libellé « demande de devis »<input name="ads_dem" value="${esc(R.suivi?.conversionDemande || '')}"></label><label>Libellé « message de contact »<input name="ads_con" value="${esc(R.suivi?.conversionContact || '')}"></label></div></section>
       <section class="box"><h2>Redirections (bascule de l’ancien site)</h2><p class="muted sm">Une ligne par ancienne adresse : « /ancienne-page /nouvelle-page ». Une ancienne adresse finissant par * couvre toutes les pages qui commencent pareil. Google transfère alors le référencement (redirection 301).</p><textarea name="redirections" rows="5" class="mono" placeholder="/nos-buffets /saveurs-du-monde&#10;/blog/* /conseils">${esc(R.redirections || '')}</textarea></section>
       <div class="actions sticky"><button class="btn">Enregistrer</button><span class="muted" id="dirty"></span></div></form>`);
@@ -1201,11 +1201,10 @@
           videos: [0, 1, 2].map(i => ({ src: f[`v${i}_src`], poster: f[`v${i}_poster`], titre: f[`v${i}_titre`], lien: f[`v${i}_lien`] })).filter(v => v.src),
           chiffres: [0, 1, 2, 3].map(i => ({ valeur: f[`ch${i}_v`], label: f[`ch${i}_l`] })).filter(c => c.valeur),
           incontournables: [0, 1, 2, 3, 4, 5, 6, 7].map(i => f['inc' + i]).filter(Boolean), photoMaison: f.photoMaison, photoCommande: f.photoCommande },
-        telephone: f.telephone, email: f.email, adresse: f.adresse, horaires: f.horaires, slogan: f.slogan, instagram: f.instagram, mentionPied: f.mentionPied,
+        horaires: f.horaires, slogan: f.slogan, instagram: f.instagram, mentionPied: f.mentionPied,
         avisGoogle: { ...(R.avisGoogle || {}), note: f.g_note, nombre: f.g_nombre },
         tarifs: { ...T, kmCents: toCents(f.km), livraisonOfferteCents: toCents(f.offerte) ?? 0, acomptePct: +f.acompte, seuilAcompteCents: toCents(f.seuilAcompte) ?? 80000, personnel: { ...(T.personnel || {}), heureCents: toCents(f.ph), minHeures: +f.pmin }, packs: (T.packs || []).map((pk, i) => ({ ...pk, prixCents: toCents(f['pk' + i]) ?? pk.prixCents })) },
         suivi: { googleAdsId: String(f.ads_id || '').trim().toUpperCase(), conversionDemande: String(f.ads_dem || '').trim(), conversionContact: String(f.ads_con || '').trim() },
-        paiement: { lien: String(f.pay_lien || '').trim(), titulaire: f.pay_tit || '', iban: String(f.pay_iban || '').toUpperCase().replace(/\s+/g, ' ').trim(), bic: String(f.pay_bic || '').toUpperCase().trim() },
         redirections: f.redirections || '',
         effetBandeaux: !!f.effetBandeaux,
         bandeaux: Object.fromEntries(['boutique', 'lieux', 'temoignages', 'maison'].map(k => [k, { ...(R.bandeaux?.[k] || {}), photo: f[`b_${k}_photo`] || '', video: f[`b_${k}_video`] || '', titre: (f[`b_${k}_titre`] || '').trim(), chapo: (f[`b_${k}_chapo`] || '').trim(), bouton: (f[`b_${k}_bouton`] || '').trim(), ...(k === 'boutique' ? { introTitre: (f.b_boutique_introTitre ?? '').trim(), introTexte: (f.b_boutique_introTexte ?? '').trim() } : {}) }])) };
@@ -1234,6 +1233,33 @@
     const m = cache.medias; const filtrer = grilleMedias($('.mgrid.big'), ordreMedias([...m.envoyes, ...m.site]), 'a');
     $('[data-up]').addEventListener('change', async e => { let n = 0; for (const f of e.target.files) { try { await uploadFile(f); n++; } catch (err) { toast(err.message, true); } } toast(n + ' fichier(s) envoyé(s).'); render(); });
     $('[data-mq]').addEventListener('input', e => filtrer(e.target.value));
+  };
+
+  /* ---------- mon entreprise : tout ce qui sert aux devis, factures et CGV ---------- */
+  async function entreprise() {
+    const R = await api(A + '/site'); cache.R = R;
+    const E = R.entreprise || {}, P = R.paiement || {};
+    const ch = (name, label, val, attrs = '') => `<label>${label}<input name="${name}" value="${esc(val || '')}" ${attrs}></label>`;
+    return page('🏢 Mon entreprise', '<a class="btn ghost" href="/cgv" target="_blank">Voir les CGV ↗</a>', `<p class="muted">Ces informations apparaissent sur les devis, les factures et les conditions générales de vente. Une modification s’applique tout de suite, y compris aux devis déjà envoyés.</p><form id="ef">
+      <section class="box"><h2>Identité</h2><div class="g2">${photoField('logo', E.logo || '', 'Logo sur les devis et factures (vide = logo Magnolia)')}<div>
+        ${ch('raisonSociale', 'Raison sociale', E.raisonSociale ?? 'Magnolia Traiteur')}${ch('forme', 'Forme juridique <small>(SAS, SARL…)</small>', E.forme)}${ch('capital', 'Capital social <small>(ex. 10 000 €)</small>', E.capital)}</div></div></section>
+      <section class="box"><h2>Coordonnées</h2><div class="g2">${ch('adresse', 'Adresse', R.adresse)}${ch('telephone', 'Téléphone', R.telephone)}${ch('email', 'E-mail', R.email, 'type="email"')}${ch('site', 'Site internet', E.site ?? 'magnoliatraiteur.fr')}</div><p class="muted sm">Aussi affichées sur tout le site (en-tête, pied de page, contact).</p></section>
+      <section class="box"><h2>Numéros officiels</h2><div class="g3">${ch('siren', 'SIREN', E.siren ?? '992 979 856')}${ch('siret', 'SIRET <small>(14 chiffres)</small>', E.siret)}${ch('rcs', 'RCS <small>(ville du greffe)</small>', E.rcs ?? 'Évry')}${ch('ape', 'Code APE / NAF <small>(ex. 5621Z)</small>', E.ape)}${ch('tva', 'N° de TVA intracommunautaire', E.tva ?? 'FR31992979856')}${ch('tribunal', 'Tribunal compétent (clients pros)', E.tribunal ?? 'tribunal de commerce d’Évry')}</div></section>
+      <section class="box"><h2>Assurance et médiation</h2><div class="g2">${ch('assurance', 'Assurance responsabilité civile pro <small>(compagnie et n° de contrat)</small>', E.assurance)}${ch('mediateur', 'Médiateur de la consommation <small>(nom, site internet)</small>', E.mediateur, 'placeholder="ex. CM2C, www.cm2c.net"')}</div></section>
+      <section class="box"><h2>Banque et paiement</h2><p class="muted sm">Affichés au client dès qu’il a signé son devis. Un lien de paiement mis dans un devis passe avant le lien général.</p><div class="g2">${ch('pay_lien', 'Lien de paiement par carte (SumUp, Stripe…)', P.lien, 'placeholder="https://"')}${ch('banque', 'Banque', E.banque)}${ch('pay_tit', 'Titulaire du compte', P.titulaire)}${ch('pay_iban', 'IBAN', P.iban)}${ch('pay_bic', 'BIC', P.bic)}</div></section>
+      <div class="actions sticky"><button class="btn">Enregistrer</button><span class="muted" id="dirty"></span></div></form>`);
+  }
+  entreprise.after = () => {
+    const form = $('#ef'); bindPhotos(form);
+    form.addEventListener('input', () => { $('#dirty').textContent = 'Modifications non enregistrées'; });
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+      const f = Object.fromEntries(new FormData(form)), t = k => String(f[k] || '').trim();
+      const body = { adresse: t('adresse'), telephone: t('telephone'), email: t('email'),
+        entreprise: { ...(cache.R.entreprise || {}), logo: t('logo'), raisonSociale: t('raisonSociale'), forme: t('forme'), capital: t('capital'), site: t('site'), siren: t('siren'), siret: t('siret'), rcs: t('rcs'), ape: t('ape').toUpperCase(), tva: t('tva').toUpperCase(), tribunal: t('tribunal'), assurance: t('assurance'), mediateur: t('mediateur'), banque: t('banque') },
+        paiement: { ...(cache.R.paiement || {}), lien: t('pay_lien'), titulaire: t('pay_tit'), iban: t('pay_iban').toUpperCase().replace(/\s+/g, ' '), bic: t('pay_bic').toUpperCase() } };
+      try { await api(A + '/site', { method: 'PUT', body }); cache.R = { ...cache.R, ...body }; $('#dirty').textContent = ''; toast('Enregistré : en ligne immédiatement.'); } catch (err) { toast(err.message, true); }
+    });
   };
 
   /* ---------- équipe et activité ---------- */
