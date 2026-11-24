@@ -763,6 +763,14 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('produits/' + slug, { ...x, photos: photos.map(([src, alt]) => ({ src, alt })), photoDouceur: 'v1' });
   }
 
+  /* sans le médaillon « R » du pâtissier (Jean-Luc, 2026-11-24) : l'ancienne photo est remplacée là où elle est encore */
+  for (const n of ['framboisine', 'tarte-chocolat', 'craqueline', 'croquant-caramel']) {
+    const ancien = '/site/c/douceurs/' + n + '.webp', nouveau = '/site/c/douceurs/' + n + '-2.webp';
+    for (const { id, data: x } of await store.list('produits')) {
+      if ((x.photos || []).some(ph => ph.src === ancien)) await store.set('produits/' + id, { ...x, photos: x.photos.map(ph => ph.src === ancien ? { ...ph, src: nouveau } : ph) });
+    }
+  }
+
   /* vraies photos à la place des photos qui font « IA » (Jean-Luc, 2026-11-22) : posées une fois par fiche et par version,
      modifiables ensuite dans le back-office. Sources dans data/credits-photos-univers.md. */
   for (const [slug, ver, photos] of VRAIES_PHOTOS) {
@@ -1483,10 +1491,10 @@ const PHOTOS_DOUCEURS = [
   ['macarons-36-pieces', [[PX(1346345), 'Boîtes de macarons assortis']]],
   ['macarons-72-pieces', [[PX(239578), 'Macarons de toutes les couleurs']]],
   ['fraisier-32-parts', [[D('fraisier'), 'Part de fraisier : génoise, crème et fraises']]],
-  ['framboisine-32-parts', [[D('framboisine'), 'Framboisine nappée de framboises']]],
-  ['tarte-duo-chocolat-10-parts', [[D('tarte-chocolat'), 'Tarte au chocolat sur sablé']]],
-  ['craqueline-16-parts', [[D('craqueline'), 'Craqueline au chocolat et praliné croustillant']]],
-  ['croquant-caramel-16-parts', [[D('croquant-caramel'), 'Croquant caramel et éclats de nougatine']]],
+  ['framboisine-32-parts', [[D('framboisine-2'), 'Framboisine nappée de framboises']]],
+  ['tarte-duo-chocolat-10-parts', [[D('tarte-chocolat-2'), 'Tarte au chocolat sur sablé']]],
+  ['craqueline-16-parts', [[D('craqueline-2'), 'Craqueline au chocolat et praliné croustillant']]],
+  ['croquant-caramel-16-parts', [[D('croquant-caramel-2'), 'Croquant caramel et éclats de nougatine']]],
   ['gateau-chocolat-32-parts', [[D('gateau-chocolat'), 'Gâteau au chocolat, génoise cacao et crème chocolatée']]],
   /* pièces montées */
   ['piece-montee-romantica', [[D('piece-montee-romantica'), 'Pièce montée Romantica, étages décorés de roses']]],
