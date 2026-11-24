@@ -19,6 +19,7 @@ const { rid, sha, esc, euros, limiter, dateFr, slugify, nomPropre, dateNaissance
 const { creerImportClients, normTel, departementDe } = require('./import-clients');
 const IA = require('./ia');
 const DIF = require('./diffusion');
+const FAC = require('./factures');
 
 const ROOT = path.join(__dirname, '..');
 const PUBLIC = path.join(ROOT, 'public');
@@ -494,7 +495,7 @@ async function createApp(opts = {}) {
       caSigneMoisCents: signes.filter(d => (d.signature?.at || '').startsWith(mois)).reduce((t, d) => t + totaux(d).ttcCents, 0),
       caSigneCents: signes.reduce((t, d) => t + totaux(d).ttcCents, 0),
       devisEnAttenteCents: devis.filter(d => d.statut === 'envoye').reduce((t, d) => t + totaux(d).ttcCents, 0),
-      facturesImpayeesCents: factures.filter(f => !f.payee).reduce((t, f) => t + totaux(f).ttcCents - (f.dejaRegleCents || 0), 0),
+      facturesImpayeesCents: factures.filter(f => f.type !== 'avoir' && !f.annuleeParAvoir).reduce((t, f) => t + FAC.etat(f).resteCents, 0),
       tauxSignature: devis.filter(d => ['accepte', 'refuse'].includes(d.statut)).length ? Math.round(100 * signes.length / devis.filter(d => ['accepte', 'refuse'].includes(d.statut)).length) : null,
       prochains: demandes.filter(d => d.evenement?.date >= aujourdHui && ['accord', 'reserve'].includes(d.statut)).sort((a, b) => a.evenement.date.localeCompare(b.evenement.date)).slice(0, 6).map(d => ({ id: d.id, date: d.evenement.date, nom: d.contact?.nom, invites: d.evenement.invites, statut: d.statut })),
       anniversaires: await anniversaires(14),
@@ -779,6 +780,11 @@ async function createApp(opts = {}) {
     const c = await cat.get();
     res.set('Cache-Control', 'no-store').send(views.devisPage(c, d, totaux(d), { apercu: true, client: await store.get('clients/' + d.clientId), demande: d.demandeId ? await store.get('demandes/' + d.demandeId) : null }));
   }));
+  A.get('/factures/:id/apercu', wrap(async (req, res) => {
+    const f = await store.get('factures/' + req.params.id);
+    if (!f) return res.status(404).send('Facture introuvable.');
+    res.set('Cache-Control', 'no-store').send(views.facturePage(await cat.get(), f, totaux(f), { apercu: true }));
+  }));
   /* envoi groupé (comme Team Leader) : plusieurs devis du même client dans UN e-mail / SMS,
      chaque devis gardant son propre lien et sa propre signature. « apercu » = rien n'est envoyé. */
   const LETTRES = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -862,14 +868,11 @@ async function createApp(opts = {}) {
     res.json({ ok: true });
   }));
 
-  A.post('/actions/facture-depuis-devis/:id', sameSite, json, wrap(async (req, res) => {
-    const d = await store.get('devis/' + req.params.id);
-    if (!d) return res.status(404).json({ error: 'Devis introuvable.' });
-    if (d.statut !== 'accepte') return res.status(400).json({ error: 'Le devis doit d’abord être accepté.' });
-    const type = ['acompte', 'solde', 'totale'].includes(req.body?.type) ? req.body.type : 'totale';
+  /* ---------- factures (CRM) : règlements en plusieurs acomptes, envoi, relances, archives, avoirs ---------- */
+  async function creerFacture(d, type, ctx) {
     const cl = await store.get('clients/' + d.clientId);
     const t = totaux(d);
-    const autres = (await store.list('factures')).map(x => x.data).filter(f => f.devisId === d.id);
+    const autres = (await store.list('factures')).map(x => x.data).filter(f => f.devisId === d.id && !f.annuleeParAvoir && f.type !== 'avoir');
     const acompteFacture = autres.filter(f => f.type === 'acompte').reduce((s2, f) => s2 + totaux(f).ttcCents, 0);
     let lignes = d.lignes, remiseCents = d.remiseCents || 0, dejaRegleCents = 0;
     if (type === 'acompte') {
@@ -879,33 +882,153 @@ async function createApp(opts = {}) {
       lignes = Object.entries(t.tva).map(([taux, tv]) => { const ttc = tv + Math.round(tv / (taux / 100)); return { designation: `Acompte ${acR.pct} % sur devis ${d.numero} (TVA ${taux} %)`, qte: 1, unite: '', puCents: Math.round(montant * ttc / t.ttcCents), tva: +taux }; });
       if (lignes.length) lignes[lignes.length - 1].puCents += montant - lignes.reduce((s2, l) => s2 + l.puCents, 0); /* le centime d'arrondi va sur la dernière ligne */
       remiseCents = 0;
-    } else if (type === 'solde') dejaRegleCents = acompteFacture;
+    } else if (type === 'solde' || (type === 'totale' && acompteFacture)) dejaRegleCents = acompteFacture;
     const id = 'f_' + rid(8), token = rid(18);
     const numero = await prochainNumero(store, 'facture');
-    const f = { id, numero, token, type, devisId: d.id, devisNumero: d.numero, clientId: d.clientId, client: { nom: cl?.nom, societe: cl?.societe, email: cl?.email, adresse: cl?.adresse || '' }, objet: `${d.evenement?.type || 'Événement'} du ${dateFr(d.evenement?.date)}`, date: new Date().toISOString().slice(0, 10), lignes, remiseCents, dejaRegleCents, payee: false, createdAt: new Date().toISOString() };
-    f.totalCents = totaux(f).ttcCents - dejaRegleCents;
+    const f = FAC.resume({ id, numero, token, type, devisId: d.id, devisNumero: d.numero, clientId: d.clientId, client: { nom: cl?.nom || d.clientNom || '', societe: cl?.societe || '', email: cl?.email || '', tel: cl?.tel || '', adresse: [cl?.adresse, [cl?.cp, cl?.ville].filter(Boolean).join(' ')].filter(Boolean).join('\n') },
+      objet: `${d.evenement?.type || 'Événement'} du ${dateFr(d.evenement?.date)}`, evenementDate: d.evenement?.date || '', commercial: d.commercial?.nom || '', date: new Date().toISOString().slice(0, 10), lignes, remiseCents, dejaRegleCents, reglements: [], payee: false, createdAt: new Date().toISOString(), creePar: ctx.name });
     await store.set('factures/' + id, f);
     await store.set('_facturetoken/' + sha(token), { id });
-    audit(req.ctx, 'facture créée', 'factures/' + id, numero);
-    res.json({ ok: true, id });
+    audit(ctx, 'facture créée', 'factures/' + id, numero);
+    return f;
+  }
+  const tarifs = async () => (await cat.get()).reglages.tarifs || {};
+  /* liste enrichie : reste à payer, échéance, statut (à envoyer, non réglée, en retard, réglée, archivée…) */
+  A.get('/actions/factures', wrap(async (req, res) => {
+    const T = await tarifs();
+    const l = (await store.list('factures')).map(x => x.data).filter(Boolean).map(f => { const e = FAC.etat(f); return { ...f, lignes: undefined, etat: { dueCents: e.dueCents, regleCents: e.regleCents, resteCents: e.resteCents, ttcCents: e.ttcCents, nb: e.reglements.length }, statutF: FAC.statut(f, T), echeance: FAC.echeance(f, T), reglements: e.reglements }; });
+    res.json(l.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))));
   }));
+  A.get('/actions/facture/:id', wrap(async (req, res) => {
+    const f = await store.get('factures/' + req.params.id);
+    if (!f) return res.status(404).json({ error: 'Facture introuvable.' });
+    const T = await tarifs(), d = f.devisId ? await store.get('devis/' + f.devisId) : null;
+    const e = FAC.etat(f);
+    res.json({ ...f, etat: { dueCents: e.dueCents, regleCents: e.regleCents, resteCents: e.resteCents, ttcCents: e.ttcCents, tropPercuCents: e.tropPercuCents }, reglements: FAC.libelles(f), statutF: FAC.statut(f, T), echeance: FAC.echeance(f, T), propose: FAC.montantPropose(f, d, T), moyens: FAC.MOYENS, devis: d ? { id: d.id, numero: d.numero, token: d.token } : null });
+  }));
+  A.post('/actions/facture-depuis-devis/:id', sameSite, json, wrap(async (req, res) => {
+    const d = await store.get('devis/' + req.params.id);
+    if (!d) return res.status(404).json({ error: 'Devis introuvable.' });
+    if (d.statut !== 'accepte') return res.status(400).json({ error: 'Le devis doit d’abord être accepté.' });
+    const type = ['acompte', 'solde', 'totale'].includes(req.body?.type) ? req.body.type : 'totale';
+    res.json({ ok: true, id: (await creerFacture(d, type, req.ctx)).id });
+  }));
+  /* un règlement du client sur un devis signé : la facture du devis est créée (« à envoyer ») ou complétée */
+  A.post('/actions/reglement-devis/:id', sameSite, json, wrap(async (req, res) => {
+    const d = await store.get('devis/' + req.params.id);
+    if (!d) return res.status(404).json({ error: 'Devis introuvable.' });
+    if (d.statut !== 'accepte') return res.status(400).json({ error: 'Le devis doit d’abord être signé par le client.' });
+    let r; try { r = FAC.nouveauReglement(req.body, req.ctx.name, rid); } catch (e) { return res.status(400).json({ error: e.message }); }
+    const ex = (await store.list('factures')).map(x => x.data).filter(f => f.devisId === d.id && f.type === 'totale' && !f.annuleeParAvoir).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))[0];
+    const f = ex || await creerFacture(d, 'totale', req.ctx);
+    r.at = new Date().toISOString(); /* après la création de la facture, pour l'historique */
+    const next = FAC.resume({ ...f, reglements: [...(f.reglements || []), r] });
+    await store.set('factures/' + f.id, next);
+    if (d.demandeId) await changerStatut(d.demandeId, 'reserve', req.ctx.name);
+    audit(req.ctx, 'règlement enregistré', 'factures/' + f.id, `${f.numero} · ${euros(r.montantCents)} · ${r.moyen}`);
+    res.json({ ok: true, id: f.id, numero: f.numero, cree: !ex, resteCents: next.resteCents });
+  }));
+  A.post('/actions/facture-reglement/:id', sameSite, json, wrap(async (req, res) => {
+    const f = await store.get('factures/' + req.params.id);
+    if (!f) return res.status(404).json({ error: 'Facture introuvable.' });
+    if (f.type === 'avoir' || f.annuleeParAvoir) return res.status(400).json({ error: 'Cette facture est annulée par un avoir.' });
+    let r; try { r = FAC.nouveauReglement(req.body, req.ctx.name, rid); } catch (e) { return res.status(400).json({ error: e.message }); }
+    const base = !(f.reglements || []).length && f.payee ? { ...f, payee: false } : f; /* ancienne facture « payée » sans détail : on repart de zéro */
+    const next = FAC.resume({ ...base, reglements: [...(f.reglements || []), r] });
+    await store.set('factures/' + f.id, next);
+    const d = f.devisId && await store.get('devis/' + f.devisId);
+    if (d?.demandeId) await changerStatut(d.demandeId, 'reserve', req.ctx.name);
+    audit(req.ctx, 'règlement enregistré', 'factures/' + f.id, `${f.numero} · ${euros(r.montantCents)} · ${r.moyen}`);
+    res.json({ ok: true, resteCents: next.resteCents, payee: next.payee });
+  }));
+  A.post('/actions/facture-reglement-retirer/:id', sameSite, json, wrap(async (req, res) => {
+    const f = await store.get('factures/' + req.params.id);
+    if (!f) return res.status(404).json({ error: 'Facture introuvable.' });
+    const r = (f.reglements || []).find(x => x.id === req.body?.rid);
+    if (!r) return res.status(404).json({ error: 'Règlement introuvable.' });
+    const next = FAC.resume({ ...f, archivee: false, reglements: f.reglements.filter(x => x.id !== r.id), reglementsRetires: [...(f.reglementsRetires || []), { ...r, retireLe: new Date().toISOString(), retirePar: req.ctx.name }] });
+    await store.set('factures/' + f.id, next);
+    audit(req.ctx, 'règlement retiré', 'factures/' + f.id, `${f.numero} · ${euros(r.montantCents)}`);
+    res.json({ ok: true });
+  }));
+  /* ancien bouton « Marquer payée » : ajoute un règlement du reste dû */
   A.post('/actions/facture-payee/:id', sameSite, json, wrap(async (req, res) => {
     const f = await store.get('factures/' + req.params.id);
     if (!f) return res.status(404).json({ error: 'Facture introuvable.' });
-    await store.set('factures/' + f.id, { ...f, payee: !!req.body?.payee, payeeLe: req.body?.payee ? new Date().toISOString() : null, moyen: s(req.body?.moyen, 40) });
+    const e = FAC.etat(f);
+    let next;
+    if (req.body?.payee) next = FAC.resume({ ...f, reglements: [...(f.reglements || []), FAC.nouveauReglement({ montantCents: e.resteCents || e.dueCents, moyen: req.body?.moyen }, req.ctx.name, rid)] });
+    else next = FAC.resume({ ...f, payee: false, archivee: false, reglements: [] });
+    await store.set('factures/' + f.id, next);
     const d = await store.get('devis/' + f.devisId);
     if (req.body?.payee && d?.demandeId) await changerStatut(d.demandeId, 'reserve', req.ctx.name);
     audit(req.ctx, req.body?.payee ? 'facture payée' : 'facture non payée', 'factures/' + f.id, f.numero);
     res.json({ ok: true });
   }));
-  A.post('/actions/envoyer-facture/:id', sameSite, wrap(async (req, res) => {
+  /* e-mail de la facture : chaque acompte versé avec sa date, puis le solde restant dû */
+  function factureMail(f, R, { message = '', relance = false } = {}) {
+    const e = FAC.etat(f), regs = FAC.libelles(f), lien = `${SITE}/facture/${f.token}`, prenom = esc((f.client?.nom || '').split(' ')[0]);
+    const ech = FAC.echeance(f, R.tarifs || {});
+    const avoir = f.type === 'avoir';
+    const ligne = (a, b, gras) => `<tr><td style="padding:6px 10px;border-bottom:1px solid #e7e1d3${gras ? ';font-weight:700' : ''}">${a}</td><td style="padding:6px 10px;border-bottom:1px solid #e7e1d3;text-align:right;white-space:nowrap${gras ? ';font-weight:700' : ''}">${b}</td></tr>`;
+    const tableau = avoir ? '' : `<table style="border-collapse:collapse;min-width:300px;margin:12px 0;background:#fbf8f1;border:1px solid #e7e1d3">${ligne('Montant de la facture (TTC)', euros(e.dueCents))}${regs.map(r => ligne(`${esc(r.libelle)} versé le ${esc(dateFr(r.date))} <small style="color:#6b6b6b">(${esc(r.moyen)})</small>`, '− ' + euros(r.montantCents))).join('')}${ligne(e.resteCents ? 'Solde restant dû' : 'Solde', e.resteCents ? euros(e.resteCents) : 'Facture entièrement réglée ✓', true)}</table>`;
+    const intro = message ? `<p>${esc(message).replace(/\n/g, '<br>')}</p>`
+      : avoir ? `<p>Veuillez trouver votre avoir ${esc(f.numero)} de ${euros(e.ttcCents)} TTC, qui annule la facture ${esc(f.factureNumero || '')}.</p>`
+      : relance ? `<p>Sauf erreur de notre part, le solde de votre facture ${esc(f.numero)} (${esc(f.objet || '')}) n’a pas encore été réglé${ech ? ` ; il était attendu au plus tard le ${esc(dateFr(ech))}` : ''}.</p>`
+      : `<p>Veuillez trouver votre facture ${esc(f.numero)} pour votre ${esc(String(f.objet || 'événement').toLowerCase())}.</p>`;
+    const P = R.paiement || {};
+    const payer = e.resteCents && !avoir ? `${/^https:\/\//.test(P.lien || '') ? `<p><a href="${esc(P.lien)}" style="background:#b8913a;color:#fff;padding:10px 18px;text-decoration:none;border-radius:4px;display:inline-block">Régler par carte</a></p>` : ''}${P.iban ? `<p style="font-size:14px">Par virement : ${esc(P.titulaire || 'Magnolia Traiteur')} · IBAN <b>${esc(P.iban)}</b>${P.bic ? ' · BIC ' + esc(P.bic) : ''} · référence <b>${esc(f.numero)}</b></p>` : ''}${ech && !relance ? `<p>Solde à régler au plus tard le <b>${esc(dateFr(ech))}</b>.</p>` : ''}` : '';
+    const html = `<div style="font-family:Arial,sans-serif;color:#1f2a24;line-height:1.5"><p>Bonjour ${prenom},</p>${intro}${tableau}${payer}<p><a href="${lien}" style="background:#1d3b2f;color:#fff;padding:12px 20px;text-decoration:none;border-radius:4px;display:inline-block">${avoir ? 'Voir l’avoir' : 'Voir et imprimer la facture'}</a></p><p>${relance ? 'Si votre règlement est déjà parti, merci de ne pas tenir compte de ce message. ' : ''}Merci pour votre confiance,<br>L’équipe Magnolia Traiteur<br>${esc(R.telephone || '')}</p></div>`;
+    const text = [`Bonjour,`, message || (relance ? `Le solde de votre facture ${f.numero} reste à régler.` : `Votre ${avoir ? 'avoir' : 'facture'} ${f.numero}.`), ...regs.map(r => `${r.libelle} versé le ${dateFr(r.date)} : ${euros(r.montantCents)}`), avoir ? '' : `Solde restant dû : ${euros(e.resteCents)}`, lien].filter(Boolean).join('\n');
+    const sujet = relance ? `Rappel : solde de votre facture Magnolia Traiteur ${f.numero}` : `Votre ${avoir ? 'avoir' : 'facture'} Magnolia Traiteur ${f.numero}${!avoir && e.reglements.length && e.resteCents ? ' · solde ' + euros(e.resteCents) : ''}`;
+    const sms = relance ? `Magnolia Traiteur : rappel, le solde de ${euros(e.resteCents)} de votre facture ${f.numero} reste a regler. Voir : ${lien}` : `Magnolia Traiteur : votre facture ${f.numero} est disponible${e.resteCents ? `, solde restant du ${euros(e.resteCents)}` : ''}. Voir : ${lien}`;
+    return { to: f.client?.email || '', tel: f.client?.tel || '', sujet, html, text, sms, lien };
+  }
+  async function envoiFacture(req, res, relance) {
     const f = await store.get('factures/' + req.params.id);
-    if (!f?.client?.email) return res.status(400).json({ error: 'Pas d’e-mail client.' });
-    const lien = `${SITE}/facture/${f.token}`;
-    await brevo.sendEmail({ to: f.client.email, name: f.client.nom, subject: `Votre facture Magnolia Traiteur ${f.numero}`, html: `<p>Bonjour,</p><p>Votre facture ${esc(f.numero)} (${euros(f.totalCents)} TTC) est disponible : <a href="${lien}">voir la facture</a>.</p><p>Merci pour votre confiance,<br>L’équipe Magnolia Traiteur</p>`, text: lien });
-    await store.set('factures/' + f.id, { ...f, envoyeeLe: new Date().toISOString() });
-    audit(req.ctx, 'facture envoyée', 'factures/' + f.id, f.numero);
-    res.json({ ok: true, lien });
+    if (!f) return res.status(404).json({ error: 'Facture introuvable.' });
+    if (!f.client?.tel || !f.client?.email) { const cl = f.clientId && await store.get('clients/' + f.clientId); if (cl) f.client = { ...f.client, email: f.client?.email || cl.email || '', tel: f.client?.tel || cl.tel || '' }; }
+    const R = (await cat.get()).reglages;
+    const m = factureMail(f, R, { message: s(req.body?.message, 3000), relance });
+    if (req.body?.apercu) return res.json({ ok: true, ...m });
+    const canaux = (Array.isArray(req.body?.canaux) ? req.body.canaux : ['email']).filter(k => ['email', 'sms'].includes(k));
+    if (!canaux.length) return res.status(400).json({ error: 'Choisissez e-mail et/ou SMS.' });
+    if (canaux.includes('email') && !isEmail(m.to)) return res.status(400).json({ error: 'Ce client n’a pas d’adresse e-mail : complétez sa fiche.' });
+    if (canaux.includes('sms') && !m.tel) return res.status(400).json({ error: 'Ce client n’a pas de téléphone : complétez sa fiche.' });
+    if (canaux.includes('email')) await brevo.sendEmail({ to: m.to, name: f.client?.nom, replyTo: R.email, subject: m.sujet, html: m.html, text: m.text });
+    if (canaux.includes('sms')) await brevo.sendSms({ to: m.tel, content: m.sms });
+    const now = new Date().toISOString(), e = FAC.etat(f);
+    const trace = { at: now, canaux, par: req.ctx.name, regleCents: e.regleCents, resteCents: e.resteCents };
+    await store.set('factures/' + f.id, relance ? { ...f, relances: [...(f.relances || []), trace] } : { ...f, envoyeeLe: f.envoyeeLe || now, envois: [...(f.envois || []), trace] });
+    audit(req.ctx, relance ? 'relance facture' : 'facture envoyée', 'factures/' + f.id, f.numero);
+    res.json({ ok: true, lien: m.lien, test: !brevo.live });
+  }
+  A.post('/actions/envoyer-facture/:id', sameSite, json, wrap((req, res) => envoiFacture(req, res, false)));
+  A.post('/actions/relancer-facture/:id', sameSite, json, wrap((req, res) => envoiFacture(req, res, true)));
+  A.post('/actions/archiver-facture/:id', sameSite, json, wrap(async (req, res) => {
+    const f = await store.get('factures/' + req.params.id);
+    if (!f) return res.status(404).json({ error: 'Facture introuvable.' });
+    const archivee = req.body?.archivee !== false;
+    if (archivee && !FAC.etat(f).payee && !f.annuleeParAvoir && f.type !== 'avoir') return res.status(400).json({ error: 'Seule une facture entièrement réglée s’archive : elle reste dans « Non réglées » tant qu’il reste un solde.' });
+    await store.set('factures/' + f.id, { ...f, archivee, archiveeLe: archivee ? new Date().toISOString() : null });
+    audit(req.ctx, archivee ? 'facture archivée' : 'facture désarchivée', 'factures/' + f.id, f.numero);
+    res.json({ ok: true });
+  }));
+  /* une facture émise ne s'efface pas : l'avoir l'annule (numérotation continue A-année-n°) */
+  A.post('/actions/avoir-facture/:id', sameSite, json, wrap(async (req, res) => {
+    if (req.ctx.role !== 'manager') return res.status(403).json({ error: 'Réservé au Manager.' });
+    const f = await store.get('factures/' + req.params.id);
+    if (!f) return res.status(404).json({ error: 'Facture introuvable.' });
+    if (f.type === 'avoir' || f.annuleeParAvoir) return res.status(400).json({ error: 'Cette facture est déjà annulée.' });
+    const id = 'f_' + rid(8), token = rid(18), numero = await prochainNumero(store, 'avoir');
+    const motif = s(req.body?.motif, 300);
+    const a = { id, numero, token, type: 'avoir', factureId: f.id, factureNumero: f.numero, devisId: f.devisId, devisNumero: f.devisNumero, clientId: f.clientId, client: f.client, objet: `Avoir sur la facture ${f.numero}${motif ? ' · ' + motif : ''}`, motif, date: new Date().toISOString().slice(0, 10), lignes: f.lignes, remiseCents: f.remiseCents || 0, dejaRegleCents: f.dejaRegleCents || 0, reglements: [], createdAt: new Date().toISOString(), creePar: req.ctx.name };
+    a.totalCents = FAC.etat(a).dueCents; a.payee = true;
+    await store.set('factures/' + id, a);
+    await store.set('_facturetoken/' + sha(token), { id });
+    await store.set('factures/' + f.id, { ...f, annuleeParAvoir: { id, numero, le: a.createdAt, par: req.ctx.name } });
+    audit(req.ctx, 'avoir créé', 'factures/' + id, `${numero} annule ${f.numero}`);
+    res.json({ ok: true, id, numero });
   }));
 
   /* ---------- appels et visios programmés avec un client (fiche client) : agenda des commerciaux, invitation au client, rappel avant l'heure ---------- */
@@ -1056,9 +1179,16 @@ async function createApp(opts = {}) {
     }
     const typeF = { acompte: 'd’acompte', solde: 'de solde', totale: '' };
     for (const f of facts) {
-      add(f.createdAt, 'facture', `Facture ${typeF[f.type] || ''} ${f.numero} créée`.replace(/\s+/g, ' '), { montantCents: f.totalCents, detail: f.devisNumero ? 'Devis ' + f.devisNumero : '', lien: '#/factures/' + f.id });
-      if (f.envoyeeLe) { add(f.envoyeeLe, 'envoi', `Facture ${f.numero} envoyée par e-mail`, { lien: f.token ? '/facture/' + f.token : '' }); lies.push([f.envoyeeLe, f.numero]); }
-      if (f.payee && f.payeeLe) add(f.payeeLe, 'paiement', `Règlement reçu : facture ${f.numero}`, { montantCents: f.totalCents, detail: f.moyen || '' });
+      if (f.type === 'avoir') { add(f.createdAt, 'facture', `Avoir ${f.numero} (annule la facture ${f.factureNumero || ''})`, { montantCents: -(f.totalCents || 0), detail: f.motif || '', par: f.creePar || '', lien: '#/factures/' + f.id }); continue; }
+      add(f.createdAt, 'facture', `Facture ${typeF[f.type] || ''} ${f.numero} créée`.replace(/\s+/g, ' '), { montantCents: f.totalCents, detail: f.devisNumero ? 'Devis ' + f.devisNumero : '', par: f.creePar || '', lien: '#/factures/' + f.id });
+      const can = x => (x.canaux || ['email']).map(k => k === 'sms' ? 'SMS' : 'e-mail').join(' et ');
+      if (f.envois?.length) for (const x of f.envois) { add(x.at, 'envoi', `Facture ${f.numero} envoyée par ${can(x)}`, { detail: x.regleCents ? `Acomptes versés ${euros(x.regleCents)} · solde ${euros(x.resteCents)}` : '', par: x.par, lien: f.token ? '/facture/' + f.token : '' }); lies.push([x.at, f.numero]); }
+      else if (f.envoyeeLe) { add(f.envoyeeLe, 'envoi', `Facture ${f.numero} envoyée par e-mail`, { lien: f.token ? '/facture/' + f.token : '' }); lies.push([f.envoyeeLe, f.numero]); }
+      for (const x of f.relances || []) { add(x.at, 'relance', `Relance du solde : facture ${f.numero}`, { detail: `par ${can(x)} · solde ${euros(x.resteCents)}`, par: x.par }); lies.push([x.at, f.numero]); }
+      if (f.reglements?.length) for (const r of FAC.libelles(f)) add(r.at || r.date, 'paiement', `${r.libelle} reçu le ${dateFr(r.date)} : facture ${f.numero}`, { montantCents: r.montantCents, detail: r.moyen + (r.note ? ' · ' + r.note : ''), par: r.par });
+      else if (f.payee && f.payeeLe) add(f.payeeLe, 'paiement', `Règlement reçu : facture ${f.numero}`, { montantCents: f.totalCents, detail: f.moyen || '' });
+      if (f.annuleeParAvoir) add(f.annuleeParAvoir.le, 'note', `Facture ${f.numero} annulée par l’avoir ${f.annuleeParAvoir.numero}`, { par: f.annuleeParAvoir.par });
+      if (f.archiveeLe && f.archivee) add(f.archiveeLe, 'note', `Facture ${f.numero} archivée (réglée)`);
     }
     const proche = (at, txt) => lies.some(([x, num, rel]) => Math.abs(Date.parse(x) - Date.parse(at)) < 120000 && (rel || (num && String(txt).includes(num))));
     for (const o of out) {
@@ -1085,8 +1215,8 @@ async function createApp(opts = {}) {
       rdv: rdv.filter(r => r.clientId === c.id && r.type).sort((a, b) => (a.date + a.heure).localeCompare(b.date + b.heure)),
       demandes: demandes.map(d => ({ id: d.id, ref: d.ref, statut: d.statut, type: d.type, evenement: d.evenement, createdAt: d.createdAt, commercial: d.commercial || '' })),
       devis: devisL.map(d => ({ id: d.id, numero: d.numero, statut: d.statut, ttcCents: totaux(d).ttcCents, token: d.statut !== 'brouillon' ? d.token : '', evenement: d.evenement, createdAt: d.createdAt, commercial: d.commercial?.nom || '' })),
-      factures: facts.map(f => ({ id: f.id, numero: f.numero, type: f.type, totalCents: f.totalCents, payee: !!f.payee, payeeLe: f.payeeLe, moyen: f.moyen })),
-      resume: { signeCents: signes.reduce((s2, d) => s2 + totaux(d).ttcCents, 0), regleCents: facts.filter(f => f.payee).reduce((s2, f) => s2 + (f.totalCents || 0), 0), aEncaisserCents: facts.filter(f => !f.payee).reduce((s2, f) => s2 + (f.totalCents || 0), 0), nbDevis: devisL.length, nbSignes: signes.length, nbDemandes: demandes.filter(d => d.type !== 'contact').length },
+      factures: facts.map(f => { const e = FAC.etat(f); return { id: f.id, numero: f.numero, type: f.type, totalCents: f.totalCents, regleCents: e.regleCents, resteCents: e.resteCents, nbReglements: e.reglements.length, payee: e.payee, annulee: !!f.annuleeParAvoir, archivee: !!f.archivee, payeeLe: f.payeeLe, moyen: f.moyen }; }),
+      resume: { signeCents: signes.reduce((s2, d) => s2 + totaux(d).ttcCents, 0), regleCents: facts.filter(f => f.type !== 'avoir' && !f.annuleeParAvoir).reduce((s2, f) => s2 + FAC.etat(f).regleCents, 0), aEncaisserCents: facts.filter(f => f.type !== 'avoir' && !f.annuleeParAvoir).reduce((s2, f) => s2 + FAC.etat(f).resteCents, 0), nbDevis: devisL.length, nbSignes: signes.length, nbDemandes: demandes.filter(d => d.type !== 'contact').length },
     });
   }));
   /* note ou appel ajouté depuis la fiche client */
@@ -1324,7 +1454,16 @@ async function createApp(opts = {}) {
       rows = [['Nom', 'Société', 'E-mail', 'Téléphone', 'Autre téléphone', 'Adresse', 'Code postal', 'Ville', 'Département', 'Créé le', 'Dernière activité', 'Source', 'Accepte les e-mails', 'Accepte les SMS'],
         ...(await store.list('clients')).map(d => d.data).map(c => [c.nom, c.societe, c.email, c.tel, c.telAutre, c.adresse, c.cp, c.ville, c.departement, String(c.creeLe || '').slice(0, 10), String(c.derniereActivite || '').slice(0, 10), c.source,
           c.desinscrit?.email ? 'non (désinscrit)' : c.consentement?.email ? 'oui' : '', c.desinscrit?.sms ? 'non (STOP)' : c.consentement?.sms ? 'oui' : ''])];
-    } else if (q === 'devis' || q === 'factures') {
+    } else if (q === 'factures') {
+      const T = (await cat.get()).reglages.tarifs || {};
+      const docs = (await store.list('factures')).map(d => d.data).sort((a, b) => String(a.numero).localeCompare(String(b.numero)));
+      rows = [['N° facture', 'Type', 'Date', 'Client', 'Société', 'E-mail', 'N° devis', 'Objet', 'Total TTC (€)', 'Total HT (€)', 'Déjà réglé (€)', 'Reste dû (€)', 'Échéance', 'Nombre de règlements', 'Détail des règlements', 'Statut', 'Envoyée le', 'Relances'],
+        ...docs.map(f => { const e = FAC.etat(f), t = totaux(f), sg = f.type === 'avoir' ? -1 : 1; return [f.numero, { acompte: 'Acompte', solde: 'Solde', totale: 'Facture', avoir: 'Avoir' }[f.type] || '', f.date, f.client?.nom, f.client?.societe, f.client?.email, f.devisNumero, f.objet, eurCsv(sg * e.dueCents), eurCsv(sg * t.htCents), eurCsv(e.regleCents), eurCsv(f.type === 'avoir' ? 0 : e.resteCents), FAC.echeance(f, T), e.reglements.length, e.reglements.map(r => `${r.date} ${r.moyen} ${eurCsv(r.montantCents)}`).join(' | '), FAC.STATUTS[FAC.statut(f, T)], String(f.envoyeeLe || '').slice(0, 10), (f.relances || []).length]; })];
+    } else if (q === 'reglements') {
+      const docs = (await store.list('factures')).map(d => d.data);
+      rows = [['Date', 'Montant (€)', 'Moyen de paiement', 'N° facture', 'Client', 'N° devis', 'Note', 'Saisi par'],
+        ...docs.flatMap(f => FAC.libelles(f).map(r => [r.date, eurCsv(r.montantCents), r.moyen, f.numero, f.client?.nom, f.devisNumero, [r.libelle, r.note].filter(Boolean).join(' · '), r.par])).sort((a, b) => String(a[0]).localeCompare(String(b[0])))];
+    } else if (q === 'devis') {
       const docs = (await store.list(q)).map(d => d.data);
       rows = [[q === 'devis' ? 'N° devis' : 'N° facture', 'Client', 'Date', 'Total TTC (€)', 'Total HT (€)', 'Marge (€)', 'Statut'],
         ...docs.map(d => { const t = totaux(d); return [d.numero, d.clientNom || d.client?.nom, String(d.envoyeLe || d.date || d.createdAt || '').slice(0, 10), eurCsv(q === 'factures' ? d.totalCents ?? t.ttcCents : t.ttcCents), eurCsv(t.htCents), eurCsv(t.margeCents), q === 'factures' ? (d.payee ? 'payée' : 'à encaisser') : d.statut]; })];

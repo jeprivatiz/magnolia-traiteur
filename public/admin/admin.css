@@ -1047,6 +1047,28 @@ td .cl-imp { display: block; margin: 2px 0 0; }
 .cal-e.st-appel{--c:#2b5d95;background:light-dark(#e3eefb,#1c2633)}
 .cal-e.st-visio{--c:#7a4f9c;background:light-dark(#efe8f6,#261d2e)}
 .db-rdv li{display:flex;justify-content:space-between;gap:8px;align-items:center}
+/* factures (CRM) */
+.kpis.qk > div.fa-alerte { box-shadow: inset 4px 0 0 #b4412f, var(--bo-shadow); }
+.kpis.qk > div.fa-alerte b { color: #a3352b; }
+.df-tab small { opacity: .7; font-weight: 700; margin-left: 2px; }
+.fa-table td small { display: block; color: var(--bo-soft); font-size: 12px; }
+.fa-tete .fa-qui p { margin: 0 0 4px; }
+.fa-tete .kpis.fa-k { margin: 14px 0 0; }
+.fa-tete .kpis.fa-k > div { background: var(--bo-tint, #eef2ef); box-shadow: none; }
+.fa-solde td { background: #faf6ea; }
+.fa-rg { margin-top: 16px; padding: 14px; border-radius: 12px; background: #faf6ea; border: 1px solid #eadfc4; }
+.fa-rg h3 { margin: 0 0 10px; font-size: 1rem; }
+.fa-rg input, .fa-rg select, .dv-rg input, .dv-rg select { background: #fff; }
+.fa-ap { margin-top: 14px; padding: 14px; border-radius: 12px; border: 1px solid #d9cfb5; background: #fbf8f1; }
+.fa-frame { width: 100%; height: 420px; border: 1px solid #e2d9c2; border-radius: 8px; background: #fff; }
+.fa-avoir { margin-top: 14px; }
+.fa-avoir summary { cursor: pointer; color: var(--bo-soft); font-size: .9rem; }
+.btn.ghost.danger { background: transparent; color: #a3352b; border-color: #d9a49c; }
+.ok { color: #2f6b47; font-weight: 600; }
+@media (max-width: 560px) { .fa-frame { height: 360px; } .fa-tete .kpis.fa-k { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.fa-tete .kpis.fa-k b { font-size: 21px; white-space: nowrap; }
+.btn[hidden] { display: none !important; }
+@media (max-width: 560px) { .fa-tete .kpis.fa-k b { font-size: 18px; } }
 
 /* Clients › Programmer un appel */
 .ap-box .cf-in{margin:8px 0 4px}

@@ -52,7 +52,7 @@ async function prochainNumero(store, type) {
   const c = (await store.get(key)) || { n: 0 };
   c.n += 1;
   await store.set(key, c);
-  return `${type === 'devis' ? 'D' : type === 'facture' ? 'F' : 'R'}-${an}-${String(c.n).padStart(4, '0')}`;
+  return `${type === 'devis' ? 'D' : type === 'facture' ? 'F' : type === 'avoir' ? 'A' : 'R'}-${an}-${String(c.n).padStart(4, '0')}`;
 }
 
 /* une demande du site (lignes de sélection) devient des lignes de devis */

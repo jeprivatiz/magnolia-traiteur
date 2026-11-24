@@ -1112,3 +1112,8 @@ body.noscroll .partage { display: none; }
 .note-paiement { background: #fff6dc; border-left: 3px solid #c9a24a; padding: 10px 14px; border-radius: 6px; }
 .doc-mentions { margin: 18px 0 0; font-size: 11.5px; color: #666; text-align: center; line-height: 1.5; }
 .doc-logo { max-height: 70px; max-width: 220px; object-fit: contain; display: block; margin-bottom: 8px; }
+/* factures : acomptes versés et solde restant dû */
+.totaux.regl { max-width: 460px; }
+.totaux.regl dt { padding-right: 12px; }
+.totaux.regl dt small { color: var(--gris); }
+.doc .ok { color: #2f6b47; font-weight: 600; }
