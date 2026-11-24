@@ -11,33 +11,16 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - name: Corbeilles du partenaire
+      - name: Fiches du partenaire
         shell: bash {0}
         run: |
-          mkdir -p apercu-photos/cp && cd apercu-photos/cp
+          mkdir -p apercu-photos/cp2 && cd apercu-photos/cp2
           UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36"
-          curl -fsSL -A "$UA" "https://corbeillesparis.fr/categorie-produit/corbeilles-fruits-frais/" -o categorie.html; echo "cat $?"
-          curl -fsSL -A "$UA" "https://corbeillesparis.fr/wp-json/wc/store/v1/products/categories?per_page=100" -o categories.json; echo "cats $?"
-          id=$(python3 -c "import json;print([c['id'] for c in json.load(open('categories.json')) if c['slug']=='corbeilles-fruits-frais'][0])" 2>/dev/null); echo "id=$id"
-          curl -fsSL -A "$UA" "https://corbeillesparis.fr/wp-json/wc/store/v1/products?category=$id&per_page=100" -o produits.json; echo "prods $?"
-          python3 - <<'PY'
-          import json,re,subprocess,html
-          try: P=json.load(open('produits.json'))
-          except Exception as e: P=[]; print('pas de json',e)
-          if not P:
-            h=open('categorie.html',encoding='utf-8',errors='ignore').read()
-            urls=sorted(set(re.findall(r'https://corbeillesparis\.fr/produit/[a-z0-9-]+/',h)))
-            open('urls.txt','w').write('\n'.join(urls)); print(urls)
-          out=[]
-          for p in P:
-            out.append({'id':p['id'],'nom':html.unescape(p['name']),'lien':p['permalink'],'prix':p['prices'],'description':p['description'],'court':p['short_description'],'attributs':p.get('attributes'),'variations':p.get('variations'),'images':[i['src'] for i in p['images']]})
-          json.dump(out,open('resume.json','w'),ensure_ascii=False,indent=1)
-          for p in P:
-            for v in p.get('variations') or []:
-              subprocess.run(['curl','-fsSL','-A','Mozilla/5.0','-o',f"var-{v['id']}.json",f"https://corbeillesparis.fr/wp-json/wc/store/v1/products/{v['id']}"])
-            for k,src in enumerate([i['src'] for i in p['images']][:3]):
-              subprocess.run(['curl','-fsSL','-A','Mozilla/5.0','-o',f"img-{p['id']}-{k}.jpg",src])
-          PY
+          for s in corbeille-de-saison corbeille-exotique corbeille-fruits-fleurs-cadeaux corbeille-prestige gourmande plateau-de-fruits-secs; do
+            curl -fsSL -A "$UA" "https://corbeillesparis.fr/produit/$s/" -o "$s.html"; echo "$s $?"
+            grep -oE 'https://corbeillesparis\.fr/wp-content/uploads/[^"'"'"' ]+\.(jpe?g|png|webp)' "$s.html" | grep -vE -- '-[0-9]+x[0-9]+\.' | sort -u > "$s.imgs"
+            n=0; while read u; do n=$((n+1)); [ $n -gt 8 ] && break; curl -fsSL -A "$UA" -o "$s-$n.${u##*.}" "$u" && echo "$s-$n $u" >> index.txt; done < "$s.imgs"
+          done
           ls | head -80
       - name: Enregistrer
         shell: bash {0}
