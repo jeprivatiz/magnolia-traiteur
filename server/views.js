@@ -427,7 +427,10 @@ function crumbs(list) {
 function sectionsRub(r, liste) {
   if (!r || !r.parSections) return null;
   const L = (liste || []).slice().sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
-  return RANGEMENTS.map(([k, t]) => [k, (r.titresSections || {})[k] || t, L.filter(p => rangementDe(p) === k)]).filter(b => b[2].length);
+  /* ordre des sections propre à la rubrique (Animations sucrées : animations, corbeilles, pièces montées, desserts, location) */
+  const ordre = (r.ordreSections || []).filter(k => RANGEMENTS.some(([x]) => x === k));
+  const R = [...ordre.map(k => RANGEMENTS.find(([x]) => x === k)), ...RANGEMENTS.filter(([x]) => !ordre.includes(x))];
+  return R.map(([k, t]) => [k, (r.titresSections || {})[k] || t, L.filter(p => rangementDe(p) === k)]).filter(b => b[2].length);
 }
 function boutique(c, { q = '', rub = '', titre, chapo, photo, path = '/boutique', liste = null, fil = null, chips = '', hero = '', seo = null, intro = null, sections = null, avant = '', scripts = '' }) {
   const rubs = c.rubriques.filter(r => r.statut !== 'masque' && r.slug !== 'lieux');
