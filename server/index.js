@@ -482,25 +482,53 @@ async function createApp(opts = {}) {
   /* ---------- back-office : API ---------- */
   const A = express.Router();
   A.use(team);
+  /* tableau de bord : ?com=Nom filtre tout sur un commercial (« — » = sans commercial), comme le sélecteur du Suivi client */
   A.get('/stats', wrap(async (req, res) => {
-    const [dem, dv, fa] = await Promise.all([store.list('demandes'), store.list('devis'), store.list('factures')]);
-    const demandes = dem.map(d => d.data), devis = dv.map(d => d.data), factures = fa.map(d => d.data);
-    const mois = new Date().toISOString().slice(0, 7);
-    const aujourdHui = new Date().toISOString().slice(0, 10);
+    const [dem, dv, fa, us, rdv0, reg] = await Promise.all([store.list('demandes'), store.list('devis'), store.list('factures'), store.list('_users'), store.list('rdv'), store.get('site/reglages')]);
+    const demandesTous = dem.map(d => d.data).filter(Boolean), devisTous = dv.map(d => d.data).filter(Boolean), facturesTous = fa.map(d => d.data).filter(Boolean);
+    const nomDe = x => String((typeof x === 'string' ? x : x?.nom) || '').trim();
+    /* commercial d'une demande : celui de la fiche, sinon celui de son devis principal (même règle que le Suivi client) */
+    const devisDe = id => devisTous.filter(v => v.demandeId === id).sort((x, y) => String(y.createdAt).localeCompare(String(x.createdAt)));
+    const comDem = d => { const l = devisDe(d.id); const m = l.find(x => x.statut === 'accepte') || l.find(x => x.statut === 'envoye') || l[0]; return nomDe(d.commercial) || nomDe(m?.commercial); };
+    const demById = new Map(demandesTous.map(d => [d.id, d]));
+    const comDevis = v => nomDe(v.commercial) || (v.demandeId && demById.has(v.demandeId) ? nomDe(demById.get(v.demandeId).commercial) : '');
+    const devById = new Map(devisTous.map(v => [v.id, v]));
+    const comFac = f => nomDe(f.commercial) || (f.devisId && devById.has(f.devisId) ? comDevis(devById.get(f.devisId)) : '');
+    const com = String(req.query.com || '').trim();
+    const ok = n => !com || (com === '—' ? !n : n === com);
+    const demandes = demandesTous.filter(d => ok(comDem(d))), devis = devisTous.filter(v => ok(comDevis(v))), factures = facturesTous.filter(f => ok(comFac(f)));
+    const ici = d => d.toLocaleDateString('sv-SE', { timeZone: 'Europe/Paris' });
+    const aujourdHui = ici(new Date()), mois = aujourdHui.slice(0, 7);
     const parStatut = Object.fromEntries(PIPELINE.map(k => [k, demandes.filter(d => d.statut === k && d.type !== 'contact').length]));
     const signes = devis.filter(d => d.statut === 'accepte');
-    res.json({
+    const moisSigne = d => { const t = d.signature?.at || d.accepteLe || d.updatedAt; return t ? ici(new Date(t)).slice(0, 7) : ''; };
+    /* chiffre d'affaires signé des 6 derniers mois (petit graphique) */
+    const n0 = new Date(aujourdHui + 'T12:00:00');
+    const serie = [...Array(6)].map((_, i) => { const d = new Date(n0.getFullYear(), n0.getMonth() - 5 + i, 15); const k = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); return { mois: k, cents: signes.filter(x => moisSigne(x) === k).reduce((t, x) => t + totaux(x).ttcCents, 0) }; });
+    const tranches = devis.filter(d => ['accepte', 'refuse'].includes(d.statut));
+    const enAttente = devis.filter(d => d.statut === 'envoye');
+    const persos = ((reg || {}).alertes?.personnes || []).map(x => nomDe(x));
+    const commerciaux = [...new Set([...us.map(u => u.data).filter(u => u && !u.disabled).map(u => nomDe(u.name)), ...persos, ...demandesTous.map(comDem), ...devisTous.map(comDevis)].filter(Boolean))].sort((x, y) => x.localeCompare(y, 'fr'));
+    const rdvDuJour = rdv0.map(d => d.data).filter(r => r && r.clientId && r.type && !r.fait && r.date === aujourdHui && (!com || !(r.commerciaux || []).length || (com !== '—' && r.commerciaux.includes(com))));
+    res.set('Cache-Control', 'no-store').json({
+      com, commerciaux,
+      nouvellesTous: demandesTous.filter(d => d.statut === 'demande').length,
       nouvelles: demandes.filter(d => d.statut === 'demande').length,
       parStatut,
-      caSigneMoisCents: signes.filter(d => (d.signature?.at || '').startsWith(mois)).reduce((t, d) => t + totaux(d).ttcCents, 0),
+      caSigneMoisCents: signes.filter(d => moisSigne(d) === mois).reduce((t, d) => t + totaux(d).ttcCents, 0),
       caSigneCents: signes.reduce((t, d) => t + totaux(d).ttcCents, 0),
-      devisEnAttenteCents: devis.filter(d => d.statut === 'envoye').reduce((t, d) => t + totaux(d).ttcCents, 0),
+      caSigneAnneeCents: signes.filter(d => moisSigne(d).startsWith(mois.slice(0, 4))).reduce((t, d) => t + totaux(d).ttcCents, 0),
+      serieCa: serie,
+      devisEnAttenteCents: enAttente.reduce((t, d) => t + totaux(d).ttcCents, 0),
+      devisEnAttente: enAttente.length,
       facturesImpayeesCents: factures.filter(f => f.type !== 'avoir' && !f.annuleeParAvoir).reduce((t, f) => t + FAC.etat(f).resteCents, 0),
-      tauxSignature: devis.filter(d => ['accepte', 'refuse'].includes(d.statut)).length ? Math.round(100 * signes.length / devis.filter(d => ['accepte', 'refuse'].includes(d.statut)).length) : null,
-      prochains: demandes.filter(d => d.evenement?.date >= aujourdHui && ['accord', 'reserve'].includes(d.statut)).sort((a, b) => a.evenement.date.localeCompare(b.evenement.date)).slice(0, 6).map(d => ({ id: d.id, date: d.evenement.date, nom: d.contact?.nom, invites: d.evenement.invites, statut: d.statut })),
+      facturesImpayees: factures.filter(f => f.type !== 'avoir' && !f.annuleeParAvoir && FAC.etat(f).resteCents > 0).length,
+      tauxSignature: tranches.length ? Math.round(100 * signes.length / tranches.length) : null,
+      signes: signes.length, tranches: tranches.length,
+      prochains: demandes.filter(d => d.evenement?.date >= aujourdHui && ['accord', 'reserve'].includes(d.statut)).sort((a, b) => a.evenement.date.localeCompare(b.evenement.date)).slice(0, 6).map(d => { const m = devisDe(d.id).find(x => x.statut === 'accepte'); return { id: d.id, date: d.evenement.date, nom: d.contact?.nom, type: d.evenement.type || '', ville: d.evenement.ville || '', invites: d.evenement.invites, statut: d.statut, montantCents: m ? totaux(m).ttcCents : d.totalEstimeCents || null, commercial: comDem(d) }; }),
       anniversaires: await anniversaires(14),
-      rdvJour: (await store.list('rdv')).map(d => d.data).filter(r => r.clientId && r.type && !r.fait && r.date === new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Paris' })).sort((a, b) => a.heure.localeCompare(b.heure)).map(r => ({ id: r.id, clientId: r.clientId, clientNom: r.clientNom, type: r.type, heure: r.heure, motif: r.motif, lien: r.lien, commerciaux: r.commerciaux })),
-      aRelancer: devis.filter(d => d.statut === 'envoye' && d.envoyeLe && Date.now() - Date.parse(d.derniereRelance || d.envoyeLe) > 3 * 86400e3).map(d => ({ id: d.id, numero: d.numero, client: d.clientNom, envoyeLe: d.envoyeLe })),
+      rdvJour: rdvDuJour.sort((a, b) => a.heure.localeCompare(b.heure)).map(r => ({ id: r.id, clientId: r.clientId, clientNom: r.clientNom, type: r.type, heure: r.heure, motif: r.motif, lien: r.lien, commerciaux: r.commerciaux })),
+      aRelancer: devis.filter(d => d.statut === 'envoye' && d.envoyeLe && Date.now() - Date.parse(d.derniereRelance || d.envoyeLe) > 3 * 86400e3).map(d => ({ id: d.id, numero: d.numero, client: d.clientNom, envoyeLe: d.envoyeLe, jours: Math.floor((Date.now() - Date.parse(d.derniereRelance || d.envoyeLe)) / 86400e3), montantCents: totaux(d).ttcCents, commercial: comDevis(d) })),
     });
   }));
 
