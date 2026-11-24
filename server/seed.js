@@ -317,7 +317,7 @@ const BANDEAUX_SPE = {
   /* table de mezzés (Pexels 39018407, licence Pexels) à la place de la vidéo de l'huile versée : Jean-Luc, 2026-11-22 */
   'buffet-libanais': 'https://images.pexels.com/photos/39018407/pexels-photo-39018407.jpeg?auto=compress&cs=tinysrgb&w=2400',
   /* choix de Jean-Luc (2026-11-22, photo A) : Pexels n° 10521312, licence Pexels (usage commercial gratuit) ; voir data/credits-photos.md */
-  'paella-party': 'https://images.pexels.com/photos/10521312/pexels-photo-10521312.jpeg?auto=compress&cs=tinysrgb&w=2400',
+  'paella-party': '/site/c/paella-party-bandeau.webp',
   'buffet-antillais': '/site/c/paysages/antilles.webp',
 };
 /* prestations de l'univers Petits-déjeuners (séparé de Boissons le 2026-11-22) */
@@ -1354,6 +1354,14 @@ async function initSousRubriques(store, { log = console } = {}) {
     const rp = await store.get('rubriques/personnel');
     if (rp) await store.set('rubriques/personnel', { ...rp, bandeauPhoto: '/site/c/personnel-bandeau-serveur.webp', bandeauVideo: '' });
     await store.set('site/reglages', { ...(await store.get('site/reglages')), personnelBandeau1: true });
+  }
+  /* Paella party : nouvelle photo de bandeau (Jean-Luc, 2026-11-24) : paella géante servie au buffet, centrée sur le plat.
+     Pexels 22880517 (Gleb Zhizhikin), recadrée sans le panneau à droite. Une fois : modifiable ensuite au back-office. */
+  const RPae = await store.get('site/reglages');
+  if (RPae && !RPae.paellaBandeau2) {
+    const rsw = await store.get('rubriques/saveurs-du-monde');
+    if (rsw) await store.set('rubriques/saveurs-du-monde', { ...rsw, sous: (rsw.sous || []).map(x => x.slug === 'paella-party' ? { ...x, bandeauPhoto: '/site/c/paella-party-bandeau.webp', bandeauVideo: '', bandeauPosition: '50% 45%' } : x) });
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), paellaBandeau2: true });
   }
   /* Bloc « Comment commander » : femme à son bureau qui passe commande sur son ordinateur (Jean-Luc, 2026-11-24), à la place du personnel au buffet.
      v2 : Pexels 10041233 (sans carte bancaire : la section dit « Sans paiement en ligne »), recadrée.

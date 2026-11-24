@@ -310,7 +310,7 @@ function bandeauHtml(c, B, fil) {
   const G = R.avisGoogle || {};
   const media = B.video
     ? `<video src="${esc(B.video)}" poster="${esc(B.poster || B.photo || '')}"${B.position ? ` style="object-position:${esc(B.position)}"` : ''} autoplay muted loop playsinline preload="metadata" aria-hidden="true" data-autoplay></video>`
-    : img(B.photo, '', '', 'fetchpriority="high"').replace(' loading="lazy"', '');
+    : img(B.photo, '', '', `fetchpriority="high"${B.position ? ` style="object-position:${esc(B.position)}"` : ''}`).replace(' loading="lazy"', '');
   return `<section class="phero land${kb(c, B.video ? '' : B.photo, B.titre)}">${media}<div class="phero-c wrap">${crumbs(fil || [[B.titre]])}<h1>${esc(B.titre)}</h1>${B.signature ? `<p class="phero-sig">${esc(B.signature)}</p>` : ''}${B.chapo ? `<p class="lead">${esc(B.chapo)}</p>` : ''}
   <div class="row land-cta"><a class="btn btn-or" href="${esc(B.ancre || '/boutique')}">${esc(B.bouton || 'Découvrir')}</a><a class="btn btn-ghost-light" href="tel:${esc(tel)}">${icon.phone}<span>${esc(R.telephone || '')}</span></a></div>
   <p class="confiance"><span><span class="etoiles" aria-hidden="true">★★★★★</span> <b>${esc(G.note || '4,9')}/5</b> sur Google${G.nombre ? `, ${esc(G.nombre)} avis` : ''}</span><span>Livraison 7 j/7 sur Paris et toute l’Île-de-France</span></p></div></section>`;
