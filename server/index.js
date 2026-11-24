@@ -14,7 +14,7 @@ const { createCatalogue } = require('./catalogue');
 const { seed, importerAvisAncienSite, initSousRubriques } = require('./seed');
 const views = require('./views');
 const { preparerAlerte } = require('./relances');
-const { regleAcompte, totaux, controleMarge, prochainNumero, lignesDepuisDemande, estimerLigne } = require('./devis');
+const { raisonsDevisManuel, regleAcompte, totaux, controleMarge, prochainNumero, lignesDepuisDemande, estimerLigne } = require('./devis');
 const { rid, sha, esc, euros, limiter, dateFr, slugify, nomPropre, dateNaissance, titreTexte } = require('./util');
 const { creerImportClients, normTel, departementDe } = require('./import-clients');
 const IA = require('./ia');
@@ -443,11 +443,19 @@ async function createApp(opts = {}) {
     await store.set('demandes/' + id, demande);
     const lien = await lienEspace(clientId);
     const R = c.reglages;
+    let auto = null;
+    if (demande.type === 'devis') {
+      try { auto = await devisAutomatique(demande); }
+      catch (e) { console.error('devis automatique', e); auto = { essaye: new Date().toISOString(), envoye: false, raisons: ['erreur pendant la préparation automatique'] }; }
+      const d0 = (await store.get('demandes/' + id)) || demande;
+      await store.set('demandes/' + id, { ...d0, devisAuto: auto });
+    }
+    if (auto?.envoye) return res.json({ ok: true, ref, totalEstimeCents: auto.ttcCents, devisEnvoye: true, espace: nouveau ? lien.replace(SITE, '') : '/espace-client' });
     const recap = lignes.map(l => `<li>${esc(titreTexte(l.titre))}${l.variante ? ' · ' + esc(l.variante) : ''} — ${l.qte} ${esc(l.unite || '')}${l.surDevis ? ' (sur devis)' : ' · ' + euros(l.totalCents)}</li>`).join('');
     brevo.sendEmail({ to: contact.email, name: contact.nom, subject: `Magnolia Traiteur : votre demande ${ref} est bien reçue`, replyTo: R.email,
       html: `<p>Bonjour ${esc(contact.nom.split(' ')[0])},</p><p>Merci pour votre demande${demande.evenement.date ? ' pour le ' + esc(dateFr(demande.evenement.date)) : ''}. Notre équipe vérifie les disponibilités et revient vers vous rapidement avec votre devis.</p>${recap ? `<ul>${recap}</ul><p>Total estimé : <b>${euros(demande.totalEstimeCents)} TTC</b> (à confirmer).</p>` : ''}<p>Suivez votre demande dans votre espace : <a href="${lien}">Mon espace Magnolia</a></p><p>À très vite,<br>L’équipe Magnolia Traiteur<br>${esc(R.telephone)}</p>`,
       text: `Merci pour votre demande ${ref}. Votre espace : ${lien}` }).catch(() => {});
-    alerterEquipe(`Nouvelle ${demande.type === 'contact' ? 'question' : 'demande de devis'} ${ref} : ${contact.nom}`, `<p><b>${esc(contact.nom)}</b> ${esc(contact.societe)} · ${esc(contact.email)} · ${esc(contact.tel)}</p><p>${esc(demande.evenement.type)} · ${esc(dateFr(demande.evenement.date))} · ${demande.evenement.invites} invités · ${esc(demande.evenement.ville)}</p><ul>${recap}</ul><p>${esc(demande.message)}</p><p><a href="${SITE}/admin#/demandes/${id}">Ouvrir dans le back-office</a></p>`, `Magnolia : nouvelle demande ${ref} de ${contact.nom}, ${demande.evenement.invites} pers. le ${demande.evenement.date}`).catch(() => {});
+    alerterEquipe(`Nouvelle ${demande.type === 'contact' ? 'question' : 'demande de devis'} ${ref} : ${contact.nom}`, `<p><b>${esc(contact.nom)}</b> ${esc(contact.societe)} · ${esc(contact.email)} · ${esc(contact.tel)}</p><p>${esc(demande.evenement.type)} · ${esc(dateFr(demande.evenement.date))} · ${demande.evenement.invites} invités · ${esc(demande.evenement.ville)}</p><ul>${recap}</ul><p>${esc(demande.message)}</p>${auto?.raisons?.length ? `<p><b>Devis à préparer à la main :</b> ${esc(auto.raisons.join(' ; '))}.</p>` : ''}<p><a href="${SITE}/admin#/demandes/${id}">Ouvrir dans le back-office</a></p>`, `Magnolia : nouvelle demande ${ref} de ${contact.nom}, ${demande.evenement.invites} pers. le ${demande.evenement.date}`).catch(() => {});
     /* le lien direct vers l'espace n'est rendu qu'à un nouveau client ; un client connu le reçoit par e-mail */
     res.json({ ok: true, ref, totalEstimeCents: demande.totalEstimeCents, espace: nouveau ? lien.replace(SITE, '') : '/espace-client' });
   }));
@@ -769,7 +777,7 @@ async function createApp(opts = {}) {
 
   A.get('/site', wrap(async (req, res) => res.json((await store.get('site/reglages')) || {})));
   /* chaque partie des réglages a son droit : tarifs = « Modifier les prix », coordonnées et banque = « Mon entreprise », alertes = « Gérer l'équipe » */
-  const GARDE_SITE = { tarifs: 'prix', alertes: 'equipe', entreprise: 'entreprise', paiement: 'entreprise', adresse: 'entreprise', telephone: 'entreprise', email: 'entreprise' };
+  const GARDE_SITE = { tarifs: 'prix', alertes: 'equipe', devisAuto: 'equipe', entreprise: 'entreprise', paiement: 'entreprise', adresse: 'entreprise', telephone: 'entreprise', email: 'entreprise' };
   const stable = v => JSON.stringify(v, (k, x) => x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => a.localeCompare(b))) : x);
   A.put('/site', sameSite, json, wrap(async (req, res) => {
     const before = (await store.get('site/reglages')) || {};
@@ -1305,6 +1313,23 @@ async function createApp(opts = {}) {
     }
     res.json({ ok: true, nb: liste.length, test: !brevo.live });
   }));
+  /* envoi d'un devis au client (bouton « Envoyer le devis », ou envoi automatique par l'IA) */
+  async function envoyerDevis(d, { canaux = ['email'], message = '', par = '', ia = false } = {}) {
+    const cl = await store.get('clients/' + d.clientId);
+    const c = await cat.get(); const R = c.reglages;
+    const lien = `${SITE}/devis/${d.token}`;
+    const t = totaux(d);
+    const now = new Date().toISOString();
+    const msg = s(message, 2000);
+    if (canaux.includes('email')) await brevo.sendEmail({ to: cl.email, name: cl.nom, replyTo: R.email, subject: `Votre devis Magnolia Traiteur ${d.numero}`,
+      html: `<p>Bonjour ${esc((cl.nom || '').split(' ')[0])},</p>${msg ? `<p>${esc(msg).replace(/\n/g, '<br>')}</p>` : `<p>Voici votre devis pour votre ${esc(String(d.evenement?.type || 'événement').toLowerCase())}${d.evenement?.date ? ' du ' + esc(dateFr(d.evenement.date)) : ''} : <b>${euros(t.ttcCents)} TTC</b>.</p>`}${lieuxMailHtml(c, d)}<p><a href="${lien}" style="background:#1d3b2f;color:#fff;padding:12px 20px;text-decoration:none;border-radius:4px;display:inline-block">Consulter et signer mon devis</a></p><p>Il est valable jusqu’au ${esc(dateFr(d.validiteJusquau))}.</p><p>L’équipe Magnolia Traiteur<br>${esc(R.telephone)}</p>`,
+      text: `Votre devis ${d.numero} : ${lien}` });
+    if (canaux.includes('sms') && cl.tel) await brevo.sendSms({ to: cl.tel, content: `Magnolia Traiteur : votre devis ${d.numero} (${euros(t.ttcCents)} TTC) est prêt. Consultez-le et signez en ligne : ${lien}` });
+    const envoi = { at: now, canaux, par: ia ? 'IA' : par, ...(ia ? { ia: true } : {}) };
+    await store.set('devis/' + d.id, { ...d, statut: d.statut === 'accepte' ? 'accepte' : 'envoye', envoyeLe: d.envoyeLe || now, envois: [...(d.envois || []), envoi] });
+    if (d.demandeId) await changerStatut(d.demandeId, 'devis_envoye', ia ? 'IA (envoi automatique)' : par);
+    return { lien, ttcCents: t.ttcCents };
+  }
   A.post('/actions/envoyer-devis/:id', sameSite, json, wrap(async (req, res) => {
     const d = await store.get('devis/' + req.params.id);
     if (!d) return res.status(404).json({ error: 'Devis introuvable.' });
@@ -1313,21 +1338,43 @@ async function createApp(opts = {}) {
     if (!(d.lignes || []).length) return res.status(400).json({ error: 'Le devis est vide.' });
     const cl = await store.get('clients/' + d.clientId);
     if (!cl?.email) return res.status(400).json({ error: 'Ce devis n’a pas de client avec un e-mail.' });
-    const c = await cat.get(); const R = c.reglages;
-    const lien = `${SITE}/devis/${d.token}`;
-    const t = totaux(d);
-    const now = new Date().toISOString();
-    const canaux = req.body?.canaux || ['email'];
-    const msg = s(req.body?.message, 2000);
-    if (canaux.includes('email')) await brevo.sendEmail({ to: cl.email, name: cl.nom, replyTo: R.email, subject: `Votre devis Magnolia Traiteur ${d.numero}`,
-      html: `<p>Bonjour ${esc((cl.nom || '').split(' ')[0])},</p>${msg ? `<p>${esc(msg).replace(/\n/g, '<br>')}</p>` : `<p>Voici votre devis pour votre ${esc(String(d.evenement?.type || 'événement').toLowerCase())}${d.evenement?.date ? ' du ' + esc(dateFr(d.evenement.date)) : ''} : <b>${euros(t.ttcCents)} TTC</b>.</p>`}${lieuxMailHtml(c, d)}<p><a href="${lien}" style="background:#1d3b2f;color:#fff;padding:12px 20px;text-decoration:none;border-radius:4px;display:inline-block">Consulter et signer mon devis</a></p><p>Il est valable jusqu’au ${esc(dateFr(d.validiteJusquau))}.</p><p>L’équipe Magnolia Traiteur<br>${esc(R.telephone)}</p>`,
-      text: `Votre devis ${d.numero} : ${lien}` });
-    if (canaux.includes('sms') && cl.tel) await brevo.sendSms({ to: cl.tel, content: `Magnolia Traiteur : votre devis ${d.numero} (${euros(t.ttcCents)} TTC) est prêt. Consultez-le et signez en ligne : ${lien}` });
-    await store.set('devis/' + d.id, { ...d, statut: d.statut === 'accepte' ? 'accepte' : 'envoye', envoyeLe: d.envoyeLe || now, envois: [...(d.envois || []), { at: now, canaux, par: req.ctx.name }] });
-    if (d.demandeId) await changerStatut(d.demandeId, 'devis_envoye', req.ctx.name);
+    const { lien } = await envoyerDevis(d, { canaux: req.body?.canaux || ['email'], message: req.body?.message, par: req.ctx.name });
     audit(req.ctx, 'devis envoyé', 'devis/' + d.id, d.numero);
     res.json({ ok: true, lien, test: !brevo.live });
   }));
+
+  /* ---------- envoi automatique (Jean-Luc, 2026-11-24) : demande du site complète (produits du catalogue avec prix, quantités
+     au minimum, choix faits, date, invités, adresse, téléphone) → devis créé et envoyé tout de suite, quel que soit le montant ;
+     l'équipe est prévenue pour rappeler le client. Sinon la demande reste dans « Demandes de devis », avec la raison. ---------- */
+  const IA_CTX = { uid: 'ia', name: 'IA', email: '' };
+  async function devisAutomatique(demande) {
+    const c = await cat.get(), R = c.reglages;
+    const auto = { essaye: new Date().toISOString() };
+    if (R.devisAuto === false) return { ...auto, envoye: false, raisons: ['envoi automatique désactivé dans le back-office'] };
+    const raisons = raisonsDevisManuel(demande, c, R.tarifs || {});
+    if (raisons.length) return { ...auto, envoye: false, raisons };
+    const cl = await store.get('clients/' + demande.clientId);
+    if (!cl?.email) return { ...auto, envoye: false, raisons: ['fiche client sans e-mail'] };
+    /* la demande passe tout de suite dans « Suivi client », sans commercial : l'équipe choisit qui rappelle */
+    await store.set('demandes/' + demande.id, { ...demande, priseEnCharge: { at: auto.essaye, par: '', quoi: 'devis envoyé par l’IA', ia: true } });
+    const id = await devisDepuisDemande({ ...demande, priseEnCharge: true }, IA_CTX, { commercial: null, auto: true,
+      intro: `Madame, Monsieur, merci pour votre demande. Voici notre proposition pour votre ${String(demande.evenement?.type || 'événement').toLowerCase()}, établie aussitôt à partir de votre sélection.` });
+    const d = await store.get('devis/' + id);
+    const err = controleMarge(d);
+    if (err.length || !(d.lignes || []).length) {
+      await store.set('demandes/' + demande.id, { ...demande });
+      return { ...auto, envoye: false, devisId: id, raisons: err.length ? err : ['devis vide'] };
+    }
+    const prenom = (cl.nom || '').split(' ')[0];
+    const { lien, ttcCents } = await envoyerDevis(d, { canaux: ['email', ...(cl.tel ? ['sms'] : [])], ia: true,
+      message: `Merci pour votre demande${demande.evenement?.date ? ' pour le ' + dateFr(demande.evenement.date) : ''}. Votre devis est prêt : ${euros(totaux(d).ttcCents)} TTC. Vous pouvez le consulter et le signer en ligne dès maintenant.\nUn conseiller Magnolia vous appelle très vite pour vérifier les détails avec vous${prenom ? ', ' + prenom : ''}.` });
+    audit(IA_CTX, 'devis envoyé automatiquement', 'devis/' + id, d.numero);
+    const ct = demande.contact || {}, e = demande.evenement || {};
+    alerterEquipe(`✨ Devis ${d.numero} envoyé par l’IA à ${ct.nom} : à rappeler`,
+      `<p>La demande <b>${esc(demande.ref)}</b> était complète : l’IA a créé le devis <b>${esc(d.numero)}</b> (${euros(ttcCents)} TTC) et l’a envoyé tout de suite au client, par e-mail${cl.tel ? ' et SMS' : ''}.</p><p><b>Merci de rappeler le client</b> : <b>${esc(ct.nom)}</b> ${esc(ct.societe || '')} · <a href="tel:${esc(ct.tel)}">${esc(ct.tel)}</a> · ${esc(ct.email)}</p><p>${esc(e.type)} · ${esc(dateFr(e.date))} · ${e.invites} invités · ${esc([e.cp, e.ville].filter(Boolean).join(' '))}</p>${demande.message ? `<p>Message du client : « ${esc(demande.message)} »</p>` : ''}<p><a href="${SITE}/admin#/devis/${id}">Ouvrir le devis</a> · <a href="${lien}">Voir ce que voit le client</a></p>`,
+      `Magnolia : devis ${d.numero} (${euros(ttcCents)}) envoyé par l'IA à ${ct.nom}, ${e.invites} pers. le ${dateFr(e.date)}. Rappelez le client : ${ct.tel}`).catch(() => {});
+    return { ...auto, envoye: true, devisId: id, numero: d.numero, ttcCents, raisons: [] };
+  }
 
   A.post('/actions/relancer/:id', sameSite, json, wrap(async (req, res) => {
     const d = await store.get('devis/' + req.params.id);
@@ -1653,8 +1700,8 @@ async function createApp(opts = {}) {
     const lies = []; /* envois déjà montrés : on ne répète pas l'e-mail correspondant */
     for (const d of devisL) {
       const t = totaux(d), num = d.numero || '';
-      add(d.createdAt, 'devis', `Devis ${num} préparé`, { montantCents: t.ttcCents, par: d.commercial?.nom || '', lien: '#/devis/' + d.id, statutDevis: d.statut });
-      for (const x of d.envois || []) { add(x.at, 'envoi', `Devis ${num} envoyé`, { detail: 'par ' + (x.canaux || ['email']).map(k => k === 'sms' ? 'SMS' : 'e-mail').join(' et '), montantCents: t.ttcCents, par: x.par, lien: d.token ? '/devis/' + d.token : '' }); lies.push([x.at, num]); }
+      add(d.createdAt, 'devis', `Devis ${num} préparé${d.auto ? ' par l’IA' : ''}`, { montantCents: t.ttcCents, par: d.auto ? '' : d.commercial?.nom || '', lien: '#/devis/' + d.id, statutDevis: d.statut });
+      for (const x of d.envois || []) { add(x.at, 'envoi', `Devis ${num} envoyé par ${x.ia ? 'l’IA' : x.par || 'l’équipe'}`, { detail: (x.ia ? 'Envoi automatique, aussitôt la demande reçue, ' : '') + 'par ' + (x.canaux || ['email']).map(k => k === 'sms' ? 'SMS' : 'e-mail').join(' et '), montantCents: t.ttcCents, par: x.ia ? '✨ IA' : x.par, lien: d.token ? '/devis/' + d.token : '' }); lies.push([x.at, num]); }
       if (d.vuLe) add(d.vuLe, 'vu', `Le client a ouvert le devis ${num}`);
       for (const r of d.relances || []) { add(r.at, 'relance', `Relance : ${r.modele || ''}`.trim(), { detail: 'Devis ' + num, par: r.par }); lies.push([r.at, num, true]); }
       for (const m of d.commentaires || []) add(m.at, 'commentaire', `Commentaire du client sur le devis ${num}`, { detail: m.texte, lien: '#/devis/' + d.id });
