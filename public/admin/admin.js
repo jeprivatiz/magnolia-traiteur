@@ -1831,11 +1831,12 @@
           ${(rubs.find(r => r.slug === p.rubrique)?.sous || []).length ? `<label>Spécialité (dans « ${esc(rubs.find(r => r.slug === p.rubrique).nom)} »)<select name="sous"><option value="">Aucune (seulement dans « Tout »)</option>${[...rubs.find(r => r.slug === p.rubrique).sous].sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0)).map(x => `<option value="${esc(x.slug)}"${x.slug === p.sous ? ' selected' : ''}>${esc(x.nom)}</option>`).join('')}</select></label><fieldset class="span3 aussi"><legend>Aussi affichée dans <small class="muted">(un seul produit, plusieurs spécialités : pas de doublon dans la boutique)</small></legend>${[...rubs.find(r => r.slug === p.rubrique).sous].sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0)).map(x => `<label class="chk"><input type="checkbox" name="autresSous" value="${esc(x.slug)}"${(p.autresSous || []).includes(x.slug) ? ' checked' : ''}> ${esc(String(x.nom).split(' · ')[0])}</label>`).join(' ')}</fieldset>` : ''}
           <label>Section sur la page (spécialité ou rubrique en sections)<select name="rangement"><option value="">Automatique (d’après le nom)</option>${[['animations', 'Nos animations'], ['corbeilles', 'Nos corbeilles de fruits'], ['pieces-montees', 'Nos pièces montées'], ['buffets', 'Nos buffets'], ['mezzes-froids', 'Nos mezzés froids à l’unité'], ['mezzes-chauds', 'Nos mezzés chauds à l’unité'], ['entrees', 'Nos entrées à l’unité'], ['plats', 'Nos plats à l’unité'], ['accompagnements', 'Nos accompagnements à l’unité'], ['fromages', 'Nos fromages'], ['desserts', 'Nos desserts à l’unité'], ['divers', 'Produits divers à l’unité'], ['location', 'En location']].map(([k, t]) => `<option value="${k}"${p.rangement === k ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
           <div class="sp-edit"><span class="sp-lab">Description sous la photo <small class="muted">(s’affiche juste sous la photo de la page produit. Au collage, les lignes vides sont retirées ; une ligne vide que vous ajoutez avec Entrée reste visible.)</small></span>
-          <div class="sp-barre"><button type="button" class="btn ghost sm" data-gras title="Mettre la sélection en gras (ou l’enlever)"><b>G</b> Gras</button><button type="button" class="btn ghost sm" data-titres-gras title="Met en gras les lignes écrites tout en MAJUSCULES">Titres en MAJUSCULES en gras</button><button type="button" class="btn ghost sm" data-sans-gras title="Retire le gras de la sélection (ou de tout le texte)">Retirer le gras</button></div>
+          <div class="sp-barre"><button type="button" class="btn ghost sm ia-btn" data-sp-ia title="L’IA propose une version enrichie ; relisez puis enregistrez">✨ Améliorer avec l’IA</button><button type="button" class="btn ghost sm" data-gras title="Mettre la sélection en gras (ou l’enlever)"><b>G</b> Gras</button><button type="button" class="btn ghost sm" data-titres-gras title="Met en gras les lignes écrites tout en MAJUSCULES">Titres en MAJUSCULES en gras</button><button type="button" class="btn ghost sm" data-sans-gras title="Retire le gras de la sélection (ou de tout le texte)">Retirer le gras</button></div>
           <div class="sp-zone" contenteditable="true" role="textbox" aria-multiline="true" data-sp-edit data-vide="Ex. NOS MINI PIÈCES puis, à la ligne, pain polaire - saumon fumé - fromage frais"></div>
           <textarea name="sousPhoto" hidden>${esc((p.sousPhoto || []).join('\n'))}</textarea></div>
           <label>Accroche (cartes et Google)<textarea name="extrait" rows="2">${esc(p.extrait || '')}</textarea></label>
           <label>Description (un paragraphe par ligne)<textarea name="description" rows="4" data-colle>${esc((p.description || []).join('\n'))}</textarea></label>
+          <div class="ia-ligne"><button type="button" class="btn ghost sm ia-btn" data-desc-ia>✨ Améliorer la description avec l’IA</button><small class="muted">L’IA propose une version enrichie ; relisez-la puis enregistrez.</small></div>
           ${seoBloc('produit', p.seoTitre, p.seoDescription, ` data-id="${esc(p.id || p.slug)}"`)}
         </section>
         <section class="box"><h2>Prix et quantités</h2>
@@ -1935,6 +1936,17 @@
       affiche(lignesSousPhoto(ta.value));
       try { document.execCommand('defaultParagraphSeparator', false, 'div'); } catch {}
       ed.addEventListener('input', () => { sync(); dirty(); });
+      /* « ✨ Améliorer avec l'IA » : texte proposé dans l'éditeur, enregistré seulement avec « Enregistrer » */
+      const iaTexte = async (btn, champ, lignes, poser) => {
+        const lib = btn.textContent; btn.disabled = true; btn.textContent = '✨ L’IA rédige…';
+        try {
+          const r = await api(A + '/ia/texte-produit', { method: 'POST', body: { id, champ, lignes, titre: form.titre.value, description: form.description.value } });
+          poser(r.lignes); dirty(); toast('Proposition de l’IA posée : relisez puis enregistrez.');
+        } catch (err) { toast(err.message, true); }
+        finally { btn.disabled = false; btn.textContent = lib; }
+      };
+      $('[data-sp-ia]', form)?.addEventListener('click', e => iaTexte(e.currentTarget, 'sousPhoto', lit(), l => { affiche(l); sync(); }));
+      $('[data-desc-ia]', form)?.addEventListener('click', e => iaTexte(e.currentTarget, 'description', form.description.value.split('\n'), l => { form.description.value = l.join('\n'); }));
       ed.addEventListener('paste', e => {
         const txt = e.clipboardData?.getData('text/plain'); if (txt == null) return;
         e.preventDefault();
