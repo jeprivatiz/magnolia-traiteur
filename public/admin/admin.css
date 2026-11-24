@@ -1382,3 +1382,12 @@ input.verrou { background: var(--doux); color: var(--gris); cursor: not-allowed;
 .cl-cpt.grand b { font-size: 1.8rem; }
 .cl-cpt.pop { animation: clpop .35s ease; }
 @keyframes clpop { 50% { transform: scale(1.12); } }
+
+/* envois groupés : bouton « ✏ Modifier » sur chaque destinataire + fenêtre de la fiche */
+.df-list li { display: flex; align-items: center; gap: 8px; }
+.df-list li > .df-cl { flex: 1 1 auto; min-width: 0; }
+.df-edit { flex: 0 0 auto; margin-right: 10px; }
+.fc-in { max-width: 760px; width: calc(100% - 24px); max-height: calc(100dvh - 32px); overflow: auto; }
+.fc-in .bh { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.fc-in .row { align-items: center; gap: 12px; flex-wrap: wrap; }
+@media (max-width: 520px) { .df-edit-t { display: none; } .df-edit { margin-right: 6px; padding: 6px 10px; } .df-list .df-cl .df-m { display: none; } }

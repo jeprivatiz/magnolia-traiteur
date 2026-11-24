@@ -1466,7 +1466,7 @@
       nb = r.nb;
       $('[data-nb]').textContent = r.nb.toLocaleString('fr-FR');
       $('[data-nbl]').textContent = (r.nb > 1 ? 'destinataires' : 'destinataire') + (st.mode === 'criteres' && r.correspondent !== r.nb ? ` (${r.correspondent - r.nb} décoché${r.correspondent - r.nb > 1 ? 's' : ''} à la main)` : '');
-      $('[data-dlist]').innerHTML = r.lignes.length ? r.lignes.map(p => `<li><label class="df-cl${p.coche ? ' on' : ''}"><input type="checkbox" data-cid="${esc(p.id)}"${p.coche ? ' checked' : ''}><span class="qs-av">${esc(initiales(p.nom))}</span><span class="df-t"><b>${esc(p.nom || '—')}</b><small>${esc([p.societe, p.contact].filter(Boolean).join(' · '))}</small></span><span class="df-m">${p.totalCents ? euros(p.totalCents) : '<span class="muted">pas de commande</span>'}<small>${esc(p.deps.join(', '))}${p.derniere ? (p.deps.length ? ' · ' : '') + dateFr(p.derniere) : ''}</small></span></label></li>`).join('')
+      $('[data-dlist]').innerHTML = r.lignes.length ? r.lignes.map(p => `<li><label class="df-cl${p.coche ? ' on' : ''}"><input type="checkbox" data-cid="${esc(p.id)}"${p.coche ? ' checked' : ''}><span class="qs-av">${esc(initiales(p.nom))}</span><span class="df-t"><b>${esc(p.nom || '—')}</b><small>${esc([p.societe, p.contact].filter(Boolean).join(' · '))}</small></span><span class="df-m">${p.totalCents ? euros(p.totalCents) : '<span class="muted">pas de commande</span>'}<small>${esc(p.deps.join(', '))}${p.derniere ? (p.deps.length ? ' · ' : '') + dateFr(p.derniere) : ''}</small></span></label><button type="button" class="qs-back df-edit" data-dedit="${esc(p.id)}" title="Corriger la fiche de ce contact" aria-label="Modifier la fiche">✏<span class="df-edit-t"> Modifier</span></button></li>`).join('')
         : `<li class="muted df-vide">${st.q ? 'Aucun client trouvé.' : st.mode === 'manuel' && st.seulementCoches ? 'Aucun client coché.' : 'Aucun client ne correspond à ces critères.'}</li>`;
       $('[data-dpages]').innerHTML = r.pages > 1 ? `<button type="button" class="btn ghost sm" data-pg="-1"${st.page ? '' : ' disabled'}>‹ Précédents</button><span class="muted sm">Page ${st.page + 1} / ${r.pages} · ${r.vue.toLocaleString('fr-FR')} clients</span><button type="button" class="btn ghost sm" data-pg="1"${st.page + 1 < r.pages ? '' : ' disabled'}>Suivants ›</button>` : '';
       const go = $('[data-envoyer]');
@@ -1487,6 +1487,7 @@
     $('[data-k=civ]').addEventListener('change', e => { k.civ = e.target.value; recharger(); });
     $('[data-dq]').addEventListener('input', e => { st.q = e.target.value; clearTimeout(e.target._t); e.target._t = setTimeout(() => { st.page = 0; charger(); }, 250); });
     $('[data-coches]').addEventListener('change', e => { st.seulementCoches = e.target.checked; st.page = 0; charger(); });
+    $('[data-dlist]').addEventListener('click', e => { const b = e.target.closest('[data-dedit]'); if (b) { e.preventDefault(); ficheEnFenetre(b.dataset.dedit, () => charger()); } });
     $('[data-dlist]').addEventListener('change', e => {
       const id = e.target.dataset.cid; if (!id) return;
       const on = e.target.checked; e.target.closest('.df-cl').classList.toggle('on', on);
@@ -1767,17 +1768,39 @@
         <div class="g2"><label>Contact de <small class="muted">(qui nous l’a apporté)</small><input name="contactDe" value="${esc(c.contactDe || '')}" list="pfCde" autocomplete="off"><datalist id="pfCde">${D.contactDe.map(x => `<option value="${esc(x)}">`).join('')}</datalist></label><label>Site internet<input name="siteWeb" value="${esc(c.siteWeb || '')}" placeholder="www…"></label></div>
         <div class="g2"><label>Pays <small class="muted">(si pas la France)</small><input name="pays" value="${esc(c.pays || '')}"></label><label class="check pf-npcc"><input type="checkbox" name="nePasContacter"${c.nePasContacter ? ' checked' : ''}> ⛔ NE PAS CONTACTER <small class="muted">(bloque aussi les e-mails et SMS d’information)</small></label></div></details>`;
   }
+  /* lecture du formulaire de fiche client (page de la fiche et fenêtre « ✏ Modifier ») */
+  function lireFormClient(form, c0) {
+    const fd = new FormData(form), f = Object.fromEntries(fd);
+    f.metiers = fd.getAll('_metiers'); f.djStyles = fd.getAll('_djStyles'); delete f._metiers; delete f._djStyles;
+    for (const k of ['independant', 'permis', 'nePasContacter']) f[k] = !!f[k];
+    const now = new Date().toISOString(), ds = c0.desinscrit || {}, cs = c0.consentement || {};
+    if (f.nePasContacter && !c0.nePasContacter) { f._stopEmail = 'on'; f._stopSms = 'on'; }
+    const stopE = !!f._stopEmail, stopS = !!f._stopSms, acc = !!f._accord; delete f._stopEmail; delete f._stopSms; delete f._accord;
+    if (stopE !== !!ds.email || stopS !== !!ds.sms) f.desinscrit = { ...ds, email: stopE, sms: stopS, le: ds.le || now, ...(stopE && !ds.email ? { leEmail: now } : {}), ...(stopS && !ds.sms ? { leSms: now } : {}) };
+    if (acc !== !!cs.email) f.consentement = acc ? { ...cs, email: true, sms: true, le: now, source: 'back-office' } : { ...cs, email: false, sms: false, le: now, source: 'back-office' };
+    return f;
+  }
+  /* fenêtre par-dessus l'écran : corriger une fiche sans quitter ce qu'on fait (envois groupés…) */
+  async function ficheEnFenetre(id, apres) {
+    let c; try { [c] = await Promise.all([api(A + '/clients/' + id), cache.profilDef ? null : api(A + '/actions/profil-contact').then(x => { cache.profilDef = x; }).catch(() => null)]); } catch (e) { toast(e.message, true); return; }
+    const m = document.createElement('div'); m.className = 'modal df-modal'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-modal', 'true');
+    m.innerHTML = `<div class="modal-in fc-in"><div class="bh"><h2>✏ Fiche de ${esc(c.nom || 'ce contact')}</h2><button type="button" class="x" data-x aria-label="Fermer">×</button></div><form class="hc-form">${formClient(c)}<div class="row"><button class="btn">Enregistrer la fiche</button><button type="button" class="btn ghost" data-x>Annuler</button><a class="lnk" href="#/clients/${esc(id)}" target="_blank" rel="noopener">Ouvrir tout l’historique ↗</a></div></form></div>`;
+    document.body.appendChild(m);
+    const fermer = () => { m.remove(); document.removeEventListener('keydown', esc1); };
+    const esc1 = e => { if (e.key === 'Escape') fermer(); };
+    document.addEventListener('keydown', esc1);
+    m.addEventListener('click', e => { if (e.target === m || e.target.closest('[data-x]')) fermer(); });
+    setTimeout(() => m.querySelector('input[name=nom]')?.focus(), 50);
+    m.querySelector('form').addEventListener('submit', async e => {
+      e.preventDefault();
+      const f = lireFormClient(e.target, c);
+      try { const cur = await api(A + '/clients/' + id); await api(`${A}/clients/${id}`, { method: 'PUT', body: { ...cur, ...f } }); toast('Fiche enregistrée.'); fermer(); apres?.(); } catch (err) { toast(err.message, true); }
+    });
+  }
   const formClient = c => `<div class="g2 pf-id"><label>Civilité<select name="civilite"><option value="">—</option>${[['Mme', 'Madame'], ['M.', 'Monsieur']].map(([v, l]) => `<option value="${v}"${c.civilite === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label><label>Prénom et NOM<input name="nom" value="${esc(c.nom)}" required data-nomclient placeholder="ex. Jean-Luc BERNARD"></label></div><div class="g2"><label>Société <small class="muted">(reliée à sa fiche entreprise)</small><input name="societe" value="${esc(c.societe || '')}" list="entL" autocomplete="off" data-soc><datalist id="entL"></datalist></label><label>Fonction <small class="muted">(dans l’entreprise)</small><input name="fonction" value="${esc(c.fonction || '')}" placeholder="ex. assistante de direction"></label></div>${c.entrepriseId && !c.id ? `<input type="hidden" name="entrepriseId" value="${esc(c.entrepriseId)}">` : ''}<div class="g2"><label>E-mail<input type="email" name="email" value="${esc(c.email || '')}"></label><label>Téléphone<input name="tel" value="${esc(c.tel || '')}" inputmode="tel"></label></div><div class="g2"><label>Date de naissance <small class="muted">(rappel de son anniversaire)</small><input type="date" name="naissance" value="${esc(c.naissance || '')}" max="${new Date().toISOString().slice(0, 10)}"></label></div><label>Adresse de facturation<textarea name="adresse" rows="2">${esc(c.adresse || '')}</textarea></label><div class="g2"><label>Code postal<input name="cp" value="${esc(c.cp || '')}" inputmode="numeric" maxlength="5"></label><label>Ville<input name="ville" value="${esc(c.ville || '')}"></label></div><label>🔒 Remarque <small class="muted">(visible seulement par l’équipe, jamais par le client)</small><textarea name="notes" rows="3">${esc(c.notes || '')}</textarea></label>${casesProfil(c)}<fieldset class="df-fs"><legend>E-mails et SMS d’information</legend><label class="check"><input type="checkbox" name="_accord"${c.consentement?.email ? ' checked' : ''}> A accepté de recevoir nos offres</label><label class="check"><input type="checkbox" name="_stopEmail"${c.desinscrit?.email ? ' checked' : ''}> Ne plus lui envoyer d’e-mails d’information</label><label class="check"><input type="checkbox" name="_stopSms"${c.desinscrit?.sms ? ' checked' : ''}> Ne plus lui envoyer de SMS d’information</label></fieldset>`;
   client.after = id => {
     $('#cf').addEventListener('submit', async e => {
-      e.preventDefault(); const fd = new FormData(e.target), f = Object.fromEntries(fd);
-      f.metiers = fd.getAll('_metiers'); f.djStyles = fd.getAll('_djStyles'); delete f._metiers; delete f._djStyles;
-      for (const k of ['independant', 'permis', 'nePasContacter']) f[k] = !!f[k];
-      const now = new Date().toISOString(), c0 = cache.client || {}, ds = c0.desinscrit || {}, cs = c0.consentement || {};
-      if (f.nePasContacter && !c0.nePasContacter) { f._stopEmail = 'on'; f._stopSms = 'on'; }
-      const stopE = !!f._stopEmail, stopS = !!f._stopSms, acc = !!f._accord; delete f._stopEmail; delete f._stopSms; delete f._accord;
-      if (stopE !== !!ds.email || stopS !== !!ds.sms) f.desinscrit = { ...ds, email: stopE, sms: stopS, le: ds.le || now, ...(stopE && !ds.email ? { leEmail: now } : {}), ...(stopS && !ds.sms ? { leSms: now } : {}) };
-      if (acc !== !!cs.email) f.consentement = acc ? { ...cs, email: true, sms: true, le: now, source: 'back-office' } : { ...cs, email: false, sms: false, le: now, source: 'back-office' };
+      e.preventDefault(); const f = lireFormClient(e.target, cache.client || {});
       try {
         if (id === 'nouveau') { const r = await api(A + '/clients', { method: 'POST', body: { ...f, source: 'back-office', creeLe: new Date().toISOString(), derniereActivite: new Date().toISOString() } }); location.hash = f.entrepriseId ? '#/clients/entreprises/' + f.entrepriseId : '#/clients/' + r.id; }
         else { const cur = await api(A + '/clients/' + id); await api(`${A}/clients/${id}`, { method: 'PUT', body: { ...cur, ...f } }); toast('Fiche enregistrée.'); if (/[?&]edit=1/.test(location.hash)) location.hash = '#/clients/' + id; else render(); }

@@ -993,7 +993,7 @@ async function createApp(opts = {}) {
     if (coll === 'clients' && typeof data.nom === 'string') data.nom = nomPropre(data.nom);
     if (coll === 'clients' && 'naissance' in data) data.naissance = dateNaissance(data.naissance);
     if (coll === 'clients') ficheClientNette(data, before);
-    if (coll === 'clients') await ENT.avantClient(data, before);
+    if (coll === 'clients') { await ENT.avantClient(data, before); profilsCache = null; } /* envois groupés : la fiche corrigée se voit tout de suite */
     if (coll === 'demandes' && typeof data.contact?.nom === 'string') data.contact = { ...data.contact, nom: nomPropre(data.contact.nom) };
     if (coll === 'clients') { if (before?.journal) data.journal = before.journal; else delete data.journal; } /* notes et appels de l'historique jamais effacés par une fiche ouverte avant */
     data.updatedAt = new Date().toISOString();
