@@ -857,3 +857,12 @@ th.ck, td.ck { width: 44px; text-align: center; }
 td.ck input, th.ck input { width: 20px; height: 20px; accent-color: #1f3d34; cursor: pointer; }
 .btn.danger { background: #a3352b; color: #fff; border-color: #a3352b; }
 .btn.danger[disabled] { background: #e9dcd8; color: #8a6d68; border-color: #e0cfc9; cursor: not-allowed; }
+
+/* devis : modification demandée à l'IA */
+.ia-modif { border: 1px solid #ecd9ac; background: #fffaf0; }
+.ia-modif textarea { width: 100%; margin: 6px 0 8px; }
+.iam-prop { margin-top: 12px; padding: 12px 14px; border-radius: 10px; background: #fff; border: 1px solid #ecd9ac; }
+.iam-ch { list-style: none; padding: 0; margin: 8px 0; }
+.iam-ch li { display: flex; gap: 8px; padding: 4px 0; }
+.iam-ch li span { width: 18px; font-weight: 700; text-align: center; }
+.iam-ch .c-ajoute span { color: #2f7a4b; } .iam-ch .c-retire span { color: #a3352b; } .iam-ch .c-retire { text-decoration: line-through; color: #8a6d68; } .iam-ch .c-modifie span { color: #9a6c12; }
