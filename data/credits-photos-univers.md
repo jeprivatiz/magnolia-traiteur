@@ -238,3 +238,5 @@ Pexels (licence libre, usage commercial) et Burst by Shopify (licence libre, usa
 | Fiche « livraison-de-glacons-sac-de-20-kg » (boisson sans photo) | https://www.pexels.com/photo/11931271/ | 24/11/2026 (demande directe) |
 | Fiche « gobelet-reutilisable-a-biere-50-cl » (boisson sans photo) | https://www.pexels.com/photo/4996689/ | 24/11/2026 (demande directe) |
 | Bandeau « Personnel de réception » (serveur avec plateau, Andrea Piacquadio) | https://www.pexels.com/photo/waiter-with-tray-working-in-stylish-restaurant-3769740/ | 24/11/2026 (demande directe : ancienne photo floue) |
+| Fiche « pizzaiolo-personnel » (pizzaïolo qui lance la pâte, Canan Ataklı, recadrée) | https://www.pexels.com/photo/chef-tossing-pizza-dough-in-rustic-kitchen-setting-28857295/ | 24/11/2026 (demande directe) |
+| Fiche « regisseur » (homme en costume qui accueille des invités, Kampus Production) | https://www.pexels.com/photo/man-in-black-suit-giving-a-couple-a-tour-8815825/ | 24/11/2026 (demande directe) |

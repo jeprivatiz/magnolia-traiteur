@@ -1154,6 +1154,18 @@ async function initSousRubriques(store, { log = console } = {}) {
     if (rp) await store.set('rubriques/personnel', { ...rp, bandeauPhoto: '/site/c/personnel-bandeau-serveur.webp', bandeauVideo: '' });
     await store.set('site/reglages', { ...(await store.get('site/reglages')), personnelBandeau1: true });
   }
+  /* Régisseur : pour Magnolia, c'est une personne en costume qui assiste l'hôte (Jean-Luc, 2026-11-24), pas un technicien son/lumière.
+     Texte remplacé une fois, seulement s'il n'a pas déjà été retouché au back-office. */
+  const RReg = await store.get('site/reglages');
+  if (RReg && !RReg.regisseurTexte1) {
+    const rg = await store.get('produits/regisseur');
+    const ANCIEN = 'Un interlocuteur sur place pour coordonner les intervenants';
+    if (rg && (!rg.extrait || rg.extrait.startsWith(ANCIEN))) {
+      const t = 'En costume ou en tailleur, votre régisseur est à vos côtés pendant toute la réception : il accueille vos invités et vérifie la liste à l’entrée, donne les consignes au personnel, répond aux questions et reste à votre disposition pour tout ce dont vous avez besoin. Vous recevez, il s’occupe du reste. Tarif horaire TTC, heures supplémentaires au même tarif. Minimum de 4 heures par personne.';
+      await store.set('produits/regisseur', { ...rg, extrait: t, description: [t] });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), regisseurTexte1: true });
+  }
 
   /* vraies photos à la place des images qui font « IA » (règle de Jean-Luc, 2026-11-22 : 95 % de vraies photos).
      Chaque remplacement est fait une fois, et seulement si la photo n'a pas déjà été changée dans le back-office. */
@@ -1577,6 +1589,10 @@ const VRAIES_PHOTOS_SITE = [
   { id: 'blind-test-2', produit: 'blind-test', avant: pexels(8763175), photo: pexels(15880877), alt: 'Équipe qui célèbre une bonne réponse' },
   { id: 'fromages-1', produit: 'le-trio-affine', avant: '/site/c/plateaux35-fromages.jpg.webp', photo: pexels(2992308), alt: 'Plateau de fromages affinés, noix et fruits' },
   { id: 'fromages-2', produit: 'plateau-de-fromages', avant: '/site/c/cocktail7-photos/mini-clubs.webp.webp', photo: pexels(2992308), alt: 'Plateau de fromages, noix et fruits' },
+  /* Personnel (Jean-Luc, 2026-11-24) : un vrai pizzaïolo qui lance sa pâte (plus les tomates-mozzarella), et pour le régisseur
+     une personne en costume qui accueille les invités (plus l'ingénieur du son à sa console). Photos locales, sources dans data/credits-photos-univers.md */
+  { id: 'pizzaiolo-personnel-1', produit: 'pizzaiolo-personnel', avant: '/site/c/italien22-produits/mozzarella-tomates-sans-logo-20261106.webp.webp', photo: '/site/c/personnel-pizzaiolo-pexels.webp', alt: 'Pizzaïolo qui lance sa pâte à pizza' },
+  { id: 'regisseur-1', produit: 'regisseur', avant: '/site/c/staff81/regisseur.webp.webp', photo: '/site/c/personnel-regisseur-pexels.webp', alt: 'Régisseur en costume qui accueille les invités' },
 ];
 const VIGNETTES_UNIVERS = {
   'traiteur-vegetarien-vegan': pexels(41063196),
