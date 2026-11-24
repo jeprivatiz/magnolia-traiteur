@@ -1,0 +1,20 @@
+name: Photo régisseur (temporaire)
+on:
+  push:
+    branches: [claude/project-thread-z09rrd]
+    paths: [.github/workflows/apercu-photos.yml]
+permissions:
+  contents: write
+jobs:
+  photo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          mkdir -p apercu-photos
+          curl -sSfL -o apercu-photos/regisseur-7648057.jpg "https://images.pexels.com/photos/7648057/pexels-photo-7648057.jpeg?auto=compress&w=2400"
+          git config user.name "magnolia-bot"
+          git config user.email "magnolia-bot@users.noreply.github.com"
+          git add apercu-photos
+          git commit -m "Temporaire : photo régisseur accueil"
+          git push
