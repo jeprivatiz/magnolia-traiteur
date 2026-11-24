@@ -1,0 +1,11 @@
+# nom url debut(s) duree(s) cadrage_horizontal(0=gauche,1=droite)
+cocktail https://videos.pexels.com/video-files/3970176/3970176-hd_1920_1080_30fps.mp4 0 10 0.5
+boissons https://videos.pexels.com/video-files/7219888/7219888-hd_1080_1920_24fps.mp4 1 10 0.5
+vegetarien https://videos.pexels.com/video-files/4959964/4959964-hd_1920_1080_24fps.mp4 0 9 0.45
+burgers https://videos.pexels.com/video-files/37296040/15798655_1920_1080_24fps.mp4 0 7.5 0.5
+personnel https://videos.pexels.com/video-files/7608908/7608908-hd_1080_1920_25fps.mp4 0 10 0.5
+photobooth https://videos.pexels.com/video-files/6225145/6225145-hd_1920_1080_30fps.mp4 0 6.5 0.5
+petit-dejeuner https://videos.pexels.com/video-files/6466347/6466347-hd_1080_2048_25fps.mp4 3 12 0.5
+dj https://videos.pexels.com/video-files/9005218/9005218-hd_1920_1080_25fps.mp4 0 8.5 0.45
+peniche https://videos.pexels.com/video-files/9756181/9756181-hd_1920_1080_24fps.mp4 2 10 0.45
+churros-essai https://videos.pexels.com/video-files/36292504/15389804_1920_1080_60fps.mp4 0 8.5 0.5
