@@ -515,7 +515,7 @@
         selPage.hidden = true;
         const done = $('[data-done]');
         done.hidden = false;
-        done.innerHTML = `<div class="merci"><p class="eyebrow">Demande envoyée</p><h2>Merci ${esc(f.nom.split(' ')[0])} !</h2><p class="lead">Votre demande <b>${esc(r.ref)}</b> est bien reçue. L’équipe vérifie les disponibilités et vous envoie votre devis très vite, par e-mail.</p><p>Un e-mail de confirmation vient de partir à <b>${esc(f.email)}</b>.</p><p class="row"><a class="btn btn-vert" href="${esc(r.espace)}">Suivre ma demande</a><a class="lnk" href="/">Retour à l’accueil</a></p></div>`;
+        done.innerHTML = `<div class="merci"><p class="eyebrow">${r.devisEnvoye ? 'Devis envoyé' : 'Demande envoyée'}</p><h2>Merci ${esc(f.nom.split(' ')[0])} !</h2><p class="lead">${r.devisEnvoye ? `Votre devis est prêt : il vient de partir à <b>${esc(f.email)}</b>. Vous pouvez le consulter et le signer en ligne dès maintenant.</p><p>Un conseiller Magnolia vous appelle très vite pour vérifier les détails avec vous.</p>` : `Votre demande <b>${esc(r.ref)}</b> est bien reçue. L’équipe vérifie les disponibilités et vous envoie votre devis très vite, par e-mail.</p><p>Un e-mail de confirmation vient de partir à <b>${esc(f.email)}</b>.</p>`}<p class="row"><a class="btn btn-vert" href="${esc(r.espace)}">${r.devisEnvoye ? 'Voir mon devis' : 'Suivre ma demande'}</a><a class="lnk" href="/">Retour à l’accueil</a></p></div>`;
         scrollTo({ top: 0, behavior: 'smooth' });
       } catch (err) { toast(err.message); btn.disabled = false; btn.textContent = 'Envoyer ma demande de devis'; }
     });

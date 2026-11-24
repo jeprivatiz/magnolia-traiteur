@@ -98,4 +98,38 @@ function estimerLigne(l, p, tarifs = {}) {
   return { qte, supCents: sup, totalCents: total, surDevis: base == null };
 }
 
-module.exports = { regleAcompte, totaux, controleMarge, prochainNumero, lignesDepuisDemande, estimerLigne };
+/* Envoi automatique du devis (Jean-Luc, 2026-11-24) : une demande du site part toute seule, devis compris,
+   seulement si TOUT est connu. Renvoie la liste des raisons qui obligent l'équipe à la traiter à la main (vide = envoi automatique). */
+function raisonsDevisManuel(demande, catalogue, T = {}, now = new Date()) {
+  const r = [];
+  if (demande.type !== 'devis') return ['message, pas une demande de devis'];
+  const lignes = demande.lignes || [];
+  if (!lignes.length) r.push('sélection vide');
+  for (const l of lignes) {
+    const p = catalogue.bySlug.get(l.slug), nom = `« ${String(l.titre || l.slug || '').replace(/\*\*/g, '')} »`;
+    if (!p || p.statut === 'masque') { r.push(`${nom} n’est pas dans le catalogue (à créer ou à rechercher)`); continue; }
+    if (p.prixCents == null || l.prixCents == null || l.surDevis) { r.push(`${nom} n’a pas de prix (sur devis)`); continue; }
+    if (p.aCompleter) r.push(`${nom} est une fiche à compléter`);
+    if ((Number(l.qte) || 0) < Math.max(1, +p.min || 1)) r.push(`${nom} : quantité sous le minimum (${p.min})`);
+    for (const g of p.groupes || []) {
+      if (g.facultatif || (g.options || []).length < 2 && !g.mode) continue;
+      if ((g.variantes || []).length && (p.variantes || []).length && !g.variantes.includes(l.variante)) continue; /* groupe d'une autre formule */
+      const ch = l.choix?.[g.id] || [];
+      if (g.mode === 'quantites') { const n = ch.reduce((t, x) => t + (+String(x).split(':')[1] || 0), 0); if (n !== +l.qte) r.push(`${nom} : choix « ${g.titre || 'options'} » incomplets`); continue; }
+      if (!ch.length) r.push(`${nom} : aucun choix pour « ${g.titre || 'options'} »`);
+      else if (g.exact && g.max && ch.length !== +g.max) r.push(`${nom} : il faut ${g.max} choix pour « ${g.titre || 'options'} »`);
+    }
+  }
+  const e = demande.evenement || {};
+  const jours = +(T.devisAutoDelaiJours ?? 2);
+  const ev = /^\d{4}-\d{2}-\d{2}$/.test(e.date || '') ? Date.parse(e.date + 'T12:00:00') : NaN;
+  const auj = Date.parse(new Date(now).toISOString().slice(0, 10) + 'T12:00:00');
+  if (Number.isNaN(ev)) r.push('date de l’événement manquante');
+  else if ((ev - auj) / 86400e3 < jours) r.push(`événement dans moins de ${jours} jours : disponibilité à vérifier`);
+  if (!(+e.invites > 0)) r.push('nombre d’invités manquant');
+  if (!e.ville || !(+demande.livraison?.km > 0)) r.push('adresse de livraison manquante (distance inconnue)');
+  if (!String(demande.contact?.tel || '').replace(/\D/g, '')) r.push('pas de téléphone pour rappeler le client');
+  return [...new Set(r)];
+}
+
+module.exports = { raisonsDevisManuel, regleAcompte, totaux, controleMarge, prochainNumero, lignesDepuisDemande, estimerLigne };
