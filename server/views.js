@@ -47,7 +47,8 @@ const insecables = html => INSECABLES.reduce((h, [re, r]) => h.replace(re, r), S
 function layout(...args) { return insecables(layoutBrut(...args)); }
 function layoutBrut(c, { title, description = '', body, path = '/', schema = null, bodyClass = '', image = '', head = '', scripts = '', partage = '' }) {
   const R = c.reglages;
-  const fullTitle = title ? `${title} · ${R.nom || 'Magnolia Traiteur'}` : `${R.nom || 'Magnolia Traiteur'} · Traiteur événementiel`;
+  /* un titre Google qui porte déjà la marque (« … | Magnolia Traiteur ») n'est pas doublé */
+  const fullTitle = title ? (/\|\s*Magnolia\b/i.test(title) ? title : `${title} · ${R.nom || 'Magnolia Traiteur'}`) : `${R.nom || 'Magnolia Traiteur'} · Traiteur événementiel`;
   const site = (process.env.SITE_URL || 'https://www.magnoliatraiteur.fr').replace(/\/$/, '');
   const rubs = c.rubriques.filter(r => r.statut !== 'masque' && r.slug !== 'lieux');
   return `<!doctype html>
@@ -536,7 +537,7 @@ ${proches.length ? `<section class="wrap"><div class="sec-h"><h2>Dans la même r
 <div class="stickybar" data-sticky><span><b>${esc(prixTxt)}</b>${p.unite && p.prixCents != null ? ' / ' + esc(p.unite) : ''}</span><button class="btn btn-vert" type="button" data-scroll-conf>Choisir</button></div>`;
   const site = (process.env.SITE_URL || 'https://www.magnoliatraiteur.fr').replace(/\/$/, '');
   const schema = { '@context': 'https://schema.org', '@type': 'Product', name: p.titre, description: p.extrait, category: r.nom, image: photos.map(x => site + x.src), brand: { '@type': 'Brand', name: R.nom }, ...(p.prixCents != null ? { offers: { '@type': 'Offer', price: (p.prixCents / 100).toFixed(2), priceCurrency: 'EUR', availability: 'https://schema.org/InStock', eligibleQuantity: { '@type': 'QuantitativeValue', minValue: p.min || 1 } } } : {}) };
-  return layout(c, { title: p.titre, description: p.extrait, body, path: prodHref(p), schema, image: photos[0]?.src, bodyClass: 'p-fiche' });
+  return layout(c, { title: p.seoTitre || p.titre, description: p.seoDescription || p.extrait, body, path: prodHref(p), schema, image: photos[0]?.src, bodyClass: 'p-fiche' });
 }
 
 /* ---------- page Lieux + recherche multicritère (localisation, type d'événement, type de lieu, convives, mot-clé) ---------- */
