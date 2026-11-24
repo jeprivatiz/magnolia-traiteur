@@ -18,6 +18,7 @@ const { regleAcompte, totaux, controleMarge, prochainNumero, lignesDepuisDemande
 const { rid, sha, esc, euros, limiter, dateFr, slugify, nomPropre, dateNaissance } = require('./util');
 const { creerImportClients, normTel, departementDe } = require('./import-clients');
 const IA = require('./ia');
+const SEO = require('./seo');
 const DIF = require('./diffusion');
 const FAC = require('./factures');
 
@@ -131,6 +132,61 @@ async function createApp(opts = {}) {
     for (const { id, data: c } of await store.list('clients')) if ((c.journal || []).some(j => j.par === 'Manager')) await store.set('clients/' + id, { ...c, journal: parMaj(c.journal) });
     await store.set('_migr/nomManager', { at: new Date().toISOString() });
   }
+
+  /* ---------- titres et descriptions « dans Google » (Jean-Luc, 2026-11-24) ----------
+     À chaque démarrage : les cases vides des produits, rubriques et spécialités sont remplies (jamais un texte tapé à la main).
+     Puis l'IA réécrit en arrière-plan les textes de produits posés par le modèle simple (une seule fois par produit). */
+  const espacesSeo = t => String(t || '').replace(/\s+/g, ' ').trim();
+  async function remplirSeoCatalogue() {
+    const prods = await store.list('produits'), ec = SEO.extraitsCommuns(prods.map(d => d.data));
+    let n = 0;
+    for (const { id, data: p } of prods) { if (p && SEO.remplirProduit(p, { extraitsCommuns: ec })) { await store.set('produits/' + id, p); n++; } }
+    for (const { id, data: r } of await store.list('rubriques')) { if (r && SEO.remplirRubrique(r)) { await store.set('rubriques/' + id, r); n++; } }
+    if (n) log.log?.(`[google] ${n} fiche(s) : titre ou description Google rempli automatiquement`);
+    return n;
+  }
+  await remplirSeoCatalogue();
+  /* fiches dont un texte Google vient encore du modèle simple : l'IA peut l'améliorer */
+  const seoAAmeliorer = p => p?.seoAuto && !p.seoAuto.ia && (p.seoAuto.essais || 0) < 2 && (('titre' in p.seoAuto && p.seoTitre === p.seoAuto.titre) || ('description' in p.seoAuto && p.seoDescription === p.seoAuto.description));
+  let seoIaEnCours = null;
+  async function seoIaLot({ taille = 20, maxLots = 100 } = {}) {
+    if (!ia.actif) return 0;
+    let faits = 0;
+    for (let lot = 0; lot < maxLots; lot++) {
+      const c = await cat.get();
+      const nomsRub = Object.fromEntries(c.rubriques.map(r => [r.slug, r.nom])), nomsSous = Object.fromEntries(c.rubriques.flatMap(r => (r.sous || []).map(x => [x.slug, x.nom])));
+      const tous = (await store.list('produits')).filter(d => d.data);
+      const file = tous.filter(d => seoAAmeliorer(d.data)).sort((a, b) => (a.data.statut === 'masque') - (b.data.statut === 'masque')).slice(0, taille);
+      if (!file.length) break;
+      let rep;
+      try { rep = IA.json(await ia.demander(SEO.promptSeo(file.map(d => SEO.infosIa({ ...d.data, slug: d.id }, nomsRub, nomsSous))), { effort: 'low', maxTokens: 8000 })); }
+      catch (e) {
+        log.error?.('[google ia]', e.message);
+        for (const d of file) { const p = await store.get('produits/' + d.id); if (p?.seoAuto) await store.set('produits/' + d.id, { ...p, seoAuto: { ...p.seoAuto, essais: (p.seoAuto.essais || 0) + 1 } }); }
+        break;
+      }
+      const parSlug = new Map((Array.isArray(rep) ? rep : []).map(x => [String(x?.slug || ''), x]));
+      const pris = new Set(tous.filter(d => !file.some(f => f.id === d.id)).map(d => d.data.seoTitre).filter(Boolean));
+      for (const d of file) {
+        const p = await store.get('produits/' + d.id); if (!p) continue;
+        const r = parSlug.get(d.id) || {}, auto = { ...(p.seoAuto || {}) };
+        let t = SEO.titreValide(r.titre), desc = SEO.descriptionValide(r.description);
+        if (t && pris.has(t)) t = null;
+        /* seulement les cases encore égales au texte automatique : un texte tapé entre-temps est gardé */
+        if (t && 'titre' in auto && p.seoTitre === auto.titre) { p.seoTitre = t; auto.titre = t; pris.add(t); }
+        if (desc && 'description' in auto && p.seoDescription === auto.description) { p.seoDescription = desc; auto.description = desc; }
+        if (t || desc) { auto.ia = true; faits++; } else auto.essais = (auto.essais || 0) + 1;
+        p.seoAuto = auto;
+        await store.set('produits/' + d.id, p);
+      }
+      cat.invalidate();
+    }
+    if (faits) log.log?.(`[google ia] ${faits} produit(s) : titre et description Google rédigés par l'IA`);
+    return faits;
+  }
+  /* une seule tâche à la fois ; relancée après chaque création ou modification de produit */
+  const lancerSeoIa = () => { if (!ia.actif || seoIaEnCours) return seoIaEnCours; seoIaEnCours = seoIaLot().catch(e => log.error?.('[google ia]', e)).finally(() => { seoIaEnCours = null; }); return seoIaEnCours; };
+  if (!opts.noTimers && env.JP_NO_TIMERS !== '1') setTimeout(lancerSeoIa, 30e3).unref?.();
 
   /* ---------- journal d'activité chaîné (toute modification se voit) ---------- */
   let auditQueue = Promise.resolve();
@@ -619,6 +675,13 @@ async function createApp(opts = {}) {
     }
     if (coll === 'demandes' && before && data.statut && data.statut !== before.statut) data.historique = [...(before.historique || []), { at: new Date().toISOString(), statut: data.statut, par: req.ctx.name || req.ctx.email }];
     if (coll === 'produits' && !data.slug) data.slug = id;
+    if (coll === 'produits' || coll === 'rubriques') {
+      /* cases Google : un texte tapé est gardé ; une case vide est remplie ; un produit renommé reçoit des textes à son nouveau nom */
+      const garder = (o, b) => { if (o && !o.seoAuto && b?.seoAuto) o.seoAuto = b.seoAuto; if (o?.seoAuto && b && espacesSeo(b.titre || b.nom) !== espacesSeo(o.titre || o.nom)) { for (const [c, k] of [['seoTitre', 'titre'], ['seoDescription', 'description']]) if (k in o.seoAuto && o[c] === o.seoAuto[k]) o[c] = ''; o.seoAuto = { ...o.seoAuto, ia: false, essais: 0 }; } };
+      garder(data, before);
+      if (coll === 'rubriques') for (const x of Array.isArray(data.sous) ? data.sous : []) garder(x, (before?.sous || []).find(y => y.slug === x.slug));
+      if (coll === 'produits') SEO.remplirProduit(data); else SEO.remplirRubrique(data);
+    }
     if (coll === 'clients' && typeof data.nom === 'string') data.nom = nomPropre(data.nom);
     if (coll === 'clients' && 'naissance' in data) data.naissance = dateNaissance(data.naissance);
     if (coll === 'clients') ficheClientNette(data, before);
@@ -627,6 +690,7 @@ async function createApp(opts = {}) {
     data.updatedAt = new Date().toISOString();
     await store.set(coll + '/' + id, data);
     if (['produits', 'rubriques', 'lieux', 'avis', 'pages'].includes(coll)) cat.invalidate();
+    if (coll === 'produits') setTimeout(lancerSeoIa, 2000).unref?.();
     /* fiche client corrigée (nom, société, e-mail, téléphone) : on reporte sur ses demandes, pour que le Suivi client affiche la même chose */
     if (coll === 'clients' && before) {
       for (const { data: dm } of await store.list('demandes')) {
@@ -650,8 +714,10 @@ async function createApp(opts = {}) {
     if (coll === 'produits') Object.assign(data, { id, slug: id, statut: data.statut || 'masque', maison: true, photos: data.photos || [], description: data.description || [], sections: data.sections || [], groupes: [], variantes: [], details: [], regles: data.regles || { packs: true, personnel: 'service' }, ordre: -1 });
     if (coll === 'lieux') Object.assign(data, { slug: id, statut: data.statut || 'masque', photos: data.photos || [], equipements: data.equipements || [] });
     if (coll === 'rubriques') Object.assign(data, { slug: id, statut: data.statut || 'visible', ordre: data.ordre ?? 99, tva: data.tva || 10 });
+    if (coll === 'produits') SEO.remplirProduit(data); if (coll === 'rubriques') SEO.remplirRubrique(data);
     await store.set(coll + '/' + id, data);
     cat.invalidate();
+    if (coll === 'produits') setTimeout(lancerSeoIa, 2000).unref?.();
     audit(req.ctx, 'création', coll + '/' + id, data.titre || data.nom || '');
     res.json({ ok: true, id });
   }));
@@ -719,6 +785,33 @@ async function createApp(opts = {}) {
     const fichePourIa = { type: fiche.type, date: fiche.date, horaire: fiche.horaire, invites: fiche.invites, ville: fiche.ville, budgetTTC: fiche.budget, precisions: fiche.notes };
     try { res.json({ articles: IA.nettoyerArticles(IA.json(await ia.demander(IA.promptProduits(fichePourIa, s(req.body?.texte, 6000), compact, c.reglages.tarifs || {}), { effort: 'medium', maxTokens: 6000 })), c, compact.visibles) }); }
     catch (e) { iaErreur(res, e); }
+  }));
+  /* « ✨ Proposer avec l'IA » à côté des cases Google (produit, rubrique ou spécialité) : propose, n'enregistre rien */
+  A.post('/ia/seo', sameSite, json, wrap(async (req, res) => {
+    if (!iaLimit(req.ctx.uid)) return res.status(429).json({ error: 'Trop de demandes : réessayez dans une minute.' });
+    const b = req.body || {}, type = ['produit', 'rubrique', 'sous'].includes(b.type) ? b.type : 'produit';
+    const c = await cat.get();
+    const nomsRub = Object.fromEntries(c.rubriques.map(r => [r.slug, r.nom])), nomsSous = Object.fromEntries(c.rubriques.flatMap(r => (r.sous || []).map(x => [x.slug, x.nom])));
+    let item, modele;
+    if (type === 'produit') {
+      const p = { ...((await store.get('produits/' + s(b.id, 120))) || {}), ...(b.titre ? { titre: s(b.titre, 200) } : {}), ...(b.extrait ? { extrait: s(b.extrait, 600) } : {}) };
+      if (!p.titre) return res.status(404).json({ error: 'Produit introuvable.' });
+      item = SEO.infosIa({ ...p, slug: s(b.id, 120) }, nomsRub, nomsSous); modele = SEO.modeleProduit(p);
+    } else {
+      const r = c.rubriques.find(x => x.slug === s(b.rubrique, 120));
+      const x = type === 'sous' ? { ...((r?.sous || []).find(y => y.slug === s(b.slug, 120)) || {}), slug: s(b.slug, 120) } : { ...(r || {}) };
+      if (b.nom) x.nom = s(b.nom, 200); if (b.chapo) x.chapo = s(b.chapo, 1000);
+      if (!x.nom) return res.status(404).json({ error: 'Rubrique introuvable.' });
+      const nb = c.produits.filter(p => p.rubrique === r?.slug && (type === 'rubrique' || p.sous === x.slug) && p.statut !== 'masque');
+      item = { slug: x.slug || 'page', nom: x.titrePage || x.nom, rubrique: type === 'sous' ? 'page de la spécialité (rubrique ' + (r?.nom || '') + ')' : 'page de la rubrique', specialite: '', prix: '', infos: [x.chapo, 'Exemples : ' + nb.slice(0, 15).map(p => p.titre).join(', ')].filter(Boolean).join(' ').slice(0, 600) };
+      modele = type === 'sous' ? SEO.modeleSous(x) : SEO.modeleRubrique(x);
+    }
+    if (!ia.actif) return res.json({ ...modele, ia: false });
+    try {
+      const rep = IA.json(await ia.demander(SEO.promptSeo([item]), { effort: 'low', maxTokens: 1500 }));
+      const r = (Array.isArray(rep) ? rep[0] : rep) || {};
+      res.json({ titre: SEO.titreValide(r.titre) || modele.titre, description: SEO.descriptionValide(r.description) || modele.description, ia: true });
+    } catch (e) { res.json({ ...modele, ia: false }); }
   }));
   A.post('/ia/modifier-devis', sameSite, json, wrap(async (req, res) => {
     if (!iaLimit(req.ctx.uid)) return res.status(429).json({ error: 'Trop de demandes : réessayez dans une minute.' });
@@ -1662,6 +1755,8 @@ async function createApp(opts = {}) {
   }
 
   app.locals.store = store;
+  app.locals.seoIa = () => lancerSeoIa() || Promise.resolve(0);
+  app.locals.remplirSeo = remplirSeoCatalogue;
   app.locals.catalogue = cat;
   return app;
 }

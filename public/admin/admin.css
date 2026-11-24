@@ -1228,3 +1228,8 @@ td.nw { white-space: nowrap; }
   .db-k.hot .db-k-i { background: #2c5a4e; color: #f1dcb0; }
   .db-k.db-ca b { color: #fff; }
 }
+/* Référencement Google (titre et description) */
+.seobox { grid-column: 1 / -1; background: var(--carte); border: 1px solid var(--ligne); border-radius: 10px; padding: 10px 12px; margin: 8px 0; }
+.seobox .seohead { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.seobox [data-seo-n] { font-weight: 400; }
+.seobox [data-seo-n].trop { color: #b3261e; }

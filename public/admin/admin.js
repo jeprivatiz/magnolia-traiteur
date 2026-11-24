@@ -20,6 +20,34 @@
     return j;
   }
   const A = '/api/admin';
+  /* cases « Titre / Description dans Google » (rubrique, spécialité, produit) + « ✨ Proposer avec l'IA » */
+  const seoN = (v, max) => `${String(v || '').length} / ${max} caractères`;
+  function seoBloc(type, titre, desc, attrs = '', sousRow = false) {
+    const k = n => sousRow ? `data-k="${n}"` : `name="${n}"`;
+    return `<div class="seobox" data-seo="${type}"${attrs}><div class="seohead"><b>Référencement Google</b><button type="button" class="btn ghost sm" data-seo-ia>✨ Proposer avec l’IA</button></div>
+      <label>Titre dans Google <small class="muted" data-seo-n="60">${seoN(titre, 60)}</small><input ${k('seoTitre')} data-seo-t value="${esc(titre || '')}" maxlength="70"></label>
+      <label>Description dans Google <small class="muted" data-seo-n="155">${seoN(desc, 155)}</small><textarea ${k('seoDescription')} data-seo-d rows="3" maxlength="170">${esc(desc || '')}</textarea></label>
+      <p class="muted sm">Rempli automatiquement si la case est vide. Un texte que vous écrivez vous-même n’est jamais remplacé. Pensez à enregistrer après une proposition de l’IA.</p></div>`;
+  }
+  document.addEventListener('input', e => {
+    const c = e.target.closest?.('[data-seo-t],[data-seo-d]'); if (!c) return;
+    const n = c.closest('label')?.querySelector('[data-seo-n]'); if (n) { n.textContent = seoN(c.value, +n.dataset.seoN); n.classList.toggle('trop', c.value.length > +n.dataset.seoN); }
+  });
+  document.addEventListener('click', async e => {
+    const btn = e.target.closest?.('[data-seo-ia]'); if (!btn) return;
+    const box = btn.closest('[data-seo]'), type = box.dataset.seo, r = new URLSearchParams(location.hash.split('?')[1] || '').get('r') || cache.catR;
+    const body = { type };
+    if (type === 'produit') { body.id = box.dataset.id; body.titre = $('#pf [name=titre]')?.value; body.extrait = $('#pf [name=extrait]')?.value; }
+    else if (type === 'rubrique') { body.rubrique = r; body.nom = $('#rf [name=nom]')?.value; body.chapo = $('#rf [name=chapo]')?.value; }
+    else { const row = box.closest('.sousrow'); body.rubrique = r; body.slug = box.dataset.slug; body.nom = row && $('[data-n]', row)?.value; body.chapo = row && $('[data-k=chapo]', row)?.value; }
+    const lib = btn.textContent; btn.disabled = true; btn.textContent = '✨ L’IA rédige…';
+    try {
+      const rep = await api(A + '/ia/seo', { method: 'POST', body });
+      for (const [sel, v] of [['[data-seo-t]', rep.titre], ['[data-seo-d]', rep.description]]) { const el = $(sel, box); if (el && v) { el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); } }
+      toast(rep.ia ? 'Proposition de l’IA posée : relisez puis enregistrez.' : 'Proposition posée (modèle simple, l’IA n’a pas répondu) : relisez puis enregistrez.');
+    } catch (err) { toast(err.message, true); }
+    finally { btn.disabled = false; btn.textContent = lib; }
+  });
   /* « Prénom NOM » (même règle que server/util.js nomPropre) : appliqué dès qu'on quitte la case du nom */
   const majPrenom = w => w.toLocaleLowerCase('fr-FR').replace(/(^|[-'’\s])(\p{L})/gu, (m, a, b) => a + b.toLocaleUpperCase('fr-FR'));
   function nomPropre(v) {
@@ -1609,7 +1637,7 @@
         <label class="span3">Texte d’introduction<textarea name="chapo" rows="2">${esc(rub.chapo || '')}</textarea></label>
         <label>Titre du paragraphe de présentation<input name="introTitre" value="${esc(rub.introTitre || '')}" placeholder="ex. Cocktails et buffets à la française"></label>
         <label class="span3">Paragraphe de présentation <small class="muted">(sous le bandeau, centré ; une ligne vide = nouveau paragraphe ; vide = rien)</small><textarea name="introTexte" rows="5">${esc(rub.introTexte || '')}</textarea></label>
-        <details class="span3 landbox"><summary>Page d’atterrissage : titre et Google</summary><div class="g3"><label>Grand titre de la page<input name="titrePage" value="${esc(rub.titrePage || '')}" placeholder="${esc(rub.nom || '')}"></label><label>Titre dans Google<input name="seoTitre" value="${esc(rub.seoTitre || '')}" maxlength="70" placeholder="vide = grand titre"></label><label>Description dans Google<input name="seoDescription" value="${esc(rub.seoDescription || '')}" maxlength="170" placeholder="vide = texte d’introduction"></label></div></details>
+        <details class="span3 landbox"><summary>Page d’atterrissage : titre et Google</summary><div class="g3"><label>Grand titre de la page<input name="titrePage" value="${esc(rub.titrePage || '')}" placeholder="${esc(rub.nom || '')}"></label></div>${seoBloc('rubrique', rub.seoTitre, rub.seoDescription)}</details>
         <fieldset class="span3 pictos" data-pictos><legend>Pictogramme sur la vignette de l’accueil</legend><p class="muted sm">Chargement…</p></fieldset>
         <div class="span3 phrow">${photoField('photoAccueil', rub.photoAccueil || rub.photo, 'Photo de la vignette')}<div class="row"><label>Ordre<input type="number" name="ordre" value="${rub.ordre ?? 0}" class="num"></label><label>TVA par défaut<select name="tva">${[5.5, 10, 20].map(t => `<option value="${t}"${+(rub.tva || 10) === t ? ' selected' : ''}>${t} %</option>`).join('')}</select></label><button class="btn ghost">Enregistrer la rubrique</button></div></div>
         <div class="span3 sousbox pliable" data-pli="sous"><div class="plihead"><h3>Spécialités <small class="muted">(${(rub.sous || []).length} · vignettes affichées avant les prestations, ex. Buffet libanais, Paëlla party)</small></h3><button type="button" class="btn ghost sm plibtn" data-plibtn></button></div><div class="plibody">
@@ -1646,8 +1674,7 @@
           <label>Grand titre de la page<input data-k="titrePage" value="${esc(x.titrePage || '')}" placeholder="${esc(x.nom || '')}"></label>
           <label>Texte du bandeau<textarea data-k="chapo" rows="4">${esc(x.chapo || '')}</textarea></label>
           <label>Texte du bouton<input data-k="bouton" value="${esc(x.bouton || '')}" placeholder="Voir les propositions"></label>
-          <label>Titre dans Google <small class="muted">(vide = grand titre)</small><input data-k="seoTitre" value="${esc(x.seoTitre || '')}" maxlength="70"></label>
-          <label>Description dans Google <small class="muted">(vide = texte du bandeau)</small><textarea data-k="seoDescription" rows="2" maxlength="170">${esc(x.seoDescription || '')}</textarea></label></div></div></details>
+          ${seoBloc('sous', x.seoTitre, x.seoDescription, ` data-slug="${esc(x.slug || '')}"`, true)}</div></div></details>
         <details class="landbox"><summary>Paragraphe de présentation (avant « Nos buffets »)</summary>
           <label>Titre<input data-k="introTitre" value="${esc(x.introTitre || '')}" placeholder="ex. Le goût du partage"></label>
           <label>Texte <small class="muted">(vide = pas de paragraphe)</small><textarea data-k="introTexte" rows="5">${esc(x.introTexte || '')}</textarea></label></details>
@@ -1813,6 +1840,7 @@
           <textarea name="sousPhoto" hidden>${esc((p.sousPhoto || []).join('\n'))}</textarea></div>
           <label>Accroche (cartes et Google)<textarea name="extrait" rows="2">${esc(p.extrait || '')}</textarea></label>
           <label>Description (un paragraphe par ligne)<textarea name="description" rows="4" data-colle>${esc((p.description || []).join('\n'))}</textarea></label>
+          ${seoBloc('produit', p.seoTitre, p.seoDescription, ` data-id="${esc(p.id || p.slug)}"`)}
         </section>
         <section class="box"><h2>Prix et quantités</h2>
           <label>Prix TTC (€) <small>vide = « Sur devis »</small><input name="prix" value="${fromCents(p.prixCents)}" inputmode="decimal"></label>
@@ -1974,7 +2002,7 @@
         const gv = !vars.length ? null : fg.length ? vars.filter(v => !fg.some(x => x[1] === v && !x[2])) : (old.variantes || null);
         return { ...old, variantes: gv && gv.length && gv.length < vars.length ? gv : null, id: old.id || 'g' + gi, titre, max: +max || null, exact: mode === 'exact', facultatif: fac === 'facultatif', options: b.slice(1).map((o, oi) => { const [label, sup] = o.split('|').map(x => x.trim()); const oo = (old.options || []).find(x => x.label === label) || {}; return { ...oo, id: oo.id || 'o' + oi + '-' + label.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-').slice(0, 30), label, supCents: toCents(sup) || 0 }; }) };
       });
-      const next = { ...p, titre: f.get('titre'), rubrique: f.get('rubrique'), sous: f.get('rubrique') === p.rubrique ? (f.get('sous') ?? p.sous ?? '') : '', autresSous: f.get('rubrique') === p.rubrique ? f.getAll('autresSous').filter(x => x !== f.get('sous')) : [], rangement: f.get('rangement') ?? p.rangement ?? '', statut: f.get('statut'), maison: !!f.get('maison'), extrait: f.get('extrait'), description: lignesNettes(f.get('description')), sousPhoto: lignesSousPhoto(f.get('sousPhoto')),
+      const next = { ...p, titre: f.get('titre'), rubrique: f.get('rubrique'), sous: f.get('rubrique') === p.rubrique ? (f.get('sous') ?? p.sous ?? '') : '', autresSous: f.get('rubrique') === p.rubrique ? f.getAll('autresSous').filter(x => x !== f.get('sous')) : [], rangement: f.get('rangement') ?? p.rangement ?? '', statut: f.get('statut'), maison: !!f.get('maison'), extrait: f.get('extrait'), seoTitre: String(f.get('seoTitre') || '').trim(), seoDescription: String(f.get('seoDescription') || '').replace(/\s+/g, ' ').trim(), description: lignesNettes(f.get('description')), sousPhoto: lignesSousPhoto(f.get('sousPhoto')),
         prixCents: toCents(f.get('prix')), unite: f.get('unite'), contenuPortion: String(f.get('contenuPortion') || '').trim(), min: +f.get('min') || 1, minimumTexte: '', prixTexte: '', coutCents: toCents(f.get('cout')), tva: +f.get('tva'),
         regles: { ...(p.regles || {}), personnel: f.get('r_personnel') ? (p.regles?.personnel || 'service') : null, packs: !!f.get('r_packs') },
         variantes: String(f.get('variantes')).split('\n').map(x => x.trim()).filter(Boolean), photos: photos.filter(x => !x.envoi).map(({ src, alt }) => ({ src, alt })), video: f.get('video') ? { src: f.get('video'), poster: f.get('poster') || '' } : null,
