@@ -771,6 +771,31 @@ async function initSousRubriques(store, { log = console } = {}) {
     }
   }
 
+  /* Corbeilles de fruits du partenaire Corbeilles Paris (Jean-Luc, 2026-11-24) : une fiche par corbeille, contenance au choix
+     (3, 5, 7, 9 kg…), prix du partenaire + 30 %. Les anciennes corbeilles sont masquées et renvoient vers la nouvelle fiche. Une fois. */
+  const RCorb = await store.get('site/reglages');
+  if (RCorb && !RCorb.corbeillesPartenaire) {
+    for (const [ordre, x] of CORBEILLES_PARTENAIRE.entries()) {
+      if (await store.get('produits/' + x.slug)) continue;
+      const base = Math.round(x.prix[0][1] * 130);
+      const groupes = x.prix.length > 1 ? [{ id: 'contenance', titre: 'Contenance', radio: true, max: 1, exact: true,
+        options: x.prix.map(([kg, e]) => ({ id: kg + 'kg', label: kg + ' kg', supCents: Math.round(e * 130) - base })) }] : [];
+      await store.set('produits/' + x.slug, {
+        id: x.slug, slug: x.slug, rubrique: x.rubrique || 'douceurs', autresRubriques: x.autresRubriques || [], sous: x.sous || '', autresSous: x.autresSous || [],
+        rangement: 'corbeilles', titre: x.titre, prixCents: base, coutCents: Math.round(x.prix[0][1] * 100), prixTexte: null,
+        unite: x.unite || 'corbeille', min: 1, minimumTexte: null, extrait: x.extrait, description: x.description, sections: [], details: [],
+        photos: x.photos.map(([n, alt]) => ({ src: '/site/c/corbeilles/' + n + '.webp', alt })), video: null, groupes, variantes: [],
+        regles: {}, ordre: 70 + ordre * 0.1, statut: 'visible', maison: false, tva: 10, allergenes: [], aCompleter: false,
+        partenaire: 'Corbeilles Paris', createdAt: new Date().toISOString(),
+      });
+    }
+    for (const [ancien, nouveau] of CORBEILLES_REMPLACEES) {
+      const x = await store.get('produits/' + ancien);
+      if (x && x.statut !== 'masque') await store.set('produits/' + ancien, { ...x, statut: 'masque', fusionneDans: nouveau });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), corbeillesPartenaire: true });
+  }
+
   /* vraies photos à la place des photos qui font « IA » (Jean-Luc, 2026-11-22) : posées une fois par fiche et par version,
      modifiables ensuite dans le back-office. Sources dans data/credits-photos-univers.md. */
   for (const [slug, ver, photos] of VRAIES_PHOTOS) {
@@ -1524,6 +1549,35 @@ const PHOTOS_DOUCEURS = [
   ['piece-montee-elegance', [[D('piece-montee-elegance'), 'Pièce montée Élégance, cinq étages fleuris']]],
   ['croquembouche-50-parts-200-choux', [[D('croquembouche'), 'Croquembouche de choux caramélisés']]],
   ['pyramide-de-macarons', [[D('pyramide-macarons'), 'Pyramide de macarons multicolores']]],
+];
+/* Corbeilles du partenaire Corbeilles Paris (corbeillesparis.fr/categorie-produit/corbeilles-fruits-frais/, relevé le 2026-11-24).
+   prix = [kg, prix TTC du partenaire en €] ; prix de vente = + 30 %. Photos copiées dans public/site/c/corbeilles/ à la demande de Jean-Luc. */
+const TXT_CORB = ['Nous confectionnons avec soin les corbeilles qui accompagneront vos festivités, pour vous offrir un véritable moment de partage.',
+  'Faites plaisir en offrant cette délicieuse corbeille garnie de succulents fruits frais et de jolies fleurs ! Vous commandez, et nous nous occupons de la surprise.',
+  'Vous pouvez aussi y insérer un message personnalisé : indiquez-le dans vos souhaits.'];
+const CORBEILLES_PARTENAIRE = [
+  { slug: 'corbeille-love', titre: 'Corbeille Love', prix: [[3, 60], [5, 80], [7, 100], [9, 120]], extrait: 'Fruits frais, fruits rouges et roses fraîches. Contenance 3, 5, 7 ou 9 kg.',
+    description: [...TXT_CORB, 'La Corbeille Love est agrémentée de roses fraîches.', 'Les fruits peuvent varier selon la saison.'], photos: [['love-1', 'Corbeille Love : fraises, cerises, litchis, ananas et roses rouges']] },
+  { slug: 'corbeille-prestige', titre: 'Corbeille Prestige', prix: [[3, 60], [5, 80], [7, 100], [9, 120]], extrait: 'Fruits frais et fruits rouges, figues, myrtilles, gypsophile. Contenance 3, 5, 7 ou 9 kg.',
+    description: [...TXT_CORB, 'Les fruits peuvent varier selon la saison.'], photos: [['prestige-1', 'Corbeille Prestige : ananas, mangue, fraises, framboises, figues et myrtilles'], ['prestige-2', 'Corbeille Prestige, vue de face'], ['prestige-3', 'Corbeille Prestige et ses fruits']] },
+  { slug: 'corbeille-gourmande', titre: 'Corbeille Gourmande', prix: [[3, 60], [5, 80], [7, 100], [9, 130]], extrait: 'Fruits frais et fruits secs enrobés de chocolat. Contenance 3, 5, 7 ou 9 kg.',
+    description: ['Nous confectionnons avec soin les corbeilles qui accompagneront vos festivités, pour vous offrir un véritable moment de partage.', 'Faites plaisir en offrant cette délicieuse corbeille garnie de succulents fruits frais et de fruits secs enrobés de chocolat ! Vous commandez, et nous nous occupons de la surprise.', TXT_CORB[2], 'Les fruits peuvent varier selon la saison.'], photos: [['gourmande-1', 'Corbeille Gourmande : fruits frais et chocolats']] },
+  { slug: 'corbeille-fruits-de-saison', titre: 'Corbeille de fruits de saison', prix: [[5, 60], [7, 80], [9, 100], [11, 120]], extrait: 'Bananes, ananas, agrumes, raisin, pommes et kiwis. Contenance 5, 7, 9 ou 11 kg.',
+    description: [...TXT_CORB, 'Les fruits peuvent varier selon la saison.'], photos: [['saison-1', 'Corbeille de fruits de saison : bananes, ananas, oranges, raisin et kiwis'], ['saison-2', 'Corbeille de fruits de saison et ses fruits']] },
+  { slug: 'corbeille-exotique', titre: 'Corbeille exotique', prix: [[3, 60], [5, 80], [7, 100], [9, 120]], extrait: 'Ananas, mangue, grenade, litchis, raisin et kumquats. Contenance 3, 5, 7 ou 9 kg.',
+    rubrique: 'saveurs-du-monde', sous: 'buffet-africain', autresSous: ['buffet-antillais'], autresRubriques: ['douceurs'],
+    description: [...TXT_CORB, 'Les fruits peuvent varier selon la saison.'], photos: [['exotique-1', 'Corbeille exotique : ananas, mangue, grenade, litchis et raisin'], ['exotique-2', 'Corbeille exotique et ses fruits']] },
+  { slug: 'plateau-de-fruits-secs', titre: 'Plateau de fruits secs', prix: [[1.2, 35]], unite: 'plateau', extrait: 'Abricots, figues et pruneaux d’Agen. Poids net 1,2 kg.',
+    description: ['Composition artisanale de fruits secs extra : abricots tendres, figues et pruneaux d’Agen.', 'Abricots entiers (France), figues (Turquie), pruneaux d’Agen. Poids net : 1 200 g.'], photos: [['fruits-secs-1', 'Plateau de fruits secs : figues, abricots et pruneaux'], ['fruits-secs-2', 'Plateau de fruits secs sous cloche']] },
+];
+/* anciennes corbeilles → nouvelle fiche (l'ancienne adresse y renvoie) */
+const CORBEILLES_REMPLACEES = [
+  ['corbeille-de-fruits-de-saison-3-kg', 'corbeille-fruits-de-saison'], ['corbeille-de-fruits-de-saison-5-kg', 'corbeille-fruits-de-saison'],
+  ['corbeille-de-fruits-de-saison-7-kg', 'corbeille-fruits-de-saison'], ['corbeille-de-fruits-de-saison-9-kg-2', 'corbeille-fruits-de-saison'],
+  ['corbeille-de-fruits-de-saison-9-kg', 'corbeille-fruits-de-saison'], ['corbeille-de-fruits-frais-a-composer', 'corbeille-prestige'],
+  ['corbeille-special-fete-3-kg', 'corbeille-prestige'], ['corbeille-special-fete-5-kg', 'corbeille-prestige'], ['corbeille-special-fete-7-kg', 'corbeille-prestige'],
+  ['corbeille-exotique-3-kg', 'corbeille-exotique'], ['corbeille-exotique-3-kg-africain', 'corbeille-exotique'], ['corbeille-exotique-5-kg', 'corbeille-exotique'],
+  ['corbeille-exotique-7-kg', 'corbeille-exotique'], ['corbeille-exotique-9-kg', 'corbeille-exotique'],
 ];
 /* Boissons sans photo (Jean-Luc, 2026-11-24) : vraies photos libres, regardées une à une, sans étiquette lisible.
    Posées une fois, seulement si la fiche n'a toujours pas de photo. Sources dans data/credits-photos-univers.md */

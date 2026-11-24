@@ -263,3 +263,7 @@ public/site/c/douceurs/ à sa demande ; le nom du partenaire n'apparaît jamais 
 | Bandeau « Personnel de réception » (serveur avec plateau, Andrea Piacquadio) | https://www.pexels.com/photo/waiter-with-tray-working-in-stylish-restaurant-3769740/ | 24/11/2026 (demande directe : ancienne photo floue) |
 | Fiche « pizzaiolo-personnel » (pizzaïolo qui lance la pâte, Canan Ataklı, recadrée) | https://www.pexels.com/photo/chef-tossing-pizza-dough-in-rustic-kitchen-setting-28857295/ | 24/11/2026 (demande directe) |
 | Fiche « regisseur » (homme en costume qui accueille des invités, Kampus Production) | https://www.pexels.com/photo/man-in-black-suit-giving-a-couple-a-tour-8815825/ | 24/11/2026 (demande directe) |
+
+## Corbeilles du partenaire Corbeilles Paris (2026-11-24)
+
+Photos et textes repris de corbeillesparis.fr (partenaire de Magnolia, à la demande de Jean-Luc), copiés dans public/site/c/corbeilles/. Prix = prix du partenaire + 30 %. La photo « Corbeille de Noël » (texte écrit) n’ pas été reprise.
