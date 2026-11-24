@@ -526,6 +526,38 @@ textarea:focus, input:focus, select:focus { outline: 2px solid color-mix(in srgb
 .totaux .sm { font-size: .85rem; color: var(--gris); }
 .totaux .tot { border-top: 2px solid var(--encre); margin-top: 6px; padding-top: 10px; font-size: 1.2rem; font-weight: 600; }
 .sign { background: var(--creme); border-radius: var(--rayon); padding: 22px; margin: 24px 0; }
+/* lieux à privatiser sur le devis : une grande photo + deux petites, nom en surimpression, atouts, description */
+.dl-lieux { margin: 8px 0 26px; }
+.dl-lieux > .eyebrow { margin-bottom: 10px; }
+.dl-lieu { border: 1px solid var(--ligne); border-radius: var(--rayon); overflow: hidden; background: var(--creme); box-shadow: var(--ombre); break-inside: avoid; page-break-inside: avoid; }
+.dl-lieu + .dl-lieu { margin-top: 18px; }
+.dl-mos { display: grid; gap: 4px; grid-template-columns: 2fr 1fr; grid-template-rows: 1fr 1fr; aspect-ratio: 16 / 8; background: var(--ligne); }
+.dl-mos.dl-n1 { grid-template-columns: 1fr; grid-template-rows: 1fr; aspect-ratio: 16 / 7; }
+.dl-mos.dl-n2 { grid-template-columns: 1.6fr 1fr; grid-template-rows: 1fr; }
+.dl-mos.dl-n0 { display: none; }
+.dl-ph { margin: 0; position: relative; overflow: hidden; min-height: 0; }
+.dl-ph img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 1.2s ease; }
+.dl-lieu:hover .dl-ph img { transform: scale(1.03); }
+.dl-n3 .dl-g { grid-row: 1 / 3; }
+.dl-ph figcaption { position: absolute; inset: auto 0 0 0; padding: 50px 22px 18px; background: linear-gradient(to top, rgba(10, 22, 16, .82), rgba(10, 22, 16, 0)); color: #fff; }
+.dl-ph figcaption span { display: block; font-size: .7rem; letter-spacing: .18em; text-transform: uppercase; color: #e2c495; }
+.dl-ph figcaption b { display: block; font-family: var(--serif); font-weight: 500; font-size: clamp(1.4rem, 3.2vw, 2.1rem); line-height: 1.15; }
+.dl-txt { padding: 18px 22px 20px; }
+.dl-txt h3 { font-family: var(--serif); font-size: 1.6rem; margin: 0 0 6px; }
+.dl-txt > p { margin: 0 0 8px; }
+.dl-atouts { list-style: none; display: flex; flex-wrap: wrap; gap: 6px 8px; padding: 0; margin: 0 0 12px; }
+.dl-atouts li { background: var(--carte); border: 1px solid var(--ligne); border-radius: 999px; padding: 4px 12px; font-size: .82rem; }
+.dl-atouts li:first-child { background: var(--vert); border-color: var(--vert); color: #fff; }
+@media (prefers-color-scheme: dark) { .dl-atouts li:first-child { color: #121614; } }
+@media (max-width: 640px) {
+  .dl-mos { aspect-ratio: auto; grid-template-columns: 1fr 1fr; grid-template-rows: 220px 110px; }
+  .dl-n3 .dl-g { grid-row: auto; grid-column: 1 / 3; }
+  .dl-mos.dl-n1 { grid-template-columns: 1fr; grid-template-rows: 240px; }
+  .dl-mos.dl-n2 { grid-template-columns: 1fr; grid-template-rows: 220px 140px; }
+  .dl-ph figcaption { padding: 40px 16px 14px; }
+  .dl-txt { padding: 16px; }
+}
+@media print { .dl-lieu { box-shadow: none; } .dl-mos { aspect-ratio: 16 / 7; } .dl-lieux { break-inside: avoid; } }
 @media (max-width: 640px) { .doc-parties { grid-template-columns: 1fr; } .doc-ref { text-align: left; } .tab th:nth-child(3), .tab td:nth-child(3) { display: none; } }
 @media print {
   .top, .foot, .noprint, .toast, .skip { display: none !important; }
