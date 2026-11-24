@@ -285,3 +285,8 @@ Photos et textes repris de corbeillesparis.fr (partenaire de Magnolia, à la dem
 | Photo | Source | Date |
 |---|---|---|
 | Femme à son bureau qui compose sa commande sur son ordinateur (public/site/c/accueil/commande-en-ligne-bureau-2.webp), recadrée en portrait. Remplace la v1 (Pexels 6969797, carte bancaire en main, retirée : la section dit « Sans paiement en ligne ») | https://www.pexels.com/photo/portrait-of-brown-haired-woman-working-on-laptop-in-office-10041233/ (licence Pexels) | 24/11/2026 |
+| Femme à son bureau qui commande en ligne, carte bancaire en main (public/site/c/accueil/commande-en-ligne-bureau.webp), recadrée en portrait | https://www.pexels.com/photo/a-woman-doing-her-shopping-online-6969797/ (Tima Miroshnichenko, licence Pexels) | 24/11/2026 |
+
+## Fruits de mer sur fond blanc (2026-11-24)
+
+Les 21 photos de la page Plateau de fruits de mer (public/site/c/seafood30/blanc/) sont les photos déjà en place, détourées (rembg, modèles BiRefNet / IS-Net, sans IA générative) et posées sur fond blanc, centrées, 1200 × 1200. Exceptions : crevettes roses = Pexels 566344 (licence Pexels) détourée ; bulots = ancienne photo sans l’étiquette « Marée du jour ».
