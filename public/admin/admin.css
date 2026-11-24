@@ -1227,3 +1227,9 @@ h1 .formule { font-size: .55em; margin-top: .3em; }
 .prow b .formule { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ia-ligne { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: -4px 0 10px; }
 .ia-btn { white-space: nowrap; }
+/* commentaires laissés par le client sur le devis */
+.dv-coms { border-left: 4px solid #b08a4f; }
+.dv-coms ul { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
+.dv-coms li { background: #faf6ec; border: 1px solid #eadfc6; border-radius: 10px; padding: 10px 12px; }
+.dv-coms li p { margin: 0 0 4px; }
+.dv-coms small { color: #7a6a4a; }

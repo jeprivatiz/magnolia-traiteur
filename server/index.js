@@ -517,6 +517,36 @@ async function createApp(opts = {}) {
     alerterEquipe(`Devis ${d.numero} ${accepte ? 'SIGNÉ' : 'refusé'} par le client`, `<p>Le devis ${esc(d.numero)} (${euros(t.ttcCents)} TTC) a été ${accepte ? 'signé en ligne par <b>' + esc(nom) + '</b>' : 'refusé'}.</p><p><a href="${SITE}/admin#/devis/${d.id}">Ouvrir</a></p>`, `Magnolia : devis ${d.numero} ${accepte ? 'signé' : 'refusé'}`).catch(() => {});
     res.json({ ok: true });
   }));
+  /* commentaire laissé par le client sur son devis : gardé sur le devis et envoyé au commercial du devis (e-mail + SMS) */
+  app.post('/api/devis/:token/commentaire', sameSite, json, wrap(async (req, res) => {
+    if (!publicWrites(req.ip)) return res.status(429).json({ error: 'Trop d’envois. Réessayez dans quelques minutes ou appelez-nous.' });
+    const d = await devisParToken(req.params.token);
+    if (!d || d.statut === 'brouillon') return res.status(404).json({ error: 'Devis introuvable.' });
+    const texte = String(req.body?.texte ?? '').replace(/\r/g, '').replace(/\n{3,}/g, '\n\n').trim().slice(0, 2000);
+    if (texte.length < 2) return res.status(400).json({ error: 'Écrivez votre commentaire.' });
+    if ((d.commentaires || []).length >= 50) return res.status(400).json({ error: 'Trop de commentaires sur ce devis : appelez-nous.' });
+    const cl = await store.get('clients/' + d.clientId);
+    const nom = nomPropre(cl?.nom || d.clientNom || '') || 'Le client';
+    const now = new Date().toISOString();
+    await store.set('devis/' + d.id, { ...d, commentaires: [...(d.commentaires || []), { at: now, texte, nom }] });
+    /* destinataire : le commercial du devis (coordonnées à jour dans Équipe & activité), sinon les alertes de l'équipe */
+    const R = (await cat.get()).reglages, P = (R.alertes?.personnes || []).filter(x => x.nom);
+    const c0 = d.commercial === null ? null : (d.commercial || P[0] || null);
+    const users = c0?.nom ? (await store.list('_users')).map(x => x.data).filter(u => u && !u.disabled) : [];
+    const com = c0?.nom ? { nom: c0.nom, email: P.find(x => x.nom === c0.nom)?.email || c0.email || users.find(u => u.name === c0.nom)?.email || '', tel: P.find(x => x.nom === c0.nom)?.tel || c0.tel || '' } : null;
+    const t = totaux(d), lien = `${SITE}/admin#/devis/${d.id}`;
+    const sujet = `Commentaire de ${nom} sur le devis ${d.numero}`;
+    const html = `<p>Bonjour${com?.nom ? ' ' + esc(com.nom.split(' ')[0]) : ''},</p><p><b>${esc(nom)}</b>${cl?.societe ? ' (' + esc(cl.societe) + ')' : ''} a laissé un commentaire sur le devis <b>${esc(d.numero)}</b> (${euros(t.ttcCents)} TTC) :</p><blockquote style="border-left:3px solid #c9a45c;margin:12px 0;padding:8px 14px;background:#f7f3ea">${esc(texte).replace(/\n/g, '<br>')}</blockquote><p>${cl?.tel ? `Téléphone : <a href="tel:${esc(cl.tel.replace(/\s/g, ''))}">${esc(cl.tel)}</a><br>` : ''}${cl?.email ? `E-mail : <a href="mailto:${esc(cl.email)}">${esc(cl.email)}</a><br>` : ''}<a href="${lien}">Ouvrir le devis dans le back-office</a></p>`;
+    const court = texte.replace(/\s+/g, ' ');
+    const sms = `Magnolia : ${nom} a commenté le devis ${d.numero} : « ${court.length > 200 ? court.slice(0, 197) + '…' : court} »${cl?.tel ? ' Tél. ' + cl.tel : ''}`;
+    try {
+      if (com?.email || com?.tel) {
+        if (com.email) await brevo.sendEmail({ to: com.email, name: com.nom, replyTo: cl?.email || undefined, subject: sujet, html, text: html.replace(/<[^>]+>/g, ' ') });
+        if (com.tel) await brevo.sendSms({ to: com.tel, content: sms });
+      } else await alerterEquipe(sujet, html, sms);
+    } catch (e) { log.error?.(e); }
+    res.json({ ok: true });
+  }));
   app.get('/facture/:token', wrap(async (req, res, next) => {
     const idx = await store.get('_facturetoken/' + sha(req.params.token));
     const f = idx ? await store.get('factures/' + idx.id) : null;
@@ -754,6 +784,7 @@ async function createApp(opts = {}) {
       const err = controleMarge(data);
       if (err.length) return res.status(400).json({ error: 'Marge négative bloquée : ' + err.join(' ') });
       data.token = before?.token || data.token;
+      if (before?.commentaires) data.commentaires = before.commentaires; /* écrits par le client : jamais effacés par un enregistrement du back-office */
     }
     if (coll === 'demandes' && before && data.statut && data.statut !== before.statut) data.historique = [...(before.historique || []), { at: new Date().toISOString(), statut: data.statut, par: req.ctx.name || req.ctx.email }];
     if (coll === 'demandes' && before) {
@@ -1403,6 +1434,7 @@ async function createApp(opts = {}) {
       for (const x of d.envois || []) { add(x.at, 'envoi', `Devis ${num} envoyé`, { detail: 'par ' + (x.canaux || ['email']).map(k => k === 'sms' ? 'SMS' : 'e-mail').join(' et '), montantCents: t.ttcCents, par: x.par, lien: d.token ? '/devis/' + d.token : '' }); lies.push([x.at, num]); }
       if (d.vuLe) add(d.vuLe, 'vu', `Le client a ouvert le devis ${num}`);
       for (const r of d.relances || []) { add(r.at, 'relance', `Relance : ${r.modele || ''}`.trim(), { detail: 'Devis ' + num, par: r.par }); lies.push([r.at, num, true]); }
+      for (const m of d.commentaires || []) add(m.at, 'commentaire', `Commentaire du client sur le devis ${num}`, { detail: m.texte, lien: '#/devis/' + d.id });
       if (d.signature) add(d.signature.at, 'signe', `Devis ${num} signé en ligne`, { detail: 'Signé par ' + (d.signature.nom || ''), montantCents: t.ttcCents, lien: d.token ? '/devis/' + d.token : '' });
       if (d.refuseLe) add(d.refuseLe, 'refus', `Devis ${num} refusé par le client`);
     }
