@@ -6,7 +6,7 @@ Branchement : `VIDEOS_ACCUEIL` dans `server/views.js`, lecture dans `public/js/s
 
 | Vignette | Fichier | Source (Pexels) | Auteur |
 |---|---|---|---|
-| Cocktails & buffet français | cocktail | https://www.pexels.com/video/3970176/ (Food Platter Served On A Wooden Tray) | Gustavo Fring |
+| Cocktails & buffet français | cocktail | https://www.pexels.com/video/6396011/ (People Getting Glasses from the Tray While a Woman is Pouring) : service au plateau | Pavel Danilyuk |
 | Boissons | boissons | https://www.pexels.com/video/7219888/ (Pouring a Cocktail Drink on a Crystal Glass) | ArtHouse Studio |
 | Traiteur végétarien et vegan | vegetarien | https://www.pexels.com/video/4959964/ (Person Making Salad) | ArtHouse Studio |
 | Animations salées | burgers | https://www.pexels.com/video/37296040/ (Close-up of Burgers Cooking on a Griddle) | Mihman Duğanlı |
@@ -14,7 +14,9 @@ Branchement : `VIDEOS_ACCUEIL` dans `server/views.js`, lecture dans `public/js/s
 | Les indispensables | photobooth | https://www.pexels.com/video/6225145/ (A Group of Friends Using Photo Props) | RDNE Stock project |
 | Petits-déjeuners | petit-dejeuner | https://www.pexels.com/video/6466347/ (Maid Hands Serving Coffee) | cottonbro studio |
 | Animations sucrées & desserts | churros | https://www.pexels.com/video/40304302/ (Delicious Churros with Powdered Sugar Topping), recadrée sans le gobelet imprimé | Anh Nguyen |
-| Musique & spectacles | dj | https://www.pexels.com/video/9005218/ (A Dj Using Sound Mixer) | Yan Krukau |
+| Musique & spectacles | dj | https://www.pexels.com/video/31531557/ (DJ Mixing Tracks in Vibrant Studio Setting) | Pexels |
+| Plateaux de fruits de mer | huitres | https://www.pexels.com/video/3780141/ (Opening An Oyster) | Taryn Elliott |
+| Coffrets & plateaux | coffrets | https://www.pexels.com/video/7550987/ (personne qui referme un coffret blanc) | Hanna Pad |
 | Lieux de réception | peniche | https://www.pexels.com/video/9756181/ (Friends Having Fun Together, sur un bateau) | KoolShooters |
 
-Non trouvé en vidéo libre : quelqu'un qui FABRIQUE des churros (seulement des churros prêts), une serveuse qui présente un plateau de petits fours aux invités (on a des invités qui se servent sur un plateau apporté à table).
+Non trouvé en vidéo libre : quelqu'un qui FABRIQUE des churros (seulement des churros prêts), une serveuse qui présente un plateau de petits fours aux invités (on a une hôtesse en robe noire au plateau de coupes de champagne), un coffret repas garni qu'on referme (on a un coffret blanc élégant).

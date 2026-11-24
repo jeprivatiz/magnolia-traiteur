@@ -174,7 +174,7 @@ const MENU_TABLE = `<span class="cm-scene" aria-hidden="true"><span class="cm-om
 const VIDEOS_ACCUEIL = {
   'cocktails-buffets': 'cocktail', boissons: 'boissons', 'traiteur-vegetarien-vegan': 'vegetarien', 'animations-salees': 'burgers',
   personnel: 'personnel', indispensables: 'photobooth', 'petits-dejeuners': 'petit-dejeuner', douceurs: 'churros',
-  'musique-animations': 'dj', lieux: 'peniche',
+  'musique-animations': 'dj', lieux: 'peniche', 'grand-large': 'huitres', 'coffrets-plateaux': 'coffrets',
 };
 function videoAccueil(slug) {
   const n = VIDEOS_ACCUEIL[slug], src = n && `/site/v/accueil/${n}.mp4`;

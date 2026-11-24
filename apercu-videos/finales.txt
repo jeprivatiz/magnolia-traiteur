@@ -1,5 +1,0 @@
-cocktail https://videos.pexels.com/video-files/6396011/6396011-hd_1080_1920_25fps.mp4 0 9 0.5
-cocktail2 https://videos.pexels.com/video-files/8922362/8922362-hd_2048_1080_25fps.mp4 0 8 0.5
-huitres https://videos.pexels.com/video-files/3780141/3780141-hd_1920_1080_25fps.mp4 0 6 0.5
-coffrets https://videos.pexels.com/video-files/7550987/7550987-hd_1920_1080_30fps.mp4 0 7 0.5
-dj https://videos.pexels.com/video-files/31531557/13439706_1080_1920_60fps.mp4 0 9 0.5
