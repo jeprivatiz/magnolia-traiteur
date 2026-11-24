@@ -751,6 +751,18 @@ async function initSousRubriques(store, { log = console } = {}) {
     }
   }
 
+  /* Animations sucrées & desserts (Jean-Luc, 2026-11-24) : chaque fiche reçoit une photo qui correspond au produit
+     (corbeilles toutes différentes, stands à sorbet, bar à bonbons, barbe à papa, pop-corn, candy bar, gâteaux et pièces montées
+     du pâtissier partenaire, jamais nommé sur le site). Une fois par fiche, et seulement si elle n'a encore que l'ancienne photo
+     commune ou aucune photo : une photo mise à la main dans le back-office n'est jamais remplacée. Sources dans data/credits-photos-univers.md */
+  for (const [slug, photos] of PHOTOS_DOUCEURS) {
+    const x = await store.get('produits/' + slug);
+    if (!x || x.photoDouceur) continue;
+    const avant = x.photos || [];
+    if (!avant.every(ph => DOUCEURS_ANCIENNES.some(re => re.test(String(ph.src || ''))))) continue;
+    await store.set('produits/' + slug, { ...x, photos: photos.map(([src, alt]) => ({ src, alt })), photoDouceur: 'v1' });
+  }
+
   /* vraies photos à la place des photos qui font « IA » (Jean-Luc, 2026-11-22) : posées une fois par fiche et par version,
      modifiables ensuite dans le back-office. Sources dans data/credits-photos-univers.md. */
   for (const [slug, ver, photos] of VRAIES_PHOTOS) {
@@ -1415,6 +1427,51 @@ const VRAIES_PHOTOS = [
     ['/site/c/italien22-produits/gressins-sans-logo-20261106.webp.webp', 'Gressins'], ['/site/c/italien22-produits/olives-sans-logo-20261106.webp.webp', 'Olives noires']]],
   ['samoussa-legumes', 'v1', [['https://images.pexels.com/photos/9027521/pexels-photo-9027521.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Samoussas aux légumes croustillants, chutneys vert et tamarin']]],
   ['samoussas-legumes', 'v1', [['/site/c/materiel/samoussas-legumes.webp', 'Samoussas aux légumes dorés dans une corbeille, sauces à côté']]],
+];
+/* Animations sucrées & desserts : photos qui correspondent au produit (Jean-Luc, 2026-11-24), regardées une à une. */
+const DOUCEURS_ANCIENNES = [/\/video-fruits-oct24\./, /\/cocktail7-photos\/assortiment-sucre\./, /\/pages-digital\//, /pexels-photo-36784776\./, /\/africain-boutique\/corbeille-/];
+const PX = id => `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&w=1600`;
+const D = n => '/site/c/douceurs/' + n + '.webp';
+const PHOTOS_DOUCEURS = [
+  /* animations */
+  ['animation-barbe-a-papa-a-volonte', [[PX(30808951), 'Barbe à papa rose qui se forme dans la machine']]],
+  ['animation-pop-corn', [[PX(3537844), 'Grand bol de pop-corn tout chaud']]],
+  ['candy-bar-a-la-location', [[PX(17594022), 'Candy bar : bocaux de bonbons, pinces et sachets sur une table']]],
+  ['mini-bar-a-bonbons-sur-presentoir', [[PX(17594024), 'Bocal de bonbons colorés sur présentoir']]],
+  ['stand-de-sorbet-coco-a-l-ancienne-avec-hotesse', [['/site/c/sorbet-sans-logo-20261101.webp.webp', 'Hôtesse qui sert le sorbet coco à la sorbetière à l’ancienne']]],
+  ['stand-de-sorbet-coco-sans-hotesse', [[PX(28735376), 'Sorbet coco servi dans la noix de coco']]],
+  ['sorbetiere-a-l-ancienne-location-seule', [['/site/c/antilles-site/sorbet-coco-antillais-fait-maison-1-20261101.webp.webp', 'Sorbetière à l’ancienne en bois et à manivelle, coupes de sorbet coco']]],
+  /* corbeilles de fruits : de saison (paniers classiques), spécial fête (compositions décorées), exotiques */
+  ['corbeille-de-fruits-frais-a-composer', [['/site/c/africain-produits/pyramide-de-fruits-frais.webp.webp', 'Pyramide de fruits frais composée à la demande']]],
+  ['corbeille-de-fruits-de-saison-3-kg', [[PX(235294), 'Corbeille en osier : raisin, bananes, pêches et pommes']]],
+  ['corbeille-de-fruits-de-saison-5-kg', [[PX(15626438), 'Corbeille d’oranges, bananes et mandarines']]],
+  ['corbeille-de-fruits-de-saison-7-kg', [[PX(6707512), 'Panier garni de fruits de saison sur nappe vichy']]],
+  ['corbeille-de-fruits-de-saison-9-kg-2', [[PX(6707511), 'Grand panier de fruits de saison']]],
+  ['corbeille-special-fete-3-kg', [[PX(1171170), 'Plateau de fête : fruit du dragon, fraises, myrtilles et agrumes']]],
+  ['corbeille-special-fete-5-kg', [[PX(1132047), 'Composition de fête : ananas, agrumes, fruits rouges et kiwis']]],
+  ['corbeille-special-fete-7-kg', [[PX(27583257), 'Grand plateau de fête : ananas, oranges, pommes et raisin']]],
+  ['corbeille-exotique-3-kg', [[PX(21998617), 'Paniers de fruits exotiques']]],
+  ['corbeille-exotique-5-kg', [[PX(1300975), 'Ananas, mangues, papayes et bananes']]],
+  ['corbeille-exotique-5-kg-2', [[PX(1300975), 'Ananas, mangues, papayes et bananes']]],
+  ['corbeille-exotique-7-kg', [[PX(6146103), 'Ananas dans une corbeille']]],
+  ['corbeille-exotique-7-kg-2', [[PX(6146103), 'Ananas dans une corbeille']]],
+  ['corbeille-exotique-9-kg', [[PX(37223904), 'Fruits de la passion, mangue, kiwis, raisin et fruits rouges']]],
+  ['corbeille-exotique-9-kg-2', [[PX(37223904), 'Fruits de la passion, mangue, kiwis, raisin et fruits rouges']]],
+  /* macarons et gâteaux */
+  ['macarons-36-pieces', [[PX(1346345), 'Boîtes de macarons assortis']]],
+  ['macarons-72-pieces', [[PX(239578), 'Macarons de toutes les couleurs']]],
+  ['fraisier-32-parts', [[D('fraisier'), 'Part de fraisier : génoise, crème et fraises']]],
+  ['framboisine-32-parts', [[D('framboisine'), 'Framboisine nappée de framboises']]],
+  ['tarte-duo-chocolat-10-parts', [[D('tarte-chocolat'), 'Tarte au chocolat sur sablé']]],
+  ['craqueline-16-parts', [[D('craqueline'), 'Craqueline au chocolat et praliné croustillant']]],
+  ['croquant-caramel-16-parts', [[D('croquant-caramel'), 'Croquant caramel et éclats de nougatine']]],
+  ['gateau-chocolat-32-parts', [[D('gateau-chocolat'), 'Gâteau au chocolat, génoise cacao et crème chocolatée']]],
+  /* pièces montées */
+  ['piece-montee-romantica', [[D('piece-montee-romantica'), 'Pièce montée Romantica, étages décorés de roses']]],
+  ['piece-montee-bella-rosa', [[D('piece-montee-bella-rosa'), 'Pièce montée Bella Rosa'], [D('piece-montee-bella-rosa-detail'), 'Pièce montée Bella Rosa, détail des fleurs']]],
+  ['piece-montee-elegance', [[D('piece-montee-elegance'), 'Pièce montée Élégance, cinq étages fleuris']]],
+  ['croquembouche-50-parts-200-choux', [[D('croquembouche'), 'Croquembouche de choux caramélisés']]],
+  ['pyramide-de-macarons', [[D('pyramide-macarons'), 'Pyramide de macarons multicolores']]],
 ];
 /* Boissons sans photo (Jean-Luc, 2026-11-24) : vraies photos libres, regardées une à une, sans étiquette lisible.
    Posées une fois, seulement si la fiche n'a toujours pas de photo. Sources dans data/credits-photos-univers.md */

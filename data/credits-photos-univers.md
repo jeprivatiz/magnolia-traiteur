@@ -237,3 +237,26 @@ Pexels (licence libre, usage commercial) et Burst by Shopify (licence libre, usa
 | Fiche « open-bar-alcools-forts-a-volonte-5-h » (boisson sans photo) | https://www.pexels.com/photo/28180061/ | 24/11/2026 (demande directe) |
 | Fiche « livraison-de-glacons-sac-de-20-kg » (boisson sans photo) | https://www.pexels.com/photo/11931271/ | 24/11/2026 (demande directe) |
 | Fiche « gobelet-reutilisable-a-biere-50-cl » (boisson sans photo) | https://www.pexels.com/photo/4996689/ | 24/11/2026 (demande directe) |
+
+## Animations sucrées & desserts (2026-11-24)
+
+Demande de Jean-Luc : une photo qui correspond à chaque produit, corbeilles toutes différentes. Photos regardées une à une.
+Gâteaux et pièces montées : photos du pâtissier partenaire avec qui Magnolia travaille (laromainville.fr), copiées dans
+public/site/c/douceurs/ à sa demande ; le nom du partenaire n'apparaît jamais sur le site. Les autres : Pexels (licence libre).
+
+| Fiche | Source |
+|---|---|
+| Animation barbe à papa | https://www.pexels.com/photo/30808951/ |
+| Animation pop-corn | https://www.pexels.com/photo/3537844/ |
+| Candy bar à la location | https://www.pexels.com/photo/17594022/ |
+| Mini bar à bonbons sur présentoir | https://www.pexels.com/photo/17594024/ |
+| Stand de sorbet coco avec hôtesse | photo du brouillon Magnolia (sorbet-sans-logo) |
+| Stand de sorbet coco sans hôtesse | https://www.pexels.com/photo/28735376/ |
+| Sorbetière à l'ancienne | photo du brouillon Magnolia (antilles-site) |
+| Corbeille à composer | photo du brouillon Magnolia (pyramide de fruits) |
+| Corbeilles de saison 3 / 5 / 7 / 9 kg | Pexels 235294, 15626438, 6707512, 6707511 |
+| Corbeilles spécial fête 3 / 5 / 7 kg | Pexels 1171170, 1132047, 27583257 |
+| Corbeilles exotiques 3 / 5 / 7 / 9 kg | Pexels 21998617, 1300975, 6146103, 37223904 |
+| Macarons 36 / 72 pièces | Pexels 1346345, 239578 |
+| Fraisier, framboisine, tarte chocolat, craqueline, croquant caramel, gâteau chocolat | laromainville.fr (partenaire) |
+| Pièces montées Romantica, Bella Rosa, Élégance, croquembouche, pyramide de macarons | laromainville.fr (partenaire) |
