@@ -629,3 +629,19 @@ document.querySelector('.lsearch')?.addEventListener('submit', e => {
   if (!t || !('IntersectionObserver' in window)) return;
   new IntersectionObserver(([e]) => t.classList.toggle('cm-pause', !e.isIntersecting), { threshold: 0 }).observe(t);
 })();
+
+/* Accueil : vignettes vidéo (Cocktail, Boissons, DJ…). La vidéo n'est chargée et jouée que lorsque la vignette est à l'écran,
+   mise en pause dès qu'elle en sort ; rien si l'utilisateur a demandé moins d'animations (la photo reste). */
+(function () {
+  const vids = [...document.querySelectorAll('video[data-vignette]')];
+  if (!vids.length) return;
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches || !('IntersectionObserver' in window)) return;
+  const joue = v => {
+    if (!v.src) { v.src = v.dataset.vignette; v.addEventListener('playing', () => v.classList.add('on'), { once: true }); }
+    const p = v.play(); if (p) p.catch(() => {});
+  };
+  const vues = new Set();
+  const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { vues.add(e.target); joue(e.target); } else { vues.delete(e.target); e.target.pause(); } }), { threshold: 0.35 });
+  vids.forEach(v => io.observe(v));
+  document.addEventListener('visibilitychange', () => { if (document.hidden) vids.forEach(v => v.pause()); else vues.forEach(joue); });
+})();
