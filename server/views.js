@@ -228,7 +228,7 @@ function etapes(c) {
     <li><b>Précisez</b><span>Date, nombre d’invités, lieu de livraison : quelques champs, sans paiement.</span></li>
     <li><b>Validons ensemble</b><span>L’équipe vérifie les disponibilités et le montant, puis vous envoie votre devis à signer en ligne.</span></li></ol>
     <a class="btn btn-vert" href="/boutique">Composer mon événement</a></div>
-    <div class="etapes-img">${img(c.reglages.accueil?.photoCommande, 'Personnel de réception Magnolia au service d’un buffet')}</div></section>`;
+    <div class="etapes-img">${img(c.reglages.accueil?.photoCommande, 'Cliente qui compose sa commande traiteur en ligne depuis son bureau')}</div></section>`;
 }
 
 function home(c) {
