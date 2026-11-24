@@ -12,6 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Télécharger les candidates
+        shell: bash {0}
         run: |
           mkdir -p apercu-photos/px apercu-photos/rom
           cd apercu-photos/px
@@ -40,12 +41,13 @@ jobs:
           while read u; do
             curl -fsSL -A "$UA" "$u" -o prod.html || continue
             t=$(grep -oE '<title>[^<]*' prod.html | head -1 | sed 's/<title>//')
-            grep -oE 'https://www\.laromainville\.fr/[0-9]+-[a-z_]+/[a-z0-9-]+\.jpg' prod.html | sed -E 's#/([0-9]+)-[a-z_]+/#/\1-large_default/#' | sort -u | while read i; do echo "$i|$u|$t" >> images.txt; done
+            grep -oE 'https://www\.laromainville\.fr/[0-9]+-[a-z_]+/[a-z0-9-]+\.jpg' prod.html | sed -E 's#/([0-9]+)-[a-z_]+/#/\1-default_xl/#' | sort -u | while read i; do echo "$i|$u|$t" >> images.txt; done
           done < produits.txt
           n=0
           while IFS='|' read i u t; do n=$((n+1)); curl -fsSL -A "$UA" -o "r$n.jpg" "$i" && echo "r$n|$i|$u|$t" >> index.txt; done < <(sort -u images.txt | head -150)
-          ls | head; wc -l index.txt
+          ls | wc -l; wc -l index.txt || true
       - name: Enregistrer
+        shell: bash {0}
         run: |
           git config user.name "magnolia-bot"; git config user.email "magnolia-bot@users.noreply.github.com"
           git add apercu-photos; git commit -m "Aperçu photos (temporaire)"; git push
