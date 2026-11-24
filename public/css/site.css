@@ -1185,3 +1185,9 @@ body.noscroll .partage { display: none; }
 h1 .formule { font-size: .5em; margin-top: .45em; }
 .card-b h3 .formule, .sel-c h3 .formule { font-size: .8em; margin-top: .2em; }
 .live-i b .formule, .lignes .formule, .tab .formule, td .formule { font-size: .88em; font-weight: 400; margin-top: .1em; }
+
+/* cases de choix des formules (entrées, plats, accompagnements, desserts) : les noms longs restent dans leur case
+   (« Gratin de christophines, selon la saison » dépassait, Jean-Luc 2026-11-24) — retour à la ligne, mot coupé seulement s’il ne tient pas */
+.opts { grid-template-columns: repeat(auto-fill, minmax(min(100%, 175px), 1fr)); }
+.opt, .optq { min-width: 0; overflow: hidden; }
+.opt > span, .optq > span { min-width: 0; flex: 1 1 auto; overflow-wrap: anywhere; word-break: normal; }
