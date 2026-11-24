@@ -1320,3 +1320,5 @@ input.verrou { background: var(--doux); color: var(--gris); cursor: not-allowed;
   .eq-bad { width: 100%; padding-left: 52px; }
   .eq-droits { grid-template-columns: 1fr; }
 }
+.eq-fiche { margin: 10px 0 0; }
+.eq-fiche label { margin-bottom: 6px; }

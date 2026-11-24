@@ -29,6 +29,16 @@ test('droits détaillés : création, opportunités, prix, fichiers, factures, �
     /* + Ajouter une personne : un commercial qui ne voit que ses dossiers, un responsable produits sans les prix */
     const r1 = await chef('/api/admin/actions/equipe', { method: 'POST', body: { nom: 'romain goujon', email: 'romain@magnolia.test', password: 'provisoire-123', envoyerAcces: true, droits: { diffusion: true } } });
     assert.equal(r1.status, 200); assert.ok(r1.j.mail, 'e-mail d’accès préparé');
+    /* fiche en trois cases : Prénom, Nom, Portable */
+    assert.equal((await chef('/api/admin/actions/equipe', { method: 'POST', body: { prenom: 'hermine', nomFamille: 'durand', portable: '06 1', email: 'h@magnolia.test', password: 'provisoire-123', droits: {} } })).status, 400, 'portable illisible');
+    assert.equal((await chef('/api/admin/actions/equipe', { method: 'POST', body: { prenom: 'hermine', nomFamille: 'durand', portable: '0612345678', email: 'h@magnolia.test', password: 'provisoire-123', droits: {} } })).status, 200);
+    let uH = (await chef('/api/admin/actions/equipe')).j.find(u => u.email === 'h@magnolia.test');
+    assert.equal(uH.nom, 'Hermine DURAND'); assert.equal(uH.prenom, 'Hermine'); assert.equal(uH.nomFamille, 'DURAND'); assert.equal(uH.portable, '06 12 34 56 78');
+    await chef('/api/admin/actions/equipe/' + uH.id, { method: 'PATCH', body: { nomFamille: 'Martin-Durand', portable: '+33 7 63 66 98 92' } });
+    uH = (await chef('/api/admin/actions/equipe')).j.find(u => u.email === 'h@magnolia.test');
+    assert.equal(uH.nom, 'Hermine MARTIN-DURAND'); assert.equal(uH.portable, '07 63 66 98 92');
+    const liam = (await chef('/api/admin/actions/equipe')).j.find(u => u.email === 'chef@magnolia.test');
+    assert.equal(liam.prenom, 'Liam'); assert.equal(liam.nomFamille, 'BERNARD', 'ancien compte découpé');
     await chef('/api/admin/actions/equipe', { method: 'POST', body: { nom: 'Paula Produits', email: 'paula@magnolia.test', password: 'provisoire-123', droits: { toutes: true, produits: true } } });
     const eq = (await chef('/api/admin/actions/equipe')).j;
     const uR = eq.find(u => u.email === 'romain@magnolia.test');

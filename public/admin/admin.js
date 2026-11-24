@@ -2325,8 +2325,9 @@
       const badge = u.desactive ? '<span class="pill eq-off">Désactivé</span>' : u.droits.admin ? '<span class="pill eq-pill-admin">★ Administrateur</span>' : `<span class="pill eq-pill">${DR.filter(x => x.k !== 'admin' && u.droits[x.k]).length} droit(s)</span>`;
       return `<li class="eq-carte${u.desactive ? ' off' : ''}" data-uid="${u.id}">
         <div class="eq-tete"><span class="eq-av">${esc(initiales(u.nom || u.email))}</span>
-          <div class="eq-id">${gere && !bloque ? `<input class="unom" data-unom="${u.id}" value="${esc(u.nom || '')}" placeholder="Prénom Nom" aria-label="Nom affiché">` : `<b>${esc(u.nom || u.email)}</b>`}<small>${esc(u.email)}${estMoi ? ' · c’est vous' : ''}</small></div>
+          <div class="eq-id"><b>${esc(u.nom || u.email)}</b><small>${esc(u.email)}${u.portable ? ' · 📱 ' + esc(u.portable) : ''}${estMoi ? ' · c’est vous' : ''}</small></div>
           <div class="eq-bad">${badge}</div></div>
+        ${gere && (!bloque || estMoi) ? `<div class="g3 eq-fiche" data-fiche="${u.id}"><label>Prénom<input data-k="prenom" value="${esc(u.prenom || '')}" data-prenom placeholder="Prénom"></label><label>Nom<input data-k="nomFamille" value="${esc(u.nomFamille || '')}" data-nomfam placeholder="NOM"></label><label>Portable <small>(SMS : rendez-vous, commentaires clients)</small><input type="tel" data-k="portable" value="${esc(u.portable || '')}" placeholder="06 12 34 56 78"></label></div>` : ''}
         <p class="eq-res">${esc(resumeDroits(u.droits, DR))}</p>
         ${gere ? `<div class="row eq-act"><button type="button" class="btn ghost sm" data-ouvrir="${u.id}">🔑 ${bloque ? 'Voir les droits' : 'Modifier les droits'}</button>${!bloque ? `<button type="button" class="lnk" data-dis="${u.id}" data-v="${u.desactive ? 0 : 1}">${u.desactive ? 'Réactiver le compte' : 'Désactiver le compte'}</button>` : ''}</div>
         <div class="eq-panneau" data-pan="${u.id}" hidden>${bloque ? `<p class="muted sm">${estMoi ? 'Vous ne pouvez pas changer vos propres droits : demandez-le à un autre administrateur.' : 'Seul un Administrateur peut changer les droits d’un Administrateur.'}</p>` : ''}${casesDroits(u.droits, DR, { lecture: bloque })}${bloque ? '' : `<div class="row"><button type="button" class="btn sm" data-savedr="${u.id}">Enregistrer les droits</button><span class="muted sm" data-drmsg="${u.id}"></span></div>`}</div>` : ''}
@@ -2334,7 +2335,7 @@
     };
     const modeles = Object.entries(conf.modeles).map(([k, m]) => `<button type="button" class="chip-mod" data-modele="${k}">${esc(m.nom)}</button>`).join('') + '<button type="button" class="chip-mod" data-modele="">Sur mesure</button>';
     const nouveau = gere ? `<section class="box eq-nouveau" id="eqNouveau" hidden><div class="hc-th"><h2>👤 Ajouter une personne</h2><button type="button" class="lnk" data-fermer>Fermer</button></div>
-      <form id="nu"><div class="g2"><label>Prénom et nom<input name="nom" required placeholder="ex. Romain GOUJON" data-nomclient></label><label>E-mail<input type="email" name="email" required placeholder="prenom@magnoliatraiteur.fr"></label>
+      <form id="nu"><div class="g2"><label>Prénom<input name="prenom" required placeholder="ex. Romain" data-prenom></label><label>Nom<input name="nomFamille" required placeholder="ex. GOUJON" data-nomfam></label><label>E-mail<input type="email" name="email" required placeholder="prenom@magnoliatraiteur.fr"></label><label>Portable <small>(pour ses SMS de rendez-vous)</small><input type="tel" name="portable" placeholder="06 12 34 56 78"></label>
         <label>Mot de passe provisoire <small>(la personne le changera)</small><span class="eq-mdp"><input name="password" minlength="10" required value="${esc(mdpProvisoire())}"><button type="button" class="btn ghost sm" data-mdp>🔄 Autre</button></span></label>
         <label class="chk eq-mail"><input type="checkbox" name="envoyerAcces" checked> Lui envoyer ses accès par e-mail (lien du back-office, e-mail et mot de passe provisoire)</label></div>
         <h3>Son rôle</h3><p class="muted sm">Choisissez un modèle pour cocher les cases d’un coup, puis ajustez case par case.</p><div class="eq-mods">${modeles}</div>
@@ -2377,7 +2378,7 @@
     $('[data-test]')?.addEventListener('click', essaiEnvoi);
     /* « + Ajouter une personne » */
     const box = $('#eqNouveau'), cases = $('[data-casesnu]');
-    const montrer = v => { box.hidden = !v; if (v) { box.scrollIntoView({ behavior: 'smooth', block: 'start' }); $('input[name=nom]', box).focus(); } };
+    const montrer = v => { box.hidden = !v; if (v) { box.scrollIntoView({ behavior: 'smooth', block: 'start' }); $('input[name=prenom]', box).focus(); } };
     $('[data-nouveau]').addEventListener('click', () => montrer(true));
     $$('[data-fermer]', box).forEach(b => b.addEventListener('click', () => montrer(false)));
     $('[data-mdp]').addEventListener('click', () => { $('input[name=password]', box).value = mdpProvisoire(); });
@@ -2390,8 +2391,8 @@
       e.preventDefault();
       const f = Object.fromEntries(new FormData(e.target));
       try {
-        const r = await api(A + '/actions/equipe', { method: 'POST', body: { nom: f.nom, email: f.email, password: f.password, envoyerAcces: !!f.envoyerAcces, droits: lireDroits(cases) } });
-        toast(`Compte créé pour ${f.nom.trim()}.` + (r.mail ? (r.mail.erreur ? ' L’e-mail d’accès n’est pas parti : ' + r.mail.erreur : r.mail.live ? ' Ses accès lui ont été envoyés par e-mail.' : ' (Mode test : e-mail noté, rien n’est parti.)') : ' Donnez-lui son mot de passe provisoire : ' + f.password), !!r.mail?.erreur);
+        const r = await api(A + '/actions/equipe', { method: 'POST', body: { prenom: f.prenom, nomFamille: f.nomFamille, portable: f.portable, email: f.email, password: f.password, envoyerAcces: !!f.envoyerAcces, droits: lireDroits(cases) } });
+        toast(`Compte créé pour ${f.prenom.trim()} ${f.nomFamille.trim().toLocaleUpperCase('fr-FR')}.` + (r.mail ? (r.mail.erreur ? ' L’e-mail d’accès n’est pas parti : ' + r.mail.erreur : r.mail.live ? ' Ses accès lui ont été envoyés par e-mail.' : ' (Mode test : e-mail noté, rien n’est parti.)') : ' Donnez-lui son mot de passe provisoire : ' + f.password), !!r.mail?.erreur);
         render();
       } catch (err) { toast(err.message, true); }
     });
@@ -2402,7 +2403,8 @@
       const id = b.dataset.savedr, d = lireDroits($(`[data-pan="${id}"]`));
       try { await api(`${A}/actions/equipe/${id}`, { method: 'PATCH', body: { droits: d } }); toast('Droits enregistrés : ils s’appliquent dès son prochain clic.'); render(); } catch (err) { toast(err.message, true); }
     }));
-    $$('[data-unom]').forEach(i => i.addEventListener('change', async () => { try { await api(`${A}/actions/equipe/${i.dataset.unom}`, { method: 'PATCH', body: { nom: i.value } }); toast('Nom enregistré : ' + i.value.trim()); session = null; render(); } catch (err) { toast(err.message, true); render(); } }));
+    /* Prénom, Nom, Portable : enregistrés dès qu'on quitte la case */
+    $$('[data-fiche] input').forEach(i => i.addEventListener('change', async () => { const id = i.closest('[data-fiche]').dataset.fiche; const v = i.dataset.k === 'prenom' ? majPrenom(i.value.trim()) : i.dataset.k === 'nomFamille' ? i.value.trim().toLocaleUpperCase('fr-FR') : i.value; try { await api(`${A}/actions/equipe/${id}`, { method: 'PATCH', body: { [i.dataset.k]: v } }); toast(i.dataset.k === 'portable' ? (v.trim() ? 'Portable enregistré.' : 'Portable retiré.') : 'Nom enregistré.'); if (i.dataset.k !== 'portable') session = null; render(); } catch (err) { toast(err.message, true); render(); } }));
     $$('[data-dis]').forEach(b => b.addEventListener('click', async () => { if (b.dataset.v === '1' && !confirm('Désactiver ce compte ? La personne est déconnectée tout de suite et ne peut plus se connecter (vous pourrez le réactiver).')) return; try { await api(`${A}/actions/equipe/${b.dataset.dis}`, { method: 'PATCH', body: { desactive: b.dataset.v === '1' } }); render(); } catch (err) { toast(err.message, true); } }));
   };
 
