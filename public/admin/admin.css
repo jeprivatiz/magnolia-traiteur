@@ -1047,3 +1047,10 @@ td .cl-imp { display: block; margin: 2px 0 0; }
 .cal-e.st-appel{--c:#2b5d95;background:light-dark(#e3eefb,#1c2633)}
 .cal-e.st-visio{--c:#7a4f9c;background:light-dark(#efe8f6,#261d2e)}
 .db-rdv li{display:flex;justify-content:space-between;gap:8px;align-items:center}
+
+/* Clients › Programmer un appel */
+.ap-box .cf-in{margin:8px 0 4px}
+.ap-box .cf-in input{width:100%;max-width:none;font-size:17px;min-height:50px;padding:10px 14px;border:2px solid var(--bo-line);border-radius:12px;background:var(--bo-tint)}
+.ap-form{margin-top:16px;padding-top:14px;border-top:1px solid var(--bo-line)}
+.hr-t{position:relative}
+.hr-t input{width:1px;height:1px;left:0;top:0}
