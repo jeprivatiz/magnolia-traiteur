@@ -177,11 +177,12 @@ const VIDEOS_ACCUEIL = {
   'musique-animations': 'dj', lieux: 'peniche', 'grand-large': 'huitres', 'coffrets-plateaux': 'coffrets',
 };
 const _empreintes = new Map();
+/* ?v= change dès que le fichier change : sinon téléphones et navigateurs gardent l'ancienne vidéo 30 jours en cache */
+function versionne(f) { if (!_empreintes.has(f)) { try { _empreintes.set(f, `${f}?v=${require('crypto').createHash('md5').update(_fs.readFileSync(_path.join(__dirname, '..', 'public', f))).digest('hex').slice(0, 8)}`); } catch { _empreintes.set(f, f); } } return _empreintes.get(f); }
 function videoAccueil(slug) {
   const n = VIDEOS_ACCUEIL[slug], src = n && `/site/v/accueil/${n}.mp4`;
   if (!src || !logoExiste(src)) return '';
-  /* ?v= change dès que le fichier change : sinon téléphones et navigateurs gardent l'ancienne vidéo 30 jours en cache */
-  const v = f => { if (!_empreintes.has(f)) { try { _empreintes.set(f, `${f}?v=${require('crypto').createHash('md5').update(_fs.readFileSync(_path.join(__dirname, '..', 'public', f))).digest('hex').slice(0, 8)}`); } catch { _empreintes.set(f, f); } } return _empreintes.get(f); };
+  const v = versionne;
   return `<video class="tile-v" muted loop playsinline preload="none" disablepictureinpicture aria-hidden="true" poster="${v(`/site/v/accueil/${n}.jpg`)}" data-vignette="${v(src)}"></video>`;
 }
 function univers(c) {
@@ -222,13 +223,22 @@ function avisBloc(c) {
   <div class="logos"><p class="eyebrow center">Ils nous font confiance</p><div class="marquee" aria-label="Clients"><div class="marquee-t">${[0, 1].map(k => (R.logosClients || []).map(l => logoExiste(l.src) ? `<img src="${esc(l.src)}" alt="${k ? '' : esc(l.nom)}" loading="lazy">` : `<span class="logo-nom"${k ? ' aria-hidden="true"' : ''}>${esc(l.nom)}</span>`).join('')).join('')}</div></div></div></section>`;
 }
 
+/* Bloc « Comment commander » : vidéo d'une cliente souriante qui prépare sa commande (Jean-Luc, 2026-11-24).
+   Une autre photo choisie dans le back-office reprend la place de la vidéo. */
+const VIDEO_COMMANDE = '/site/v/accueil/commande-en-ligne.mp4';
+function mediaCommande(c) {
+  const ph = c.reglages.accueil?.photoCommande || '';
+  if ((!ph || /commande-en-ligne-bureau/.test(ph)) && logoExiste(VIDEO_COMMANDE))
+    return `<video class="etapes-v" autoplay muted loop playsinline preload="auto" disablepictureinpicture aria-label="Cliente souriante qui prépare sa commande traiteur sur son ordinateur" poster="${versionne(VIDEO_COMMANDE.replace(/mp4$/, 'jpg'))}" src="${versionne(VIDEO_COMMANDE)}"></video>`;
+  return img(ph, 'Cliente qui compose sa commande traiteur en ligne depuis son bureau');
+}
 function etapes(c) {
   return `<section class="wrap etapes-sec"><div class="etapes-txt"><p class="eyebrow">Sans paiement en ligne</p><h2>Comment commander</h2>
     <ol class="etapes"><li><b>Composez</b><span>Choisissez vos formules et vos plats, avec les prix TTC, les unités et les minimums.</span></li>
     <li><b>Précisez</b><span>Date, nombre d’invités, lieu de livraison : quelques champs, sans paiement.</span></li>
     <li><b>Validons ensemble</b><span>L’équipe vérifie les disponibilités et le montant, puis vous envoie votre devis à signer en ligne.</span></li></ol>
     <a class="btn btn-vert" href="/boutique">Composer mon événement</a></div>
-    <div class="etapes-img">${img(c.reglages.accueil?.photoCommande, 'Cliente qui compose sa commande traiteur en ligne depuis son bureau')}</div></section>`;
+    <div class="etapes-img">${mediaCommande(c)}</div></section>`;
 }
 
 function home(c) {

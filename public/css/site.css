@@ -307,8 +307,9 @@ img[src*="/seafood30/blanc/"] { object-fit: contain !important; background: #fff
 .etapes li::before { content: counter(e); position: absolute; left: 0; top: 14px; width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--or); color: var(--or); display: grid; place-items: center; font-family: var(--serif); font-size: 1.3rem; }
 .etapes b { display: block; font-family: var(--serif); font-size: 1.4rem; font-weight: 500; }
 .etapes span { color: var(--gris); }
-.etapes-img img { border-radius: var(--rayon); aspect-ratio: 4 / 5; object-fit: cover; width: 100%; }
-@media (max-width: 860px) { .etapes-sec { grid-template-columns: 1fr; } .etapes-img { order: -1; } .etapes-img img { aspect-ratio: 16 / 10; } }
+/* photo ou vidéo du bloc Comment commander */
+.etapes-img img, .etapes-img video { display: block; border-radius: var(--rayon); aspect-ratio: 4 / 5; object-fit: cover; width: 100%; }
+@media (max-width: 860px) { .etapes-sec { grid-template-columns: 1fr; } .etapes-img { order: -1; } .etapes-img img, .etapes-img video { aspect-ratio: 16 / 10; } .etapes-img video { object-position: 50% 12%; } }
 
 .maison { padding: clamp(56px, 8vw, 100px) 0; }
 .maison-in { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(28px, 5vw, 70px); align-items: center; }
