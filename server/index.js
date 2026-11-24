@@ -101,6 +101,11 @@ async function createApp(opts = {}) {
       await store.delete('clients/undefined');
     }
   }
+  /* une seule fois (Jean-Luc, 2026-11-24) : pictogrammes abandonnés, les vignettes gardent leurs photos ; on vide les choix déjà faits */
+  if (!(await store.get('_migr/sansPictos'))) {
+    for (const { id, data: r } of await store.list('rubriques')) if (r && 'picto' in r) { const { picto, ...reste } = r; await store.set('rubriques/' + id, reste); }
+    await store.set('_migr/sansPictos', { at: new Date().toISOString() });
+  }
   /* une seule fois (règle de Jean-Luc, 2026-11-24) : fiches existantes en « Prénom NOM » (factures déjà émises inchangées) */
   if (!(await store.get('_migr/nomsClients'))) {
     for (const { id, data: c } of await store.list('clients')) { const n = nomPropre(c.nom); if (c.nom && n !== c.nom) await store.set('clients/' + id, { ...c, nom: n }); }
@@ -192,7 +197,6 @@ async function createApp(opts = {}) {
   }));
   app.use(express.static(PUBLIC, { maxAge: prod ? '7d' : 0, index: false, setHeaders: (res, p) => { if (/\.(webp|jpe?g|png|svg|mp4|woff2?)$/.test(p)) res.set('Cache-Control', 'public, max-age=2592000'); } }));
   app.use('/media', express.static(uploadDir, { maxAge: '30d' }));
-  app.get('/pictos.json', (req, res) => { const P = require('./pictos'); res.json({ liste: P.liste(), defaut: P.DEFAUT }); });
   app.get('/robots.txt', (req, res) => env.SITE_NOINDEX === '1' ? res.type('text/plain').send('User-agent: *\nDisallow: /\n') : res.type('text/plain').send(`User-agent: *\nDisallow: /admin\nDisallow: /devis/\nDisallow: /facture/\nDisallow: /espace-client\nSitemap: ${SITE}/sitemap.xml\n`));
   app.get('/sitemap.xml', wrap(async (req, res) => {
     const c = await cat.get();
