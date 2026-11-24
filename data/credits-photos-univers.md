@@ -237,3 +237,4 @@ Pexels (licence libre, usage commercial) et Burst by Shopify (licence libre, usa
 | Fiche « open-bar-alcools-forts-a-volonte-5-h » (boisson sans photo) | https://www.pexels.com/photo/28180061/ | 24/11/2026 (demande directe) |
 | Fiche « livraison-de-glacons-sac-de-20-kg » (boisson sans photo) | https://www.pexels.com/photo/11931271/ | 24/11/2026 (demande directe) |
 | Fiche « gobelet-reutilisable-a-biere-50-cl » (boisson sans photo) | https://www.pexels.com/photo/4996689/ | 24/11/2026 (demande directe) |
+| Bandeau « Personnel de réception » (serveur avec plateau, Andrea Piacquadio) | https://www.pexels.com/photo/waiter-with-tray-working-in-stylish-restaurant-3769740/ | 24/11/2026 (demande directe : ancienne photo floue) |
