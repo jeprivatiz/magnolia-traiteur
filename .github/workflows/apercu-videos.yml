@@ -1,0 +1,50 @@
+name: Aperçu vidéos (temporaire)
+
+# Temporaire : télécharge les vidéos Pexels candidates, fait des planches d'images et encode la vidéo choisie.
+on:
+  push:
+    branches: [claude/project-thread-k5o7hn]
+    paths:
+      - .github/workflows/apercu-videos.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apercu:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Téléchargement, planches et encodage
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg >/dev/null
+          mkdir -p apercu-videos /tmp/src
+          dl() { curl -fsSL -A "Mozilla/5.0" -o "/tmp/src/$1.mp4" "$2" || echo "échec $2"; }
+          dl 7496272 https://videos.pexels.com/video-files/7496272/7496272-hd_1080_1920_30fps.mp4
+          dl 6000413 https://videos.pexels.com/video-files/6000413/6000413-hd_720_1280_24fps.mp4
+          dl 6406038 https://videos.pexels.com/video-files/6406038/6406038-hd_720_1280_25fps.mp4
+          dl 6609091 https://videos.pexels.com/video-files/6609091/6609091-hd_720_1280_25fps.mp4
+          dl 6688014 https://videos.pexels.com/video-files/6688014/6688014-hd_720_1280_24fps.mp4
+          ls -la /tmp/src
+          for f in /tmp/src/*.mp4; do
+            id=$(basename $f .mp4)
+            d=$(ffprobe -v error -show_entries format=duration -of csv=p=0 $f)
+            echo "$id durée $d" >> apercu-videos/durees.txt
+            ffmpeg -nostdin -v error -i $f -vf "fps=6/$d,scale=240:-2,tile=6x1" -frames:v 1 -y apercu-videos/planche-$id.jpg || true
+          done
+          # Vidéo choisie : 7496272, 720x900, boucle en fondu
+          f=/tmp/src/7496272.mp4
+          d=$(ffprobe -v error -show_entries format=duration -of csv=p=0 $f)
+          off=$(python3 -c "print(round($d-2,3))")
+          ffmpeg -nostdin -v error -i $f -filter_complex "[0:v]scale=720:-2,crop=720:900:0:(ih-900)/2,fps=25,split[a][b];[a]trim=1,setpts=PTS-STARTPTS[m];[b]trim=0:1,setpts=PTS-STARTPTS[h];[m][h]xfade=transition=fade:duration=1:offset=$off,format=yuv420p[v]" -map "[v]" -an -c:v libx264 -preset slow -crf 26 -movflags +faststart -y apercu-videos/commande-en-ligne.mp4
+          ffmpeg -nostdin -v error -i apercu-videos/commande-en-ligne.mp4 -frames:v 1 -q:v 4 -y apercu-videos/commande-en-ligne.jpg
+          d2=$(ffprobe -v error -show_entries format=duration -of csv=p=0 apercu-videos/commande-en-ligne.mp4)
+          ffmpeg -nostdin -v error -i apercu-videos/commande-en-ligne.mp4 -vf "fps=8/$d2,scale=240:-2,tile=8x1" -frames:v 1 -y apercu-videos/planche-encodee.jpg
+          ls -la apercu-videos
+      - name: Enregistrement
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add apercu-videos
+          git commit -m "Aperçu vidéos (temporaire)" && git push || echo "rien"
