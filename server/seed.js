@@ -82,7 +82,8 @@ const REGLAGES_DEFAUT = {
       { id: 'petit', label: 'Petit Pack Traiteur éco-responsable', prixCents: 450, detail: 'Matériel de buffet, verres éco-responsables, assiettes biodégradables, couverts en bois et serviettes.' },
       { id: 'grand', label: 'Grand Pack Traiteur · vaisselle en dur', prixCents: 660, detail: 'Tables traiteur, nappages, présentation, verres en verre, assiettes en porcelaine, couverts en inox et serviettes en tissu.' },
     ],
-    acomptePct: 30,
+    acomptePct: 50,
+    seuilAcompteCents: 80000,
     validiteDevisJours: 15,
   },
   evenements: ['Anniversaire', 'Fête de famille', 'Entreprise', 'Mariage', 'Baptême', 'Cocktail', 'Autre'],
@@ -1173,6 +1174,15 @@ async function initSousRubriques(store, { log = console } = {}) {
       tarifs: { ...(RL.tarifs || {}), livraisonOfferteCents: RL.tarifs?.livraisonOfferteCents ?? 70000 }, zoneLivraison2026: true });
   }
 
+  /* acompte (Jean-Luc, 2026-11-24) : 50 % au-dessus de 800 € TTC, totalité en dessous. Une fois :
+     réglages mis à jour et devis non signés repassés en « automatique ». */
+  const RAc = await store.get('site/reglages');
+  if (RAc && !RAc.acompte800) {
+    await store.set('site/reglages', { ...RAc, tarifs: { ...(RAc.tarifs || {}), acomptePct: 50, seuilAcompteCents: 80000 }, acompte800: true });
+    for (const { id, data: d } of await store.list('devis')) {
+      if (['brouillon', 'envoye'].includes(d.statut) && d.acomptePct != null) await store.set('devis/' + id, { ...d, acomptePct: null });
+    }
+  }
   /* recherche multicritère de la page Lieux (Jean-Luc, 2026-11-23) : type de lieu, département et événements repris
      des fiches du brouillon. Une fois, sans écraser ce qui a été saisi au back-office (Back-office > Lieux). */
   const RLx = await store.get('site/reglages');

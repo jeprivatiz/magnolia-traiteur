@@ -56,12 +56,12 @@ test('parcours demande → devis → signature → facture', async () => {
     assert.equal((await call('/api/admin/demandes/' + dem[0].id)).j.statut, 'accord');
 
     // 5. facture d'acompte puis de solde : ensemble = total du devis
-    const { totaux } = require('../server/devis');
+    const { totaux, regleAcompte } = require('../server/devis');
     const total = totaux(devis).ttcCents;
     const fa = await call('/api/admin/actions/facture-depuis-devis/' + devis.id, { method: 'POST', body: { type: 'acompte' } });
     const fs2 = await call('/api/admin/actions/facture-depuis-devis/' + devis.id, { method: 'POST', body: { type: 'solde' } });
     const A = (await call('/api/admin/factures/' + fa.j.id)).j, S = (await call('/api/admin/factures/' + fs2.j.id)).j;
-    assert.equal(A.totalCents, Math.round(total * 0.3));
+    assert.equal(A.totalCents, regleAcompte(total, devis).cents, 'commande sous 800 € : totalité, sinon 50 %');
     assert.equal(A.totalCents + S.totalCents, total);
     assert.match(A.numero, /^F-\d{4}-0001$/);
     // une facture ne se supprime pas

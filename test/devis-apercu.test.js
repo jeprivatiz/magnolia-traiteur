@@ -32,10 +32,27 @@ test('aperçu du devis réservé à l’équipe, brouillon non envoyé', async (
     assert.match(ap.j, /Colombo de poulet/);
     assert.match(ap.j, /125,00/);
     assert.doesNotMatch(ap.j, /data-sign=/, 'pas de signature possible depuis l’aperçu');
+    assert.match(ap.j, /Règlement de la totalité, soit <b>125,00/, 'commande sous 800 € : totalité');
+    assert.match(ap.j, /Conditions générales de vente<\/h2>/);
+    assert.match(ap.j, /Article 10/);
+    assert.doesNotMatch(ap.j, /À compléter/);
     const apres = (await call('/api/admin/devis/' + id)).j;
     assert.equal(apres.statut, 'brouillon'); assert.ok(!apres.vuLe && !(apres.envois || []).length, 'rien envoyé, pas marqué « vu »');
     assert.equal((await call('/devis/' + d.token)).status, 404, 'le client ne voit toujours pas le brouillon');
+    const dup = await call('/api/admin/actions/dupliquer-devis/' + id, { method: 'POST', body: {} });
+    assert.equal(dup.status, 200, JSON.stringify(dup.j));
+    const copie = (await call('/api/admin/devis/' + dup.j.id)).j;
+    assert.notEqual(copie.numero, d.numero); assert.notEqual(copie.token, d.token);
+    assert.equal(copie.statut, 'brouillon'); assert.equal(copie.clientId, cl.j.id); assert.equal(copie.lignes[0].designation, 'Colombo de poulet');
     cookie = '';
     assert.equal((await call('/api/admin/devis/' + id + '/apercu')).status, 401);
   } finally { srv.close(); }
+});
+
+test('règle d’acompte : totalité sous 800 € TTC, 50 % au-dessus, pourcentage forcé possible', () => {
+  const { regleAcompte } = require('../server/devis');
+  assert.deepEqual([regleAcompte(79999).pct, regleAcompte(80000).pct, regleAcompte(150000).cents], [100, 50, 75000]);
+  assert.equal(regleAcompte(150000, { acomptePct: 30 }).pct, 30);
+  assert.equal(regleAcompte(150000, { acomptePct: null }).pct, 50);
+  assert.equal(regleAcompte(50000, {}, { seuilAcompteCents: 40000, acomptePct: 40 }).pct, 40);
 });

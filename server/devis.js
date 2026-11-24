@@ -32,6 +32,15 @@ function controleMarge(doc) {
   return erreurs;
 }
 
+/* Règle d'acompte (Jean-Luc, 2026-11-24) : commande sous 800 € TTC = paiement de la totalité à la signature ;
+   à partir de 800 € TTC = acompte de 50 %. Un devis peut forcer un autre pourcentage (champ acomptePct). */
+function regleAcompte(ttcCents, doc = {}, T = {}) {
+  const seuil = T.seuilAcompteCents ?? 80000;
+  const force = doc.acomptePct != null && doc.acomptePct !== '' && !Number.isNaN(+doc.acomptePct);
+  const pct = force ? +doc.acomptePct : ttcCents < seuil ? 100 : (T.acomptePct ?? 50);
+  return { pct, auto: !force, seuil, cents: Math.round(ttcCents * pct / 100), total: pct >= 100 };
+}
+
 async function prochainNumero(store, type) {
   const an = new Date().getFullYear();
   const key = `compteurs/${type}-${an}`;
@@ -83,4 +92,4 @@ function estimerLigne(l, p, tarifs = {}) {
   return { qte, supCents: sup, totalCents: total, surDevis: base == null };
 }
 
-module.exports = { totaux, controleMarge, prochainNumero, lignesDepuisDemande, estimerLigne };
+module.exports = { regleAcompte, totaux, controleMarge, prochainNumero, lignesDepuisDemande, estimerLigne };
