@@ -1322,3 +1322,14 @@ input.verrou { background: var(--doux); color: var(--gris); cursor: not-allowed;
 }
 .eq-fiche { margin: 10px 0 0; }
 .eq-fiche label { margin-bottom: 6px; }
+/* cadres repliables (Journal d'activité, E-mails et SMS envoyés) */
+.pli h2 { margin-bottom: 0; }
+.pli-btn { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; width: 100%; cursor: pointer; font: inherit; color: inherit; padding: 2px 0; }
+.pli-btn:focus-visible { outline: 2px solid var(--or); outline-offset: 3px; border-radius: 6px; }
+.pli-fl { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--doux); border: 1px solid var(--ligne); color: var(--vert); font-size: .95rem; transition: transform .2s; }
+.pli-btn:hover .pli-fl { border-color: var(--vert); }
+.pli-nb { margin-left: auto; color: var(--gris); font-weight: 400; }
+.pli-corps { margin-top: 12px; }
+.pli.ferme .pli-fl { transform: rotate(-90deg); }
+.pli.ferme .pli-corps { display: none; }
+.pli.ferme h2 { border-bottom: 0 !important; padding-bottom: 0 !important; margin-bottom: 0 !important; }
