@@ -5,14 +5,15 @@ set -u
 cd "$(dirname "$0")"
 OUT=../public/site/v/accueil; mkdir -p "$OUT" tmpf
 F=0.8   # durée du fondu de bouclage
-grep -v '^#' finales.txt | while read -r nom url deb dur cx; do
+grep -v '^#' finales.txt | while read -r nom url deb dur cx cy z; do
+  cy=${cy:-0.5}; z=${z:-1}; W=$(awk "BEGIN{print int(720*$z/2)*2}"); H=$(awk "BEGIN{print int(900*$z/2)*2}")
   [ -z "$nom" ] && continue
   src=tmpf/$nom.src.mp4
   curl -fsSL -A "Mozilla/5.0 (magnolia-apercu)" -o "$src" "$url" || { echo "échec $nom"; continue; }
   tot=$(awk "BEGIN{print $dur+$F}")
   main=$(awk "BEGIN{print $dur}")
   off=$(awk "BEGIN{print $dur-$F}")
-  VF="fps=25,scale=720:900:force_original_aspect_ratio=increase,crop=720:900:(iw-720)*$cx:(ih-900)/2,setsar=1,format=yuv420p"
+  VF="fps=25,scale=$W:$H:force_original_aspect_ratio=increase,crop=720:900:(iw-720)*$cx:(ih-900)*$cy,setsar=1,format=yuv420p"
   ffmpeg -nostdin -v error -y -ss "$deb" -t "$tot" -i "$src" -an -filter_complex \
     "[0:v]$VF,split[a][b];[a]trim=$F:$tot,setpts=PTS-STARTPTS[m];[b]trim=0:$F,setpts=PTS-STARTPTS[h];[m][h]xfade=transition=fade:duration=$F:offset=$off,format=yuv420p[v]" \
     -map "[v]" -c:v libx264 -profile:v high -preset slow -crf 27 -maxrate 1800k -bufsize 3600k -movflags +faststart "$OUT/$nom.mp4" || { echo "ffmpeg $nom"; continue; }
