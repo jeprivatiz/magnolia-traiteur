@@ -582,3 +582,42 @@ function bandeauCookies() {
     t.addEventListener('mouseleave', () => { t.classList.remove('joue'); v.pause(); });
   });
 })();
+
+/* page Lieux : la recherche n'envoie que les critères remplis (adresse plus courte, facile à partager) */
+document.querySelector('.lsearch')?.addEventListener('submit', e => {
+  for (const el of e.target.querySelectorAll('select, input')) if (!el.value) el.disabled = true;
+  setTimeout(() => { for (const el of e.target.querySelectorAll('[disabled]')) el.disabled = false; }, 0);
+});
+
+/* fiche produit : la description sous la photo ne descend pas plus bas que le pavé de droite
+   (jusqu'à « Une question ? ») ; au-delà, « Voir plus ». Sur téléphone : 5 lignes puis « Voir plus ». */
+(() => {
+  const sp = document.querySelector('[data-sp]'); if (!sp) return;
+  const txt = sp.querySelector('.sp-txt'), btn = sp.querySelector('[data-sp-plus]');
+  const media = document.querySelector('.fiche-media'), info = document.querySelector('.fiche-info');
+  let ouvert = false;
+  const ajuste = () => {
+    if (ouvert) return;
+    sp.classList.remove('coupe');
+    const ligne = parseFloat(getComputedStyle(txt).lineHeight) || 24;
+    let h = ligne * 5;
+    if (matchMedia('(min-width: 861px)').matches && info && media) {
+      const fin = (info.querySelector('.aide') || info).getBoundingClientRect().bottom - info.getBoundingClientRect().top;
+      h = fin - (txt.getBoundingClientRect().top - media.getBoundingClientRect().top) - ligne * 1.6;
+    }
+    h = Math.max(h, ligne * 3);
+    const trop = txt.scrollHeight > h + 2;
+    sp.style.setProperty('--sp-h', Math.floor(h) + 'px');
+    sp.classList.toggle('coupe', trop);
+    btn.hidden = !trop;
+  };
+  btn.addEventListener('click', () => {
+    ouvert = !ouvert;
+    btn.textContent = ouvert ? 'Voir moins' : 'Voir plus';
+    if (ouvert) sp.classList.remove('coupe'); else { ajuste(); sp.scrollIntoView({ block: 'nearest' }); }
+  });
+  ajuste();
+  addEventListener('resize', ajuste); addEventListener('load', ajuste);
+  document.fonts?.ready.then(ajuste);
+  if (window.ResizeObserver && info) new ResizeObserver(ajuste).observe(info);
+})();

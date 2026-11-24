@@ -6,6 +6,8 @@ function logoExiste(src) { if (!src) return false; if (!src.startsWith('/site/')
 const { esc, euros, dateFr } = require('./util');
 const _euros = euros;
 const { prixCourt } = require('./catalogue');
+const { regleAcompte } = require('./devis');
+const FAC = require('./factures');
 
 const V = (process.env.RAILWAY_GIT_COMMIT_SHA || '').slice(0, 8) || Date.now().toString(36); /* change à chaque mise en ligne : force le rechargement du CSS et du JS */
 const MONO = '<img class="mono" src="/brand/monogramme.svg" alt="" width="40" height="34">';
@@ -45,7 +47,8 @@ const insecables = html => INSECABLES.reduce((h, [re, r]) => h.replace(re, r), S
 function layout(...args) { return insecables(layoutBrut(...args)); }
 function layoutBrut(c, { title, description = '', body, path = '/', schema = null, bodyClass = '', image = '', head = '', scripts = '', partage = '' }) {
   const R = c.reglages;
-  const fullTitle = title ? `${title} · ${R.nom || 'Magnolia Traiteur'}` : `${R.nom || 'Magnolia Traiteur'} · Traiteur événementiel`;
+  /* un titre Google qui porte déjà la marque (« … | Magnolia Traiteur ») n'est pas doublé */
+  const fullTitle = title ? (/\|\s*Magnolia\b/i.test(title) ? title : `${title} · ${R.nom || 'Magnolia Traiteur'}`) : `${R.nom || 'Magnolia Traiteur'} · Traiteur événementiel`;
   const site = (process.env.SITE_URL || 'https://www.magnoliatraiteur.fr').replace(/\/$/, '');
   const rubs = c.rubriques.filter(r => r.statut !== 'masque' && r.slug !== 'lieux');
   return `<!doctype html>
@@ -512,7 +515,7 @@ function produit(c, p) {
 <section class="wrap fiche">
   ${crumbs([['La boutique', '/boutique'], [r.nom, '/' + r.slug], ...(() => { const x = sousVisibles(c.rubriques.find(y => y.slug === p.rubrique)).find(y => y.slug === p.sous); return x ? [[x.nom, `/${p.rubrique}/${x.slug}`]] : []; })(), [p.titre]])}
   <div class="fiche-g">
-    <div class="fiche-media">${media}</div>
+    <div class="fiche-media">${media}${(p.sousPhoto || []).length ? `<div class="sous-photo" data-sp><div class="sp-txt">${p.sousPhoto.map(t => t ? `<p>${esc(t).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\*\*/g, '')}</p>` : '<p class="sp-vide" aria-hidden="true"></p>').join('')}</div><button type="button" class="sp-plus" data-sp-plus hidden>Voir plus</button></div>` : ''}</div>
     <div class="fiche-info">
       <p class="eyebrow"><a href="/${esc(r.slug)}">${esc(r.nom)}</a></p>
       <h1>${esc(p.titre)}</h1>
@@ -535,14 +538,46 @@ ${proches.length ? `<section class="wrap"><div class="sec-h"><h2>Dans la même r
 <div class="stickybar" data-sticky><span><b>${esc(prixTxt)}</b>${p.unite && p.prixCents != null ? ' / ' + esc(p.unite) : ''}</span><button class="btn btn-vert" type="button" data-scroll-conf>Choisir</button></div>`;
   const site = (process.env.SITE_URL || 'https://www.magnoliatraiteur.fr').replace(/\/$/, '');
   const schema = { '@context': 'https://schema.org', '@type': 'Product', name: p.titre, description: p.extrait, category: r.nom, image: photos.map(x => site + x.src), brand: { '@type': 'Brand', name: R.nom }, ...(p.prixCents != null ? { offers: { '@type': 'Offer', price: (p.prixCents / 100).toFixed(2), priceCurrency: 'EUR', availability: 'https://schema.org/InStock', eligibleQuantity: { '@type': 'QuantitativeValue', minValue: p.min || 1 } } } : {}) };
-  return layout(c, { title: p.titre, description: p.extrait, body, path: prodHref(p), schema, image: photos[0]?.src, bodyClass: 'p-fiche' });
+  return layout(c, { title: p.seoTitre || p.titre, description: p.seoDescription || p.extrait, body, path: prodHref(p), schema, image: photos[0]?.src, bodyClass: 'p-fiche' });
 }
 
-function lieux(c) {
-  const L = c.lieux.filter(l => l.statut !== 'masque');
+/* ---------- page Lieux + recherche multicritère (localisation, type d'événement, type de lieu, convives, mot-clé) ---------- */
+const _nrm = t => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+function filtrerLieux(L, f) {
+  const mots = _nrm(f.q).split(/[^a-z0-9]+/).filter(m => m.length > 1);
+  return L.filter(l => (!f.loc || l.departement === f.loc)
+    && (!f.ev || (l.evenements || []).includes(f.ev))
+    && (!f.type || l.type === f.type)
+    && (!f.n || !l.capacite || l.capacite >= f.n)
+    && (!mots.length || (h => mots.every(m => h.includes(m)))(_nrm([l.nom, l.ville, l.adresse, l.type, l.description, ...(l.equipements || []), ...(l.evenements || [])].join(' ')))));
+}
+function lieux(c, query = {}) {
+  const { TYPES_LIEU, EVENEMENTS_LIEU, DEPARTEMENTS_LIEU } = require('./seed');
+  const tous = c.lieux.filter(l => l.statut !== 'masque');
   const RL = c.rubriques.find(r => r.slug === 'lieux') || {};
+  const un = v => String(Array.isArray(v) ? v[0] : v || '').trim().slice(0, 80);
+  const f = { loc: un(query.loc), ev: un(query.ev), type: un(query.type), n: Math.max(0, parseInt(un(query.n), 10) || 0), q: un(query.q) };
+  const actif = !!(f.loc || f.ev || f.type || f.n || f.q);
+  const L = actif ? filtrerLieux(tous, f) : tous;
+  /* listes remplies d'après les fiches : seulement ce qui existe, dans l'ordre du back-office */
+  const depts = [...new Set(tous.map(l => l.departement).filter(Boolean))].sort((a, b) => (a === '75' ? -1 : b === '75' ? 1 : a.localeCompare(b)));
+  const evs = [...new Set(tous.flatMap(l => l.evenements || []))].sort((a, b) => (EVENEMENTS_LIEU.indexOf(a) + 1 || 99) - (EVENEMENTS_LIEU.indexOf(b) + 1 || 99) || a.localeCompare(b));
+  const types = [...new Set(tous.map(l => l.type).filter(Boolean))].sort((a, b) => (TYPES_LIEU.indexOf(a) + 1 || 99) - (TYPES_LIEU.indexOf(b) + 1 || 99) || a.localeCompare(b));
+  const opts = (list, cur, lab = x => x) => list.map(x => `<option value="${esc(x)}"${x === cur ? ' selected' : ''}>${esc(lab(x))}</option>`).join('');
+  const deptLab = d => DEPARTEMENTS_LIEU[d] ? (d === '75' ? 'Paris' : `${DEPARTEMENTS_LIEU[d]} (${d})`) : d;
+  const form = `<form class="lsearch" action="/lieux#resultats" method="get" role="search" aria-label="Rechercher un lieu">
+    <label class="ls-f"><span>Localisation</span><select name="loc"><option value="">Toutes</option>${opts(depts, f.loc, deptLab)}</select></label>
+    <label class="ls-f"><span>Type d’événement</span><select name="ev"><option value="">Tous</option>${opts(evs, f.ev)}</select></label>
+    <label class="ls-f"><span>Type de lieu</span><select name="type"><option value="">Tous</option>${opts(types, f.type)}</select></label>
+    <label class="ls-f ls-n"><span>Convives</span><input type="number" name="n" min="1" max="2000" inputmode="numeric" placeholder="Nombre" value="${f.n || ''}"></label>
+    <label class="ls-f ls-q"><span>Par mot-clé</span><input type="search" name="q" placeholder="Terrasse, Seine…" value="${esc(f.q)}" enterkeyhint="search"></label>
+    <button class="btn btn-or ls-go">Rechercher</button>
+  </form>`;
+  const pers = n => n > 1 ? 's' : '';
+  const resume = actif ? `<p class="ls-res" id="resultats" role="status">${L.length ? `<b>${L.length} lieu${L.length > 1 ? 'x' : ''}</b> correspond${L.length > 1 ? 'ent' : ''} à votre recherche` : '<b>Aucun lieu</b> ne correspond à tous ces critères'}${f.n ? ` pour ${f.n} convive${pers(f.n)}` : ''}. <a class="lnk" href="/lieux#resultats">Voir tous les lieux</a></p>` : '<span id="resultats"></span>';
+  const vide = actif && !L.length ? `<div class="ls-vide"><p>Essayez d’enlever un critère, ou appelez-nous : nous connaissons aussi d’autres lieux, hors de cette sélection.</p><p class="row"><a class="btn btn-vert" href="/lieux#resultats">Voir tous les lieux</a><a class="btn" href="tel:+33763669892">07 63 66 98 92</a><a class="btn" href="/contact">Nous écrire</a></p></div>` : '';
   const body = `${bandeau(c, 'lieux')}
-  <section class="wrap" id="lieux">${introHtml(RL.introTitre, RL.introTexte)}<div class="cards grid">${L.map(l => `<a class="card" href="/lieux/${esc(l.slug)}"><div class="card-img">${img(l.photos?.[0], l.nom)}${l.capacite ? `<span class="tag">Jusqu’à ${l.capacite} pers.</span>` : ''}</div><div class="card-b"><h3>${esc(l.nom)}</h3><p>${esc(l.ville || '')}</p><p>${esc(trunc(l.description, 110))}</p><div class="card-f"><span class="prix">${esc(l.prixTexte || 'Sur devis')}</span><span class="more">Découvrir ${icon.arrow}</span></div></div></a>`).join('')}</div></section>`;
+  <section class="wrap ls-wrap" id="lieux">${form}${actif ? '' : introHtml(RL.introTitre, RL.introTexte)}${resume}${vide}<div class="cards grid">${L.map(l => `<a class="card" href="/lieux/${esc(l.slug)}"><div class="card-img">${img(l.photos?.[0], l.nom)}${l.capacite ? `<span class="tag">Jusqu’à ${l.capacite} pers.</span>` : ''}</div><div class="card-b">${l.type ? `<p class="card-type">${esc(l.type)}</p>` : ''}<h3>${esc(l.nom)}</h3><p>${esc(l.ville || '')}</p><p>${esc(trunc(l.description, 110))}</p><div class="card-f"><span class="prix">${esc(l.prixTexte || 'Sur devis')}</span><span class="more">Découvrir ${icon.arrow}</span></div></div></a>`).join('')}</div></section>`;
   const B = bandeauDe(c, 'lieux');
   return layout(c, { title: B.titre, description: B.chapo, body, path: '/lieux', image: B.photo });
 }
@@ -582,6 +617,7 @@ function selection(c) {
       <div class="f2"><label>E-mail<input type="email" name="email" autocomplete="email" required></label><label>Téléphone<input type="tel" name="tel" autocomplete="tel" required></label></div>
       <label>Votre message <small>(allergies, déroulé, accès…)</small><textarea name="message" rows="3"></textarea></label>
       <label class="check"><input type="checkbox" name="rgpd" required> J’accepte que Magnolia Traiteur utilise ces informations pour répondre à ma demande (<a href="/confidentialite">confidentialité</a>).</label>
+      <label class="check"><input type="checkbox" name="offres" value="1"> J’accepte de recevoir les nouveautés et offres de Magnolia par e-mail et SMS (désinscription en un clic).</label>
       <div class="sel-tot"><div><span>Sélection</span><b data-sel-sub>0 €</b></div><div><span>Livraison estimée</span><b data-sel-livr>—</b></div><div class="tot"><span>Total estimé TTC</span><b data-sel-total>0 €</b></div></div><p class="small sel-offerte" data-sel-offerte></p>
       <button class="btn btn-vert wide" data-send>Envoyer ma demande de devis</button>
       <p class="small center">Votre envoi est une demande à étudier, pas une commande. Réponse rapide, du lundi au samedi.</p>
@@ -727,7 +763,7 @@ function commander(c) {
   <li><b>Relisez, puis validons votre devis</b><span>Vous recevez une référence et un accès à votre espace client. L’équipe vérifie les disponibilités et vous envoie votre devis, que vous signez en ligne. Un acompte valide la réservation, par un lien de paiement sécurisé.</span></li></ol>
   <h2>Questions fréquentes</h2>
   <details><summary>Est-ce une commande ?</summary><p>Non : votre envoi est une demande à étudier. L’équipe vérifie les disponibilités, les détails et le montant avant validation.</p></details>
-  <details><summary>Quand payer ?</summary><p>Après validation du devis : un acompte réserve la date, le solde est réglé avant l’événement. Aucun paiement n’est demandé sur le site.</p></details>
+  <details><summary>Quand payer ?</summary><p>Après validation du devis : pour une commande de moins de 800 € TTC, la totalité est réglée à la signature ; au-delà, un acompte de 50 % réserve la date et le solde est réglé au plus tard 10 jours avant l’événement. Si l’événement a lieu dans moins de 10 jours, la totalité est réglée à la signature. Aucun paiement n’est demandé sur le site.</p></details>
   <details><summary>Puis-je modifier ma sélection ?</summary><p>Oui, à tout moment avant l’envoi ; ensuite l’équipe ajuste le devis avec vous.</p></details>
   <details><summary>Et les allergies ?</summary><p>Indiquez-les dans la note de chaque prestation ou dans votre message ; l’équipe vous répond plat par plat. Voir aussi <a href="/allergenes">l’information allergènes</a>.</p></details>
   <p class="row"><a class="btn btn-vert" href="/boutique">Commencer ma sélection</a></p>`;
@@ -755,13 +791,13 @@ function contact(c) {
   const html = `<div class="cols2"><div><h2>Parlons de votre événement</h2><p><a class="big-tel" href="tel:${esc((R.telephone || '').replace(/\s/g, ''))}">${esc(R.telephone)}</a></p><p><a href="mailto:${esc(R.email)}">${esc(R.email)}</a></p><p>${esc(R.adresse)}</p><p class="small">${esc(R.horaires)}</p></div>
   <form class="card-form" data-contact novalidate><label>Prénom et nom<input name="nom" required autocomplete="name"></label><div class="f2"><label>E-mail<input type="email" name="email" required autocomplete="email"></label><label>Téléphone<input type="tel" name="tel" autocomplete="tel"></label></div>
   <label>Sujet<select name="sujet"><option>Demande d’information</option><option>Devis sur mesure</option><option>Un devis en cours</option><option>Partenariat / lieu</option><option>Autre</option></select></label>
-  <label>Message<textarea name="message" rows="5" required></textarea></label><button class="btn btn-vert">Envoyer</button></form></div>`;
+  <label>Message<textarea name="message" rows="5" required></textarea></label><label class="check"><input type="checkbox" name="offres" value="1"> J’accepte de recevoir les nouveautés et offres de Magnolia par e-mail et SMS (désinscription en un clic).</label><button class="btn btn-vert">Envoyer</button></form></div>`;
   return texte(c, { titre: 'Contact', chapo: 'Une question, un devis sur mesure ? Nous vous répondons vite.', html, path: '/contact' });
 }
 
 function legal(c, url, fallbackTitre) {
   const pg = c.pages[url] || {};
-  return texte(c, { titre: pg.titre || fallbackTitre, html: textToHtml(pg.texte) || '<p>Page en cours de rédaction.</p>', path: url });
+  return texte(c, { titre: pg.titre || fallbackTitre, html: textToHtml(url === '/cgv' ? remplirCgv(pg.texte, c.reglages) : pg.texte) || '<p>Page en cours de rédaction.</p>', path: url });
 }
 
 function erreur(c, code = 404) {
@@ -788,7 +824,7 @@ function espace(c, { client, demandes, devis, factures }) {
     <p class="small">Référence ${esc(d.ref)} · envoyée le ${esc(dateFr(d.createdAt))}</p>
     <ul class="lignes">${(d.lignes || []).map(l => `<li><span>${esc(l.titre)}${l.resume ? `<small>${esc(l.resume)}</small>` : ''}</span><b>${esc(l.qte)} ${esc(l.unite || '')}</b></li>`).join('')}</ul>
     ${dv.map(x => `<p class="row"><a class="btn btn-vert" href="/devis/${esc(x.token)}">Voir le devis ${esc(x.numero)}</a> <span class="pill p-${esc(x.statut)}">${esc({ envoye: 'À signer', accepte: 'Signé', refuse: 'Refusé', brouillon: 'En préparation' }[x.statut] || '')}</span></p>`).join('')}
-    ${factures.filter(f => dv.some(x => x.id === f.devisId)).map(f => `<p><a class="lnk" href="/facture/${esc(f.token)}">Facture ${esc(f.numero)} · ${esc(euros(f.totalCents))}</a></p>`).join('')}
+    ${factures.filter(f => dv.some(x => x.id === f.devisId)).map(f => `<p><a class="lnk" href="/facture/${esc(f.token)}">${f.type === 'avoir' ? 'Avoir' : 'Facture'} ${esc(f.numero)} · ${esc(euros(f.totalCents))}${f.type !== 'avoir' && FAC.etat(f).resteCents && FAC.etat(f).regleCents ? ' · solde ' + esc(euros(FAC.etat(f).resteCents)) : ''}</a></p>`).join('')}
     </article>`;
   }).join('') : '<p>Aucune demande pour le moment.</p>'}
   </section>`;
@@ -806,50 +842,88 @@ function totauxHtml(t) {
   <div class="sm"><dt>Total HT</dt><dd>${euros(t.htCents)}</dd></div><div class="tot"><dt>Total TTC</dt><dd>${euros(t.ttcCents)}</dd></div></dl>`;
 }
 
-function devisPage(c, d, t, { client, demande }) {
+/* identité de l'entreprise (Back-office > Mon entreprise) : logo, mentions légales, CGV */
+function entrepriseInfos(R) {
+  const E = R.entreprise || {};
+  const nom = E.raisonSociale || 'Magnolia Traiteur';
+  const mentions = [nom + (E.forme ? ' ' + E.forme : '') + (E.capital ? ' au capital de ' + E.capital : ''), E.siret ? 'SIRET ' + E.siret : E.siren ? 'SIREN ' + E.siren : '', E.rcs && (E.siren || E.siret) ? 'RCS ' + E.rcs + ' ' + (E.siren || String(E.siret).replace(/\s/g, '').slice(0, 9)) : '', E.ape ? 'APE ' + E.ape : '', E.tva ? 'TVA ' + E.tva : '', E.assurance ? 'Assurance RC pro : ' + E.assurance : ''].filter(Boolean).join(' · ');
+  const identite = [nom + (E.forme ? ', ' + E.forme : '') + (E.capital ? ' au capital de ' + E.capital : '') + ', ' + (R.adresse || '') + '.', E.siren || E.siret ? `SIREN ${E.siren || String(E.siret).replace(/\s/g, '').slice(0, 9)}${E.siret ? ', SIRET ' + E.siret : ''}${E.rcs ? ', RCS ' + E.rcs : ''}.` : '', E.ape ? `Code APE ${E.ape}.` : '', E.tva ? `TVA intracommunautaire ${E.tva}.` : '', R.telephone ? `Téléphone : ${R.telephone}.` : '', R.email ? `E-mail : ${R.email}.` : '', E.assurance ? `Assurance responsabilité civile professionnelle : ${E.assurance}.` : ''].filter(Boolean).join(' ');
+  const logo = E.logo ? `<img class="doc-logo" src="${esc(E.logo)}" alt="${esc(nom)}">` : `${MONO}<p class="brand-txt">Magnolia<small>${esc(R.sousNom || '')}</small></p>`;
+  return { nom, mentions, identite, logo, mediateur: E.mediateur || '', tribunal: E.tribunal || 'tribunal de commerce d’Évry' };
+}
+/* les CGV (Back-office > Outils) peuvent utiliser {{identite}}, {{mediateur}}, {{tribunal}} : remplis depuis Mon entreprise */
+function remplirCgv(texte, R) {
+  const I = entrepriseInfos(R);
+  return String(texte || '').replace(/\{\{identite\}\}/g, I.identite).replace(/\{\{tribunal\}\}/g, I.tribunal)
+    .replace(/\{\{mediateur\}\}/g, I.mediateur ? `le médiateur ${I.mediateur}` : 'un médiateur de la consommation, dont les coordonnées lui sont communiquées sur simple demande,');
+}
+
+function devisPage(c, d0, t, { client, demande, apercu = false }) {
   const R = c.reglages;
+  /* aperçu équipe : le devis tel que le client le recevra, sans rien envoyer ni signer */
+  const d = apercu && d0.statut === 'brouillon' ? { ...d0, statut: 'envoye', envoyeLe: d0.envoyeLe || new Date().toISOString() } : d0;
   const signe = d.statut === 'accepte';
   const expire = d.validiteJusquau && d.validiteJusquau < new Date().toISOString().slice(0, 10) && !signe;
-  const acompte = Math.round(t.ttcCents * (d.acomptePct ?? R.tarifs?.acomptePct ?? 30) / 100);
+  const ac = regleAcompte(t.ttcCents, d, R.tarifs), acompte = ac.cents;
+  const com = d.commercial === null ? null : (d.commercial || (R.alertes?.personnes || []).find(x => x.nom) || null);
+  const quoi = ac.total ? `Règlement de la totalité, soit <b>${euros(acompte)}</b>` : `Acompte de <b>${euros(acompte)}</b> (${ac.pct} %)`;
+  const I = entrepriseInfos(R);
+  const cgv = remplirCgv(c.pages?.['/cgv']?.texte, R).split('\n').map(l => l.trim()).filter(l => l && !/À compléter|^Les articles ci-dessous|^Conditions générales de vente$|^Voir aussi|^et la politique|^\.$/.test(l));
   const https = u => /^https:\/\/[^\s"'<>]+$/.test(String(u || '')) ? String(u) : '';
   const payer = https(d.lienPaiement) || https(R.paiement?.lien);
-  const body = `<section class="wrap doc">
-  <header class="doc-h"><div>${MONO}<p class="brand-txt">Magnolia<small>${esc(R.sousNom || '')}</small></p><p class="small">${esc(R.adresse)}<br>${esc(R.telephone)} · ${esc(R.email)}</p></div>
-  <div class="doc-ref"><h1>Devis ${esc(d.numero)}</h1><p>Émis le ${esc(dateFr(d.envoyeLe || d.createdAt))}${d.validiteJusquau ? `<br>Valable jusqu’au ${esc(dateFr(d.validiteJusquau))}` : ''}</p><span class="pill p-${esc(d.statut)}">${esc({ envoye: 'À signer', accepte: 'Signé', refuse: 'Refusé', brouillon: 'Brouillon' }[d.statut] || '')}</span></div></header>
+  const body = `${apercu ? `<div class="apercu-bar noprint"><p><b>👁 Aperçu du devis</b> · exactement ce que le client recevra.${d0.statut === 'brouillon' ? ' Rien n’a été envoyé.' : ''}</p><button class="btn btn-line" type="button" onclick="window.close()">Fermer l’aperçu</button></div>` : ''}<section class="wrap doc">
+  <header class="doc-h"><div>${entrepriseInfos(R).logo}<p class="small">${esc(R.adresse)}<br>${esc(R.telephone)} · ${esc(R.email)}</p></div>
+  <div class="doc-ref"><h1>Devis ${esc(d.numero)}</h1>${d.titre ? `<p class="doc-titre"><b>${esc(d.titre)}</b></p>` : ''}<p>Émis le ${esc(dateFr(d.envoyeLe || d.createdAt))}${d.validiteJusquau ? `<br>Valable jusqu’au ${esc(dateFr(d.validiteJusquau))}` : ''}</p><span class="pill p-${esc(d.statut)}">${esc({ envoye: 'À signer', accepte: 'Signé', refuse: 'Refusé', brouillon: 'Brouillon' }[d.statut] || '')}</span></div></header>
   <div class="doc-parties"><div><p class="eyebrow">Client</p><p><b>${esc(client?.nom || '')}</b>${client?.societe ? '<br>' + esc(client.societe) : ''}<br>${esc(client?.email || '')}<br>${esc(client?.tel || '')}</p></div>
-  <div><p class="eyebrow">Événement</p><p><b>${esc(d.evenement?.type || demande?.evenement?.type || '')}</b><br>${esc(dateFr(d.evenement?.date || demande?.evenement?.date))}<br>${esc(d.evenement?.invites || demande?.evenement?.invites || '')} invités · ${esc(d.evenement?.lieu || demande?.evenement?.ville || '')}</p></div></div>
+  ${(() => { const nat = d.evenement?.type || demande?.evenement?.type || '', dt = d.evenement?.date || demande?.evenement?.date, nb = d.evenement?.invites || demande?.evenement?.invites, lieu = d.evenement?.lieu || demande?.evenement?.ville || '';
+    return `<div><p class="eyebrow">Événement</p><p>${nat ? `Nature : <b>${esc(nat)}</b><br>` : ''}${dt ? `Le ${esc(dateFr(dt))}<br>` : ''}${nb ? `${esc(nb)} personne${+nb > 1 ? 's' : ''}<br>` : ''}${lieu ? esc(lieu) : ''}</p></div>`; })()}${com?.nom ? `<div><p class="eyebrow">Votre conseiller</p><p><b>${esc(com.nom)}</b>${com.tel ? `<br><a href="tel:${esc(com.tel.replace(/\s/g, ''))}">${esc(com.tel)}</a>` : ''}${com.email ? `<br>${esc(com.email)}` : ''}</p></div>` : ''}</div>
   ${d.intro ? `<p class="doc-intro">${esc(d.intro)}</p>` : ''}
   ${devisLignesHtml(d)}
   ${totauxHtml(t)}
   ${d.conditions ? `<p class="small">${esc(d.conditions)}</p>` : ''}
-  <div class="sign" data-sign="${esc(d.token)}">
+  <div class="sign"${apercu ? ' data-apercu' : ` data-sign="${esc(d.token)}"`}>
   ${signe ? `<p class="ok">✓ Devis signé en ligne par <b>${esc(d.signature?.nom || '')}</b> le ${esc(dateFr(d.signature?.at, { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }))}.</p>
-     ${payer ? `<p>Acompte de <b>${euros(acompte)}</b> (${d.acomptePct ?? R.tarifs?.acomptePct ?? 30} %) pour réserver votre date :</p><p><a class="btn btn-or" href="${esc(payer)}" rel="noopener">Régler l’acompte par carte</a></p>` : ''}
-     ${R.paiement?.iban ? `<div class="virement"><p class="eyebrow">${payer ? 'Ou par virement' : `Acompte de ${euros(acompte)} par virement`}</p><p>Titulaire : <b>${esc(R.paiement.titulaire || 'Magnolia Traiteur')}</b><br>IBAN : <b class="mono">${esc(R.paiement.iban)}</b>${R.paiement.bic ? `<br>BIC : <b class="mono">${esc(R.paiement.bic)}</b>` : ''}<br>Référence à indiquer : <b>${esc(d.numero)}</b></p></div>` : ''}
-     ${!payer && !R.paiement?.iban ? `<p>L’équipe vous envoie le lien de paiement de l’acompte (${euros(acompte)}).</p>` : ''}`
+     ${payer ? `<p>${quoi} pour réserver votre date :</p><p><a class="btn btn-or" href="${esc(payer)}" rel="noopener">${ac.total ? 'Régler par carte' : 'Régler l’acompte par carte'}</a></p>` : ''}
+     ${R.paiement?.iban ? `<div class="virement"><p class="eyebrow">${payer ? 'Ou par virement' : `${ac.total ? 'Règlement' : 'Acompte'} de ${euros(acompte)} par virement`}</p><p>Titulaire : <b>${esc(R.paiement.titulaire || 'Magnolia Traiteur')}</b><br>IBAN : <b class="mono">${esc(R.paiement.iban)}</b>${R.paiement.bic ? `<br>BIC : <b class="mono">${esc(R.paiement.bic)}</b>` : ''}<br>Référence à indiquer : <b>${esc(d.numero)}</b></p></div>` : ''}
+     ${!payer && !R.paiement?.iban ? `<p>L’équipe vous envoie le lien de paiement ${ac.total ? 'de la totalité' : 'de l’acompte'} (${euros(acompte)}).</p>` : ''}`
     : d.statut === 'refuse' ? '<p>Ce devis a été clôturé. Appelez-nous pour en établir un nouveau.</p>'
     : expire ? `<p>Ce devis a expiré. Appelez-nous au ${esc(R.telephone)} : nous le mettons à jour.</p>`
-    : `<h2>Bon pour accord</h2><p>Acompte de ${euros(acompte)} (${d.acomptePct ?? R.tarifs?.acomptePct ?? 30} %) à la signature, solde avant l’événement. En signant, vous acceptez les <a href="/cgv" target="_blank">conditions générales de vente</a>.</p>
-     <form class="card-form" data-accept novalidate><label>Votre nom et prénom<input name="nom" required autocomplete="name"></label><label class="check"><input type="checkbox" name="ok" required> Je déclare accepter ce devis « bon pour accord ».</label><div class="row"><button class="btn btn-vert">Signer le devis</button><button class="btn btn-line" type="button" data-refuse>Je ne donne pas suite</button></div><p class="small" data-accept-msg></p></form>`}
+    : `<h2>Bon pour accord</h2><p>${quoi} à la signature${ac.total ? (ac.raison === 'seuil' ? ' (commande inférieure à ' + euros(ac.seuil) + ' TTC)' : '') : `, solde au plus tard ${ac.delai} jours avant l’événement`}. En signant, vous acceptez les conditions générales de vente ci-dessous.</p>${ac.raison === 'proche' ? `<p class="note-paiement">Votre événement ayant lieu dans moins de ${ac.delai} jours, le paiement en deux fois n’est pas possible : la totalité est réglée à la signature.</p>` : ''}
+     <form class="card-form"${apercu ? ' onsubmit="return false"' : ' data-accept'} novalidate><label>Votre nom et prénom<input name="nom" required autocomplete="name"></label><label class="check"><input type="checkbox" name="ok" required> Je déclare accepter ce devis « bon pour accord ».</label><div class="row"><button class="btn btn-vert"${apercu ? ' disabled' : ''}>Signer le devis</button><button class="btn btn-line" type="button"${apercu ? ' disabled' : ' data-refuse'}>Je ne donne pas suite</button></div><p class="small" data-accept-msg>${apercu ? 'Aperçu : la signature est désactivée ici.' : ''}</p></form>`}
   </div>
   <p class="row noprint"><button class="btn btn-line" type="button" onclick="print()">Imprimer / PDF</button><a class="lnk" href="tel:${esc((R.telephone || '').replace(/\s/g, ''))}">Une question ? ${esc(R.telephone)}</a></p>
+  ${I.mentions ? `<p class="doc-mentions">${esc(I.mentions)}</p>` : ''}
+  ${cgv.length ? `<section class="doc-cgv" id="cgv"><h2>Conditions générales de vente</h2>${cgv.map(l => /^Article \d+/.test(l) ? `<h3>${esc(l)}</h3>` : `<p>${esc(l)}</p>`).join('')}</section>` : ''}
   </section>`;
   return layout(c, { title: 'Devis ' + d.numero, body, bodyClass: 'p-doc' }).replace('<head>', '<head><meta name="robots" content="noindex">');
 }
 
-function facturePage(c, f, t) {
-  const R = c.reglages;
-  const body = `<section class="wrap doc">
-  <header class="doc-h"><div>${MONO}<p class="brand-txt">Magnolia<small>${esc(R.sousNom || '')}</small></p><p class="small">${esc(R.adresse)}<br>${esc(R.telephone)} · ${esc(R.email)}</p></div>
-  <div class="doc-ref"><h1>Facture ${esc(f.numero)}</h1><p>Émise le ${esc(dateFr(f.date))}${f.devisNumero ? `<br>Devis ${esc(f.devisNumero)}` : ''}</p><span class="pill p-${f.payee ? 'accepte' : 'envoye'}">${f.payee ? 'Payée' : 'À régler'}</span></div></header>
-  <div class="doc-parties"><div><p class="eyebrow">Client</p><p><b>${esc(f.client?.nom || '')}</b>${f.client?.societe ? '<br>' + esc(f.client.societe) : ''}<br>${esc(f.client?.adresse || '')}<br>${esc(f.client?.email || '')}</p></div><div><p class="eyebrow">Objet</p><p>${esc(f.objet || '')}</p></div></div>
+function facturePage(c, f, t, { apercu = false } = {}) {
+  const R = c.reglages, I = entrepriseInfos(R);
+  const e = FAC.etat(f), regs = FAC.libelles(f), avoir = f.type === 'avoir';
+  const ech = FAC.echeance(f, R.tarifs || {});
+  const P = R.paiement || {};
+  const etiquette = avoir ? ['accepte', 'Avoir'] : f.annuleeParAvoir ? ['refuse', 'Annulée par avoir'] : e.payee ? ['accepte', 'Acquittée'] : e.regleCents ? ['envoye', 'Acompte reçu'] : ['envoye', 'À régler'];
+  const reglementsHtml = avoir ? '' : (regs.length || (f.dejaRegleCents || 0)) ? `<dl class="totaux regl">
+    ${(f.dejaRegleCents || 0) ? `<div><dt>Déjà réglé (facture d’acompte)</dt><dd>− ${euros(f.dejaRegleCents)}</dd></div>` : ''}
+    ${regs.map(r => `<div><dt>${esc(r.libelle)} versé le ${esc(dateFr(r.date))} <small>(${esc(r.moyen)})</small></dt><dd>− ${euros(r.montantCents)}</dd></div>`).join('')}
+    <div class="tot"><dt>${e.resteCents ? 'Solde restant dû' : 'Solde'}</dt><dd>${e.resteCents ? euros(e.resteCents) : '0,00 €'}</dd></div></dl>
+    ${e.resteCents ? '' : `<p class="ok">✓ Facture entièrement réglée${regs.length ? ' le ' + esc(dateFr(regs[regs.length - 1].date)) : ''}. Merci !</p>`}` : '';
+  const payer = !avoir && !f.annuleeParAvoir && e.resteCents ? `<div class="virement"><p class="eyebrow">Règlement du solde${ech ? ' · au plus tard le ' + esc(dateFr(ech)) : ''}</p>${/^https:\/\//.test(P.lien || '') ? `<p><a class="btn btn-or" href="${esc(P.lien)}" rel="noopener">Régler par carte</a></p>` : ''}${P.iban ? `<p>Par virement · Titulaire : <b>${esc(P.titulaire || 'Magnolia Traiteur')}</b><br>IBAN : <b class="mono">${esc(P.iban)}</b>${P.bic ? `<br>BIC : <b class="mono">${esc(P.bic)}</b>` : ''}<br>Référence à indiquer : <b>${esc(f.numero)}</b></p>` : ''}${!/^https:\/\//.test(P.lien || '') && !P.iban ? `<p>Pour régler le solde de <b>${euros(e.resteCents)}</b>, appelez-nous au ${esc(R.telephone || '')} : nous vous envoyons le lien de paiement.</p>` : ''}</div>` : '';
+  const body = `${apercu ? `<div class="apercu-bar noprint"><p><b>👁 Aperçu de la facture</b> · exactement ce que le client verra.</p><button class="btn btn-line" type="button" onclick="window.close()">Fermer l’aperçu</button></div>` : ''}<section class="wrap doc">
+  <header class="doc-h"><div>${I.logo}<p class="small">${esc(R.adresse)}<br>${esc(R.telephone)} · ${esc(R.email)}</p></div>
+  <div class="doc-ref"><h1>${avoir ? 'Avoir' : 'Facture'} ${esc(f.numero)}</h1><p>Émis${avoir ? '' : 'e'} le ${esc(dateFr(f.date))}${f.devisNumero ? `<br>Devis ${esc(f.devisNumero)}` : ''}${avoir ? `<br>Annule la facture ${esc(f.factureNumero || '')}` : ''}${!avoir && ech && e.resteCents ? `<br>Échéance du solde : ${esc(dateFr(ech))}` : ''}</p><span class="pill p-${etiquette[0]}">${etiquette[1]}</span></div></header>
+  <div class="doc-parties"><div><p class="eyebrow">Client</p><p><b>${esc(f.client?.nom || '')}</b>${f.client?.societe ? '<br>' + esc(f.client.societe) : ''}${f.client?.adresse ? '<br>' + esc(f.client.adresse).replace(/\n/g, '<br>') : ''}<br>${esc(f.client?.email || '')}</p></div><div><p class="eyebrow">Objet</p><p>${esc(f.objet || '')}</p></div></div>
+  ${f.annuleeParAvoir ? `<p class="note-paiement">Cette facture est annulée par l’avoir ${esc(f.annuleeParAvoir.numero)}.</p>` : ''}
   ${devisLignesHtml(f)}
-  ${totauxHtml(t)}
-  ${(f.dejaRegleCents || 0) ? `<dl class="totaux"><div><dt>Déjà réglé (acompte)</dt><dd>− ${euros(f.dejaRegleCents)}</dd></div><div class="tot"><dt>Reste à payer</dt><dd>${euros(t.ttcCents - f.dejaRegleCents)}</dd></div></dl>` : ''}
-  <p class="small">${esc(f.mentions || 'Paiement à réception. En cas de retard, pénalités au taux légal et indemnité forfaitaire de 40 € pour frais de recouvrement (clients professionnels).')}</p>
-  <p class="row noprint"><button class="btn btn-line" type="button" onclick="print()">Imprimer / PDF</button></p></section>`;
-  return layout(c, { title: 'Facture ' + f.numero, body, bodyClass: 'p-doc' }).replace('<head>', '<head><meta name="robots" content="noindex">');
+  ${avoir ? `<dl class="totaux"><div class="tot"><dt>Montant de l’avoir (TTC)</dt><dd>− ${euros(e.ttcCents - (f.dejaRegleCents || 0))}</dd></div></dl>` : totauxHtml(t)}
+  ${reglementsHtml}
+  ${payer}
+  <p class="small">${esc(f.mentions || (avoir ? 'Avoir valant annulation de la facture citée ci-dessus.' : 'En cas de retard de paiement, pénalités au taux légal et indemnité forfaitaire de 40 € pour frais de recouvrement (clients professionnels). Pas d’escompte pour paiement anticipé.'))}</p>
+  <p class="row noprint"><button class="btn btn-line" type="button" onclick="print()">Imprimer / PDF</button><a class="lnk" href="tel:${esc((R.telephone || '').replace(/\s/g, ''))}">Une question ? ${esc(R.telephone)}</a></p>
+  ${I.mentions ? `<p class="doc-mentions">${esc(I.mentions)}</p>` : ''}</section>`;
+  return layout(c, { title: (avoir ? 'Avoir ' : 'Facture ') + f.numero, body, bodyClass: 'p-doc' }).replace('<head>', '<head><meta name="robots" content="noindex">');
 }
 
 module.exports = {
-  sectionsRub, plateau3dHtml, universListe, RANGEMENTS, pageSpecialites, specialite, sousVisibles, layout, home, boutique, produit, lieux, lieu, selection, texte, maison, livraison, commander, temoignages, contact, legal, erreur, espaceConnexion, espace, devisPage, facturePage, textToHtml, V, BANDEAUX_DEFAUT };
+  sectionsRub, plateau3dHtml, universListe, RANGEMENTS, pageSpecialites, specialite, sousVisibles, layout, home, boutique, produit, lieux, filtrerLieux, lieu, selection, texte, maison, livraison, commander, temoignages, contact, legal, erreur, espaceConnexion, espace, devisPage, facturePage, textToHtml, V, BANDEAUX_DEFAUT };

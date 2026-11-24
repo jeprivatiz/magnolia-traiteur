@@ -49,4 +49,29 @@ function haversine(a, b) {
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
-module.exports = { rid, sha, esc, euros, parseEuros, slugify, norm, limiter, dateFr, haversine };
+/* Nom d'une fiche client : « Prénom NOM » (règle de Jean-Luc, 2026-11-24), ex. « jean-luc bernard » → « Jean-Luc BERNARD ».
+   Une seule case « Nom et prénom » : un mot déjà tout en MAJUSCULES (2 lettres ou plus) marque le début du nom ;
+   sinon le premier mot est le prénom et le reste le nom (particules comprises : « marie de la fontaine » → « Marie DE LA FONTAINE »).
+   Avec deux cases (IA, import) : nomPropre(prenom, nom). Une société ou un nom d'un seul mot reste tel quel, première lettre en majuscule. */
+const majPrenom = w => w.toLocaleLowerCase('fr-FR').replace(/(^|[-'’\s])(\p{L})/gu, (m, a, b) => a + b.toLocaleUpperCase('fr-FR'));
+const majNom = w => w.toLocaleUpperCase('fr-FR');
+function nomPropre(a, b) {
+  const net = s => String(s ?? '').replace(/\s+/g, ' ').trim();
+  if (b !== undefined) { const p = net(a), n = net(b); return [p && majPrenom(p), n && majNom(n)].filter(Boolean).join(' '); }
+  const s = net(a); if (!s) return '';
+  const w = s.split(' ');
+  if (w.length === 1) return /^\p{Lu}[\p{Lu}'’-]+$/u.test(s) ? s : majPrenom(s);
+  const tout = x => /\p{L}{2}/u.test(x) && x === x.toLocaleUpperCase('fr-FR') && x !== x.toLocaleLowerCase('fr-FR');
+  let i = w.findIndex((x, k) => k >= 1 && tout(x));
+  if (i < 1) i = 1;
+  return [majPrenom(w.slice(0, i).join(' ')), majNom(w.slice(i).join(' '))].join(' ');
+}
+
+/* date de naissance : « 1980-03-12 » ou « 12/03/1980 » → « 1980-03-12 », sinon vide */
+function dateNaissance(v) {
+  const t = String(v ?? '').trim(); let m = t.match(/^(\d{4})-(\d{2})-(\d{2})$/); if (!m) { const f = t.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/); if (f) m = [0, f[3], f[2].padStart(2, '0'), f[1].padStart(2, '0')]; }
+  if (!m) return ''; const d = new Date(+m[1], +m[2] - 1, +m[3]); const ok = d.getMonth() === +m[2] - 1 && d.getDate() === +m[3] && +m[1] > 1900 && d <= new Date();
+  return ok ? `${m[1]}-${m[2]}-${m[3]}` : '';
+}
+
+module.exports = { dateNaissance, nomPropre, rid, sha, esc, euros, parseEuros, slugify, norm, limiter, dateFr, haversine };

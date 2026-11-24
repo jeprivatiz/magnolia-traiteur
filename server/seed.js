@@ -82,7 +82,8 @@ const REGLAGES_DEFAUT = {
       { id: 'petit', label: 'Petit Pack Traiteur éco-responsable', prixCents: 450, detail: 'Matériel de buffet, verres éco-responsables, assiettes biodégradables, couverts en bois et serviettes.' },
       { id: 'grand', label: 'Grand Pack Traiteur · vaisselle en dur', prixCents: 660, detail: 'Tables traiteur, nappages, présentation, verres en verre, assiettes en porcelaine, couverts en inox et serviettes en tissu.' },
     ],
-    acomptePct: 30,
+    acomptePct: 50,
+    seuilAcompteCents: 80000,
     validiteDevisJours: 15,
   },
   evenements: ['Anniversaire', 'Fête de famille', 'Entreprise', 'Mariage', 'Baptême', 'Cocktail', 'Autre'],
@@ -122,6 +123,41 @@ function extraireAvis(texte) {
   return out.slice(0, 60);
 }
 
+
+/* ---------- critères de recherche des lieux (page Lieux : localisation, type d'événement, type de lieu, convives) ---------- */
+const TYPES_LIEU = ['Péniche à quai', 'Bateau navigant', 'Loft', 'Appartement', 'Demeure', 'Salle de réception', 'Rooftop', 'Restaurant', 'Jardin ou domaine'];
+const EVENEMENTS_LIEU = ['Anniversaire', 'Mariage', 'Fiançailles', 'Pacs', 'Baptême', 'Bar/Bat Mitzvah', 'Réunion de famille', 'Réception entre amis', 'Soirée étudiante', 'Fête d’entreprise', 'Séminaire', 'Conférence', 'Réunion professionnelle', 'Repas d’affaires', 'After-work', 'Pot de départ', 'Présentation de produits', 'Remise de prix', 'Spectacle'];
+const DEPARTEMENTS_LIEU = { '75': 'Paris', '77': 'Seine-et-Marne', '78': 'Yvelines', '91': 'Essonne', '92': 'Hauts-de-Seine', '93': 'Seine-Saint-Denis', '94': 'Val-de-Marne', '95': 'Val-d’Oise' };
+const VILLES_DEPT = { paris: '75', boulogne: '92', sevres: '92', asnieres: '92', ivry: '94', versailles: '78' };
+const sansAccent = t => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+function departementLieu({ adresse = '', ville = '', ligne = '' } = {}) {
+  const cp = String(adresse).match(/\b(7[5789]|9[1-5])\d{3}\b/); if (cp) return cp[1];
+  const p = String(ligne).match(/\((\d{2})\)/); if (p && DEPARTEMENTS_LIEU[p[1]]) return p[1];
+  const v = sansAccent(ville + ' ' + ligne); for (const [k, d] of Object.entries(VILLES_DEPT)) if (v.includes(k)) return d;
+  return '';
+}
+/* lit la fiche du brouillon (texte de la page) : type de lieu, département, événements possibles */
+function criteresLieu(raw) {
+  const t = String(raw.texte || '').split('\n').map(x => x.trim());
+  const i = t.indexOf('Lieux de réception');
+  const typeBrut = i >= 0 ? t[i + 1] : '';
+  const type = TYPES_LIEU.find(x => sansAccent(x) === sansAccent(typeBrut)) || (typeBrut && typeBrut.length < 30 ? typeBrut : '');
+  const ligne = i >= 0 ? t[i + 3] : '';
+  const adr = raw.address || {};
+  const departement = departementLieu({ adresse: adr.streetAddress, ville: adr.addressLocality, ligne });
+  const norm = e => /mitzvah/i.test(e) ? 'Bar/Bat Mitzvah' : e.replace(/'/g, '’');
+  let evenements = [];
+  const j = t.indexOf('Pour vos événements');
+  if (j >= 0) for (let k = j + 1; k < t.length && t[k] && t[k].length < 40 && !/^Équipements/.test(t[k]); k++) evenements.push(norm(t[k]));
+  if (!evenements.length) { /* fiche rédigée en phrases : on repère les mots */
+    const txt = sansAccent(t.join(' '));
+    const mot = m => new RegExp('(^|[^a-z])' + sansAccent(m).replace(/[’']/g, "['’]").replace(/[/]/g, '.') + '($|[^a-z])').test(txt);
+    evenements = EVENEMENTS_LIEU.filter(e => mot(e) || (e === 'Fête d’entreprise' && /entreprise/.test(txt)) || (e === 'Séminaire' && /seminaire/.test(txt)));
+  }
+  evenements = [...new Set(evenements)].filter(e => EVENEMENTS_LIEU.includes(e)).sort((a, b) => EVENEMENTS_LIEU.indexOf(a) - EVENEMENTS_LIEU.indexOf(b));
+  return { type, departement, evenements };
+}
+
 async function seed(store, { force = false, log = console } = {}) {
   const deja = await store.get('site/reglages');
   if (deja && !force) return { fait: false };
@@ -156,6 +192,7 @@ async function seed(store, { force = false, log = console } = {}) {
       equipements: (l.amenityFeature || []).map(a => a.name), photos: (Array.isArray(l.image) ? l.image : [l.image]).filter(Boolean).map(s => s.replace(/^https:\/\/www\.magnoliatraiteur\.fr/, '')),
       prixTexte: l.offers?.price ? l.offers.price + ' €' : 'Sur devis',
       avis: (l.review || []).map(r => ({ auteur: r.author?.name || '', titre: r.name || '', texte: r.reviewBody || '' })),
+      ...criteresLieu(l),
     });
   }
   const avis = extraireAvis(data.pages?.['/temoignages']?.texte);
@@ -308,7 +345,7 @@ const CARTE_INDIEN = [
   ['desserts', 'Salade de fruits de Goa', 650], ['desserts', 'Pista kulfi', 650], ['desserts', 'Mango kulfi', 650], ['desserts', 'Halwa maison', 450], ['desserts', 'Kheer (riz au lait indien)', 450],
 ];
 const AMBIANCE_INDIEN = ['menu-client-1', 'menu-client-2', 'menu-client-3', 'menu-client-4', 'plat-seul-client-1', 'plat-seul-client-2', 'plat-seul-client-3'].map(n => N + n + '.webp.webp');
-const RANGEMENTS = [['buffets', 'Nos buffets'], ['entrees', 'Nos entrées à l’unité'], ['plats', 'Nos plats à l’unité'], ['accompagnements', 'Nos accompagnements à l’unité'], ['fromages', 'Nos fromages'], ['desserts', 'Nos desserts à l’unité'], ['divers', 'Produits divers à l’unité']];
+const RANGEMENTS = [['buffets', 'Nos buffets'], ['mezzes-froids', 'Nos mezzés froids à l’unité'], ['mezzes-chauds', 'Nos mezzés chauds à l’unité'], ['entrees', 'Nos entrées à l’unité'], ['plats', 'Nos plats à l’unité'], ['accompagnements', 'Nos accompagnements à l’unité'], ['fromages', 'Nos fromages'], ['desserts', 'Nos desserts à l’unité'], ['divers', 'Produits divers à l’unité']];
 /* « Riz oriental : + 1,50 € HT/personne. » → « Riz oriental » (supplément d'un menu, pas un nom de plat) */
 const SUPPL = /\s*:\s*\+\s*[\d.,]+\s*€.*$/;
 /* accompagnements (riz, gratins, alloco…) : demande de Jean-Luc du 2026-11-22 */
@@ -448,6 +485,19 @@ async function initSousRubriques(store, { log = console } = {}) {
     const rt = await store.get('produits/repas-servi-a-table-elabore-par-le-chef');
     if (rt && rt.prixCents == null) await store.set('produits/repas-servi-a-table-elabore-par-le-chef', { ...rt, prixCents: 4990, prixTexte: null, unite: 'personne', regles: { ...(rt.regles || {}), personnel: 'service' }, aCompleter: false });
     await store.set('site/reglages', { ...(await store.get('site/reglages')), carteSansDevis: true });
+  }
+  // une fois (Jean-Luc, 2026-11-24) : buffet libanais, « Nos entrées à l'unité » devient « Nos mezzés froids » et « Nos mezzés chauds ».
+  // Modifiable ensuite dans chaque fiche (liste « Section sur la page de la spécialité »).
+  const RLm = await store.get('rubriques/saveurs-du-monde');
+  if (RLm && !RLm.libanaisMezzes) {
+    const net = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+    const FROIDS = /^(houmous|feuilles? de vigne|salade|moutabal|taboule|caviar|moussake|labne|mouhamara|chankliche)/;
+    for (const d of await store.list('produits')) {
+      const p = d.data;
+      if (!p || p.sous !== 'buffet-libanais' || rangementDe(p) !== 'entrees') continue;
+      await store.set('produits/' + d.id, { ...p, rangement: FROIDS.test(net(p.titre)) ? 'mezzes-froids' : 'mezzes-chauds' });
+    }
+    await store.set('rubriques/saveurs-du-monde', { ...(await store.get('rubriques/saveurs-du-monde')), libanaisMezzes: true });
   }
   // une fois (Jean-Luc, 2026-11-22) : « Brochettes de Chich Taouk », 1 portion = 4 brochettes ; beignets libanais, 1 portion = 2 pièces
   const RLq = await store.get('rubriques/saveurs-du-monde');
@@ -691,6 +741,16 @@ async function initSousRubriques(store, { log = console } = {}) {
     }
   }
 
+  /* boissons sans photo (Jean-Luc, 2026-11-24) : une fois par fiche, et seulement si elle n'a pas de photo */
+  {
+    const parSlug = new Map(PHOTOS_BOISSONS.map(([slug, src, alt]) => [slug, { src, alt }]));
+    for (const d of await store.list('produits')) {
+      const x = d.data, ph = x && parSlug.get(x.slug || d.id);
+      if (!ph || x.photoBoisson || (x.photos || []).length) continue;
+      await store.set('produits/' + d.id, { ...x, photos: [ph], photoBoisson: true });
+    }
+  }
+
   /* vraies photos à la place des photos qui font « IA » (Jean-Luc, 2026-11-22) : posées une fois par fiche et par version,
      modifiables ensuite dans le back-office. Sources dans data/credits-photos-univers.md. */
   for (const [slug, ver, photos] of VRAIES_PHOTOS) {
@@ -880,6 +940,15 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('site/reglages', { ...(await store.get('site/reglages')), carteSections2: true });
   }
 
+  /* Vignette « La carte Magnolia » de l'accueil : souris d'agneau confite à la place du carpaccio sur fond vert (Jean-Luc, 2026-11-23).
+     Une fois, et seulement si la photo de la vignette n'a pas été changée au back-office. */
+  const RCm3 = await store.get('site/reglages');
+  if (RCm3 && !RCm3.carteVignette2) {
+    const cm = await store.get('rubriques/carte-magnolia'), ancienne = /carpaccio-de-tomates/;
+    if (cm && (!cm.photoAccueil || ancienne.test(cm.photoAccueil))) await store.set('rubriques/carte-magnolia', { ...cm, photoAccueil: '/site/c/carte-magnolia-photos/souris-dagneau-confite.webp.webp' });
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), carteVignette2: true });
+  }
+
   /* Ordre des vignettes d'univers de l'accueil (Jean-Luc, 2026-11-23) : la nourriture d'abord, « Traiteur végétarien et vegan »
      juste après « Coffrets & plateaux », « Petits-déjeuners » juste après « Animations sucrées », puis ce qui n'est pas de la
      nourriture (indispensables, personnel, musique, lieux) à la fin. Le reste garde son ordre. Une fois : réglable ensuite au back-office (champ « Ordre »). */
@@ -954,6 +1023,36 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('site/reglages', { ...(await store.get('site/reglages')), carteChinoise1: true });
   }
 
+  /* Buffet chinois : prix donnés par Jean-Luc (2026-11-23), plus de « Sur devis » : nems et raviolis aux légumes 1,10 € TTC pièce,
+     brochettes poulet à la citronnelle, bœuf fromage et poulet yakitori 1,90 € TTC pièce ;
+     nems aux crevettes 1,20 € pièce, perles coco 1 €, mochi 1,20 € ; à la portion : poulet citronnelle 14,90 €, boulettes 12,90 €,
+     riz sauté aux légumes 6,80 €, litchis (6 par portion) 1,50 €. Minimum 5. Recherche par titre (le slug dépend de l'import). */
+  const RCx = await store.get('site/reglages');
+  if (RCx && !RCx.chinoisPrixJL1) {
+    const PRIX = { 'nems aux legumes': [110, 'pièce'], 'raviolis aux legumes': [110, 'pièce'], 'brochettes poulet a la citronnelle': [190, null], 'brochettes boeuf fromage': [190, null], 'brochettes poulet yakitori': [190, null],
+      'nems aux crevettes': [120, 'pièce'], 'poulet a la citronnelle': [1490, 'portion'], 'boulettes de poulet piquantes et sucrees': [1290, 'portion'],
+      'riz saute aux legumes': [680, 'portion'], 'perles coco': [100, 'pièce'], 'mochi': [120, 'pièce'],
+      'litchis au sirop': [150, 'portion', 'Litchis au sirop, en portion de 6 litchis : servis frais, prêts à déguster.'] };
+    const cle = t => String(t || '').toLowerCase().replace(/œ/g, 'oe').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
+    for (const d of await store.list('produits')) {
+      const p = { id: d.id, ...d.data };
+      if (p.sous !== 'buffet-chinois' || !PRIX[cle(p.titre)]) continue;
+      const [prixCents, unite, extrait] = PRIX[cle(p.titre)];
+      await store.set('produits/' + p.id, { ...d.data, prixCents, ...(extrait ? { extrait } : {}), unite: unite || p.unite || 'pièce', min: 5, aCompleter: false,
+        ...(p.minimumTexte ? { minimumTexte: 'Minimum de commande : 5 ' + ({ brochette: 'brochettes', portion: 'portions' }[unite || p.unite] || 'pièces') } : {}) });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), chinoisPrixJL1: true });
+  }
+
+  /* Carte Magnolia : le bandeau du chef (Jean-Luc, 2026-11-23). La page prend d'abord bandeauPhoto, puis photoAccueil (vignette
+     de l'accueil), puis photo : on fixe donc bandeauPhoto pour que la vignette d'accueil ne remplace pas le bandeau. Vignette inchangée. */
+  const RChef = await store.get('site/reglages');
+  if (RChef && !RChef.carteBandeauChef2) {
+    const cm = await store.get('rubriques/carte-magnolia');
+    if (cm) await store.set('rubriques/carte-magnolia', { ...cm, bandeauPhoto: '/site/c/carte-magnolia-bandeau-chef.webp' });
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), carteBandeauChef2: true });
+  }
+
   /* Paëlla royale : retirer de la galerie les 3 photos d'ingrédients seuls (poulet, chorizo, crevettes) (Jean-Luc, 2026-11-23). */
   const RPr = await store.get('site/reglages');
   if (RPr && !RPr.paellaSansIngredients) {
@@ -974,6 +1073,58 @@ async function initSousRubriques(store, { log = console } = {}) {
       await store.set('produits/' + id, { ...p, photos: p.photos.map(ph => ph && ph.src === IA ? { src: VRAIE, alt: 'Pastels à la viande dorés' } : ph) });
     }
     await store.set('site/reglages', { ...(await store.get('site/reglages')), pastelVraiePhoto: true });
+  }
+
+  /* Les indispensables : une vraie photo par fiche matériel (à la place de la photo de serveuse ou de l'absence de photo),
+     doublons retirés (chaise bordeaux, 2e bain-marie), photo locale pour les samoussas légumes africains,
+     bandeau net de la Carte Magnolia (chef au dressage) (Jean-Luc, 2026-11-23). Sources : data/credits-photos-univers.md. */
+  const RMa = await store.get('site/reglages');
+  if (RMa && !RMa.materielPhotos1) {
+    const M = '/site/c/materiel/';
+    const PHOTOS = {
+      'petit-pack-traiteur-eco-responsable': ['pack-eco', 'Couverts en bois éco-responsables'],
+      'vaisselle-complete': ['vaisselle-complete', 'Assiettes, couverts et verres dressés sur une table'],
+      'decoration': ['decoration', 'Tables de mariage décorées de grands bouquets de fleurs blanches'],
+      'materiel-traiteur': ['materiel-traiteur', 'Verres à pied rangés sur un rack'],
+      'tente-de-reception-4-4-m': ['tente-4x4', 'Tentes de réception carrées à voilages, éclairées le soir'],
+      'grand-pack-traiteur-vaisselle-en-dur': ['grand-pack', 'Vaisselle en porcelaine, verres en verre et couverts en inox sur table nappée'],
+      'nappage-170-250-cm': ['nappage', 'Table dressée sur une grande nappe blanche'],
+      'mange-debout': ['mange-debout', 'Mange-debout sans nappe'],
+      'nappe-rectangulaire-170-250-cm': ['nappe-rectangulaire', 'Table rectangulaire avec nappe blanche'],
+      'chaise-pliante-de-luxe-en-velours-bordeaux': ['chaise-velours', 'Chaises dorées en velours bordeaux'],
+      'verres-en-verre-vin-coupes-a-champagne': ['verres-vin-coupes', 'Coupes à champagne en verre'],
+      'verres-reutilisables-eco-responsables': ['verres-reutilisables', 'Gobelets réutilisables empilés'],
+      'set-de-vaisselle-complet-par-personne': ['set-complet', 'Assiettes, couverts et verre à pied'],
+      'set-de-vaisselle-sans-verrerie-par-personne': ['set-sans-verrerie', 'Assiettes en porcelaine blanche'],
+      'set-de-vaisselle-dessert-par-personne': ['set-dessert', 'Assiette à dessert et fourchette'],
+      'bain-marie-chafing-dish-premier-modele': ['chafing-dish', 'Bains-marie (chafing dishes) sur un buffet'],
+      'four-a-pizza': ['four-pizza-mobile', 'Four à pizza mobile sur remorque'],
+      'chauffeur-prive-berlines-et-vans': ['chauffeur-prive', 'Chauffeur ouvrant la porte d’une berline'],
+    };
+    for (const [id, [f, alt]] of Object.entries(PHOTOS)) {
+      const p = await store.get('produits/' + id); if (!p) continue;
+      await store.set('produits/' + id, { ...p, photos: [{ src: M + f + '.webp', alt }] });
+    }
+    const t = await store.get('produits/table-rectangulaire-200-60-cm-6-a-8-personnes');
+    if (t && !(t.photos || []).length) await store.set('produits/table-rectangulaire-200-60-cm-6-a-8-personnes', { ...t, photos: [{ src: '/site/c/table-rectangulaire-client-20261101.webp.webp', alt: 'Table pliante rectangulaire sans nappe' }] });
+    const ancienne = await store.get('produits/chaises-pliantes-bordeaux'), luxe = await store.get('produits/chaise-pliante-de-luxe-en-velours-bordeaux');
+    if (ancienne && luxe) {
+      if (luxe.prixCents == null && ancienne.prixCents != null) await store.set('produits/chaise-pliante-de-luxe-en-velours-bordeaux', { ...(await store.get('produits/chaise-pliante-de-luxe-en-velours-bordeaux')), prixCents: ancienne.prixCents, prixTexte: ancienne.prixTexte, unite: ancienne.unite || 'chaise', aCompleter: false });
+      await store.delete('produits/chaises-pliantes-bordeaux');
+    }
+    const bm = await store.get('produits/bain-marie-chafing-dish-premier-modele');
+    if (bm) {
+      await store.set('produits/bain-marie-chafing-dish-premier-modele', { ...(await store.get('produits/bain-marie-chafing-dish-premier-modele')), titre: 'Bain-marie (chafing dish)' });
+      if (await store.get('produits/bain-marie-chafing-dish-second-modele')) await store.delete('produits/bain-marie-chafing-dish-second-modele');
+    }
+    const SAM = 'https://images.pexels.com/photos/4449068/pexels-photo-4449068.jpeg?auto=compress&cs=tinysrgb&w=1600';
+    for (const { id, data: p } of await store.list('produits')) {
+      if (!Array.isArray(p.photos) || !p.photos.some(ph => ph && ph.src === SAM)) continue;
+      await store.set('produits/' + id, { ...p, photos: p.photos.map(ph => ph && ph.src === SAM ? { ...ph, src: M + 'samoussas-legumes.webp' } : ph) });
+    }
+    const cm = await store.get('rubriques/carte-magnolia');
+    if (cm) await store.set('rubriques/carte-magnolia', { ...cm, photo: '/site/c/carte-magnolia-bandeau-chef.webp' });
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), materielPhotos1: true });
   }
 
   /* paragraphe de présentation de chaque rubrique et de la page Lieux (Jean-Luc, 2026-11-22). Posé une fois, seulement si vide. */
@@ -1044,6 +1195,49 @@ async function initSousRubriques(store, { log = console } = {}) {
     const adresse = !RL.adresse || /^15 rue de Norv/.test(RL.adresse) ? '15 avenue de Norvège, 91140 Villebon-sur-Yvette' : RL.adresse;
     await store.set('site/reglages', { ...RL, adresse, origine: { ...(RL.origine || {}), ...ORIGINE_LABO },
       tarifs: { ...(RL.tarifs || {}), livraisonOfferteCents: RL.tarifs?.livraisonOfferteCents ?? 70000 }, zoneLivraison2026: true });
+  }
+
+  /* acompte (Jean-Luc, 2026-11-24) : 50 % au-dessus de 800 € TTC, totalité en dessous. Une fois :
+     réglages mis à jour et devis non signés repassés en « automatique ». */
+  const RAc = await store.get('site/reglages');
+  if (RAc && !RAc.acompte800) {
+    await store.set('site/reglages', { ...RAc, tarifs: { ...(RAc.tarifs || {}), acomptePct: 50, seuilAcompteCents: 80000 }, acompte800: true });
+    for (const { id, data: d } of await store.list('devis')) {
+      if (['brouillon', 'envoye'].includes(d.statut) && d.acomptePct != null) await store.set('devis/' + id, { ...d, acomptePct: null });
+    }
+  }
+  /* CGV de traiteur (Jean-Luc, 2026-11-24) : remplacent celles de loueur de salle reprises du brouillon. Une fois ;
+     ensuite modifiables dans Back-office > Outils (pages de texte). */
+  const RCg = await store.get('site/reglages');
+  if (RCg && !RCg.cgvTraiteur) {
+    const pid = slugify('/cgv'), avant = (await store.get('pages/' + pid)) || {};
+    const texte = fs.readFileSync(require('path').join(__dirname, '..', 'data', 'cgv-traiteur.txt'), 'utf8').trim();
+    await store.set('pages/' + pid, { ...avant, url: '/cgv', titre: 'Conditions générales de vente', texte, ...(avant.texte ? { texteAncien: avant.texte } : {}) });
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), cgvTraiteur: true });
+  }
+  /* Mon entreprise (2026-11-24) : CGV reliées aux informations de l'entreprise. Une fois, si le texte n'a pas été retouché. */
+  const REn = await store.get('site/reglages');
+  if (REn && !REn.cgvEntreprise) {
+    const pid = slugify('/cgv'), pg = await store.get('pages/' + pid);
+    if (pg?.texte && REn.cgvTraiteur) {
+      const neuf = fs.readFileSync(require('path').join(__dirname, '..', 'data', 'cgv-traiteur.txt'), 'utf8').trim();
+      const ancien = neuf.replace('{{identite}}', "Magnolia Traiteur, 15 avenue de Norvège, 91140 Villebon-sur-Yvette. SIREN 992 979 856, TVA intracommunautaire FR31992979856. Téléphone : 07 63 66 98 92. E-mail : infos@magnoliatraiteur.fr.")
+        .replace('{{mediateur}} et conserve', 'un médiateur de la consommation, dont les coordonnées lui sont communiquées sur simple demande, et conserve').replace('du {{tribunal}}.', "du tribunal de commerce d'Évry.");
+      if (pg.texte.trim() === ancien) await store.set('pages/' + pid, { ...pg, texte: neuf });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), entreprise: { raisonSociale: 'Magnolia Traiteur', siren: '992 979 856', tva: 'FR31992979856', rcs: 'Évry', tribunal: 'tribunal de commerce d’Évry', site: 'magnoliatraiteur.fr', ...(REn.entreprise || {}) }, cgvEntreprise: true });
+  }
+  /* recherche multicritère de la page Lieux (Jean-Luc, 2026-11-23) : type de lieu, département et événements repris
+     des fiches du brouillon. Une fois, sans écraser ce qui a été saisi au back-office (Back-office > Lieux). */
+  const RLx = await store.get('site/reglages');
+  if (RLx && !RLx.lieuxCriteres) {
+    const bruts = new Map((lireBrouillon().data?.lieux || []).map(l => [l.slug, l]));
+    for (const { id, data: l } of await store.list('lieux')) {
+      const b = bruts.get(l.slug || id), cr = b ? criteresLieu(b) : { type: '', evenements: [], departement: departementLieu({ adresse: l.adresse, ville: l.ville }) };
+      const next = { ...l, type: l.type || cr.type, departement: l.departement || cr.departement, evenements: l.evenements?.length ? l.evenements : cr.evenements };
+      if (JSON.stringify(next) !== JSON.stringify(l)) await store.set('lieux/' + id, next);
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), lieuxCriteres: true });
   }
 }
 
@@ -1220,7 +1414,27 @@ const VRAIES_PHOTOS = [
     ['/site/c/italien22-produits/mozzarella-tomates-sans-logo-20261106.webp.webp', 'Brochettes mozzarella et tomates cerises'], ['/site/c/italien22-produits/cake-jambon-olives-sans-logo-20261106.webp.webp', 'Cake jambon et olives'],
     ['/site/c/italien22-produits/gressins-sans-logo-20261106.webp.webp', 'Gressins'], ['/site/c/italien22-produits/olives-sans-logo-20261106.webp.webp', 'Olives noires']]],
   ['samoussa-legumes', 'v1', [['https://images.pexels.com/photos/9027521/pexels-photo-9027521.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Samoussas aux légumes croustillants, chutneys vert et tamarin']]],
-  ['samoussas-legumes', 'v1', [['https://images.pexels.com/photos/4449068/pexels-photo-4449068.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Samoussas aux légumes dorés dans une corbeille, sauces à côté']]],
+  ['samoussas-legumes', 'v1', [['/site/c/materiel/samoussas-legumes.webp', 'Samoussas aux légumes dorés dans une corbeille, sauces à côté']]],
+];
+/* Boissons sans photo (Jean-Luc, 2026-11-24) : vraies photos libres, regardées une à une, sans étiquette lisible.
+   Posées une fois, seulement si la fiche n'a toujours pas de photo. Sources dans data/credits-photos-univers.md */
+const PHOTOS_BOISSONS = [
+  ['bordeaux-rouge-videau-origine', 'https://images.pexels.com/photos/2954929/pexels-photo-2954929.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Verre de vin rouge au milieu des vignes'],
+  ['chateau-la-gordonne-verite-du-terroir', 'https://images.pexels.com/photos/8473211/pexels-photo-8473211.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Bouteille et verre de vin rouge, grappe de raisin'],
+  ['cuvee-constance-2020-thunevin-calvet', 'https://images.pexels.com/photos/312080/pexels-photo-312080.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Vin rouge versé dans un verre'],
+  ['maranges-1er-cru-clos-des-loyeres-2022-chateau-de-la-charriere-yves-girardin', 'https://images.pexels.com/photos/3171158/pexels-photo-3171158.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Service d’un vin rouge de Bourgogne'],
+  ['bourgogne-hautes-cotes-de-beaune-2022', 'https://images.pexels.com/photos/391213/pexels-photo-391213.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Vin rouge versé dans un grand verre'],
+  ['cotes-de-provence-rose-cuvee-du-golfe-prestige', 'https://images.pexels.com/photos/4906328/pexels-photo-4906328.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Verre de rosé de Provence'],
+  ['pink-flamingo-origine-gris-de-camargue-bio', 'https://images.pexels.com/photos/9009956/pexels-photo-9009956.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Deux verres de gris de Camargue au bord de la mer'],
+  ['chardonnay-bio-du-domaine-royal-de-jarras', 'https://images.pexels.com/photos/3171735/pexels-photo-3171735.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Verre de vin blanc'],
+  ['chablis-1er-cru-montmains-2022-jean-marc-brocard', 'https://images.pexels.com/photos/30279443/pexels-photo-30279443.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Chablis versé dans un verre'],
+  ['sangria-maison-au-litre', '/site/c/boissons/sangria-maison.webp', 'Sangria rouge et blanche aux fruits frais'],
+  ['bar-a-shots-a-volonte-1-h-30', 'https://images.pexels.com/photos/17383864/pexels-photo-17383864.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Rangée de shots sur un bar'],
+  ['bar-a-cocktails-4-h-au-cocktail', 'https://images.pexels.com/photos/16807989/pexels-photo-16807989.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Barman qui prépare des cocktails'],
+  ['open-bar-vins-et-champagnes', 'https://images.pexels.com/photos/3171837/pexels-photo-3171837.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Invités qui trinquent au champagne'],
+  ['open-bar-alcools-forts-a-volonte-5-h', 'https://images.pexels.com/photos/28180061/pexels-photo-28180061.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Verre de whisky avec glaçons et citron'],
+  ['livraison-de-glacons-sac-de-20-kg', 'https://images.pexels.com/photos/11931271/pexels-photo-11931271.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Glaçons'],
+  ['gobelet-reutilisable-a-biere-50-cl', 'https://images.pexels.com/photos/4996689/pexels-photo-4996689.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Bière servie dans un gobelet réutilisable'],
 ];
 const PHOTOS_FICHES = [
   [/^air hockey/i, 'https://images.pexels.com/photos/5780929/pexels-photo-5780929.jpeg?auto=compress&cs=tinysrgb&w=1200', 'Table d’air hockey lumineuse'],
@@ -1363,4 +1577,4 @@ const VIGNETTES_UNIVERS = {
   'boissons': pexels(5531479), // barman qui sert un cocktail (Jean-Luc ne voulait pas d'un bar)
 };
 
-module.exports = { RANGEMENTS, rangementDe, SPE_TEXTES, initSousRubriques, classerSous, SOUS_DEFAUT, importerAvisAncienSite, dateIso, seed, REGLAGES_DEFAUT, MODELES_DEFAUT, extraireAvis };
+module.exports = { TYPES_LIEU, EVENEMENTS_LIEU, DEPARTEMENTS_LIEU, criteresLieu, departementLieu, RANGEMENTS, rangementDe, SPE_TEXTES, initSousRubriques, classerSous, SOUS_DEFAUT, importerAvisAncienSite, dateIso, seed, REGLAGES_DEFAUT, MODELES_DEFAUT, extraireAvis };
