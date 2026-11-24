@@ -995,7 +995,7 @@ async function initSousRubriques(store, { log = console } = {}) {
   const RAv = await store.get('site/reglages');
   if (RAv && !RAv.animationsVideos1) {
     const VA = {
-      'pizzaiolo-a-domicile': 'pizzaiolo', 'bar-a-burrata': 'burrata', 'animation-barbecue': 'barbecue', 'animation-ti-punch-acras-et-boudins': 'acras',
+      'pizzaiolo-a-domicile': 'pizzaiolo', 'bar-a-burrata': 'burrata', 'animation-barbecue': 'barbecue-flammes', 'animation-ti-punch-acras-et-boudins': 'acras',
       'stand-a-burgers': 'burgers', 'bar-a-pates': 'bar-a-pates', 'chef-sushi-a-domicile': 'sushi', 'bar-a-saumon-fume': 'saumon',
       'bar-a-foie-gras': 'foie-gras', 'bar-a-huitres': 'huitres', 'saint-jacques-a-la-plancha': 'saint-jacques', 'stand-show-a-volonte-pieces-chaudes': 'show',
       'animation-barbe-a-papa-a-volonte': 'barbe-a-papa', 'animation-fontaine-a-chocolat': 'fontaine-chocolat', 'crepes-a-volonte': 'crepes',
@@ -1007,6 +1007,64 @@ async function initSousRubriques(store, { log = console } = {}) {
       await store.set('produits/' + id, { ...p, video: { src: `/site/v/animations/${n}.mp4`, poster: `/site/v/animations/${n}.jpg` } });
     }
     await store.set('site/reglages', { ...(await store.get('site/reglages')), animationsVideos1: true });
+  }
+  /* Retouches (Jean-Luc, 2026-11-24 soir) : barbecue avec de vraies flammes (les brochettes « pas jolies ») et pâtes à la meule
+     avec une flamme qui bouge (aucune vidéo libre de meule flambée : pâtes flambées à la poêle). Une fois ; une vidéo choisie
+     à la main dans le back-office n'est pas touchée. */
+  const RAv2 = await store.get('site/reglages');
+  if (RAv2 && !RAv2.animationsVideos2) {
+    const V2 = { 'animation-barbecue': ['barbecue-flammes', '/site/v/animations/barbecue.mp4'], 'animation-pates-a-la-meule-de-parmesan': ['pates-flambees', ''] };
+    for (const { id, data: p } of await store.list('produits')) {
+      const v = V2[p.slug || id];
+      if (!v || (p.video?.src && p.video.src !== v[1])) continue;
+      await store.set('produits/' + id, { ...p, video: { src: `/site/v/animations/${v[0]}.mp4`, poster: `/site/v/animations/${v[0]}.jpg` } });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), animationsVideos2: true });
+  }
+  /* Photo filigranée « Adobe Stock » (pâtes à la meule, reprise du brouillon, sans licence) retirée de toutes les fiches, une fois
+     (Jean-Luc : aucune photo avec texte ou logo). La fiche garde sa vidéo. */
+  const RWm = await store.get('site/reglages');
+  if (RWm && !RWm.sansFiligrane1) {
+    /* photos retirées (filigrane ou logo d'un autre site) : parmesan Adobe Stock, gratin de bananes plantain
+       (logo de blog en bas à gauche, 2 copies). La photo de la roulade de féta portait « iamhungry.fr » :
+       remplacée par une vraie photo libre (Pexels 4198401, roulés de pâte filo au fromage). */
+    const FILIGRANE = ['/site/c/parmesan42.jpg.webp',
+      '/site/c/africain-boutique/gratin-de-bananes-plantin-250g-la-part-2.webp.webp',
+      '/site/c/antilles-site/gratin-de-bananes-plantin-250g-la-part-2-20261101.webp.webp'];
+    const FETA = '/site/c/libanais-produits/feta-sans-logo-20261106.webp.webp';
+    /* même passe : la cuisse de poulet grillé (buffet africain) affichait une image Shutterstock prise sur un blog,
+       remplacée par une vraie photo libre (Pexels 41076603, pilons grillés sur planche, citron vert) */
+    const SHUTTER = 'https://img.fourchette-et-bikini.fr/660x495/2022-06/shutterstock_1893973672.jpg';
+    const REMPLACE = { [SHUTTER]: { src: pexels(41076603), alt: 'Pilons de poulet grillés, citron vert et herbes' },
+      [FETA]: { src: pexels(4198401), alt: 'Roulades de fromage en pâte filo' } };
+    for (const { id, data: p } of await store.list('produits')) {
+      let change = false;
+      const photos = (p.photos || []).filter(ph => !FILIGRANE.includes(ph.src))
+        .map(ph => REMPLACE[ph.src] ? { ...REMPLACE[ph.src], alt: ph.alt || REMPLACE[ph.src].alt } : ph);
+      if (photos.length !== (p.photos || []).length || photos.some((ph, i) => ph !== p.photos[i])) change = true;
+      const groupes = (p.groupes || []).map(g => ({ ...g, options: (g.options || []).map(o => {
+        if (!Array.isArray(o.photos)) return o;
+        const ph2 = o.photos.filter(s => !FILIGRANE.includes(s)).map(s => REMPLACE[s] ? REMPLACE[s].src : s);
+        if (ph2.length === o.photos.length && ph2.every((s, i) => s === o.photos[i])) return o;
+        change = true; return { ...o, photos: ph2 };
+      }) }));
+      if (change) await store.set('produits/' + id, { ...p, photos, ...(p.groupes ? { groupes } : {}) });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), sansFiligrane1: true });
+  }
+
+  /* Grand pack traiteur avec vasque : la photo était une affiche pleine de texte (« Détails des éléments livrés »),
+     contraire à la règle de Jean-Luc (pas de photo avec texte ni brochure). Remplacée une fois par une vraie photo
+     libre : vasque à champagne, flûtes et serviettes blanches (Pexels 37558708). */
+  const RGp = await store.get('site/reglages');
+  if (RGp && !RGp.grandPackPhoto1) {
+    const AFFICHE = '/site/c/antilles-unit/produit-23.webp.webp';
+    for (const { id, data: p } of await store.list('produits')) {
+      if (!(p.photos || []).some(ph => ph.src === AFFICHE)) continue;
+      await store.set('produits/' + id, { ...p, photos: p.photos.map(ph => ph.src === AFFICHE
+        ? { src: pexels(37558708), alt: 'Vasque à champagne, flûtes et serviettes blanches sur le buffet' } : ph) });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), grandPackPhoto1: true });
   }
 
   /* La carte Magnolia en sections : Entrées, Plats, Plateau de fromages, Desserts (Jean-Luc, 2026-11-22).

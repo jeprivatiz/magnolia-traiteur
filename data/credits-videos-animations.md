@@ -7,9 +7,10 @@ Recadrées en 4:3 (800 × 600), muettes, en boucle avec un fondu, dans `public/s
 |---|---|---|
 | Pizzaiolo à domicile | pizzaiolo | https://www.pexels.com/video/6603321/ (Chef Making Pizza in the Oven) |
 | Bar à burrata | burrata | https://www.pexels.com/video/29966863/ (Fresh Burrata and Cherry Tomato Salad) |
-| Animation barbecue | barbecue | https://www.pexels.com/video/8522954/ (Barbecue on a Grill) |
+| Animation barbecue | barbecue-flammes | https://www.pexels.com/video/27641728/ (A person is cooking food on a grill), flammes vives |
 | Animation ti punch, acras & boudins | acras | https://www.pexels.com/video/29544740/ (Crispy Golden Fritters Frying), recadrée sur la poêle |
 | Stand à burgers | burgers | https://www.pexels.com/video/34556299/ (Juicy Grilled Burgers with Melting Cheese) |
+| Animation pâtes à la meule de parmesan | pates-flambees | https://www.pexels.com/video/40801697/ (Professional Chef Flambé Cooking Technique) : flambage à la poêle, faute de vidéo libre d'une meule flambée |
 | Bar à pâtes | bar-a-pates | https://www.pexels.com/video/8964471/ (A Person Tossing a Creamy Pasta on a Pan) |
 | Chef sushi à domicile | sushi | https://www.pexels.com/video/8901981/ (A Man Slicing Sushi Roll) |
 | Bar à saumon fumé | saumon | https://www.pexels.com/video/8901914/ (A Person Slicing a Salmon Fillet) |
@@ -25,5 +26,5 @@ Recadrées en 4:3 (800 × 600), muettes, en boucle avec un fondu, dans `public/s
 | Animation pop-corn | pop-corn | https://www.pexels.com/video/6148577/ (A Close-Up Shot of Popcorn) |
 | Animation de gaufre | gaufres | https://www.pexels.com/video/37210937/ (Delicious Waffles with Fresh Berries and Mint) |
 
-Non trouvé en vidéo libre correcte (photo gardée) : pâtes mélangées dans une meule de parmesan ; sorbet coco à l'ancienne
+Non trouvé en vidéo libre correcte : meule de parmesan flambée (Pexels, Pixabay, Mixkit vérifiés) ; sorbet coco (photo gardée) à l'ancienne
 (animation sorbet coco à l'antillaise, stand avec hôtesse, stand sans hôtesse).
