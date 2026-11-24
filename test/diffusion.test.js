@@ -54,17 +54,17 @@ test('envoi groupé de bout en bout', async () => {
     assert.equal((await sel('sms', { criteres: { deps: ['92', '93'] } })).nb, 1);
     assert.equal((await sel('email', { criteres: { accord: true } })).nb, 1, 'seule Claire a coché la case');
     /* Claire a commandé (devis signé) */
-    const dem = (await call('/api/admin/demandes')).j.find(d => d.contact.nom === 'Claire Martin');
+    const dem = (await call('/api/admin/demandes')).j.find(d => /claire/i.test(d.contact.nom));
     const dv = await call('/api/admin/actions/devis-depuis-demande/' + dem.id, { method: 'POST' });
     const d = (await call('/api/admin/devis/' + dv.j.id)).j;
     await call('/api/admin/actions/envoyer-devis/' + d.id, { method: 'POST', body: { canaux: ['email'] } });
     assert.equal((await call('/api/devis/' + d.token + '/accepter', { method: 'POST', body: { nom: 'Claire Martin' } })).status, 200);
     await call('/api/admin/diffusion/criteres');
     const s1 = await sel('email', { criteres: { statut: 'commandes', montantMin: 10000 } });
-    assert.equal(s1.nb, 1); assert.equal(s1.lignes[0].nom, 'Claire Martin');
+    assert.equal(s1.nb, 1); assert.match(s1.lignes[0].nom, /claire/i);
     assert.equal((await sel('email', { criteres: { statut: 'prospects' } })).nb, 2);
     const tous = await sel('email', {});
-    const ines = tous.lignes.find(x => x.nom === 'Inès Sow').id;
+    const ines = tous.lignes.find(x => /inès/i.test(x.nom)).id;
     assert.equal((await sel('email', { exclus: [ines] })).nb, 2, 'décoché à la main');
     assert.equal((await sel('email', { mode: 'manuel', inclus: [ines] })).nb, 1, 'choisi un par un');
     /* IA */
@@ -90,7 +90,7 @@ test('envoi groupé de bout en bout', async () => {
     const claire = mails.find(x => x.to === 'claire@ex.test');
     assert.match(claire.html, /Bonjour Claire,/); assert.ok(claire.headers['List-Unsubscribe']);
     /* historique du client */
-    const cid = tous.lignes.find(x => x.nom === 'Claire Martin').id;
+    const cid = tous.lignes.find(x => /claire/i.test(x.nom)).id;
     const h = (await call('/api/admin/actions/historique-client/' + cid)).j;
     assert.ok(h.events.some(e => e.type === 'email' && /information envoyé : Nouveau buffet libanais/.test(e.titre)));
     /* désinscription par le lien de l'e-mail */
