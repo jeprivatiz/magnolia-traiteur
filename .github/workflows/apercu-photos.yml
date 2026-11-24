@@ -1,0 +1,20 @@
+name: Aperçu photos (temporaire)
+on:
+  push:
+    branches: [claude/project-thread-3o9pyz]
+    paths:
+      - .github/workflows/apercu-photos.yml
+permissions:
+  contents: write
+jobs:
+  dl:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          mkdir -p apercu-photos && cd apercu-photos
+          for i in 17001807 2306282 4717558; do curl -fsSL -A "Mozilla/5.0" -o "$i.jpg" "https://images.pexels.com/photos/$i/pexels-photo-$i.jpeg?auto=compress&cs=tinysrgb&w=2000" || echo "échec $i"; done
+          ls -la
+      - run: |
+          git config user.name "magnolia-bot"; git config user.email "magnolia-bot@users.noreply.github.com"
+          git add apercu-photos; git commit -m "Aperçu photos (temporaire)" && git push
