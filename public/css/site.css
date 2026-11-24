@@ -1170,3 +1170,8 @@ body.noscroll .partage { display: none; }
   .cm-couv { transform: rotateY(-178deg); }
   .cm-ombre { transform: scale(1.9, 1.05); }
 }
+
+/* boutique : démonstration automatique des filtres (site.js) */
+.shop [data-grid] { transition: opacity .38s ease; }
+.shop [data-grid].demo-fondu { opacity: 0; }
+.chips[role="tablist"] .chip { transition: border-color .5s, background .5s, color .5s; }
