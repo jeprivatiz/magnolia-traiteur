@@ -69,6 +69,10 @@
   const UNITES = ['personne', 'pièce', 'portion', 'plateau', 'coffret', 'corbeille', 'gâteau', 'forfait', 'prestation', 'heure', 'location', 'bouteille', 'lot de 6', 'conditionnement', 'litre', 'table', 'chaise', 'km', 'unité'];
   const ALLERGENES = ['Gluten', 'Crustacés', 'Œufs', 'Poissons', 'Arachides', 'Soja', 'Lait', 'Fruits à coque', 'Céleri', 'Moutarde', 'Sésame', 'Sulfites', 'Lupin', 'Mollusques'];
   let session = null, cache = {};
+  /* droits détaillés du compte connecté (Équipe & activité) ; « Administrateur » a tout */
+  const peut = k => !!session?.droits?.[k];
+  const DROIT_ECRAN = { factures: 'factures', catalogue: 'produits', lieux: 'produits', site: 'site', avis: 'site', medias: 'site', entreprise: 'entreprise', outils: ['outils', 'fichiers'] };
+  const voitEcran = r => { const d = DROIT_ECRAN[r]; return !d || [].concat(d).some(peut); };
 
   /* ---------- structure ---------- */
   /* menu « Espace équipe » comme Je Privatise : CRM regroupe Demandes de devis, Suivi client, Devis et Factures */
@@ -97,15 +101,16 @@
   function shell(inner, cur) {
     const open = CRM.includes(cur) || mem.get('mg_crm') === '1';
     const nb = cache.nouvelles ? String(cache.nouvelles) : '';
-    const item = m => m[0] === '-' ? '<hr>'
+    const item = m => m[0] !== '-' && m[0] !== 'crm' && !voitEcran(m[0]) ? '' : m[0] === '-' ? '<hr>'
       : m[0] === 'crm' ? `<button type="button" class="chip crm-btn" data-tab="crm" data-crm aria-expanded="${open}" title="Demandes de devis, Suivi client, Devis, Factures, Clients">CRM<span>${nb}</span></button>`
       : `<a href="#/${m[0]}" data-tab="${m[0]}" class="chip${CRM.includes(m[0]) ? ' crm-sub' : ''}${cur === m[0] ? ' on' : ''}"${cur === m[0] ? ' aria-current="page"' : ''}>${m[1]}${m[0] === 'demandes' ? `<span>${nb}</span>` : ''}</a>`;
     return `<div class="bo">
       <aside class="side" id="side"><a class="logo" href="#/"><img src="/brand/monogramme.svg" alt=""><span>Magnolia<small>Back-office</small></span></a><a class="go-site" href="/" target="_blank" rel="noopener">🌐 Aller sur le site ↗</a>
-      <nav class="tabs${open ? ' crm-open' : ''}"><p class="tabs-lab">Espace équipe</p>${MENU.map(item).join('')}</nav>
-      <div class="me"><span>${esc(session.nom || session.email)}<small>${session.role === 'manager' ? 'Manager' : 'Collaborateur'}</small></span><button class="lnk" data-logout>Déconnexion</button></div></aside>
+      <nav class="tabs${open ? ' crm-open' : ''}"><p class="tabs-lab">Espace équipe</p>${MENU.filter(m => m[0] === '-' || m[0] === 'crm' || voitEcran(m[0])).filter((m, i, l) => m[0] !== '-' || (i > 0 && l[i - 1][0] !== '-' && i < l.length - 1)).map(item).join('')}</nav>
+      <div class="me"><span>${esc(session.nom || session.email)}<small>${peut('admin') ? 'Administrateur' : peut('toutes') ? 'Équipe' : 'Commercial · ses dossiers'}</small></span><button class="lnk" data-logout>Déconnexion</button></div></aside>
       <div class="main"><header class="mtop"><button class="burger" data-burger aria-label="Menu">☰</button><span class="mtitle">${esc((MENU.find(m => m[0] === cur) || [, ''])[1])}</span><a class="go-site sm" href="/" target="_blank" rel="noopener">🌐 Le site ↗</a></header><div class="content">${inner}</div></div></div>`;
   }
+  const sansAcces = async () => `<div class="ph"><h1>Accès non autorisé</h1></div><section class="box"><p>Votre compte n’a pas le droit d’ouvrir cet écran.</p><p class="muted sm">Un administrateur peut vous le donner dans <b>Équipe &amp; activité</b>, en cochant la case qui correspond.</p><a class="btn" href="#/">← Tableau de bord</a></section>`;
   const page = (titre, actions, body) => `<div class="ph"><h1>${titre}</h1><div class="pa">${actions || ''}</div></div>${body}`;
 
   /* ---------- routeur ---------- */
@@ -130,7 +135,9 @@
     if (!session) return login();
     const [route, id, sub] = location.hash.replace(/^#\/?/, '').split('?')[0].split('/');
     const views = { '': dashboard, demandes, suivi, devis, factures, agenda, clients, catalogue, produit, lieux, lieu, site, avis, medias, entreprise, equipe, outils };
-    const fn = route === 'catalogue' && id ? produit : route === 'lieux' && id ? lieu : views[route] || dashboard;
+    let fn = route === 'catalogue' && id ? produit : route === 'lieux' && id ? lieu : views[route] || dashboard;
+    if (!voitEcran(route)) fn = sansAcces;
+    if (!peut('toutes') && typeof SV !== 'undefined') { SV.o = ''; mem.set('mg_commercial', ''); } /* « seulement ses opportunités » : pas de filtre sur un autre commercial */
     if (CRM.includes(route)) mem.set('mg_crm_last', route);
     if (!cache.nouvelles && cache.nouvelles !== 0) api(A + '/demandes').then(l => { cache.nouvelles = l.filter(d => aTraiter(d, cache.devisL || [])).length; $$('#side .chip[data-tab=demandes] span, #side .crm-btn span').forEach(x => { x.textContent = cache.nouvelles || ''; }); }).catch(() => {});
     app.innerHTML = shell('<p class="muted">Chargement…</p>', route === 'produit' ? 'catalogue' : route);
@@ -694,8 +701,8 @@
     const effacable = d => d.statut !== 'accepte';
     const filtre = `<div class="dv-who"><span class="qs-olab">Commercial</span><label class="qs-csel"><span aria-hidden="true">👤</span><select data-dvcom aria-label="Choisir le commercial"><option value=""${!qui ? ' selected' : ''}>Tous les commerciaux</option>${noms.map(n => `<option value="${esc(n)}"${qui === n ? ' selected' : ''}>${esc(n)}</option>`).join('')}<option value="—"${qui === '—' ? ' selected' : ''}>Sans commercial</option></select></label><span class="muted sm">${list.length} devis${qui ? ` · ${euros(list.reduce((t, d) => t + tot(d).ttc, 0))} TTC` : ''}</span></div>`;
     if (tous.length && !list.length) return page('Devis', '<button type="button" class="btn ghost aq-btn" data-aiq>✨ Devis avec l’IA</button><a class="btn" href="#/devis/nouveau">+ Nouveau devis</a>', filtre + '<div class="vide"><p>Aucun devis pour ce commercial.</p></div>');
-    return page('Devis', '<button type="button" class="btn ghost aq-btn" data-aiq>✨ Devis avec l’IA</button><a class="btn" href="#/devis/nouveau">+ Nouveau devis</a>', list.length ? `${filtre}<div class="row sel-bar"><button type="button" class="btn danger sm" data-effacer disabled>🗑 Effacer</button><span class="muted sm" data-nbsel>Cochez les devis à effacer.</span></div><div class="table"><table><thead><tr><th class="ck"><input type="checkbox" data-tout aria-label="Tout cocher" title="Tout cocher"></th><th>N°</th><th>Client</th><th>Nature de l’événement</th><th>Date</th><th class="n">Personnes</th><th>Commercial</th><th class="n">Total TTC</th><th>Statut</th><th>Vu par le client</th></tr></thead><tbody>
-      ${list.map(d => `<tr data-href="#/devis/${d.id}"><td class="ck">${effacable(d) ? `<input type="checkbox" data-sel="${esc(d.id)}" data-num="${esc(d.numero)}" data-st="${esc(d.statut)}" aria-label="Sélectionner ${esc(d.numero)}">` : '<span title="Devis signé : ne peut pas être effacé">🔒</span>'}</td><td class="nw"><b>${esc(d.numero)}</b></td><td>${esc(d.clientNom)}</td><td>${esc(d.evenement?.type || '—')}</td><td class="nw">${d.evenement?.date ? dateFr(d.evenement.date) : '—'}</td><td class="n nw">${d.evenement?.invites ? esc(d.evenement.invites) + ' pers.' : '—'}</td><td>${esc(comDe(d) || '—')}</td><td class="n">${euros(tot(d).ttc)}</td><td><span class="pill d-${d.statut}">${DSTAT[d.statut]}</span></td><td>${d.vuLe ? dateH(d.vuLe) : '—'}</td></tr>`).join('')}</tbody></table></div>` : '<div class="vide"><p>Aucun devis.</p><p class="muted">Créez un devis depuis une demande (les lignes sont reprises) ou partez d’un devis vierge.</p></div>');
+    return page('Devis', '<button type="button" class="btn ghost aq-btn" data-aiq>✨ Devis avec l’IA</button><a class="btn" href="#/devis/nouveau">+ Nouveau devis</a>', list.length ? `${filtre}<div class="row sel-bar">${peut('effacerDevis') ? '<button type="button" class="btn danger sm" data-effacer disabled>🗑 Effacer</button>' : ''}<span class="muted sm" data-nbsel>Cochez les devis à effacer.</span></div><div class="table"><table><thead><tr><th class="ck"><input type="checkbox" data-tout aria-label="Tout cocher" title="Tout cocher"></th><th>N°</th><th>Client</th><th>Nature de l’événement</th><th>Date</th><th class="n">Personnes</th><th>Commercial</th><th class="n">Total TTC</th><th>Statut</th><th>Vu par le client</th></tr></thead><tbody>
+      ${list.map(d => `<tr data-href="#/devis/${d.id}"><td class="ck">${effacable(d) ? `<input type="checkbox" data-sel="${esc(d.id)}" data-num="${esc(d.numero)}" data-st="${esc(d.statut)}" aria-label="Sélectionner ${esc(d.numero)}">` : '<span title="Devis signé : ne peut pas être effacé">🔒</span>'}</td><td class="nw"><b>${esc(d.numero)}</b>${(d.commentaires || []).length ? ` <span title="${d.commentaires.length} commentaire(s) du client">💬</span>` : ''}</td><td>${esc(d.clientNom)}</td><td>${esc(d.evenement?.type || '—')}</td><td class="nw">${d.evenement?.date ? dateFr(d.evenement.date) : '—'}</td><td class="n nw">${d.evenement?.invites ? esc(d.evenement.invites) + ' pers.' : '—'}</td><td>${esc(comDe(d) || '—')}</td><td class="n">${euros(tot(d).ttc)}</td><td><span class="pill d-${d.statut}">${DSTAT[d.statut]}</span></td><td>${d.vuLe ? dateH(d.vuLe) : '—'}</td></tr>`).join('')}</tbody></table></div>` : '<div class="vide"><p>Aucun devis.</p><p class="muted">Créez un devis depuis une demande (les lignes sont reprises) ou partez d’un devis vierge.</p></div>');
   }
   devis.after = id => {
     if (id && id !== 'nouveau') return devisEdit.after(id);
@@ -742,14 +749,16 @@
     const [d, clientsL, cat] = await Promise.all([api(A + '/devis/' + id), api(A + '/clients?vue=actifs'), cache.produits ? cache.produits : api(A + '/produits')]);
     if (d.clientId && !clientsL.some(c => c.id === d.clientId)) clientsL.push(...await api(A + '/clients?ids=' + encodeURIComponent(d.clientId)).catch(() => []));
     cache.produits = cat; cache.devis = d; cache.clients = clientsL;
-    const [modeles, R0, tous, facsL] = await Promise.all([api(A + '/modeles'), cache.R ? cache.R : api(A + '/site'), api(A + '/devis'), api(A + '/actions/factures').catch(() => [])]);
+    const [modeles, R0, tous, facsL, lieuxD] = await Promise.all([api(A + '/modeles'), cache.R ? cache.R : api(A + '/site'), api(A + '/devis'), api(A + '/actions/factures').catch(() => []), api(A + '/lieux').catch(() => [])]);
+    cache.lieuxDevis = lieuxD;
     cache.R = R0; cache.tousDevis = tous;
     const facsDv = facsL.filter(x => x.devisId === d.id);
     const signe = d.statut === 'accepte';
-    const lock = signe && session.role !== 'manager';
+    const lock = signe && !peut('devisSignes');
     return page(`Devis ${esc(d.numero)} <span class="pill d-${d.statut}">${DSTAT[d.statut]}</span>`, `<a class="btn ghost" href="#/devis">← Devis</a><button class="btn ghost" type="button" data-dup>⧉ Dupliquer ce devis</button>${d.clientId ? `<button class="btn ghost" type="button" data-newcl>+ Nouveau devis pour ce client</button>` : ''}${d.statut !== 'brouillon' ? `<a class="btn ghost" href="/devis/${d.token}" target="_blank">Voir comme le client ↗</a>` : ''}`, `
       ${d.iaDraft && d.statut === 'brouillon' ? '<p class="aq-info">✨ Devis préparé avec l’IA à partir de la commande du client : vérifiez les lignes, les quantités et le texte, enregistrez, puis envoyez-le.</p>' : ''}
-      ${signe ? `<p class="okbox">✓ Signé en ligne par <b>${esc(d.signature?.nom)}</b> le ${dateH(d.signature?.at)}.${lock ? ' Seul le Manager peut le modifier.' : ''}</p>` : ''}
+      ${(d.commentaires || []).length ? `<section class="box dv-coms"><h2>💬 Commentaires du client <small class="muted">(${d.commentaires.length})</small></h2><p class="muted sm">Laissés sur la page du devis : le commercial les reçoit par e-mail et SMS.</p><ul>${d.commentaires.slice().reverse().map(m => `<li><p>${esc(m.texte).replace(/\n/g, '<br>')}</p><small>${esc(m.nom || 'Client')} · ${dateH(m.at)}</small></li>`).join('')}</ul></section>` : ''}
+      ${signe ? `<p class="okbox">✓ Signé en ligne par <b>${esc(d.signature?.nom)}</b> le ${dateH(d.signature?.at)}.${lock ? ' Il faut le droit « Modifier un devis signé » pour le changer.' : ''}</p>` : ''}
       <form id="dv" class="${lock ? 'lock' : ''}">
       <div class="cols">
         <section class="box"><h2>Client</h2><label class="dv-clq">Chercher dans tous les clients <small>(dont le fichier importé)</small><input type="search" data-dvclq placeholder="🔍 Nom, téléphone, e-mail, ville…" autocomplete="off"></label><label>Client<select name="clientId"><option value="">— Choisir —</option>${clientsL.sort((a, b) => (a.nom || '').localeCompare(b.nom || '')).map(c => `<option value="${c.id}"${c.id === d.clientId ? ' selected' : ''}>${esc(c.nom)} · ${esc(c.email)}</option>`).join('')}</select></label><p class="muted sm"><a href="#/clients/nouveau">+ Nouveau client</a>${d.clientId ? ` · <a href="#/clients/${esc(d.clientId)}">Fiche client</a>` : ''}</p>${(() => { const autres = (cache.tousDevis || []).filter(x => x.clientId && x.clientId === d.clientId && x.id !== d.id); return autres.length ? `<p class="sm"><b>Autres devis de ce client</b></p><ul class="histo">${autres.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).map(x => `<li><a href="#/devis/${x.id}">${esc(x.numero)}</a> · ${euros(tot(x).ttc)} <span class="pill d-${x.statut}">${DSTAT[x.statut]}</span></li>`).join('')}</ul>` : ''; })()}${d.copieDe ? `<p class="muted sm">Copie du devis ${esc(d.copieDe)}.</p>` : ''}</section>
@@ -761,7 +770,7 @@
       <section class="box"><label>Nom de la proposition <small>(facultatif, ex. « Formule buffet antillais » : affiché dans l’e-mail quand vous envoyez plusieurs devis)</small><input name="titre" value="${esc(d.titre || '')}" maxlength="120"></label><label>Texte d’introduction<textarea name="intro" rows="2">${esc(d.intro || '')}</textarea></label></section>
       ${lock ? '' : `<section class="box ia-modif"><h2>✨ Demander à l’IA de modifier ce devis</h2><p class="muted sm">Écrivez ou dictez ce qu’il faut changer, par exemple : « Supprime le DJ et mets une contorsionniste à la place », « passe à 80 invités », « ajoute 2 serveurs pendant 5 h ». L’IA vous montre les changements avant de les appliquer. Vous pouvez toujours modifier les lignes vous-même.</p>
         <textarea id="iam-t" rows="2" placeholder="Ex. : supprime le DJ et mets une contorsionniste à la place"></textarea><div class="row"><button type="button" class="btn aq-btn" data-iam>✨ Proposer la modification</button><button type="button" class="btn ghost sm" data-iam-mic>🎤 Dicter</button><span id="iam-msg" class="muted sm"></span></div><div id="iam-res"></div></section>`}
-      <section class="box"><div class="bh"><h2>Lignes du devis</h2><div class="row"><select data-addprod class="wide"><option value="">+ Ajouter une prestation du catalogue…</option>${cat.filter(p => p.statut !== 'masque').sort((a, b) => a.titre.localeCompare(b.titre)).map(p => `<option value="${esc(p.slug)}">${esc(titreTexte(p.titre))} · ${p.prixCents == null ? 'sur devis' : euros(p.prixCents)}</option>`).join('')}</select><button type="button" class="btn ghost sm" data-addline>+ Ligne libre</button><button type="button" class="btn ghost sm" data-addtitle>+ Titre</button></div></div>
+      <section class="box"><div class="bh"><h2>Lignes du devis</h2><div class="row"><select data-addprod class="wide"><option value="">+ Ajouter une prestation du catalogue…</option>${cat.filter(p => p.statut !== 'masque').sort((a, b) => a.titre.localeCompare(b.titre)).map(p => `<option value="${esc(p.slug)}">${esc(titreTexte(p.titre))} · ${p.prixCents == null ? 'sur devis' : euros(p.prixCents)}</option>`).join('')}${lieuxD.length ? `<optgroup label="Lieux à privatiser (3 photos sur le devis)">${lieuxD.sort((a, b) => a.nom.localeCompare(b.nom)).map(l => `<option value="lieu-${esc(l.slug)}">📍 ${esc(l.nom)}${l.capacite ? ' · ' + l.capacite + ' pers.' : ''}${l.statut === 'masque' ? ' (masqué)' : ''}</option>`).join('')}</optgroup>` : ''}</select><button type="button" class="btn ghost sm" data-addline>+ Ligne libre</button><button type="button" class="btn ghost sm" data-addtitle>+ Titre</button></div></div>
         <div class="table"><table class="lines"><thead><tr><th></th><th>Désignation</th><th class="n">Qté</th><th>Unité</th><th class="n">PU TTC</th><th class="n">Coût TTC</th><th>TVA</th><th class="n">Total TTC</th><th></th></tr></thead><tbody id="lines"></tbody></table></div>
         <div class="totbox"><div class="g2"><label>Remise TTC (€)<input name="remise" value="${fromCents(d.remiseCents || 0)}" inputmode="decimal"></label></div><dl id="totaux"></dl></div></section>
       <section class="box"><label>Conditions particulières<textarea name="conditions" rows="2">${esc(d.conditions || '')}</textarea></label></section>
@@ -844,6 +853,8 @@
     $('[data-addline]').addEventListener('click', () => { lignes.push({ designation: 'Nouvelle ligne', qte: 1, unite: 'forfait', puCents: 0, coutCents: null, tva: 10 }); draw(); dirty(); });
     $('[data-addtitle]').addEventListener('click', () => { lignes.push({ type: 'titre', designation: 'Section' }); draw(); dirty(); });
     $('[data-addprod]').addEventListener('change', e => {
+      const lv = (cache.lieuxDevis || []).find(x => 'lieu-' + x.slug === e.target.value);
+      if (lv) { const pr = /(\d[\d\s]*)/.exec(String(lv.prixTexte || '').replace(/\u202f/g, ' ')); lignes.push({ designation: 'Privatisation · ' + lv.nom, detail: [lv.ville, lv.capacite ? 'jusqu’à ' + lv.capacite + ' personnes' : ''].filter(Boolean).join(' · '), qte: 1, unite: 'forfait', puCents: pr ? +pr[1].replace(/\s/g, '') * 100 : 0, coutCents: null, tva: 20, produit: 'lieu-' + lv.slug }); e.target.value = ''; draw(); dirty(); toast('Lieu ajouté : ses 3 photos apparaîtront sur le devis du client.'); return; }
       const p = cache.produits.find(x => x.slug === e.target.value); if (!p) return;
       lignes.push({ designation: avecPortion(p.titre), detail: '', qte: p.min || 1, unite: p.unite || 'unité', puCents: p.prixCents || 0, coutCents: p.coutCents ?? null, tva: p.tva ?? 10, produit: p.slug });
       e.target.value = ''; draw(); dirty();
@@ -1031,7 +1042,7 @@
             : fermee ? '<p class="muted sm">' + (avoir ? 'Un avoir est définitif.' : 'Facture annulée : elle reste dans l’onglet « Avoirs et annulées ».') + '</p>'
             : e.payee ? '<p class="muted sm">Facture entièrement réglée : vous pouvez l’archiver.</p><button class="btn" type="button" data-farch="1">🗄 Archiver la facture</button>'
             : '<p class="muted sm">Elle reste dans « Non réglées » tant qu’il reste un solde. Une fois payée, elle pourra être archivée.</p>'}
-          ${!fermee && session.role === 'manager' ? `<details class="fa-avoir"><summary>Annuler cette facture (avoir)</summary><p class="muted sm">Une facture émise ne se supprime jamais (numérotation légale). L’avoir l’annule et porte son propre numéro.</p><label>Motif<input id="amotif" placeholder="ex. événement annulé, erreur de facturation"></label><button class="btn ghost danger" type="button" data-avoir>Créer l’avoir</button></details>` : ''}</section>
+          ${!fermee && peut('factures') ? `<details class="fa-avoir"><summary>Annuler cette facture (avoir)</summary><p class="muted sm">Une facture émise ne se supprime jamais (numérotation légale). L’avoir l’annule et porte son propre numéro.</p><label>Motif<input id="amotif" placeholder="ex. événement annulé, erreur de facturation"></label><button class="btn ghost danger" type="button" data-avoir>Créer l’avoir</button></details>` : ''}</section>
       </div>`);
   }
   factureFiche.after = id => {
@@ -1107,38 +1118,173 @@
   };
 
   /* ---------- clients (liste en pages : le fichier importé compte des dizaines de milliers de fiches) ---------- */
-  const CL = { q: '', page: 1, filtre: '' };
-  async function clients(id) {
+  const CL = { q: '', page: 1, filtre: '', k: {}, sel: new Set() };
+  /* recherche multicritère de la liste Clients (demande de Jean-Luc, 2026-11-24) */
+  const urlClients = () => `${A}/clients?par=50&page=${CL.page}&filtre=${CL.filtre}&q=${encodeURIComponent(CL.q)}${Object.entries(CL.k).filter(([, v]) => v).map(([k, v]) => `&${k}=${encodeURIComponent(v)}`).join('')}`;
+  const compteClients = n => `<b>${Number(n).toLocaleString('fr-FR')}</b> contact${n > 1 ? 's' : ''}`;
+  function filtresClients(F, total) {
+    const n = x => Number(x).toLocaleString('fr-FR');
+    const sel = (k, lab, opts) => `<label class="cl-crit"><span>${lab}</span><select data-ck="${k}"${CL.k[k] ? ' class="on"' : ''}>${opts.map(([v, l]) => `<option value="${esc(v)}"${String(CL.k[k] || '') === String(v) ? ' selected' : ''}>${l}</option>`).join('')}</select></label>`;
+    const liste = (l, tous) => [['', tous], ...l.map(([v, c]) => [v, `${esc(v)} (${n(c)})`])];
+    const nb = Object.values(CL.k).filter(Boolean).length;
+    return `<details class="box cl-multi"${nb || mem.get('mg_clmulti') === '1' ? ' open' : ''}><summary>🔎 Recherche multicritère${nb ? ` <span class="cl-nbk">${nb} critère${nb > 1 ? 's' : ''}</span>` : ''}<span class="cl-cpt" data-clcpt aria-live="polite">${compteClients(total)}</span></summary>
+      <div class="cl-gr"><p class="cl-gt">👤 Le contact</p><div class="cl-crits">
+        ${sel('pro', 'Particulier ou entreprise', [['', 'Tous'], ['part', 'Particuliers'], ['pro', 'Entreprises (société renseignée)']])}
+        ${sel('civ', 'Civilité', [['', 'Toutes'], ['Mme', 'Madame'], ['M.', 'Monsieur'], ['aucune', 'Non renseignée']])}
+        ${sel('dep', 'Département', [['', 'Tous'], ['idf', 'Toute l’Île-de-France'], ...F.dep.map(([v, c]) => [v, `${esc(v)} (${n(c)})`]), ['aucun', 'Inconnu']])}
+        ${sel('contactDe', 'Contact de (apporté par)', liste(F.contactDe, 'Tout le monde'))}</div></div>
+      <div class="cl-gr"><p class="cl-gt">🎭 Prestataires et talents</p><div class="cl-crits">
+        ${sel('metier', 'Métier', [['', 'Tous (clients compris)'], ['*', 'Tous les prestataires'], ...F.metiers.map(([v, c]) => [v, `${esc(v)} (${n(c)})`])])}
+        ${sel('dj', 'Style de DJ', liste(F.dj, 'Tous'))}
+        ${sel('indep', 'Indépendant(e)', [['', 'Peu importe'], ['1', `Oui (${n(F.indep)})`]])}
+        ${sel('permis', 'Permis de conduire', [['', 'Peu importe'], ['1', `Oui (${n(F.permis)})`]])}</div></div>
+      <div class="cl-gr"><p class="cl-gt">✉ Pour le joindre</p><div class="cl-crits">
+        ${sel('joignable', 'Joignable par', [['', 'Peu importe'], ['email', 'E-mail'], ['sms', 'SMS (portable)'], ['les2', 'E-mail et SMS'], ['aucun', 'Ni e-mail ni SMS']])}
+        ${sel('npc', 'NE PAS CONTACTER', [['', 'Peu importe'], ['non', 'Sauf « ne pas contacter »'], ['oui', `Seulement « ne pas contacter » (${n(F.npc)})`]])}</div></div>
+      <div class="row cl-res"><span class="cl-cpt grand" data-clcpt>${compteClients(total)}</span><span class="muted sm">correspondent à votre sélection</span>${nb ? '<button type="button" class="btn ghost sm" data-ckclear>✕ Effacer les critères</button>' : ''}</div></details>`;
+  }
+  async function clients(id, sub) {
+    if (id === 'entreprises') return sub ? ficheEntreprise(sub) : entreprises();
+    if ((id === 'email' || id === 'sms') && !peut('diffusion')) return sansAcces();
+    if (id === 'importer' && !peut('fichiers')) return sansAcces();
     if (id === 'email' || id === 'sms') return diffusion(id);
     if (id === 'importer') return importerClients();
     if (id === 'appels') return appelsClients();
     if (id) return client(id);
-    const r = await api(`${A}/clients?par=50&page=${CL.page}&filtre=${CL.filtre}&q=${encodeURIComponent(CL.q)}`);
-    return page('Clients', `${session.role === 'manager' ? '<a class="btn ghost" href="#/clients/importer">⬆ Importer des clients</a>' : ''}<a class="btn" href="#/clients/nouveau">+ Nouveau client</a>`, `
-      ${ongletsClients('')}<div class="cl-bar"><input type="search" placeholder="🔍 Nom, prénom, téléphone, e-mail, société, ville, code postal…" data-q value="${esc(CL.q)}" aria-label="Rechercher un client">
+    const r = await api(urlClients());
+    return page('Clients', `${peut('fichiers') ? '<a class="btn ghost" href="#/clients/importer">⬆ Importer des clients</a>' : ''}<a class="btn" href="#/clients/nouveau">+ Nouveau client</a>`, `
+      ${ongletsClients('')}${bandeauClients('', r.tous, r.entreprises)}<div class="cl-bar"><input type="search" placeholder="🔍 Chercher dans toutes les cases des fiches : nom, téléphone, e-mail, société, ville, métier, remarque, rue…" data-q value="${esc(CL.q)}" aria-label="Rechercher un client">
         <div class="cl-f">${[['', `Tous (${r.tous.toLocaleString('fr-FR')})`], ['importes', `Fichier importé (${r.importes.toLocaleString('fr-FR')})`], ['autres', 'Site et back-office']].map(([k, l]) => `<button type="button" class="qs-own-b${CL.filtre === k ? ' on' : ''}" data-clf="${k}">${l}</button>`).join('')}</div></div>
-      <div id="clTable">${tableClients(r)}</div>`);
+      ${CL.dernier ? `<div class="okbox cl-remet"><span>🗑 ${CL.dernier.nb.toLocaleString('fr-FR')} contact${CL.dernier.nb > 1 ? 's' : ''} effacé${CL.dernier.nb > 1 ? 's' : ''}.</span><button type="button" class="btn ghost sm" data-clremet>↶ Remettre</button></div>` : ''}<div id="clMulti">${filtresClients(r.facettes, r.total)}</div><div id="clTable">${tableClients(r)}</div>`);
   }
   function tableClients(r) {
     const pages = Math.max(1, Math.ceil(r.total / r.par));
-    return `<div class="table"><table><thead><tr><th>Nom</th><th>Société</th><th>Contact</th><th>Ville</th><th class="n">Demandes</th><th>Dernière activité</th><th></th></tr></thead><tbody>
-      ${r.items.map(c => `<tr data-href="#/clients/${esc(c.id)}"><td><b>${esc(c.nom || '—')}</b>${c.source === 'import CRM' ? '<small class="cl-imp">fichier importé</small>' : ''}</td><td>${esc(c.societe || '')}</td><td>${esc(c.email || '')}<small>${esc(c.tel || '')}</small></td><td>${esc([c.cp, c.ville].filter(Boolean).join(' '))}</td><td class="n">${c.nbDemandes || ''}</td><td>${dateFr(c.derniereActivite)}</td><td class="n"><a class="qs-back cl-edit" href="#/clients/${esc(c.id)}?edit=1" title="Modifier la fiche">✏ Modifier</a></td></tr>`).join('') || `<tr><td colspan="7" class="muted">${r.tous ? 'Aucun client ne correspond.' : 'Aucun client pour le moment.'}</td></tr>`}</tbody></table></div>
+    const ef = peut('effacerContacts'), libres = r.items.filter(c => !c.verrou);
+    const ckTete = ef ? `<th class="ck"><input type="checkbox" data-cltout aria-label="Cocher toute la page" title="Cocher toute la page"${libres.length && libres.every(c => CL.sel.has(c.id)) ? ' checked' : ''}></th>` : '';
+    const ck = c => !ef ? '' : c.verrou ? '<td class="ck" title="A une demande, un devis ou une facture : ne peut pas être effacé">🔒</td>' : `<td class="ck"><input type="checkbox" data-clsel="${esc(c.id)}" aria-label="Cocher ${esc(c.nom || '')}"${CL.sel.has(c.id) ? ' checked' : ''}></td>`;
+    return `${ef ? `<div class="row sel-bar cl-sel"><button type="button" class="btn danger sm" data-cleff${CL.sel.size ? '' : ' disabled'}>🗑 Effacer${CL.sel.size ? ' ' + CL.sel.size.toLocaleString('fr-FR') + ' contact' + (CL.sel.size > 1 ? 's' : '') : ''}</button><span class="muted sm">${CL.sel.size ? `${CL.sel.size.toLocaleString('fr-FR')} coché${CL.sel.size > 1 ? 's' : ''} · <button type="button" class="lnk" data-clnone>Tout décocher</button>` : 'Cochez les contacts à effacer.'}${r.total > libres.length ? ` · <button type="button" class="lnk" data-clall>Cocher les ${r.total.toLocaleString('fr-FR')} contacts de cette recherche</button>` : ''}</span></div>` : ''}<div class="table"><table><thead><tr>${ckTete}<th>Nom</th><th>Société</th><th>Contact</th><th>Ville</th><th class="n">Demandes</th><th>Dernière activité</th><th></th></tr></thead><tbody>
+      ${r.items.map(c => `<tr data-href="#/clients/${esc(c.id)}">${ck(c)}<td><b>${esc(c.nom || '—')}</b>${c.nePasContacter ? ' <span class="pill d-refuse" title="NE PAS CONTACTER">⛔</span>' : ''}${(c.metiers || []).length ? `<small class="cl-met">🎭 ${esc(c.metiers.join(', '))}</small>` : ''}${c.source === 'import CRM' ? '<small class="cl-imp">fichier importé</small>' : ''}</td><td>${esc(c.societe || '')}</td><td>${esc(c.email || '')}<small>${esc(c.tel || '')}</small></td><td>${esc([c.cp, c.ville].filter(Boolean).join(' '))}</td><td class="n">${c.nbDemandes || ''}</td><td>${dateFr(c.derniereActivite)}</td><td class="n"><a class="qs-back cl-edit" href="#/clients/${esc(c.id)}?edit=1" title="Modifier la fiche">✏ Modifier</a></td></tr>`).join('') || `<tr><td colspan="${ef ? 8 : 7}" class="muted">${r.tous ? 'Aucun client ne correspond.' : 'Aucun client pour le moment.'}</td></tr>`}</tbody></table></div>
       ${r.total > r.par ? `<div class="cl-pages"><button type="button" class="btn ghost sm" data-clp="-1"${r.page <= 1 ? ' disabled' : ''}>‹ Précédents</button><span>${((r.page - 1) * r.par + 1).toLocaleString('fr-FR')} à ${Math.min(r.total, r.page * r.par).toLocaleString('fr-FR')} sur ${r.total.toLocaleString('fr-FR')}</span><button type="button" class="btn ghost sm" data-clp="1"${r.page >= pages ? ' disabled' : ''}>Suivants ›</button></div>` : `<p class="muted sm cl-nb">${r.total.toLocaleString('fr-FR')} client${r.total > 1 ? 's' : ''}</p>`}`;
   }
-  clients.after = id => {
+  clients.after = (id, sub) => {
+    if (id === 'entreprises') return sub ? ficheEntreprise.after(sub) : entreprises.after();
     if (id === 'email' || id === 'sms') return diffusion.after(id);
     if (id === 'importer') return importerClients.after();
     if (id === 'appels') return appelsClients.after();
     if (id) return client.after(id);
-    const recharger = async () => { try { const r = await api(`${A}/clients?par=50&page=${CL.page}&filtre=${CL.filtre}&q=${encodeURIComponent(CL.q)}`); $('#clTable').innerHTML = tableClients(r); brancher(); } catch (e) { toast(e.message, true); } };
+    const recharger = async (multi) => { try { const r = await api(urlClients()); $('#clTable').innerHTML = tableClients(r); if (multi) { $('#clMulti').innerHTML = filtresClients(r.facettes, r.total); brancherMulti(); } else $$('[data-clcpt]').forEach(x => { x.innerHTML = compteClients(r.total); x.classList.remove('pop'); void x.offsetWidth; x.classList.add('pop'); }); brancher(); } catch (e) { toast(e.message, true); } };
+    const brancherMulti = () => {
+      $$('[data-ck]').forEach(x => x.addEventListener('change', () => { CL.k[x.dataset.ck] = x.value; CL.page = 1; recharger(true); }));
+      $('[data-ckclear]')?.addEventListener('click', () => { CL.k = {}; CL.page = 1; recharger(true); });
+      $('.cl-multi')?.addEventListener('toggle', e => mem.set('mg_clmulti', e.target.open ? '1' : '0'));
+    };
+    brancherMulti();
     const brancher = () => {
-      $$('tr[data-href]').forEach(tr => tr.addEventListener('click', e => { if (!e.target.closest('a')) location.hash = tr.dataset.href; }));
+      $$('tr[data-href]').forEach(tr => tr.addEventListener('click', e => { if (!e.target.closest('a') && !e.target.closest('.ck')) location.hash = tr.dataset.href; }));
+      /* cases à cocher + « Effacer » (Jean-Luc, 2026-11-24) */
+      const majSel = () => { const b = $('[data-cleff]'); if (!b) return; b.disabled = !CL.sel.size; b.textContent = '🗑 Effacer' + (CL.sel.size ? ` ${CL.sel.size.toLocaleString('fr-FR')} contact${CL.sel.size > 1 ? 's' : ''}` : ''); };
+      $$('[data-clsel]').forEach(x => x.addEventListener('change', () => { if (x.checked) CL.sel.add(x.dataset.clsel); else CL.sel.delete(x.dataset.clsel); majSel(); }));
+      $('[data-cltout]')?.addEventListener('change', e => { $$('[data-clsel]').forEach(x => { x.checked = e.target.checked; if (x.checked) CL.sel.add(x.dataset.clsel); else CL.sel.delete(x.dataset.clsel); }); recharger(); });
+      $('[data-clnone]')?.addEventListener('click', () => { CL.sel.clear(); recharger(); });
+      $('[data-clall]')?.addEventListener('click', async () => { try { const r = await api(urlClients() + '&avecIds=1&par=10'); r.effacables.forEach(x => CL.sel.add(x)); toast(`${r.effacables.length.toLocaleString('fr-FR')} contacts cochés${r.total > r.effacables.length ? ` (${(r.total - r.effacables.length).toLocaleString('fr-FR')} protégés 🔒 laissés de côté)` : ''}.`); recharger(); } catch (e) { toast(e.message, true); } });
+      $('[data-cleff]')?.addEventListener('click', async () => {
+        const n = CL.sel.size; if (!n) return;
+        if (!confirm(`Effacer ${n > 1 ? 'ces ' + n.toLocaleString('fr-FR') + ' contacts' : 'ce contact'} ?\n\nLes contacts qui ont une demande, un devis ou une facture sont protégés et ne seront pas effacés.\nVous pourrez tout remettre avec « ↶ Remettre ».`)) return;
+        try {
+          const r = await api(A + '/actions/effacer-clients', { method: 'POST', body: { ids: [...CL.sel] } });
+          CL.sel.clear();
+          CL.dernier = r.lot ? { lot: r.lot, nb: r.effaces } : null;
+          toast(`${r.effaces.toLocaleString('fr-FR')} contact${r.effaces > 1 ? 's' : ''} effacé${r.effaces > 1 ? 's' : ''}.${r.gardes ? ` ${r.gardes} protégé${r.gardes > 1 ? 's' : ''} 🔒 gardé${r.gardes > 1 ? 's' : ''}.` : ''}`);
+          render();
+        } catch (e) { toast(e.message, true); }
+      });
+      const rb = $('[data-clremet]'); if (rb) rb.onclick = async () => {
+        try { const r = await api(`${A}/actions/effacer-clients/${encodeURIComponent(CL.dernier.lot)}/remettre`, { method: 'POST' }); CL.dernier = null; toast(`${r.remis.toLocaleString('fr-FR')} contact${r.remis > 1 ? 's' : ''} remis.`); render(); } catch (e) { toast(e.message, true); }
+      };
       $$('[data-clp]').forEach(b => b.addEventListener('click', () => { CL.page += +b.dataset.clp; recharger(); window.scrollTo(0, 0); }));
     };
     brancher();
     const q = $('[data-q]');
     q?.addEventListener('input', () => { clearTimeout(q._t); q._t = setTimeout(() => { CL.q = q.value.trim(); CL.page = 1; recharger(); }, 250); });
     $$('[data-clf]').forEach(b => b.addEventListener('click', () => { CL.filtre = b.dataset.clf; CL.page = 1; $$('[data-clf]').forEach(x => x.classList.toggle('on', x === b)); recharger(); }));
+  };
+
+
+  /* ---------- entreprises : bandeau « Contacts / Entreprises » (Jean-Luc, 2026-11-24) ----------
+     une fiche entreprise (nom, SIRET, adresse…) à laquelle plusieurs contacts sont reliés */
+  const bandeauClients = (cur, nC, nE) => `<div class="cl-vue"><span class="cl-vue-lab">Afficher</span><div class="cl-vue-rail">${[['', '👤', 'Contacts', nC], ['entreprises', '🏢', 'Entreprises', nE]].map(([k, i, l, n]) => `<a href="#/clients${k ? '/' + k : ''}" class="cl-vue-c${cur === k ? ' on' : ''}"${cur === k ? ' aria-current="page"' : ''}><span class="cl-vue-i">${i}</span>${l}${n != null ? ` <small>${Number(n).toLocaleString('fr-FR')}</small>` : ''}</a>`).join('')}</div></div>`;
+  const EN = { q: '', page: 1, filtre: '' };
+  async function entreprises() {
+    const [r, rc] = await Promise.all([api(`${A}/entreprises?par=50&page=${EN.page}&filtre=${EN.filtre}&q=${encodeURIComponent(EN.q)}`), api(`${A}/clients?par=10&page=1&q=`).catch(() => ({ tous: null }))]);
+    return page('Clients', `<a class="btn" href="#/clients/entreprises/nouvelle">+ Nouvelle entreprise</a>`, `
+      ${ongletsClients('')}${bandeauClients('entreprises', rc.tous, r.tous)}<div class="cl-bar"><input type="search" placeholder="🔍 Nom de l’entreprise, SIRET, ville, nom d’un contact…" data-q value="${esc(EN.q)}" aria-label="Rechercher une entreprise">
+        <div class="cl-f">${[['', `Toutes (${r.tous.toLocaleString('fr-FR')})`], ['avec', 'Avec des contacts'], ['sans', 'Sans contact']].map(([k, l]) => `<button type="button" class="qs-own-b${EN.filtre === k ? ' on' : ''}" data-enf="${k}">${l}</button>`).join('')}</div></div>
+      <div id="enTable">${tableEntreprises(r)}</div>`);
+  }
+  function tableEntreprises(r) {
+    const pages = Math.max(1, Math.ceil(r.total / r.par));
+    return `<div class="table"><table><thead><tr><th>Entreprise</th><th>SIRET</th><th>Contacts</th><th>Ville</th><th class="n">Nb</th><th>Dernière activité</th><th></th></tr></thead><tbody>
+      ${r.items.map(e => `<tr data-href="#/clients/entreprises/${esc(e.id)}"><td><span class="en-nm"><span class="en-av">🏢</span><b>${esc(e.nom || '—')}</b></span></td><td>${esc(e.siret || '')}</td><td class="en-ap">${esc((e.apercu || []).join(', '))}${e.nbContacts > (e.apercu || []).length ? ' …' : ''}</td><td>${esc([e.cp, e.ville].filter(Boolean).join(' '))}</td><td class="n">${e.nbContacts || ''}</td><td>${dateFr(e.derniereActivite)}</td><td class="n"><a class="qs-back cl-edit" href="#/clients/entreprises/${esc(e.id)}" title="Ouvrir la fiche">Ouvrir ›</a></td></tr>`).join('') || `<tr><td colspan="7" class="muted">${r.tous ? 'Aucune entreprise ne correspond.' : 'Aucune entreprise pour le moment. Elles se créent toutes seules quand un contact a une société, ou avec « + Nouvelle entreprise ».'}</td></tr>`}</tbody></table></div>
+      ${r.total > r.par ? `<div class="cl-pages"><button type="button" class="btn ghost sm" data-enp="-1"${r.page <= 1 ? ' disabled' : ''}>‹ Précédentes</button><span>${((r.page - 1) * r.par + 1).toLocaleString('fr-FR')} à ${Math.min(r.total, r.page * r.par).toLocaleString('fr-FR')} sur ${r.total.toLocaleString('fr-FR')}</span><button type="button" class="btn ghost sm" data-enp="1"${r.page >= pages ? ' disabled' : ''}>Suivantes ›</button></div>` : `<p class="muted sm cl-nb">${r.total.toLocaleString('fr-FR')} entreprise${r.total > 1 ? 's' : ''}</p>`}`;
+  }
+  entreprises.after = () => {
+    const recharger = async () => { try { const r = await api(`${A}/entreprises?par=50&page=${EN.page}&filtre=${EN.filtre}&q=${encodeURIComponent(EN.q)}`); $('#enTable').innerHTML = tableEntreprises(r); brancher(); } catch (e) { toast(e.message, true); } };
+    const brancher = () => {
+      $$('tr[data-href]').forEach(tr => tr.addEventListener('click', e => { if (!e.target.closest('a')) location.hash = tr.dataset.href; }));
+      $$('[data-enp]').forEach(b => b.addEventListener('click', () => { EN.page += +b.dataset.enp; recharger(); window.scrollTo(0, 0); }));
+    };
+    brancher();
+    const q = $('[data-q]');
+    q?.addEventListener('input', () => { clearTimeout(q._t); q._t = setTimeout(() => { EN.q = q.value.trim(); EN.page = 1; recharger(); }, 250); });
+    $$('[data-enf]').forEach(b => b.addEventListener('click', () => { EN.filtre = b.dataset.enf; EN.page = 1; $$('[data-enf]').forEach(x => x.classList.toggle('on', x === b)); recharger(); }));
+  };
+  const formEntreprise = e => `<label>Nom de l’entreprise<input name="nom" value="${esc(e.nom || '')}" required placeholder="ex. JEPRIVATIZ"></label><div class="g2"><label>SIRET <small class="muted">(14 chiffres)</small><input name="siret" value="${esc(e.siret || '')}" inputmode="numeric"></label><label>N° de TVA intracommunautaire<input name="tva" value="${esc(e.tva || '')}"></label></div><label>Secteur d’activité<input name="secteur" value="${esc(e.secteur || '')}" placeholder="ex. banque, agence événementielle, mairie…"></label><label>Adresse<textarea name="adresse" rows="2">${esc(e.adresse || '')}</textarea></label><div class="g2"><label>Code postal<input name="cp" value="${esc(e.cp || '')}" inputmode="numeric" maxlength="5"></label><label>Ville<input name="ville" value="${esc(e.ville || '')}"></label></div><div class="g2"><label>Téléphone (standard)<input name="tel" value="${esc(e.tel || '')}" inputmode="tel"></label><label>E-mail (général, comptabilité…)<input type="email" name="email" value="${esc(e.email || '')}"></label></div><label>Site internet<input name="site" value="${esc(e.site || '')}" placeholder="ex. www.entreprise.fr"></label><label>🔒 Remarque <small class="muted">(visible seulement par l’équipe)</small><textarea name="notes" rows="3">${esc(e.notes || '')}</textarea></label>`;
+  async function ficheEntreprise(id) {
+    if (id === 'nouvelle') return page('Nouvelle entreprise', '<a class="btn ghost" href="#/clients/entreprises">← Entreprises</a>', `<section class="box hc-form"><form id="enf">${formEntreprise({})}<button class="btn">Créer l’entreprise</button></form></section>`);
+    const h = await api(A + '/entreprises/' + id); cache.ent = h;
+    const e = h.entreprise, r = h.resume, tel = String(e.tel || '').replace(/[^\d+]/g, '');
+    const site = e.site ? (/^https?:/i.test(e.site) ? e.site : 'https://' + e.site) : '';
+    return page('🏢 ' + esc(e.nom), `<a class="btn ghost" href="#/clients/entreprises">← Entreprises</a><a class="btn" href="#/clients/nouveau?ent=${esc(id)}">+ Nouveau contact</a>`, `
+      <section class="box hc-head en-head"><div class="hc-who"><span class="qs-av hc-av en-avg">${esc(initiales(e.nom))}</span><div><div class="hc-nm">${esc(e.nom)}</div><div class="hc-co">${esc([e.secteur, e.siret ? 'SIRET ' + e.siret : '', [e.cp, e.ville].filter(Boolean).join(' ')].filter(Boolean).join(' · '))}</div>
+        <div class="hc-ct">${tel ? `<a class="qs-pill" href="tel:${esc(tel)}">📞 ${esc(e.tel)}</a>` : ''}${e.email ? `<a class="qs-pill" href="mailto:${esc(e.email)}">✉ ${esc(e.email)}</a>` : ''}${site ? `<a class="qs-pill" href="${esc(site)}" target="_blank" rel="noopener">🌐 ${esc(e.site)}</a>` : ''}</div>
+        ${e.notes ? `<div class="hc-rq">🔒 ${esc(e.notes)}</div>` : ''}</div></div>
+        <div class="kpis qk hc-k"><div><b>${h.contacts.length}</b><span>contact${h.contacts.length > 1 ? 's' : ''}</span></div><div><b>${r.nbDevis}</b><span>devis</span></div><div><b>${r.nbSignes}</b><span>devis signé${r.nbSignes > 1 ? 's' : ''}</span></div><div><b>${euros(r.signeCents)}</b><span>signé (TTC)</span></div></div></section>
+      <div class="hc-cols">
+        <div>
+          <section class="box"><div class="hc-th"><h2>Contacts de l’entreprise <small class="muted">(${h.contacts.length})</small></h2><a class="lnk" href="#/clients/nouveau?ent=${esc(id)}">+ Nouveau contact</a></div>
+            ${h.contacts.length ? `<ul class="en-cts">${h.contacts.map(c => `<li class="cf-r en-ct"><span class="qs-av">${esc(initiales(c.nom))}</span><a class="cf-t" href="#/clients/${esc(c.id)}"><b>${esc(c.nom || '—')}</b><small>${esc([c.fonction, c.tel, c.email].filter(Boolean).join(' · '))}</small></a><span class="cf-m"><small>${c.derniereActivite ? 'activité le ' + dateFr(c.derniereActivite) : ''}</small></span><span class="en-acts"><a class="qs-back" href="#/clients/${esc(c.id)}">🕘 Fiche</a><button type="button" class="qs-back" data-detach="${esc(c.id)}" title="Retirer ce contact de l’entreprise (sa fiche est gardée)">✕ Détacher</button></span></li>`).join('')}</ul>` : '<p class="muted">Aucun contact relié pour l’instant.</p>'}
+            <div class="en-lier"><label>Relier un contact existant<input type="search" data-enlq placeholder="🔍 Nom, téléphone, e-mail du contact…" autocomplete="off"></label><div class="cf-res" data-enlr hidden></div></div></section>
+          <section class="box"><h2>Devis de l’entreprise</h2>${h.devis.length ? `<ul class="list">${h.devis.map(x => `<li><a href="#/devis/${esc(x.id)}"><b>${esc(x.numero)}</b> · ${euros(x.ttcCents)}<small class="muted"> ${esc([x.clientNom, x.evenement?.type, x.evenement?.date ? dateFr(x.evenement.date) : ''].filter(Boolean).join(' · '))}</small></a><span class="pill d-${x.statut}">${DSTAT[x.statut] || ''}</span></li>`).join('')}</ul>` : '<p class="muted">Aucun devis pour les contacts de cette entreprise.</p>'}</section>
+        </div>
+        <section class="box hc-form"><h2>Informations</h2><form id="enf">${formEntreprise(e)}<div class="row"><button class="btn">Enregistrer</button><button type="button" class="btn ghost danger" data-endel>🗑 Supprimer l’entreprise</button></div></form><p class="muted sm">Changer le nom met à jour la case « Société » de tous ses contacts. Supprimer l’entreprise garde ses contacts (ils sont seulement détachés).</p></section>
+      </div>`);
+  }
+  ficheEntreprise.after = id => {
+    $('#enf').addEventListener('submit', async ev => {
+      ev.preventDefault(); const f = Object.fromEntries(new FormData(ev.target));
+      try {
+        if (id === 'nouvelle') { const r = await api(A + '/entreprises', { method: 'POST', body: f }); location.hash = '#/clients/entreprises/' + r.id; }
+        else { await api(A + '/entreprises/' + id, { method: 'PUT', body: f }); toast('Fiche entreprise enregistrée.'); render(); }
+      } catch (err) { toast(err.message, true); }
+    });
+    if (id === 'nouvelle') return setTimeout(() => $('#enf input[name=nom]')?.focus(), 50);
+    $('[data-endel]')?.addEventListener('click', async () => {
+      if (!confirm(`Supprimer l’entreprise « ${cache.ent.entreprise.nom} » ?\n\nSes ${cache.ent.contacts.length} contact(s) sont gardés : ils sont seulement détachés.`)) return;
+      try { await api(A + '/entreprises/' + id, { method: 'DELETE' }); toast('Entreprise supprimée.'); location.hash = '#/clients/entreprises'; } catch (err) { toast(err.message, true); }
+    });
+    const lier = async (clientId, retirer) => { try { await api(`${A}/entreprises/${id}/contacts`, { method: 'POST', body: { clientId, retirer } }); toast(retirer ? 'Contact détaché.' : 'Contact relié à l’entreprise.'); render(); } catch (err) { toast(err.message, true); } };
+    $$('[data-detach]').forEach(b => b.addEventListener('click', () => { if (confirm('Retirer ce contact de l’entreprise ? Sa fiche est gardée.')) lier(b.dataset.detach, true); }));
+    const q = $('[data-enlq]'), res = $('[data-enlr]');
+    q.addEventListener('input', () => {
+      clearTimeout(q._t); const v = q.value.trim();
+      if (v.length < 2) { res.hidden = true; return; }
+      q._t = setTimeout(async () => {
+        try { const r = await api(`${A}/clients?par=8&page=1&q=${encodeURIComponent(v)}`); res.hidden = false;
+          res.innerHTML = r.items.length ? r.items.map((c, i) => `<a class="cf-r${i ? '' : ' on'}" href="#" data-enl="${esc(c.id)}"><span class="qs-av">${esc(initiales(c.nom))}</span><span class="cf-t"><b>${esc(c.nom || '—')}</b><small>${esc([c.societe, c.tel, c.email].filter(Boolean).join(' · '))}</small></span><span class="cf-go">${c.entrepriseId === id ? 'Déjà relié' : 'Relier ›'}</span></a>`).join('') : `<p class="cf-none">Aucun contact ne correspond. <a href="#/clients/nouveau?ent=${esc(id)}">+ Créer le contact</a></p>`;
+        } catch (err) { toast(err.message, true); }
+      }, 250);
+    });
+    res.addEventListener('click', e => { const a = e.target.closest('[data-enl]'); if (!a) return; e.preventDefault(); const c = a.dataset.enl; const cur = a.querySelector('.cf-go').textContent; if (cur !== 'Déjà relié') lier(c, false); });
   };
 
   /* ---------- importer le fichier clients de l'ancien CRM ---------- */
@@ -1169,7 +1315,7 @@
     const n = x => (x || 0).toLocaleString('fr-FR');
     const ex = v.exemples[0];
     return `<section class="box imp-step"><h2><span class="imp-n">3</span> Ce qui va se passer</h2>
-      <div class="kpis qk imp-k"><div><b>${n(v.nouveaux)}</b><span>nouveaux clients créés</span></div><div><b>${n(v.completes)}</b><span>clients déjà connus, complétés</span></div><div><b>${n(v.identiques)}</b><span>déjà connus, rien de nouveau</span></div><div><b>${n(v.doublonsFichier)}</b><span>doublons dans le fichier (regroupés)</span></div><div><b>${n(v.sansCoordonnees)}</b><span>lignes vides ignorées</span></div></div>
+      <div class="kpis qk imp-k"><div><b>${n(v.nouveaux)}</b><span>nouveaux clients créés</span></div><div><b>${n(v.completes)}</b><span>clients déjà connus, complétés</span></div><div><b>${n(v.identiques)}</b><span>déjà connus, rien de nouveau</span></div><div><b>${n(v.doublonsFichier)}</b><span>doublons dans le fichier (regroupés)</span></div><div><b>${n(v.sansCoordonnees)}</b><span>lignes vides ignorées</span></div>${v.essais ? `<div><b>${n(v.essais)}</b><span>lignes d’essai « [TEST…] » ignorées</span></div>` : ''}</div>
       ${v.telIllisibles || v.emailsIllisibles || v.sansContact ? `<p class="muted sm">${[v.telIllisibles ? `${n(v.telIllisibles)} téléphone(s) illisible(s)` : '', v.emailsIllisibles ? `${n(v.emailsIllisibles)} e-mail(s) illisible(s)` : '', v.sansContact ? `${n(v.sansContact)} fiche(s) avec un nom mais ni e-mail ni téléphone` : ''].filter(Boolean).join(' · ')} : ils sont gardés tels quels dans les notes de la fiche.</p>` : ''}
       ${ex ? `<div class="imp-ex1"><p class="muted sm">Exemple : la ligne ${ex.ligne} du fichier donnera cette fiche</p><dl>${[['Nom', ex.nom], ['Société', ex.societe], ['E-mail', ex.email], ['Téléphone', ex.tel + (ex.telE164 ? ' (SMS : ' + ex.telE164 + ')' : '')], ['Autre téléphone', ex.telAutre], ['Adresse', [ex.adresse, ex.cp, ex.ville].filter(Boolean).join(' ')], ['Département', ex.departement], ['Déjà commandé', ex.caCrmCents != null ? euros(ex.caCrmCents) : ''], ['Dernière commande', ex.derniereCommande ? dateFr(ex.derniereCommande) : ''], ['Notes', ex.notes]].filter(x => x[1] && x[1] !== 'undefined').map(([k, val]) => `<dt>${k}</dt><dd>${esc(val)}</dd>`).join('')}</dl></div>` : ''}
       <label class="chk imp-ok"><input type="checkbox" id="impOk"> Je confirme que ces personnes sont nos clients ou nous ont contactés d’elles-mêmes (aucun fichier de prospection acheté). Elles pourront recevoir nos e-mails et SMS ; chaque message garde le lien de désinscription et « STOP ».</label>
@@ -1222,7 +1368,7 @@
           if (r.fini) break;
         }
         const n = x => (x || 0).toLocaleString('fr-FR');
-        prog.innerHTML = `<div class="okbox imp-rap"><b>✓ Import terminé.</b><ul><li><b>${n(r.nouveaux)}</b> nouveaux clients créés</li><li><b>${n(r.completes)}</b> clients déjà connus, complétés</li><li><b>${n(r.identiques)}</b> déjà connus, rien de nouveau</li><li><b>${n(r.doublonsFichier)}</b> doublons du fichier regroupés</li><li><b>${n(r.sansCoordonnees)}</b> lignes vides ignorées</li></ul><div class="row"><a class="btn sm" href="#/clients">Voir les clients</a><button type="button" class="btn ghost sm" data-annul="${esc(r.impId)}">↶ Annuler cet import</button></div></div>`;
+        prog.innerHTML = `<div class="okbox imp-rap"><b>✓ Import terminé.</b><ul><li><b>${n(r.nouveaux)}</b> nouveaux clients créés</li><li><b>${n(r.completes)}</b> clients déjà connus, complétés</li><li><b>${n(r.identiques)}</b> déjà connus, rien de nouveau</li><li><b>${n(r.doublonsFichier)}</b> doublons du fichier regroupés</li><li><b>${n(r.sansCoordonnees)}</b> lignes vides ignorées</li>${r.essais ? `<li><b>${n(r.essais)}</b> lignes d’essai ignorées</li>` : ''}</ul><div class="row"><a class="btn sm" href="#/clients">Voir les clients</a><button type="button" class="btn ghost sm" data-annul="${esc(r.impId)}">↶ Annuler cet import</button></div></div>`;
         brancherAnnul(prog);
         toast('Import terminé.');
       });
@@ -1238,13 +1384,13 @@
     brancherAnnul();
   };
   /* ---------- Clients › « Envoyer un e-mail » / « Envoyer un SMS » : sélection multicritère, rédaction par l'IA, aperçu, essai, envoi ---------- */
-  const ongletsClients = cur => `<nav class="df-tabs" aria-label="Clients">${[['', '👥 Liste des clients'], ['email', '✉️ Envoyer un e-mail'], ['sms', '💬 Envoyer un SMS'], ['appels', '📞 Programmer un appel']].map(([k, l]) => `<a href="#/clients${k ? '/' + k : ''}" class="df-tab${cur === k ? ' on' : ''}"${cur === k ? ' aria-current="page"' : ''}>${l}</a>`).join('')}</nav>`;
+  const ongletsClients = cur => `<nav class="df-tabs" aria-label="Clients">${[['', '👥 Liste des clients'], ['email', '✉️ Envoyer un e-mail'], ['sms', '💬 Envoyer un SMS'], ['appels', '📞 Programmer un appel']].filter(([k]) => peut('diffusion') || !['email', 'sms'].includes(k)).map(([k, l]) => `<a href="#/clients${k ? '/' + k : ''}" class="df-tab${cur === k ? ' on' : ''}"${cur === k ? ' aria-current="page"' : ''}>${l}</a>`).join('')}</nav>`;
   const DFK = canal => 'mg_dif_' + canal;
   const MONTANTS = [[0, 'Peu importe'], [10000, 'Plus de 100 €'], [30000, 'Plus de 300 €'], [50000, 'Plus de 500 €'], [100000, 'Plus de 1 000 €'], [200000, 'Plus de 2 000 €'], [500000, 'Plus de 5 000 €'], ['autre', 'Autre montant…']];
   const IDF = ['75', '77', '78', '91', '92', '93', '94', '95'];
   function etatDif(canal) {
     let s = null; try { s = JSON.parse(mem.get(DFK(canal)) || 'null'); } catch { /* */ }
-    return { criteres: { statut: '', montantMin: 0, deps: [], types: [], pro: '', accord: false, ...(s?.criteres || {}) }, mode: s?.mode === 'manuel' ? 'manuel' : 'criteres', exclus: [], inclus: [], q: '', page: 0, seulementCoches: false,
+    return { criteres: { statut: '', montantMin: 0, deps: [], types: [], pro: '', accord: false, metiers: [], dj: [], contactDe: [], civ: '', ...(s?.criteres || {}) }, mode: s?.mode === 'manuel' ? 'manuel' : 'criteres', exclus: [], inclus: [], q: '', page: 0, seulementCoches: false,
       infos: s?.infos || '', nbSms: s?.nbSms || 1, ton: s?.ton || '', message: s?.message || (canal === 'sms' ? { texte: '' } : { objet: '', titre: '', corps: '', photo: '', bouton: { texte: '', lien: '' } }), essai: s?.essai || '' };
   }
   const garderDif = (canal, st) => mem.set(DFK(canal), JSON.stringify({ criteres: st.criteres, mode: st.mode, infos: st.infos, nbSms: st.nbSms, ton: st.ton, message: st.message, essai: st.essai }));
@@ -1270,6 +1416,10 @@
             <label class="check df-accord"><input type="checkbox" data-k="accord"${k.accord ? ' checked' : ''}> Seulement ceux qui ont coché « J’accepte les offres »</label></div>
             <div class="df-lab">Département <small>(aucun choisi = tous)</small></div>
             <div class="df-chips" data-deps>${deps.length ? deps.map(([d, n]) => chip('dep', d, `${esc(d)} <small>${n}</small>`, k.deps.includes(d))).join('') : '<span class="muted sm">Aucun département connu pour le moment.</span>'}</div>
+            <div class="g2"><label>Civilité<select data-k="civ"><option value="">Madame et Monsieur</option><option value="Mme"${k.civ === 'Mme' ? ' selected' : ''}>Seulement Madame</option><option value="M."${k.civ === 'M.' ? ' selected' : ''}>Seulement Monsieur</option></select></label></div>
+            ${(conf.metiers || []).length ? `<div class="df-lab">🎭 Métier (prestataires) <small>(aucun choisi = tous)</small></div><div class="df-chips" data-mets>${conf.metiers.map(([t, n]) => chip('met', t, `${esc(t)} <small>${n}</small>`, k.metiers.includes(t))).join('')}</div>` : ''}
+            ${(conf.dj || []).length ? `<div class="df-lab">🎧 Style de DJ <small>(aucun choisi = tous)</small></div><div class="df-chips">${conf.dj.map(([t, n]) => chip('djs', t, `${esc(t)} <small>${n}</small>`, k.dj.includes(t))).join('')}</div>` : ''}
+            ${(conf.contactDe || []).length ? `<div class="df-lab">🤝 Contact de <small>(aucun choisi = tous)</small></div><div class="df-chips">${conf.contactDe.slice(0, 40).map(([t, n]) => chip('cde', t, `${esc(t)} <small>${n}</small>`, k.contactDe.includes(t))).join('')}</div>` : ''}
             ${conf.types.length ? `<div class="df-lab">Type d’événement <small>(aucun choisi = tous)</small></div><div class="df-chips" data-types>${conf.types.slice(0, 24).map(([t, n]) => chip('type', t, `${esc(t)} <small>${n}</small>`, k.types.includes(t))).join('')}</div>` : ''}
           </div>
           <div class="df-compte" aria-live="polite"><b data-nb>…</b><span data-nbl>destinataires</span></div>
@@ -1319,7 +1469,7 @@
       nb = r.nb;
       $('[data-nb]').textContent = r.nb.toLocaleString('fr-FR');
       $('[data-nbl]').textContent = (r.nb > 1 ? 'destinataires' : 'destinataire') + (st.mode === 'criteres' && r.correspondent !== r.nb ? ` (${r.correspondent - r.nb} décoché${r.correspondent - r.nb > 1 ? 's' : ''} à la main)` : '');
-      $('[data-dlist]').innerHTML = r.lignes.length ? r.lignes.map(p => `<li><label class="df-cl${p.coche ? ' on' : ''}"><input type="checkbox" data-cid="${esc(p.id)}"${p.coche ? ' checked' : ''}><span class="qs-av">${esc(initiales(p.nom))}</span><span class="df-t"><b>${esc(p.nom || '—')}</b><small>${esc([p.societe, p.contact].filter(Boolean).join(' · '))}</small></span><span class="df-m">${p.totalCents ? euros(p.totalCents) : '<span class="muted">pas de commande</span>'}<small>${esc(p.deps.join(', '))}${p.derniere ? (p.deps.length ? ' · ' : '') + dateFr(p.derniere) : ''}</small></span></label></li>`).join('')
+      $('[data-dlist]').innerHTML = r.lignes.length ? r.lignes.map(p => `<li><label class="df-cl${p.coche ? ' on' : ''}"><input type="checkbox" data-cid="${esc(p.id)}"${p.coche ? ' checked' : ''}><span class="qs-av">${esc(initiales(p.nom))}</span><span class="df-t"><b>${esc(p.nom || '—')}</b><small>${esc([p.societe, p.contact].filter(Boolean).join(' · '))}</small></span><span class="df-m">${p.totalCents ? euros(p.totalCents) : '<span class="muted">pas de commande</span>'}<small>${esc(p.deps.join(', '))}${p.derniere ? (p.deps.length ? ' · ' : '') + dateFr(p.derniere) : ''}</small></span></label><button type="button" class="qs-back df-edit" data-dedit="${esc(p.id)}" title="Corriger la fiche de ce contact" aria-label="Modifier la fiche">✏<span class="df-edit-t"> Modifier</span></button></li>`).join('')
         : `<li class="muted df-vide">${st.q ? 'Aucun client trouvé.' : st.mode === 'manuel' && st.seulementCoches ? 'Aucun client coché.' : 'Aucun client ne correspond à ces critères.'}</li>`;
       $('[data-dpages]').innerHTML = r.pages > 1 ? `<button type="button" class="btn ghost sm" data-pg="-1"${st.page ? '' : ' disabled'}>‹ Précédents</button><span class="muted sm">Page ${st.page + 1} / ${r.pages} · ${r.vue.toLocaleString('fr-FR')} clients</span><button type="button" class="btn ghost sm" data-pg="1"${st.page + 1 < r.pages ? '' : ' disabled'}>Suivants ›</button>` : '';
       const go = $('[data-envoyer]');
@@ -1336,9 +1486,11 @@
     $('[data-k=montant]').addEventListener('change', e => { const v = e.target.value; $('.df-autre').hidden = v !== 'autre'; if (v === 'autre') { $('[data-k=montantLibre]').focus(); return; } k.montantMin = +v; recharger(); });
     $('[data-k=montantLibre]').addEventListener('input', e => { k.montantMin = Math.max(0, Math.round(+e.target.value || 0)) * 100; clearTimeout(e.target._t); e.target._t = setTimeout(recharger, 350); });
     const bascule = (attr, liste) => $$(`[data-${attr}]`).forEach(b => b.addEventListener('click', () => { const v = b.dataset[attr], i = liste.indexOf(v); if (i < 0) liste.push(v); else liste.splice(i, 1); b.classList.toggle('on', i < 0); b.setAttribute('aria-pressed', i < 0); recharger(); }));
-    bascule('dep', k.deps); bascule('type', k.types);
+    bascule('dep', k.deps); bascule('type', k.types); bascule('met', k.metiers); bascule('djs', k.dj); bascule('cde', k.contactDe);
+    $('[data-k=civ]').addEventListener('change', e => { k.civ = e.target.value; recharger(); });
     $('[data-dq]').addEventListener('input', e => { st.q = e.target.value; clearTimeout(e.target._t); e.target._t = setTimeout(() => { st.page = 0; charger(); }, 250); });
     $('[data-coches]').addEventListener('change', e => { st.seulementCoches = e.target.checked; st.page = 0; charger(); });
+    $('[data-dlist]').addEventListener('click', e => { const b = e.target.closest('[data-dedit]'); if (b) { e.preventDefault(); ficheEnFenetre(b.dataset.dedit, () => charger()); } });
     $('[data-dlist]').addEventListener('change', e => {
       const id = e.target.dataset.cid; if (!id) return;
       const on = e.target.checked; e.target.closest('.df-cl').classList.toggle('on', on);
@@ -1466,7 +1618,7 @@
   /* ---------- fiche client : coordonnées + tout l'historique en frise (comme un CRM) ---------- */
   const HTYPES = {
     demande: ['📥', 'Demande', 'dem'], statut: ['➜', 'Étape', 'st'], devis: ['📄', 'Devis', 'dv'], envoi: ['📨', 'Envoi', 'dv'], vu: ['👁', 'Vu', 'dv'], relance: ['🔔', 'Relance', 'msg'],
-    signe: ['✍', 'Signature', 'ok'], refus: ['✕', 'Refus', 'ko'], facture: ['🧾', 'Facture', 'pay'], paiement: ['💶', 'Règlement', 'ok'], email: ['✉', 'E-mail', 'msg'], sms: ['💬', 'SMS', 'msg'],
+    signe: ['✍', 'Signature', 'ok'], commentaire: ['💬', 'Commentaire client', 'msg'], refus: ['✕', 'Refus', 'ko'], facture: ['🧾', 'Facture', 'pay'], paiement: ['💶', 'Règlement', 'ok'], email: ['✉', 'E-mail', 'msg'], sms: ['💬', 'SMS', 'msg'],
     appel: ['📞', 'Appel', 'note'], note: ['🗒', 'Note', 'note'], rdv: ['📅', 'Rendez-vous', 'note'], client: ['👤', 'Client', 'st'],
   };
   const HFILTRES = [['', 'Tout'], ['dv', 'Devis'], ['pay', 'Factures et règlements'], ['msg', 'E-mails, SMS et relances'], ['note', 'Notes et appels']];
@@ -1560,11 +1712,14 @@
   };
   async function client(id) {
     if (id === 'nouveau') {
-      cache.client = { nom: '', email: '', tel: '', societe: '', adresse: '', notes: '' };
-      return page('Nouveau client', '<a class="btn ghost" href="#/suivi">← Suivi client</a>', `<section class="box hc-form"><form id="cf">${formClient(cache.client)}<button class="btn">Enregistrer</button></form></section>`);
+      const ent = new URLSearchParams(location.hash.split('?')[1] || '').get('ent');
+      const e = ent ? await api(A + '/entreprises/' + encodeURIComponent(ent)).then(x => x.entreprise).catch(() => null) : null;
+      if (!cache.profilDef) cache.profilDef = await api(A + '/actions/profil-contact').catch(() => null);
+      cache.client = { nom: '', email: '', tel: '', societe: e?.nom || '', entrepriseId: e?.id || '', adresse: e?.adresse || '', cp: e?.cp || '', ville: e?.ville || '', notes: '' };
+      return page(e ? 'Nouveau contact · ' + esc(e.nom) : 'Nouveau client', e ? `<a class="btn ghost" href="#/clients/entreprises/${esc(e.id)}">← ${esc(e.nom)}</a>` : '<a class="btn ghost" href="#/suivi">← Suivi client</a>', `<section class="box hc-form"><form id="cf">${formClient(cache.client)}<button class="btn">Enregistrer</button></form></section>`);
     }
-    const [h, eq, R0] = await Promise.all([api(A + '/actions/historique-client/' + id), cache.equipe ? Promise.resolve(null) : api(A + '/actions/equipe').catch(() => []), cache.R ? Promise.resolve(null) : api(A + '/site').catch(() => ({}))]);
-    if (eq) cache.equipe = eq.filter(u => !u.desactive); if (R0) cache.R = R0;
+    const [h, eq, R0, PD] = await Promise.all([api(A + '/actions/historique-client/' + id), cache.equipe ? Promise.resolve(null) : api(A + '/actions/equipe').catch(() => []), cache.R ? Promise.resolve(null) : api(A + '/site').catch(() => ({})), cache.profilDef ? Promise.resolve(null) : api(A + '/actions/profil-contact').catch(() => null)]);
+    if (eq) cache.equipe = eq.filter(u => !u.desactive); if (R0) cache.R = R0; if (PD) cache.profilDef = PD;
     const c = h.client; cache.client = c; cache.hist = h;
     const tel = String(c.tel || '').replace(/[^\d+]/g, ''), r = h.resume;
     const coms = [...new Set([...h.devis.map(x => x.commercial), ...(h.demandes || []).map(x => x.commercial)].filter(Boolean))];
@@ -1572,7 +1727,7 @@
     return page(esc(c.nom || 'Client'), `<a class="btn ghost" href="#/suivi">← Suivi client</a><button type="button" class="btn hc-editbtn" data-hedit>✏ Modifier la fiche</button><button type="button" class="btn ghost hc-rdvbtn" data-hrdv>📞 Programmer un appel / une visio</button><button class="btn" data-newdv>+ Devis pour ce client</button>`, `
       <section class="box hc-edit" id="hcEdit"${/[?&]edit=1/.test(location.hash) ? '' : ' hidden'}><div class="hc-th"><h2>✏ Modifier la fiche de ${esc(c.nom || 'ce client')}</h2><button type="button" class="lnk" data-hcancel>Fermer</button></div><p class="muted sm">Corrigez ce qui a changé (nom, téléphone, e-mail, adresse…) puis « Enregistrer ». Les demandes et le suivi client sont mis à jour en même temps.</p><form id="cf">${formClient(c)}<div class="row"><button class="btn">Enregistrer la fiche</button><button type="button" class="btn ghost" data-hcancel>Annuler</button></div></form></section>
       ${formRdv(c)}
-      <section class="box hc-head"><div class="hc-who"><span class="qs-av hc-av">${esc(initiales(c.nom))}</span><div><div class="hc-nm">${esc(c.nom || '—')} <button type="button" class="hc-pen" data-hedit title="Modifier la fiche" aria-label="Modifier la fiche">✏</button></div>${c.societe ? `<div class="hc-co">${esc(c.societe)}</div>` : ''}
+      <section class="box hc-head"><div class="hc-who"><span class="qs-av hc-av">${esc(initiales(c.nom))}</span><div><div class="hc-nm">${esc(c.nom || '—')} <button type="button" class="hc-pen" data-hedit title="Modifier la fiche" aria-label="Modifier la fiche">✏</button></div>${c.societe ? `<div class="hc-co">${c.entrepriseId ? `<a class="hc-ent" href="#/clients/entreprises/${esc(c.entrepriseId)}" title="Ouvrir la fiche de l’entreprise">🏢 ${esc(c.societe)} ›</a>` : esc(c.societe)}${c.fonction ? ' · ' + esc(c.fonction) : ''}</div>` : c.fonction ? `<div class="hc-co">${esc(c.fonction)}</div>` : ''}
         <div class="hc-ct">${tel ? `<a class="qs-pill" href="tel:${esc(tel)}" data-happel>📞 ${esc(c.tel)}</a>` : ''}${c.email ? `<a class="qs-pill" href="mailto:${esc(c.email)}">✉ ${esc(c.email)}</a>` : ''}</div>
         ${an ? `<div class="hc-anniv${an.dans <= 14 ? ' bientot' : ''}">🎂 Né(e) le ${dateFr(c.naissance, { day: 'numeric', month: 'long', year: 'numeric' })} · ${an.age - (an.dans ? 1 : 0)} ans · ${an.dans === 0 ? '<b>anniversaire aujourd’hui !</b>' : an.dans <= 14 ? `<b>anniversaire dans ${an.dans} jour${an.dans > 1 ? 's' : ''}</b>` : 'anniversaire le ' + dateFr(an.date, { day: 'numeric', month: 'long' })}${an.dans <= 14 ? ` <button type="button" class="qs-pill" data-anniv="${esc(c.id)}" data-canal="email">✉ Souhaiter par e-mail</button><button type="button" class="qs-pill" data-anniv="${esc(c.id)}" data-canal="sms">💬 par SMS</button>` : ''}</div>` : `<div class="hc-since"><button type="button" class="lnk" data-hedit>🎂 Ajouter sa date de naissance</button></div>`}<div class="hc-since">Client depuis le ${dateFr(c.creeLe || h.events[h.events.length - 1]?.at)}${coms.length ? ' · suivi par ' + esc(coms.join(', ')) : ''}</div>${c.source === 'import CRM' || c.consentement ? `<div class="hc-since hc-cons">${c.source === 'import CRM' ? '📥 Repris du fichier clients de l’ancien CRM' : '✓ Client existant'}${c.consentement ? ` · accepte nos ${[c.consentement.email && !c.desinscrit?.email ? 'e-mails' : '', c.consentement.sms && !c.desinscrit?.sms ? 'SMS' : ''].filter(Boolean).join(' et ') || '—'}` : ''}${c.desinscrit?.email || c.desinscrit?.sms ? ` · <b>désinscrit des ${[c.desinscrit.email ? 'e-mails' : '', c.desinscrit.sms ? 'SMS' : ''].filter(Boolean).join(' et ')}</b>` : ''}${c.caCrmCents ? ` · déjà commandé (ancien CRM) : ${euros(c.caCrmCents)}` : ''}${c.derniereCommande ? ` · dernière commande le ${dateFr(c.derniereCommande)}` : ''}</div>` : ''}</div></div>
         <div class="kpis qk hc-k"><div><b>${euros(r.signeCents)}</b><span>signé (TTC)</span></div><div><b>${euros(r.regleCents)}</b><span>déjà réglé</span></div><div><b>${euros(r.aEncaisserCents)}</b><span>factures à encaisser</span></div><div><b>${r.nbSignes} / ${r.nbDevis}</b><span>devis signés</span></div></div></section>
@@ -1582,27 +1737,87 @@
           <div class="hc-f">${HFILTRES.map(([k, l]) => `<button type="button" class="qs-own-b${HF.f === k ? ' on' : ''}" data-hf="${k}">${l}</button>`).join('')}</div>
           <ol class="hc-list" id="hcList">${friseClient(h.events)}</ol></section>
         <div class="hc-side">
+          <section class="box hc-rqbox"><div class="hc-th"><h2>🔒 Remarque</h2><span class="muted sm">visible seulement par l’équipe</span></div><textarea rows="4" data-rq placeholder="Ex. : client exigeant sur la ponctualité, préfère le vin rouge, code portail 1234…">${esc(c.notes || '')}</textarea><div class="row"><button type="button" class="btn sm" data-rqsave>Enregistrer la remarque</button><span class="muted sm" data-rqok></span></div><p class="muted sm">Jamais montrée au client : ni sur le site, ni sur les devis, ni dans les e-mails ou SMS.</p></section>
+          ${boxProfil(c)}
           <section class="box hc-rdvs"><div class="hc-th"><h2>Appels et visios</h2><button type="button" class="lnk" data-hrdv>+ Programmer</button></div>${listeRdv(h.rdv || [])}</section>
           <section class="box"><h2>Devis</h2>${h.devis.length ? `<ul class="list">${[...h.devis].sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).map(x => `<li><a href="#/devis/${x.id}"><b>${esc(x.numero)}</b> · ${euros(x.ttcCents)}<small class="muted"> ${esc([x.evenement?.type, x.evenement?.date ? dateFr(x.evenement.date) : ''].filter(Boolean).join(' · '))}</small></a><span class="pill d-${x.statut}">${DSTAT[x.statut]}</span></li>`).join('')}</ul>` : '<p class="muted">Aucun devis.</p>'}</section>
           <section class="box"><h2>Factures et règlements</h2>${h.factures.length ? `<ul class="list">${h.factures.map(x => `<li><a href="#/factures/${x.id}"><b>${esc(x.numero)}</b> · ${x.type === 'avoir' ? '− ' : ''}${euros(x.totalCents)}<small class="muted"> ${{ acompte: 'acompte', solde: 'solde', totale: '', avoir: 'avoir' }[x.type] || ''}${x.type !== 'avoir' && !x.annulee && x.regleCents && x.resteCents ? ` · réglé ${euros(x.regleCents)}, reste ${euros(x.resteCents)}` : ''}</small></a><span class="pill ${x.annulee ? 'd-refuse' : x.type === 'avoir' ? 'd-expire' : x.payee ? 'd-accepte' : 'd-envoye'}">${x.annulee ? 'Annulée' : x.type === 'avoir' ? 'Avoir' : x.payee ? (x.archivee ? 'Archivée' : 'Réglée') + (x.moyen ? ' · ' + esc(x.moyen) : '') : x.regleCents ? 'Acompte reçu' : 'À encaisser'}</span></li>`).join('')}</ul>` : '<p class="muted">Aucune facture.</p>'}</section>
           <section class="box"><h2>Demandes</h2>${h.demandes.length ? `<ul class="list">${h.demandes.map(d => `<li><a href="#/demandes/${d.id}"><b>${esc(d.ref || '')}</b> · ${esc(d.evenement?.type || (d.type === 'contact' ? 'message' : ''))} ${d.evenement?.date ? dateFr(d.evenement.date) : ''}</a><span class="pill st-${d.statut}">${STATUTS[d.statut] || ''}</span></li>`).join('')}</ul>` : '<p class="muted">Aucune demande.</p>'}</section>
         </div></div>`);
   }
-  const formClient = c => `<label>Prénom et NOM<input name="nom" value="${esc(c.nom)}" required data-nomclient placeholder="ex. Jean-Luc BERNARD"></label><label>Société<input name="societe" value="${esc(c.societe || '')}"></label><div class="g2"><label>E-mail<input type="email" name="email" value="${esc(c.email || '')}"></label><label>Téléphone<input name="tel" value="${esc(c.tel || '')}" inputmode="tel"></label></div><div class="g2"><label>Date de naissance <small class="muted">(rappel de son anniversaire)</small><input type="date" name="naissance" value="${esc(c.naissance || '')}" max="${new Date().toISOString().slice(0, 10)}"></label></div><label>Adresse de facturation<textarea name="adresse" rows="2">${esc(c.adresse || '')}</textarea></label><div class="g2"><label>Code postal<input name="cp" value="${esc(c.cp || '')}" inputmode="numeric" maxlength="5"></label><label>Ville<input name="ville" value="${esc(c.ville || '')}"></label></div><label>Notes internes (fixes)<textarea name="notes" rows="3">${esc(c.notes || '')}</textarea></label><fieldset class="df-fs"><legend>E-mails et SMS d’information</legend><label class="check"><input type="checkbox" name="_accord"${c.consentement?.email ? ' checked' : ''}> A accepté de recevoir nos offres</label><label class="check"><input type="checkbox" name="_stopEmail"${c.desinscrit?.email ? ' checked' : ''}> Ne plus lui envoyer d’e-mails d’information</label><label class="check"><input type="checkbox" name="_stopSms"${c.desinscrit?.sms ? ' checked' : ''}> Ne plus lui envoyer de SMS d’information</label></fieldset>`;
+  /* profil prestataire / DJ / origine (fichier contacts « MADER », 2026-11-24) */
+  const aProfil = c => !!((c.metiers || []).length || c.independant || c.permis || c.remuneration);
+  const aDj = c => !!((c.djStyles || []).length || c.djDepuis || c.djTarifs || (c.metiers || []).includes('DJ'));
+  function boxProfil(c) {
+    const puce = t => `<span class="pf-p">${esc(t)}</span>`;
+    const lignes = [];
+    if (c.nePasContacter) lignes.push('<p class="pf-npc">⛔ NE PAS CONTACTER <small>(aucun e-mail ni SMS d’information)</small></p>');
+    if (aProfil(c)) lignes.push(`<div class="pf-g"><p class="pf-t">🎭 Prestataire</p>${(c.metiers || []).length ? `<div class="pf-ps">${c.metiers.map(puce).join('')}</div>` : ''}<p class="sm">${[c.independant ? '✓ Indépendant(e)' : '', c.permis ? '🚗 Permis de conduire' : '', c.remuneration ? '💶 Rémunération : ' + esc(c.remuneration) : ''].filter(Boolean).join(' · ')}</p></div>`);
+    if (aDj(c)) lignes.push(`<div class="pf-g"><p class="pf-t">🎧 DJ</p>${(c.djStyles || []).length ? `<div class="pf-ps">${c.djStyles.map(puce).join('')}</div>` : ''}<p class="sm">${[c.djDepuis ? 'DJ depuis ' + esc(c.djDepuis) : '', c.djTarifs ? 'Tarifs : ' + esc(c.djTarifs) + ' €' : ''].filter(Boolean).join(' · ')}</p></div>`);
+    if (c.contactDe || c.siteWeb || c.pays || c.civilite) lignes.push(`<div class="pf-g"><p class="pf-t">🤝 Origine</p><p class="sm">${[c.civilite ? (c.civilite === 'Mme' ? 'Madame' : 'Monsieur') : '', c.contactDe ? 'Contact de <b>' + esc(c.contactDe) + '</b>' : '', c.pays ? esc(c.pays) : '', c.siteWeb ? `<a href="${esc(/^https?:/i.test(c.siteWeb) ? c.siteWeb : 'https://' + c.siteWeb)}" target="_blank" rel="noopener">${esc(String(c.siteWeb).replace(/^https?:\/\/(www\.)?/i, '').replace(/\/$/, ''))} ↗</a>` : ''].filter(Boolean).join(' · ')}</p></div>`);
+    return `<section class="box pf-box"><div class="hc-th"><h2>Profil</h2><button type="button" class="lnk" data-hedit>✏ Compléter</button></div>${lignes.join('') || '<p class="muted sm">Métiers, DJ, « contact de »… : rien de renseigné. « Compléter » pour les ajouter.</p>'}</section>`;
+  }
+  function casesProfil(c) {
+    const D = cache.profilDef || { metiers: [], djStyles: [], contactDe: [] };
+    const coches = (nom, base, choisis) => { const l = [...base, ...(choisis || []).filter(x => !base.includes(x))]; return `<div class="pf-cases">${l.map(x => `<label class="pf-c"><input type="checkbox" name="${nom}" value="${esc(x)}"${(choisis || []).includes(x) ? ' checked' : ''}><span>${esc(x)}</span></label>`).join('')}</div>`; };
+    return `<details class="pf-d"${aProfil(c) ? ' open' : ''}><summary>🎭 Profil prestataire / talent <small class="muted">(serveur, barman, DJ, magicien…)</small></summary>
+        <p class="pf-l">Métiers</p>${coches('_metiers', D.metiers, c.metiers)}
+        <div class="g2"><label class="check"><input type="checkbox" name="independant"${c.independant ? ' checked' : ''}> Indépendant(e) <small class="muted">(auto-entrepreneur…)</small></label><label class="check"><input type="checkbox" name="permis"${c.permis ? ' checked' : ''}> A le permis de conduire</label></div>
+        <label>Rémunération demandée<input name="remuneration" value="${esc(c.remuneration || '')}" placeholder="ex. 15 € de l’heure, 130 € la soirée"></label></details>
+      <details class="pf-d"${aDj(c) ? ' open' : ''}><summary>🎧 DJ <small class="muted">(styles, expérience, tarifs)</small></summary>
+        <p class="pf-l">Styles de musique</p>${coches('_djStyles', D.djStyles, c.djStyles)}
+        <div class="g2"><label>DJ depuis <small class="muted">(année)</small><input name="djDepuis" value="${esc(c.djDepuis || '')}" inputmode="numeric" maxlength="4" placeholder="ex. 2015"></label><label>Tarifs <small class="muted">(€ la soirée)</small><input name="djTarifs" value="${esc(c.djTarifs || '')}" placeholder="ex. 250, 300"></label></div></details>
+      <details class="pf-d"${c.contactDe || c.siteWeb || c.pays ? ' open' : ''}><summary>🤝 Origine du contact</summary>
+        <div class="g2"><label>Contact de <small class="muted">(qui nous l’a apporté)</small><input name="contactDe" value="${esc(c.contactDe || '')}" list="pfCde" autocomplete="off"><datalist id="pfCde">${D.contactDe.map(x => `<option value="${esc(x)}">`).join('')}</datalist></label><label>Site internet<input name="siteWeb" value="${esc(c.siteWeb || '')}" placeholder="www…"></label></div>
+        <div class="g2"><label>Pays <small class="muted">(si pas la France)</small><input name="pays" value="${esc(c.pays || '')}"></label><label class="check pf-npcc"><input type="checkbox" name="nePasContacter"${c.nePasContacter ? ' checked' : ''}> ⛔ NE PAS CONTACTER <small class="muted">(bloque aussi les e-mails et SMS d’information)</small></label></div></details>`;
+  }
+  /* lecture du formulaire de fiche client (page de la fiche et fenêtre « ✏ Modifier ») */
+  function lireFormClient(form, c0) {
+    const fd = new FormData(form), f = Object.fromEntries(fd);
+    f.metiers = fd.getAll('_metiers'); f.djStyles = fd.getAll('_djStyles'); delete f._metiers; delete f._djStyles;
+    for (const k of ['independant', 'permis', 'nePasContacter']) f[k] = !!f[k];
+    const now = new Date().toISOString(), ds = c0.desinscrit || {}, cs = c0.consentement || {};
+    if (f.nePasContacter && !c0.nePasContacter) { f._stopEmail = 'on'; f._stopSms = 'on'; }
+    const stopE = !!f._stopEmail, stopS = !!f._stopSms, acc = !!f._accord; delete f._stopEmail; delete f._stopSms; delete f._accord;
+    if (stopE !== !!ds.email || stopS !== !!ds.sms) f.desinscrit = { ...ds, email: stopE, sms: stopS, le: ds.le || now, ...(stopE && !ds.email ? { leEmail: now } : {}), ...(stopS && !ds.sms ? { leSms: now } : {}) };
+    if (acc !== !!cs.email) f.consentement = acc ? { ...cs, email: true, sms: true, le: now, source: 'back-office' } : { ...cs, email: false, sms: false, le: now, source: 'back-office' };
+    return f;
+  }
+  /* fenêtre par-dessus l'écran : corriger une fiche sans quitter ce qu'on fait (envois groupés…) */
+  async function ficheEnFenetre(id, apres) {
+    let c; try { [c] = await Promise.all([api(A + '/clients/' + id), cache.profilDef ? null : api(A + '/actions/profil-contact').then(x => { cache.profilDef = x; }).catch(() => null)]); } catch (e) { toast(e.message, true); return; }
+    const m = document.createElement('div'); m.className = 'modal df-modal'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-modal', 'true');
+    m.innerHTML = `<div class="modal-in fc-in"><div class="bh"><h2>✏ Fiche de ${esc(c.nom || 'ce contact')}</h2><button type="button" class="x" data-x aria-label="Fermer">×</button></div><form class="hc-form">${formClient(c)}<div class="row"><button class="btn">Enregistrer la fiche</button><button type="button" class="btn ghost" data-x>Annuler</button><a class="lnk" href="#/clients/${esc(id)}" target="_blank" rel="noopener">Ouvrir tout l’historique ↗</a></div></form></div>`;
+    document.body.appendChild(m);
+    const fermer = () => { m.remove(); document.removeEventListener('keydown', esc1); };
+    const esc1 = e => { if (e.key === 'Escape') fermer(); };
+    document.addEventListener('keydown', esc1);
+    m.addEventListener('click', e => { if (e.target === m || e.target.closest('[data-x]')) fermer(); });
+    setTimeout(() => m.querySelector('input[name=nom]')?.focus(), 50);
+    m.querySelector('form').addEventListener('submit', async e => {
+      e.preventDefault();
+      const f = lireFormClient(e.target, c);
+      try { const cur = await api(A + '/clients/' + id); await api(`${A}/clients/${id}`, { method: 'PUT', body: { ...cur, ...f } }); toast('Fiche enregistrée.'); fermer(); apres?.(); } catch (err) { toast(err.message, true); }
+    });
+  }
+  const formClient = c => `<div class="g2 pf-id"><label>Civilité<select name="civilite"><option value="">—</option>${[['Mme', 'Madame'], ['M.', 'Monsieur']].map(([v, l]) => `<option value="${v}"${c.civilite === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label><label>Prénom et NOM<input name="nom" value="${esc(c.nom)}" required data-nomclient placeholder="ex. Jean-Luc BERNARD"></label></div><div class="g2"><label>Société <small class="muted">(reliée à sa fiche entreprise)</small><input name="societe" value="${esc(c.societe || '')}" list="entL" autocomplete="off" data-soc><datalist id="entL"></datalist></label><label>Fonction <small class="muted">(dans l’entreprise)</small><input name="fonction" value="${esc(c.fonction || '')}" placeholder="ex. assistante de direction"></label></div>${c.entrepriseId && !c.id ? `<input type="hidden" name="entrepriseId" value="${esc(c.entrepriseId)}">` : ''}<div class="g2"><label>E-mail<input type="email" name="email" value="${esc(c.email || '')}"></label><label>Téléphone<input name="tel" value="${esc(c.tel || '')}" inputmode="tel"></label></div><div class="g2"><label>Date de naissance <small class="muted">(rappel de son anniversaire)</small><input type="date" name="naissance" value="${esc(c.naissance || '')}" max="${new Date().toISOString().slice(0, 10)}"></label></div><label>Adresse de facturation<textarea name="adresse" rows="2">${esc(c.adresse || '')}</textarea></label><div class="g2"><label>Code postal<input name="cp" value="${esc(c.cp || '')}" inputmode="numeric" maxlength="5"></label><label>Ville<input name="ville" value="${esc(c.ville || '')}"></label></div><label>🔒 Remarque <small class="muted">(visible seulement par l’équipe, jamais par le client)</small><textarea name="notes" rows="3">${esc(c.notes || '')}</textarea></label>${casesProfil(c)}<fieldset class="df-fs"><legend>E-mails et SMS d’information</legend><label class="check"><input type="checkbox" name="_accord"${c.consentement?.email ? ' checked' : ''}> A accepté de recevoir nos offres</label><label class="check"><input type="checkbox" name="_stopEmail"${c.desinscrit?.email ? ' checked' : ''}> Ne plus lui envoyer d’e-mails d’information</label><label class="check"><input type="checkbox" name="_stopSms"${c.desinscrit?.sms ? ' checked' : ''}> Ne plus lui envoyer de SMS d’information</label></fieldset>`;
   client.after = id => {
     $('#cf').addEventListener('submit', async e => {
-      e.preventDefault(); const f = Object.fromEntries(new FormData(e.target));
-      const now = new Date().toISOString(), c0 = cache.client || {}, ds = c0.desinscrit || {}, cs = c0.consentement || {};
-      const stopE = !!f._stopEmail, stopS = !!f._stopSms, acc = !!f._accord; delete f._stopEmail; delete f._stopSms; delete f._accord;
-      if (stopE !== !!ds.email || stopS !== !!ds.sms) f.desinscrit = { ...ds, email: stopE, sms: stopS, le: ds.le || now, ...(stopE && !ds.email ? { leEmail: now } : {}), ...(stopS && !ds.sms ? { leSms: now } : {}) };
-      if (acc !== !!cs.email) f.consentement = acc ? { ...cs, email: true, sms: true, le: now, source: 'back-office' } : { ...cs, email: false, sms: false, le: now, source: 'back-office' };
+      e.preventDefault(); const f = lireFormClient(e.target, cache.client || {});
       try {
-        if (id === 'nouveau') { const r = await api(A + '/clients', { method: 'POST', body: { ...f, source: 'back-office', creeLe: new Date().toISOString(), derniereActivite: new Date().toISOString() } }); location.hash = '#/clients/' + r.id; }
+        if (id === 'nouveau') { const r = await api(A + '/clients', { method: 'POST', body: { ...f, source: 'back-office', creeLe: new Date().toISOString(), derniereActivite: new Date().toISOString() } }); location.hash = f.entrepriseId ? '#/clients/entreprises/' + f.entrepriseId : '#/clients/' + r.id; }
         else { const cur = await api(A + '/clients/' + id); await api(`${A}/clients/${id}`, { method: 'PUT', body: { ...cur, ...f } }); toast('Fiche enregistrée.'); if (/[?&]edit=1/.test(location.hash)) location.hash = '#/clients/' + id; else render(); }
       } catch (err) { toast(err.message, true); }
     });
     $('[data-newdv]')?.addEventListener('click', async () => { const r = await api(A + '/actions/devis-vierge', { method: 'POST', body: { clientId: id } }); location.hash = '#/devis/' + r.id; });
+    /* Société : propose les entreprises déjà enregistrées pendant la frappe */
+    const soc = $('[data-soc]');
+    soc?.addEventListener('input', () => { clearTimeout(soc._t); const v = soc.value.trim(); if (v.length < 2) return; soc._t = setTimeout(async () => { try { const r = await api(`${A}/entreprises?par=8&q=${encodeURIComponent(v)}`); $('#entL').innerHTML = r.items.map(e => `<option value="${esc(e.nom)}">${esc([e.ville, e.nbContacts ? e.nbContacts + ' contact' + (e.nbContacts > 1 ? 's' : '') : ''].filter(Boolean).join(' · '))}</option>`).join(''); } catch { /* */ } }, 200); });
     if (id === 'nouveau') return;
+    $('[data-rqsave]')?.addEventListener('click', async () => {
+      const t = $('[data-rq]').value.trim(), ok = $('[data-rqok]');
+      try { const cur = await api(A + '/clients/' + id); await api(`${A}/clients/${id}`, { method: 'PUT', body: { ...cur, notes: t } }); cache.client = { ...cache.client, notes: t }; const n = $('#cf textarea[name=notes]'); if (n) n.value = t; ok.textContent = '✓ Enregistrée'; setTimeout(() => { ok.textContent = ''; }, 2500); } catch (err) { toast(err.message, true); }
+    });
     const ed = $('#hcEdit');
     $$('[data-hedit]').forEach(b => b.addEventListener('click', () => { ed.hidden = false; ed.scrollIntoView({ behavior: 'smooth', block: 'start' }); setTimeout(() => ed.querySelector('input[name=nom]')?.focus({ preventScroll: true }), 350); }));
     $$('[data-hcancel]').forEach(b => b.addEventListener('click', () => { ed.hidden = true; $('#cf').reset(); }));
@@ -1845,12 +2060,12 @@
           <div class="ia-ligne"><button type="button" class="btn ghost sm ia-btn" data-desc-ia>✨ Améliorer la description avec l’IA</button><small class="muted">L’IA propose une version enrichie ; relisez-la puis enregistrez.</small></div>
           ${seoBloc('produit', p.seoTitre, p.seoDescription, ` data-id="${esc(p.id || p.slug)}"`)}
         </section>
-        <section class="box"><h2>Prix et quantités</h2>
-          <label>Prix TTC (€) <small>vide = « Sur devis »</small><input name="prix" value="${fromCents(p.prixCents)}" inputmode="decimal"></label>
+        <section class="box"><h2>Prix et quantités</h2>${peut('prix') ? '' : '<p class="muted sm">🔒 Les prix sont verrouillés pour votre compte (droit « Modifier les prix »).</p>'}
+          <label>Prix TTC (€) <small>vide = « Sur devis »</small><input name="prix" value="${fromCents(p.prixCents)}" inputmode="decimal"${peut('prix') ? '' : ' readonly class="verrou"'}></label>
           <div class="g2"><label>Par<select name="unite">${[...new Set([p.unite || '', ...UNITES])].map(u => `<option${u === (p.unite || '') ? ' selected' : ''}>${esc(u)}</option>`).join('')}</select></label>
           <label>Contenu <small>ex. « 4 brochettes », vide = rien d’affiché</small><input name="contenuPortion" value="${esc(p.contenuPortion || '')}" placeholder="4 brochettes"></label></div>
           <div class="g2"><label>Minimum<select name="min">${[...new Set([1, 2, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30, 40, 50, p.min || 1])].sort((a, b) => a - b).map(n => `<option${n === (p.min || 1) ? ' selected' : ''}>${n}</option>`).join('')}</select></label></div>
-          <div class="g2"><label>Coût de revient TTC (€) <small>pour la marge</small><input name="cout" value="${fromCents(p.coutCents)}" inputmode="decimal"></label>
+          <div class="g2"><label>Coût de revient TTC (€) <small>pour la marge</small><input name="cout" value="${fromCents(p.coutCents)}" inputmode="decimal"${peut('prix') ? '' : ' readonly class="verrou"'}></label>
           <label>TVA<select name="tva">${[5.5, 10, 20].map(t => `<option value="${t}"${+(p.tva ?? 10) === t ? ' selected' : ''}>${String(t).replace('.', ',')} %</option>`).join('')}</select></label></div>
           <label class="chk"><input type="checkbox" name="r_personnel" ${p.regles?.personnel ? 'checked' : ''}> Proposer le personnel de service</label>
           <label class="chk"><input type="checkbox" name="r_packs" ${p.regles?.packs ? 'checked' : ''}> Proposer les packs traiteur</label>
@@ -2092,12 +2307,13 @@
       <section class="box"><h2>Les incontournables</h2><p class="muted sm">Les prestations mises en avant sur l’accueil, dans l’ordre.</p><div class="incs">${[0, 1, 2, 3, 4, 5, 6, 7].map(i => `<select name="inc${i}"><option value="">—</option>${prods.filter(p => p.statut !== 'masque').sort((a, b) => a.titre.localeCompare(b.titre)).map(p => `<option value="${esc(p.slug)}"${(Ac.incontournables || [])[i] === p.slug ? ' selected' : ''}>${esc(titreTexte(p.titre))}</option>`).join('')}</select>`).join('')}</div></section>
       <section class="box"><h2>Photos des blocs</h2><div class="g2">${photoField('photoMaison', Ac.photoMaison, 'Bloc « La maison Magnolia »')}${photoField('photoCommande', Ac.photoCommande, 'Bloc « Comment commander »')}</div></section>
       <section class="box"><h2>Coordonnées</h2><div class="g2"><p class="muted sm span2">Téléphone, e-mail, adresse, SIRET, banque… : dans <a href="#/entreprise">🏢 Mon entreprise</a>.</p><label>Horaires<input name="horaires" value="${esc(R.horaires || '')}"></label><label>Slogan<input name="slogan" value="${esc(R.slogan || '')}"></label><label>Instagram<input name="instagram" value="${esc(R.instagram || '')}"></label><label>Note Google<input name="g_note" value="${esc(R.avisGoogle?.note || '')}"></label><label>Nombre d’avis Google<input name="g_nombre" value="${esc(R.avisGoogle?.nombre || '')}"></label></div><label>Mention en bas de page<input name="mentionPied" value="${esc(R.mentionPied || '')}"></label></section>
-      <section class="box"><h2>Tarifs communs (TTC)</h2><div class="g3"><label>Livraison (€ / km aller-retour)<input name="km" value="${fromCents(T.kmCents)}"></label><label>Livraison offerte dès (€ TTC de commande, 0 = jamais)<input name="offerte" inputmode="decimal" value="${fromCents(T.livraisonOfferteCents ?? 70000)}"></label><label>Personnel (€ / heure)<input name="ph" value="${fromCents(T.personnel?.heureCents)}"></label><label>Heures minimum<select name="pmin">${[2, 3, 4, 5, 6].map(n => `<option${(T.personnel?.minHeures || 4) === n ? ' selected' : ''}>${n}</option>`).join('')}</select></label><label>Petit pack (€ / pers.)<input name="pk0" value="${fromCents(T.packs?.[0]?.prixCents)}"></label><label>Grand pack (€ / pers.)<input name="pk1" value="${fromCents(T.packs?.[1]?.prixCents)}"></label><label>Acompte par défaut<select name="acompte">${[20, 30, 40, 50].map(n => `<option value="${n}"${(T.acomptePct ?? 50) === n ? ' selected' : ''}>${n} %</option>`).join('')}</select></label><label>Paiement total en dessous de (€ TTC)<input name="seuilAcompte" value="${fromCents(T.seuilAcompteCents ?? 80000)}" inputmode="decimal"></label></div></section>
+      <section class="box" data-tarifs><h2>Tarifs communs (TTC)${peut('prix') ? '' : ' <span class="pill">🔒 verrouillés pour votre compte</span>'}</h2><div class="g3"><label>Livraison (€ / km aller-retour)<input name="km" value="${fromCents(T.kmCents)}"></label><label>Livraison offerte dès (€ TTC de commande, 0 = jamais)<input name="offerte" inputmode="decimal" value="${fromCents(T.livraisonOfferteCents ?? 70000)}"></label><label>Personnel (€ / heure)<input name="ph" value="${fromCents(T.personnel?.heureCents)}"></label><label>Heures minimum<select name="pmin">${[2, 3, 4, 5, 6].map(n => `<option${(T.personnel?.minHeures || 4) === n ? ' selected' : ''}>${n}</option>`).join('')}</select></label><label>Petit pack (€ / pers.)<input name="pk0" value="${fromCents(T.packs?.[0]?.prixCents)}"></label><label>Grand pack (€ / pers.)<input name="pk1" value="${fromCents(T.packs?.[1]?.prixCents)}"></label><label>Acompte par défaut<select name="acompte">${[20, 30, 40, 50].map(n => `<option value="${n}"${(T.acomptePct ?? 50) === n ? ' selected' : ''}>${n} %</option>`).join('')}</select></label><label>Paiement total en dessous de (€ TTC)<input name="seuilAcompte" value="${fromCents(T.seuilAcompteCents ?? 80000)}" inputmode="decimal"></label></div></section>
       <section class="box"><h2>Publicité Google Ads</h2><p class="muted sm">Renseignez l’identifiant du compte (AW-…) et les libellés de conversion donnés par Google Ads. Chaque demande de devis envoyée est alors comptée, avec son montant estimé. Rien n’est mesuré sans l’accord du visiteur.</p><div class="g3"><label>Identifiant du compte<input name="ads_id" value="${esc(R.suivi?.googleAdsId || '')}" placeholder="AW-123456789"></label><label>Libellé « demande de devis »<input name="ads_dem" value="${esc(R.suivi?.conversionDemande || '')}"></label><label>Libellé « message de contact »<input name="ads_con" value="${esc(R.suivi?.conversionContact || '')}"></label></div></section>
       <section class="box"><h2>Redirections (bascule de l’ancien site)</h2><p class="muted sm">Une ligne par ancienne adresse : « /ancienne-page /nouvelle-page ». Une ancienne adresse finissant par * couvre toutes les pages qui commencent pareil. Google transfère alors le référencement (redirection 301).</p><textarea name="redirections" rows="5" class="mono" placeholder="/nos-buffets /saveurs-du-monde&#10;/blog/* /conseils">${esc(R.redirections || '')}</textarea></section>
       <div class="actions sticky"><button class="btn">Enregistrer</button><span class="muted" id="dirty"></span></div></form>`);
   }
   site.after = async () => {
+    if (!peut('prix')) $$('[data-tarifs] input, [data-tarifs] select').forEach(i => { i.readOnly = true; i.classList.add('verrou'); if (i.tagName === 'SELECT') i.addEventListener('mousedown', e => e.preventDefault()); });
     const form = $('#sf'); bindPhotos(form);
     const [rubs, lieuxL] = await Promise.all([cache.rubriques || api(A + '/rubriques'), api(A + '/lieux')]);
     const DEST = [['', 'Rechercher ce mot'], ['/boutique', 'La boutique (tout)'], ...rubs.filter(r => r.statut !== 'masque').sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0)).flatMap(r => [['/' + r.slug, 'Univers · ' + r.nom], ...(r.sous || []).map(x => [`/${r.slug}/${x.slug}`, '   ' + r.nom + ' › ' + x.nom])]),
@@ -2189,19 +2405,72 @@
   };
 
   /* ---------- équipe et activité ---------- */
+  /* droits détaillés : une case par droit, « Administrateur » coche tout (server/droits.js) */
+  const mdpProvisoire = () => { const L = 'abcdefghjkmnpqrstuvwxyz', C = '23456789'; const r = n => { const a = new Uint32Array(1); crypto.getRandomValues(a); return a[0] % n; }; let t = 'Magnolia-'; for (let i = 0; i < 4; i++) t += L[r(L.length)]; for (let i = 0; i < 4; i++) t += C[r(C.length)]; return t; };
+  const resumeDroits = (d, DR) => d.admin ? 'Peut tout faire' : DR.filter(x => x.k !== 'admin' && d[x.k]).map(x => x.nom).join(' · ') || 'Aucun droit : voit seulement ses dossiers';
+  function casesDroits(d, DR, { lecture = false, attr = '' } = {}) {
+    return `<div class="eq-droits"${attr}>${DR.map(x => {
+      const on = !!d[x.k], grise = lecture || (d.admin && x.k !== 'admin');
+      return `<label class="eq-droit${x.k === 'admin' ? ' eq-admin' : ''}${on ? ' on' : ''}"><input type="checkbox" data-droit="${x.k}"${on ? ' checked' : ''}${grise ? ' disabled' : ''}><span><b>${esc(x.nom)}</b><small>${esc(x.k === 'toutes' && !on ? 'Non coché : la personne ne voit que SES demandes, devis et factures, plus les nouvelles demandes du site que personne n’a encore prises.' : x.aide)}</small></span></label>`;
+    }).join('')}</div>`;
+  }
+  const lireDroits = box => Object.fromEntries($$('[data-droit]', box).map(i => [i.dataset.droit, i.checked]));
+  /* cocher « Administrateur » coche et grise le reste */
+  function lierCases(box) {
+    box.addEventListener('change', e => {
+      const i = e.target.closest('[data-droit]'); if (!i) return;
+      if (i.dataset.droit === 'admin') $$('[data-droit]', box).forEach(x => { if (x === i) return; if (i.checked) { x.dataset.memo = x.checked ? '1' : '0'; x.checked = true; } else x.checked = x.dataset.memo === '1'; x.disabled = i.checked; });
+      $$('.eq-droit', box).forEach(l => l.classList.toggle('on', $('input', l).checked));
+      box.dispatchEvent(new CustomEvent('droits'));
+    });
+  }
+  /* cadres repliables (flèche) : l'état ouvert / fermé est gardé sur cet appareil */
+  const plie = k => mem.get('mg_pli_' + k) === '1';
+  document.addEventListener('click', e => {
+    const b = e.target.closest('[data-plibtn]'); if (!b) return;
+    const sec = b.closest('[data-pli]'), ferme = !sec.classList.contains('ferme');
+    sec.classList.toggle('ferme', ferme); b.setAttribute('aria-expanded', String(!ferme)); mem.set('mg_pli_' + sec.dataset.pli, ferme ? '1' : '0');
+  });
   async function equipe() {
-    const [users, j, env, R] = await Promise.all([api(A + '/actions/equipe'), api(A + '/actions/journal'), api(A + '/actions/envois'), api(A + '/site')]);
-    const al = R.alertes || {};
-    alertePers = Array.isArray(al.personnes) ? al.personnes.map(x => ({ ...x }))
-      : (() => { const m = String(al.emails || '').split(/[,;\s]+/).filter(Boolean), t = String(al.sms || '').split(/[,;]+/).map(x => x.trim()).filter(Boolean); return Array.from({ length: Math.max(m.length, t.length) }, (_, i) => ({ nom: '', tel: t[i] || '', email: m[i] || '' })); })();
-    const mgr = session.role === 'manager';
-    return page('Équipe & activité', '', `<div class="cols">
-      <section class="box"><h2>Comptes</h2><ul class="list">${users.map(u => `<li><span>${mgr ? `<input class="unom" data-unom="${u.id}" value="${esc(u.nom || '')}" placeholder="Prénom Nom" aria-label="Nom affiché">` : `<b>${esc(u.nom || u.email)}</b>`}<small>${esc(u.email)}</small></span><span>${mgr ? `<select data-role="${u.id}"><option value="collab">Collaborateur</option><option value="manager"${u.role === 'manager' ? ' selected' : ''}>Manager</option></select> <button class="lnk" data-dis="${u.id}" data-v="${u.desactive ? 0 : 1}">${u.desactive ? 'Réactiver' : 'Désactiver'}</button>` : `<span class="pill">${u.role === 'manager' ? 'Manager' : 'Collaborateur'}</span>`}</span></li>`).join('')}</ul>
-        ${mgr ? `<form id="nu"><h3>Ajouter un membre</h3><div class="g2"><label>Nom<input name="nom" required></label><label>E-mail<input type="email" name="email" required></label><label>Mot de passe provisoire<input name="password" minlength="10" required></label><label>Rôle<select name="role"><option value="collab">Collaborateur</option><option value="manager">Manager</option></select></label></div><button class="btn">Créer le compte</button></form>` : ''}
+    const gere = peut('equipe');
+    const [users, conf, j, env, R] = await Promise.all([api(A + '/actions/equipe'), api(A + '/actions/droits'), gere ? api(A + '/actions/journal') : null, gere ? api(A + '/actions/envois') : null, gere ? api(A + '/site') : null]);
+    cache.droitsConf = conf; cache.equipeUsers = users;
+    const DR = conf.droits;
+    const moi = users.find(u => u.email === session.email);
+    if (gere) {
+      const al = R.alertes || {};
+      alertePers = Array.isArray(al.personnes) ? al.personnes.map(x => ({ ...x }))
+        : (() => { const m = String(al.emails || '').split(/[,;\s]+/).filter(Boolean), t = String(al.sms || '').split(/[,;]+/).map(x => x.trim()).filter(Boolean); return Array.from({ length: Math.max(m.length, t.length) }, (_, i) => ({ nom: '', tel: t[i] || '', email: m[i] || '' })); })();
+    }
+    const carte = u => {
+      const estMoi = u.email === session.email, bloque = estMoi || (u.droits.admin && !peut('admin'));
+      const badge = u.desactive ? '<span class="pill eq-off">Désactivé</span>' : u.droits.admin ? '<span class="pill eq-pill-admin">★ Administrateur</span>' : `<span class="pill eq-pill">${DR.filter(x => x.k !== 'admin' && u.droits[x.k]).length} droit(s)</span>`;
+      return `<li class="eq-carte${u.desactive ? ' off' : ''}" data-uid="${u.id}">
+        <div class="eq-tete"><span class="eq-av">${esc(initiales(u.nom || u.email))}</span>
+          <div class="eq-id"><b>${esc(u.nom || u.email)}</b><small>${esc(u.email)}${u.portable ? ' · 📱 ' + esc(u.portable) : ''}${estMoi ? ' · c’est vous' : ''}</small></div>
+          <div class="eq-bad">${badge}</div></div>
+        ${gere && (!bloque || estMoi) ? `<div class="g3 eq-fiche" data-fiche="${u.id}"><label>Prénom<input data-k="prenom" value="${esc(u.prenom || '')}" data-prenom placeholder="Prénom"></label><label>Nom<input data-k="nomFamille" value="${esc(u.nomFamille || '')}" data-nomfam placeholder="NOM"></label><label>Portable <small>(SMS : rendez-vous, commentaires clients)</small><input type="tel" data-k="portable" value="${esc(u.portable || '')}" placeholder="06 12 34 56 78"></label></div>` : ''}
+        <p class="eq-res">${esc(resumeDroits(u.droits, DR))}</p>
+        ${gere ? `<div class="row eq-act"><button type="button" class="btn ghost sm" data-ouvrir="${u.id}">🔑 ${bloque ? 'Voir les droits' : 'Modifier les droits'}</button>${!bloque ? `<button type="button" class="lnk" data-dis="${u.id}" data-v="${u.desactive ? 0 : 1}">${u.desactive ? 'Réactiver le compte' : 'Désactiver le compte'}</button>` : ''}</div>
+        <div class="eq-panneau" data-pan="${u.id}" hidden>${bloque ? `<p class="muted sm">${estMoi ? 'Vous ne pouvez pas changer vos propres droits : demandez-le à un autre administrateur.' : 'Seul un Administrateur peut changer les droits d’un Administrateur.'}</p>` : ''}${casesDroits(u.droits, DR, { lecture: bloque })}${bloque ? '' : `<div class="row"><button type="button" class="btn sm" data-savedr="${u.id}">Enregistrer les droits</button><span class="muted sm" data-drmsg="${u.id}"></span></div>`}</div>` : ''}
+      </li>`;
+    };
+    const modeles = Object.entries(conf.modeles).map(([k, m]) => `<button type="button" class="chip-mod" data-modele="${k}">${esc(m.nom)}</button>`).join('') + '<button type="button" class="chip-mod" data-modele="">Sur mesure</button>';
+    const nouveau = gere ? `<section class="box eq-nouveau" id="eqNouveau" hidden><div class="hc-th"><h2>👤 Ajouter une personne</h2><button type="button" class="lnk" data-fermer>Fermer</button></div>
+      <form id="nu"><div class="g2"><label>Prénom<input name="prenom" required placeholder="ex. Romain" data-prenom></label><label>Nom<input name="nomFamille" required placeholder="ex. GOUJON" data-nomfam></label><label>E-mail<input type="email" name="email" required placeholder="prenom@magnoliatraiteur.fr"></label><label>Portable <small>(pour ses SMS de rendez-vous)</small><input type="tel" name="portable" placeholder="06 12 34 56 78"></label>
+        <label>Mot de passe provisoire <small>(la personne le changera)</small><span class="eq-mdp"><input name="password" minlength="10" required value="${esc(mdpProvisoire())}"><button type="button" class="btn ghost sm" data-mdp>🔄 Autre</button></span></label>
+        <label class="chk eq-mail"><input type="checkbox" name="envoyerAcces" checked> Lui envoyer ses accès par e-mail (lien du back-office, e-mail et mot de passe provisoire)</label></div>
+        <h3>Son rôle</h3><p class="muted sm">Choisissez un modèle pour cocher les cases d’un coup, puis ajustez case par case.</p><div class="eq-mods">${modeles}</div>
+        <div data-casesnu>${casesDroits(conf.modeles.commercial.droits, DR)}</div>
+        <div class="row"><button class="btn">Créer le compte</button><button type="button" class="btn ghost" data-fermer>Annuler</button></div></form></section>` : '';
+    return page('Équipe & activité', gere ? '<button type="button" class="btn eq-add" data-nouveau>+ Ajouter une personne</button>' : '', `${nouveau}
+      ${gere ? `<section class="box"><h2>Les comptes de l’équipe <small class="muted">(${users.filter(u => !u.desactive).length} actif${users.filter(u => !u.desactive).length > 1 ? 's' : ''})</small></h2><p class="muted sm">Chaque personne a ses propres cases. Un menu non autorisé disparaît de son back-office, et le serveur refuse l’action même si on essaie autrement.</p><ul class="eq-liste">${users.map(carte).join('')}</ul></section>` : ''}
+      <div class="cols">
+      <section class="box"><h2>Mon compte</h2>${moi ? `<p class="eq-res"><b>Vos droits :</b> ${esc(resumeDroits(moi.droits, DR))}</p>` : ''}
         <form id="pw"><h3>Mon mot de passe</h3><div class="g2"><label>Actuel<input type="password" name="current" required></label><label>Nouveau (10 caractères min.)<input type="password" name="password" minlength="10" required></label></div><button class="btn ghost">Changer</button></form></section>
-      <section class="box"><h2>Journal d’activité <span class="pill ${j.intact ? 'd-accepte' : 'd-refuse'}">${j.intact ? 'intact' : 'ALTÉRÉ'}</span></h2><p class="muted sm">Chaque action est enregistrée et chaînée : une modification du journal se verrait.</p><ul class="journal">${j.lignes.map(l => `<li><time>${dateH(l.at)}</time> <b>${esc(l.who)}</b> ${esc(l.op)} <small>${esc(l.resume || l.path)}</small></li>`).join('')}</ul></section></div>
-      <section class="box"><h2>Alertes de l’équipe</h2><p class="muted sm">Ces personnes sont prévenues à chaque nouvelle demande (e-mail et SMS) et reçoivent le récapitulatif des dossiers sans action depuis 24 h.</p><div id="alp"></div><div class="row"><button type="button" class="btn ghost sm" data-addal>+ Ajouter une personne</button><button type="button" class="btn sm" data-saveal>Enregistrer les alertes</button></div></section>
-      <section class="box"><h2>E-mails et SMS envoyés ${env.live ? '' : '<span class="pill d-envoye">mode test : Brevo non branché</span>'}</h2><div class="row"><input type="tel" data-testtel placeholder="Portable pour un SMS d’essai (sinon : ceux des alertes)" style="max-width:320px"><button class="btn ghost sm" data-test>Envoyer un essai</button></div><ul class="journal">${env.envois.map(e => `<li><time>${dateH(e.at)}</time> ${e.kind === 'sms' ? 'SMS' : 'E-mail'} → <b>${esc(e.kind === 'sms' ? e.payload.recipient : e.payload.to?.[0]?.email)}</b> <small>${esc(e.kind === 'sms' ? e.payload.content : e.payload.subject)}</small>${e.result?.error ? ` <span class="pill d-refuse">refusé : ${esc(e.result.error)}</span>` : e.live && e.result && e.result !== 'test' ? ' <span class="pill d-accepte">accepté par Brevo</span>' : ''}</li>`).join('') || '<li class="muted">Aucun envoi.</li>'}</ul></section>`);
+      ${gere ? `<section class="box pli${plie('journal') ? ' ferme' : ''}" data-pli="journal"><h2><button type="button" class="pli-btn" data-plibtn aria-expanded="${!plie('journal')}"><span class="pli-fl" aria-hidden="true">▼</span>Journal d’activité <span class="pill ${j.intact ? 'd-accepte' : 'd-refuse'}">${j.intact ? 'intact' : 'ALTÉRÉ'}</span><small class="pli-nb">${j.total} action${j.total > 1 ? 's' : ''}</small></button></h2><div class="pli-corps"><p class="muted sm">Chaque action est enregistrée et chaînée : une modification du journal se verrait.</p><ul class="journal">${j.lignes.map(l => `<li><time>${dateH(l.at)}</time> <b>${esc(l.who)}</b> ${esc(l.op)} <small>${esc(l.resume || l.path)}</small></li>`).join('')}</ul></div></section>` : ''}</div>
+      ${gere ? `<section class="box"><h2>Alertes de l’équipe</h2><p class="muted sm">Ces personnes sont prévenues à chaque nouvelle demande (e-mail et SMS) et reçoivent le récapitulatif des dossiers sans action depuis 24 h.</p><div id="alp"></div><div class="row"><button type="button" class="btn ghost sm" data-addal>+ Ajouter une personne à prévenir</button><button type="button" class="btn sm" data-saveal>Enregistrer les alertes</button></div></section>
+      <section class="box pli${plie('envois') ? ' ferme' : ''}" data-pli="envois"><h2><button type="button" class="pli-btn" data-plibtn aria-expanded="${!plie('envois')}"><span class="pli-fl" aria-hidden="true">▼</span>E-mails et SMS envoyés ${env.live ? '' : '<span class="pill d-envoye">mode test : Brevo non branché</span>'}<small class="pli-nb">${env.envois.length} envoi${env.envois.length > 1 ? 's' : ''}</small></button></h2><div class="pli-corps"><div class="row"><input type="tel" data-testtel placeholder="Portable pour un SMS d’essai (sinon : ceux des alertes)" style="max-width:320px"><button class="btn ghost sm" data-test>Envoyer un essai</button></div><ul class="journal">${env.envois.map(e => `<li><time>${dateH(e.at)}</time> ${e.kind === 'sms' ? 'SMS' : 'E-mail'} → <b>${esc(e.kind === 'sms' ? e.payload.recipient : e.payload.to?.[0]?.email)}</b> <small>${esc(e.kind === 'sms' ? e.payload.content : e.payload.subject)}</small>${e.result?.error ? ` <span class="pill d-refuse">refusé : ${esc(e.result.error)}</span>` : e.live && e.result && e.result !== 'test' ? ' <span class="pill d-accepte">accepté par Brevo</span>' : ''}</li>`).join('') || '<li class="muted">Aucun envoi.</li>'}</ul></div></section>` : ''}`);
   }
   const essaiEnvoi = async () => { try {
     const r = await api(A + '/actions/envoi-test', { method: 'POST', body: { tel: $('[data-testtel]').value } });
@@ -2217,6 +2486,9 @@
   const drawAl = () => { $('#alp').innerHTML = alertePers.map((x, i) => `<div class="g3 alp" data-i="${i}"><label>Nom<input data-k="nom" value="${esc(x.nom || '')}" placeholder="Prénom Nom"></label><label>Portable (SMS)<input type="tel" data-k="tel" value="${esc(x.tel || '')}" placeholder="06 12 34 56 78"></label><label>E-mail<input type="email" data-k="email" value="${esc(x.email || '')}"></label><button type="button" class="lnk" data-delal="${i}">Retirer</button></div>`).join('') || '<p class="muted sm">Personne n’est prévenu pour l’instant.</p>'; };
   const lireAl = () => { $$('#alp .alp').forEach(row => { const x = alertePers[+row.dataset.i]; row.querySelectorAll('[data-k]').forEach(inp => { x[inp.dataset.k] = inp.value.trim(); }); }); return alertePers; };
   equipe.after = () => {
+    $('#pw').addEventListener('submit', async e => { e.preventDefault(); try { await api('/api/auth/password', { method: 'POST', body: Object.fromEntries(new FormData(e.target)) }); toast('Mot de passe changé.'); e.target.reset(); } catch (err) { toast(err.message, true); } });
+    if (!peut('equipe')) return;
+    const DR = cache.droitsConf.droits;
     drawAl();
     $('[data-addal]')?.addEventListener('click', () => { lireAl(); alertePers.push({ nom: '', tel: '', email: '' }); drawAl(); $$('#alp [data-k="nom"]').pop()?.focus(); });
     $('#alp')?.addEventListener('click', e => { const b = e.target.closest('[data-delal]'); if (!b) return; lireAl(); alertePers.splice(+b.dataset.delal, 1); drawAl(); });
@@ -2226,21 +2498,46 @@
       catch (err) { toast(err.message, true); }
     });
     $('[data-test]')?.addEventListener('click', essaiEnvoi);
-    $('#nu')?.addEventListener('submit', async e => { e.preventDefault(); try { await api(A + '/actions/equipe', { method: 'POST', body: Object.fromEntries(new FormData(e.target)) }); toast('Compte créé.'); render(); } catch (err) { toast(err.message, true); } });
-    $('#pw').addEventListener('submit', async e => { e.preventDefault(); try { await api('/api/auth/password', { method: 'POST', body: Object.fromEntries(new FormData(e.target)) }); toast('Mot de passe changé.'); e.target.reset(); } catch (err) { toast(err.message, true); } });
-    $$('[data-unom]').forEach(i => i.addEventListener('change', async () => { try { await api(`${A}/actions/equipe/${i.dataset.unom}`, { method: 'PATCH', body: { nom: i.value } }); toast('Nom enregistré : ' + i.value.trim()); session = null; render(); } catch (err) { toast(err.message, true); render(); } }));
-    $$('[data-role]').forEach(s => s.addEventListener('change', async () => { try { await api(`${A}/actions/equipe/${s.dataset.role}`, { method: 'PATCH', body: { role: s.value } }); toast('Rôle modifié.'); } catch (err) { toast(err.message, true); render(); } }));
-    $$('[data-dis]').forEach(b => b.addEventListener('click', async () => { try { await api(`${A}/actions/equipe/${b.dataset.dis}`, { method: 'PATCH', body: { desactive: b.dataset.v === '1' } }); render(); } catch (err) { toast(err.message, true); } }));
+    /* « + Ajouter une personne » */
+    const box = $('#eqNouveau'), cases = $('[data-casesnu]');
+    const montrer = v => { box.hidden = !v; if (v) { box.scrollIntoView({ behavior: 'smooth', block: 'start' }); $('input[name=prenom]', box).focus(); } };
+    $('[data-nouveau]').addEventListener('click', () => montrer(true));
+    $$('[data-fermer]', box).forEach(b => b.addEventListener('click', () => montrer(false)));
+    $('[data-mdp]').addEventListener('click', () => { $('input[name=password]', box).value = mdpProvisoire(); });
+    lierCases(cases);
+    const choisir = k => { $$('.chip-mod', box).forEach(c => c.classList.toggle('on', c.dataset.modele === k)); if (k) { cases.innerHTML = casesDroits(cache.droitsConf.modeles[k].droits, DR); } };
+    choisir('commercial');
+    $$('.chip-mod', box).forEach(c => c.addEventListener('click', () => choisir(c.dataset.modele)));
+    cases.addEventListener('droits', () => $$('.chip-mod', box).forEach(c => c.classList.toggle('on', c.dataset.modele === '')));
+    $('#nu').addEventListener('submit', async e => {
+      e.preventDefault();
+      const f = Object.fromEntries(new FormData(e.target));
+      try {
+        const r = await api(A + '/actions/equipe', { method: 'POST', body: { prenom: f.prenom, nomFamille: f.nomFamille, portable: f.portable, email: f.email, password: f.password, envoyerAcces: !!f.envoyerAcces, droits: lireDroits(cases) } });
+        toast(`Compte créé pour ${f.prenom.trim()} ${f.nomFamille.trim().toLocaleUpperCase('fr-FR')}.` + (r.mail ? (r.mail.erreur ? ' L’e-mail d’accès n’est pas parti : ' + r.mail.erreur : r.mail.live ? ' Ses accès lui ont été envoyés par e-mail.' : ' (Mode test : e-mail noté, rien n’est parti.)') : ' Donnez-lui son mot de passe provisoire : ' + f.password), !!r.mail?.erreur);
+        render();
+      } catch (err) { toast(err.message, true); }
+    });
+    /* droits d'un compte existant */
+    $$('[data-ouvrir]').forEach(b => b.addEventListener('click', () => { const p = $(`[data-pan="${b.dataset.ouvrir}"]`); p.hidden = !p.hidden; b.classList.toggle('on', !p.hidden); }));
+    $$('.eq-panneau').forEach(p => { const d = $('.eq-droits', p); if (d) lierCases(d); });
+    $$('[data-savedr]').forEach(b => b.addEventListener('click', async () => {
+      const id = b.dataset.savedr, d = lireDroits($(`[data-pan="${id}"]`));
+      try { await api(`${A}/actions/equipe/${id}`, { method: 'PATCH', body: { droits: d } }); toast('Droits enregistrés : ils s’appliquent dès son prochain clic.'); render(); } catch (err) { toast(err.message, true); }
+    }));
+    /* Prénom, Nom, Portable : enregistrés dès qu'on quitte la case */
+    $$('[data-fiche] input').forEach(i => i.addEventListener('change', async () => { const id = i.closest('[data-fiche]').dataset.fiche; const v = i.dataset.k === 'prenom' ? majPrenom(i.value.trim()) : i.dataset.k === 'nomFamille' ? i.value.trim().toLocaleUpperCase('fr-FR') : i.value; try { await api(`${A}/actions/equipe/${id}`, { method: 'PATCH', body: { [i.dataset.k]: v } }); toast(i.dataset.k === 'portable' ? (v.trim() ? 'Portable enregistré.' : 'Portable retiré.') : 'Nom enregistré.'); if (i.dataset.k !== 'portable') session = null; render(); } catch (err) { toast(err.message, true); render(); } }));
+    $$('[data-dis]').forEach(b => b.addEventListener('click', async () => { if (b.dataset.v === '1' && !confirm('Désactiver ce compte ? La personne est déconnectée tout de suite et ne peut plus se connecter (vous pourrez le réactiver).')) return; try { await api(`${A}/actions/equipe/${b.dataset.dis}`, { method: 'PATCH', body: { desactive: b.dataset.v === '1' } }); render(); } catch (err) { toast(err.message, true); } }));
   };
 
   /* ---------- outils ---------- */
   async function outils() {
-    const [mods, pages] = await Promise.all([api(A + '/modeles'), api(A + '/pages')]);
-    return page('Outils', '', `<section class="box"><h2>Excel</h2><p class="muted sm">Les fichiers s’ouvrent directement dans Excel. Pour changer beaucoup de prix d’un coup : exportez le catalogue, modifiez les colonnes prix, minimum, coût, TVA, statut ou maison, enregistrez en CSV, puis renvoyez le fichier. Rien n’est créé ni supprimé, et un prix sous le coût est refusé.</p>
-      <div class="row">${[['catalogue', 'Catalogue'], ['demandes', 'Demandes'], ['clients', 'Clients'], ['devis', 'Devis'], ['factures', 'Factures'], ['reglements', 'Règlements']].map(([k, l]) => `<a class="btn ghost sm" href="${A}/actions/export/${k}">⬇ ${l}</a>`).join('')}${session.role === 'manager' ? '<label class="btn sm up">⬆ Mettre à jour le catalogue<input type="file" accept=".csv,text/csv" hidden data-importcat></label>' : ''}</div><div id="impres"></div></section>
-      <section class="box"><h2>Modèles de relance</h2><p class="muted sm">Variables : {prenom} {nom} {numero} {evenement} {date} {lien} {montant}</p>${mods.map(m => `<form class="mod" data-id="${m.id}"><div class="g3"><label>Nom<input name="nom" value="${esc(m.nom)}"></label><label>Canal<select name="canal"><option value="email">E-mail</option><option value="sms"${m.canal === 'sms' ? ' selected' : ''}>SMS</option></select></label><label>Sujet<input name="sujet" value="${esc(m.sujet || '')}"></label></div><textarea name="texte" rows="5">${esc(m.texte)}</textarea><button class="btn ghost sm">Enregistrer</button></form>`).join('')}<button class="btn ghost" data-newm>+ Nouveau modèle</button></section>
-      <section class="box"><h2>Pages administratives</h2><p class="muted sm">CGV, mentions légales, confidentialité, allergènes… Une ligne courte devient un intertitre.</p>${pages.map(p => `<details><summary>${esc(p.titre)} <small class="muted">${esc(p.url)}</small></summary><form class="pg" data-id="${p.id}"><label>Titre<input name="titre" value="${esc(p.titre)}"></label><textarea name="texte" rows="14">${esc(p.texte)}</textarea><button class="btn ghost sm">Enregistrer</button></form></details>`).join('')}</section>
-      ${session.role === 'manager' ? `<section class="box"><h2>Reprendre le catalogue du brouillon</h2><p class="muted sm">Remplace les prestations, rubriques et lieux par ceux du brouillon (data/brouillon.json). Les demandes, devis, factures et clients ne sont pas touchés. À n’utiliser qu’avant l’ouverture.</p><button class="btn ghost" data-reimp>Réimporter le brouillon</button></section>` : ''}`);
+    const [mods, pages] = peut('outils') ? await Promise.all([api(A + '/modeles'), api(A + '/pages')]) : [[], []];
+    return page('Outils', '', `${peut('fichiers') ? `<section class="box"><h2>Excel</h2><p class="muted sm">Les fichiers s’ouvrent directement dans Excel. Pour changer beaucoup de prix d’un coup : exportez le catalogue, modifiez les colonnes prix, minimum, coût, TVA, statut ou maison, enregistrez en CSV, puis renvoyez le fichier. Rien n’est créé ni supprimé, et un prix sous le coût est refusé.</p>
+      <div class="row">${[['catalogue', 'Catalogue'], ['demandes', 'Demandes'], ['clients', 'Clients'], ['devis', 'Devis'], ['factures', 'Factures'], ['reglements', 'Règlements']].filter(([k]) => peut('factures') || !['factures', 'reglements'].includes(k)).map(([k, l]) => `<a class="btn ghost sm" href="${A}/actions/export/${k}">⬇ ${l}</a>`).join('')}${peut('prix') ? '<label class="btn sm up">⬆ Mettre à jour le catalogue<input type="file" accept=".csv,text/csv" hidden data-importcat></label>' : ''}</div><div id="impres"></div></section>` : ''}
+      ${peut('outils') ? `<section class="box"><h2>Modèles de relance</h2><p class="muted sm">Variables : {prenom} {nom} {numero} {evenement} {date} {lien} {montant}</p>${mods.map(m => `<form class="mod" data-id="${m.id}"><div class="g3"><label>Nom<input name="nom" value="${esc(m.nom)}"></label><label>Canal<select name="canal"><option value="email">E-mail</option><option value="sms"${m.canal === 'sms' ? ' selected' : ''}>SMS</option></select></label><label>Sujet<input name="sujet" value="${esc(m.sujet || '')}"></label></div><textarea name="texte" rows="5">${esc(m.texte)}</textarea><button class="btn ghost sm">Enregistrer</button></form>`).join('')}<button class="btn ghost" data-newm>+ Nouveau modèle</button></section>
+      <section class="box"><h2>Pages administratives</h2><p class="muted sm">CGV, mentions légales, confidentialité, allergènes… Une ligne courte devient un intertitre.</p>${pages.map(p => `<details><summary>${esc(p.titre)} <small class="muted">${esc(p.url)}</small></summary><form class="pg" data-id="${p.id}"><label>Titre<input name="titre" value="${esc(p.titre)}"></label><textarea name="texte" rows="14">${esc(p.texte)}</textarea><button class="btn ghost sm">Enregistrer</button></form></details>`).join('')}</section>` : ''}
+      ${peut('admin') ? `<section class="box"><h2>Reprendre le catalogue du brouillon</h2><p class="muted sm">Remplace les prestations, rubriques et lieux par ceux du brouillon (data/brouillon.json). Les demandes, devis, factures et clients ne sont pas touchés. À n’utiliser qu’avant l’ouverture.</p><button class="btn ghost" data-reimp>Réimporter le brouillon</button></section>` : ''}`);
   }
   /* lecture d'un CSV « ; » ou « , » (Excel) avec guillemets */
   function lireCsv(txt) {
@@ -2269,7 +2566,7 @@
     });
     $$('form.mod').forEach(f => f.addEventListener('submit', async e => { e.preventDefault(); await api(`${A}/modeles/${f.dataset.id}`, { method: 'PUT', body: Object.fromEntries(new FormData(f)) }); toast('Modèle enregistré.'); }));
     $$('form.pg').forEach(f => f.addEventListener('submit', async e => { e.preventDefault(); const p = await api(`${A}/pages/${f.dataset.id}`); await api(`${A}/pages/${f.dataset.id}`, { method: 'PUT', body: { ...p, ...Object.fromEntries(new FormData(f)) } }); toast('Page enregistrée.'); }));
-    $('[data-newm]').addEventListener('click', async () => { await api(A + '/modeles', { method: 'POST', body: { nom: 'Nouveau modèle', canal: 'email', sujet: '', texte: 'Bonjour {prenom},\n\n' } }); render(); });
+    $('[data-newm]')?.addEventListener('click', async () => { await api(A + '/modeles', { method: 'POST', body: { nom: 'Nouveau modèle', canal: 'email', sujet: '', texte: 'Bonjour {prenom},\n\n' } }); render(); });
     $('[data-reimp]')?.addEventListener('click', async () => { if (!confirm('Remplacer tout le catalogue par celui du brouillon ?')) return; const r = await api(A + '/actions/reimporter', { method: 'POST' }); toast(`Réimporté : ${r.produits} prestations.`); });
   };
 

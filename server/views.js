@@ -253,11 +253,11 @@ function home(c) {
   <div class="hero-dots" aria-hidden="true">${vids.map((_, i) => `<i data-dot="${i}"></i>`).join('')}</div>
 </section>
 <div class="marquee band-vert" aria-label="Nos spécialités du monde"><div class="marquee-t">${[0, 1].map(k => (A.bandeau || []).map(t => lienMot(c, t)).map(({ t, href }) => `<span${k ? ' aria-hidden="true"' : ''}><a href="${esc(href)}"${k ? ' tabindex="-1"' : ''}>${esc(t)}</a><i>✳</i></span>`).join('')).join('')}</div></div>
+${bandeLogos(c, { lien: true, titre: 'Particuliers et entreprises : ils nous font confiance' })}
 <section class="chiffres wrap">${(A.chiffres || []).map(x => {
   const v = x.valeur; // chiffres fixes, saisis dans Photos & textes (Jean-Luc, 2026-11-22)
   return `<div><b>${esc(v)}</b>${/\/\s*5\s*$/.test(v || '') ? '<i class="etoiles" aria-hidden="true">★★★★★</i>' : ''}<span>${esc(x.label === 'prestations en ligne, prix TTC' ? 'prestations en ligne' : x.label)}</span></div>`;
 }).join('')}</section>
-${bandeLogos(c, { lien: true, titre: 'Particuliers et entreprises : ils nous font confiance' })}
 <section class="recherche wrap">
   <h2 class="center">Que recherchez-vous ?</h2><p class="eyebrow center sous-titre">Entrez ou dictez votre envie</p>
   <form class="bigsearch inline" action="/boutique" role="search" data-live-search>${icon.search}<input type="search" name="q" placeholder="Paëlla, DJ, huîtres, personnel…" aria-label="Que recherchez-vous ?" autocomplete="off"><button type="button" class="mic" data-dictee aria-label="Dicter ma recherche">${icon.mic}<span>Dicter</span></button></form>
@@ -890,6 +890,39 @@ function remplirCgv(texte, R) {
     .replace(/\{\{mediateur\}\}/g, I.mediateur ? `le médiateur ${I.mediateur}` : 'un médiateur de la consommation, dont les coordonnées lui sont communiquées sur simple demande,');
 }
 
+/* Lieux à privatiser présents dans un devis (Jean-Luc, 2026-11-24) : ligne venue du site (produit « lieu-<slug> »),
+   ligne du back-office qui porte le nom d'un lieu, ou lieu de l'événement = nom d'un lieu. Chacun est montré en 3 photos. */
+const normLieu = x => String(x || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+function lieuxDuDevis(c, d) {
+  const tous = c.lieux || [], vus = new Map();
+  const ajoute = l => { if (l && !vus.has(l.slug)) vus.set(l.slug, l); };
+  for (const ln of d.lignes || []) {
+    if (ln.type === 'titre') continue;
+    const m = /^lieu-(.+)$/.exec(String(ln.produit || ''));
+    if (m) { ajoute(tous.find(l => l.slug === m[1])); continue; }
+    const t = ' ' + normLieu(ln.designation) + ' ';
+    ajoute(tous.find(l => normLieu(l.nom).length >= 6 && t.includes(' ' + normLieu(l.nom) + ' ')));
+  }
+  const ev = normLieu(d.evenement?.lieu);
+  if (ev) ajoute(tous.find(l => normLieu(l.nom).length >= 6 && (' ' + ev + ' ').includes(' ' + normLieu(l.nom) + ' ')));
+  return [...vus.values()];
+}
+function devisLieuxHtml(c, d) {
+  const L = lieuxDuDevis(c, d);
+  if (!L.length) return '';
+  const carte = l => {
+    const ph = [...new Set((l.photos || []).filter(Boolean))].slice(0, 3);
+    const infos = [l.type, l.ville].filter(Boolean).map(esc).join(' · ');
+    return `<article class="dl-lieu">
+    <div class="dl-mos dl-n${ph.length}">${ph.map((s, i) => `<figure class="dl-ph${i ? '' : ' dl-g'}"><img src="${esc(s)}" alt="${esc(l.nom)}${i ? ` · photo ${i + 1}` : ''}"${i ? ' loading="lazy"' : ''}>${i ? '' : `<figcaption><span>${infos || 'Lieu de réception'}</span><b>${esc(l.nom)}</b></figcaption>`}</figure>`).join('')}</div>
+    <div class="dl-txt">${ph.length ? '' : `<p class="eyebrow">${infos || 'Lieu de réception'}</p><h3>${esc(l.nom)}</h3>`}
+    ${(l.capacite || (l.equipements || []).length) ? `<ul class="dl-atouts">${l.capacite ? `<li><b>Jusqu’à ${esc(l.capacite)}</b> personnes</li>` : ''}${(l.equipements || []).slice(0, 4).map(e => `<li>${esc(e)}</li>`).join('')}</ul>` : ''}
+    ${l.description ? `<p>${esc(trunc(l.description, 330))}</p>` : ''}
+    ${l.slug && l.statut !== 'masque' ? `<p class="noprint"><a class="lnk" href="/lieux/${esc(l.slug)}" target="_blank" rel="noopener">Découvrir le lieu en photos ${icon.arrow}</a></p>` : ''}</div></article>`;
+  };
+  return `<section class="dl-lieux" aria-label="Votre lieu de réception"><p class="eyebrow">${L.length > 1 ? 'Vos lieux de réception' : 'Votre lieu de réception'}</p>${L.map(carte).join('')}</section>`;
+}
+
 function devisPage(c, d0, t, { client, demande, apercu = false }) {
   const R = c.reglages;
   /* aperçu équipe : le devis tel que le client le recevra, sans rien envoyer ni signer */
@@ -910,6 +943,7 @@ function devisPage(c, d0, t, { client, demande, apercu = false }) {
   ${(() => { const nat = d.evenement?.type || demande?.evenement?.type || '', dt = d.evenement?.date || demande?.evenement?.date, nb = d.evenement?.invites || demande?.evenement?.invites, lieu = d.evenement?.lieu || demande?.evenement?.ville || '';
     return `<div><p class="eyebrow">Événement</p><p>${nat ? `Nature : <b>${esc(nat)}</b><br>` : ''}${dt ? `Le ${esc(dateFr(dt))}<br>` : ''}${nb ? `${esc(nb)} personne${+nb > 1 ? 's' : ''}<br>` : ''}${lieu ? esc(lieu) : ''}</p></div>`; })()}${com?.nom ? `<div><p class="eyebrow">Votre conseiller</p><p><b>${esc(com.nom)}</b>${com.tel ? `<br><a href="tel:${esc(com.tel.replace(/\s/g, ''))}">${esc(com.tel)}</a>` : ''}${com.email ? `<br>${esc(com.email)}` : ''}</p></div>` : ''}</div>
   ${d.intro ? `<p class="doc-intro">${esc(d.intro)}</p>` : ''}
+  ${devisLieuxHtml(c, d)}
   ${devisLignesHtml(d)}
   ${totauxHtml(t)}
   ${d.conditions ? `<p class="small">${esc(d.conditions)}</p>` : ''}
@@ -923,6 +957,10 @@ function devisPage(c, d0, t, { client, demande, apercu = false }) {
     : `<h2>Bon pour accord</h2><p>${quoi} à la signature${ac.total ? (ac.raison === 'seuil' ? ' (commande inférieure à ' + euros(ac.seuil) + ' TTC)' : '') : `, solde au plus tard ${ac.delai} jours avant l’événement`}. En signant, vous acceptez les conditions générales de vente ci-dessous.</p>${ac.raison === 'proche' ? `<p class="note-paiement">Votre événement ayant lieu dans moins de ${ac.delai} jours, le paiement en deux fois n’est pas possible : la totalité est réglée à la signature.</p>` : ''}
      <form class="card-form"${apercu ? ' onsubmit="return false"' : ' data-accept'} novalidate><label>Votre nom et prénom<input name="nom" required autocomplete="name"></label><label class="check"><input type="checkbox" name="ok" required> Je déclare accepter ce devis « bon pour accord ».</label><div class="row"><button class="btn btn-vert"${apercu ? ' disabled' : ''}>Signer le devis</button><button class="btn btn-line" type="button"${apercu ? ' disabled' : ' data-refuse'}>Je ne donne pas suite</button></div><p class="small" data-accept-msg>${apercu ? 'Aperçu : la signature est désactivée ici.' : ''}</p></form>`}
   </div>
+  <section class="doc-com noprint" id="commentaire"${apercu ? ' data-apercu' : ` data-com="${esc(d.token)}"`}><h2>Laisser un commentaire</h2>
+  <p class="small">Une question, une modification, une précision sur votre événement ? Écrivez-nous ici : ${com?.nom ? `<b>${esc(com.nom)}</b>, votre conseiller, le reçoit` : 'votre conseiller le reçoit'} tout de suite et vous répond rapidement.</p>
+  ${(d.commentaires || []).length ? `<ul class="com-liste">${d.commentaires.map(m => `<li><p>${esc(m.texte).replace(/\n/g, '<br>')}</p><small>Envoyé le ${esc(dateFr(m.at, { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }))}</small></li>`).join('')}</ul>` : ''}
+  <form class="card-form" data-com-form novalidate${apercu ? ' onsubmit="return false"' : ''}><label>Votre commentaire<textarea name="texte" rows="4" maxlength="2000" required placeholder="Par exemple : pouvez-vous remplacer le dessert par un fraisier ? Nous serons finalement 45."></textarea></label><div class="row"><button class="btn btn-vert"${apercu ? ' disabled' : ''}>Envoyer mon commentaire</button></div><p class="small" data-com-msg>${apercu ? 'Aperçu : l’envoi est désactivé ici.' : ''}</p></form></section>
   <p class="row noprint"><button class="btn btn-line" type="button" onclick="print()">Imprimer / PDF</button><a class="lnk" href="tel:${esc((R.telephone || '').replace(/\s/g, ''))}">Une question ? ${esc(R.telephone)}</a></p>
   ${I.mentions ? `<p class="doc-mentions">${esc(I.mentions)}</p>` : ''}
   ${cgv.length ? `<section class="doc-cgv" id="cgv"><h2>Conditions générales de vente</h2>${cgv.map(l => /^Article \d+/.test(l) ? `<h3>${esc(l)}</h3>` : `<p>${esc(l)}</p>`).join('')}</section>` : ''}
@@ -958,4 +996,4 @@ function facturePage(c, f, t, { apercu = false } = {}) {
 }
 
 module.exports = {
-  sectionsRub, plateau3dHtml, universListe, RANGEMENTS, pageSpecialites, specialite, sousVisibles, layout, home, boutique, produit, lieux, filtrerLieux, lieu, selection, texte, maison, livraison, commander, temoignages, contact, legal, erreur, espaceConnexion, espace, devisPage, facturePage, textToHtml, V, BANDEAUX_DEFAUT };
+  sectionsRub, plateau3dHtml, universListe, RANGEMENTS, pageSpecialites, specialite, sousVisibles, layout, home, boutique, produit, lieux, filtrerLieux, lieu, selection, texte, maison, livraison, commander, temoignages, contact, legal, erreur, espaceConnexion, espace, devisPage, lieuxDuDevis, facturePage, textToHtml, V, BANDEAUX_DEFAUT };

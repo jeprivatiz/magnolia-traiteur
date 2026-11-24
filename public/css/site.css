@@ -526,6 +526,38 @@ textarea:focus, input:focus, select:focus { outline: 2px solid color-mix(in srgb
 .totaux .sm { font-size: .85rem; color: var(--gris); }
 .totaux .tot { border-top: 2px solid var(--encre); margin-top: 6px; padding-top: 10px; font-size: 1.2rem; font-weight: 600; }
 .sign { background: var(--creme); border-radius: var(--rayon); padding: 22px; margin: 24px 0; }
+/* lieux à privatiser sur le devis : une grande photo + deux petites, nom en surimpression, atouts, description */
+.dl-lieux { margin: 8px 0 26px; }
+.dl-lieux > .eyebrow { margin-bottom: 10px; }
+.dl-lieu { border: 1px solid var(--ligne); border-radius: var(--rayon); overflow: hidden; background: var(--creme); box-shadow: var(--ombre); break-inside: avoid; page-break-inside: avoid; }
+.dl-lieu + .dl-lieu { margin-top: 18px; }
+.dl-mos { display: grid; gap: 4px; grid-template-columns: 2fr 1fr; grid-template-rows: 1fr 1fr; aspect-ratio: 16 / 8; background: var(--ligne); }
+.dl-mos.dl-n1 { grid-template-columns: 1fr; grid-template-rows: 1fr; aspect-ratio: 16 / 7; }
+.dl-mos.dl-n2 { grid-template-columns: 1.6fr 1fr; grid-template-rows: 1fr; }
+.dl-mos.dl-n0 { display: none; }
+.dl-ph { margin: 0; position: relative; overflow: hidden; min-height: 0; }
+.dl-ph img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 1.2s ease; }
+.dl-lieu:hover .dl-ph img { transform: scale(1.03); }
+.dl-n3 .dl-g { grid-row: 1 / 3; }
+.dl-ph figcaption { position: absolute; inset: auto 0 0 0; padding: 50px 22px 18px; background: linear-gradient(to top, rgba(10, 22, 16, .82), rgba(10, 22, 16, 0)); color: #fff; }
+.dl-ph figcaption span { display: block; font-size: .7rem; letter-spacing: .18em; text-transform: uppercase; color: #e2c495; }
+.dl-ph figcaption b { display: block; font-family: var(--serif); font-weight: 500; font-size: clamp(1.4rem, 3.2vw, 2.1rem); line-height: 1.15; }
+.dl-txt { padding: 18px 22px 20px; }
+.dl-txt h3 { font-family: var(--serif); font-size: 1.6rem; margin: 0 0 6px; }
+.dl-txt > p { margin: 0 0 8px; }
+.dl-atouts { list-style: none; display: flex; flex-wrap: wrap; gap: 6px 8px; padding: 0; margin: 0 0 12px; }
+.dl-atouts li { background: var(--carte); border: 1px solid var(--ligne); border-radius: 999px; padding: 4px 12px; font-size: .82rem; }
+.dl-atouts li:first-child { background: var(--vert); border-color: var(--vert); color: #fff; }
+@media (prefers-color-scheme: dark) { .dl-atouts li:first-child { color: #121614; } }
+@media (max-width: 640px) {
+  .dl-mos { aspect-ratio: auto; grid-template-columns: 1fr 1fr; grid-template-rows: 220px 110px; }
+  .dl-n3 .dl-g { grid-row: auto; grid-column: 1 / 3; }
+  .dl-mos.dl-n1 { grid-template-columns: 1fr; grid-template-rows: 240px; }
+  .dl-mos.dl-n2 { grid-template-columns: 1fr; grid-template-rows: 220px 140px; }
+  .dl-ph figcaption { padding: 40px 16px 14px; }
+  .dl-txt { padding: 16px; }
+}
+@media print { .dl-lieu { box-shadow: none; } .dl-mos { aspect-ratio: 16 / 7; } .dl-lieux { break-inside: avoid; } }
 @media (max-width: 640px) { .doc-parties { grid-template-columns: 1fr; } .doc-ref { text-align: left; } .tab th:nth-child(3), .tab td:nth-child(3) { display: none; } }
 @media print {
   .top, .foot, .noprint, .toast, .skip { display: none !important; }
@@ -629,7 +661,7 @@ body.noscroll .partage { display: none; }
 
 /* accueil : étoiles sur la note, bandeau des logos clients sous les chiffres */
 .chiffres .etoiles { display: inline-block; font-style: normal; color: #fbbc04; letter-spacing: .1em; font-size: .95rem; line-height: 1; margin: 0 6px 0 0; vertical-align: 1px; }
-.bande-clients.accueil { margin-top: clamp(40px, 5vw, 64px); border-top: 1px solid var(--ligne); padding-top: 18px; }
+.bande-clients.accueil { margin-top: 0; padding-top: 18px; }
 .bande-clients.accueil .eyebrow { margin: 0 0 4px; }
 
 /* spécialité en sections : Nos buffets, entrées, plats, desserts, divers */
@@ -1193,3 +1225,16 @@ h1 .formule { font-size: .5em; margin-top: .45em; }
 .opts { grid-template-columns: repeat(auto-fill, minmax(min(100%, 175px), 1fr)); }
 .opt, .optq { min-width: 0; overflow: hidden; }
 .opt > span, .optq > span { min-width: 0; flex: 1 1 auto; overflow-wrap: anywhere; word-break: normal; }
+
+/* devis : « Laisser un commentaire » (envoyé au commercial du devis) */
+.doc-com { border: 1px solid rgba(176,138,79,.35); border-radius: var(--rayon); padding: 22px; margin: 24px 0; background: #fff; }
+.doc-com h2 { margin: 0 0 6px; }
+.doc-com .card-form { padding: 4px 0 0; background: none; }
+.doc-com textarea { min-height: 110px; border: 1px solid rgba(0,0,0,.2); padding: 12px; font: inherit; background: #fffdf8; }
+.doc-com[data-apercu] button[disabled] { opacity: .55; cursor: not-allowed; }
+.com-liste { list-style: none; margin: 14px 0 4px; padding: 0; display: grid; gap: 10px; }
+.com-liste li { background: var(--creme); border-left: 3px solid #b08a4f; border-radius: 10px; padding: 10px 14px; }
+.com-liste p { margin: 0 0 4px; white-space: pre-line; }
+.doc-com .btn { white-space: normal; text-align: center; line-height: 1.25; max-width: 100%; }
+@media (max-width: 600px) { .doc-com .btn { width: 100%; } .doc-com { padding: 18px; margin-bottom: 90px; } }
+.com-liste small { color: #777; }

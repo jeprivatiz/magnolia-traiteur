@@ -16,7 +16,7 @@ const splitPath = p => {
 /* Les grosses collections (fichier clients importé : ~60 000 fiches) sont rangées dans leur propre fichier,
    pour qu'une petite modification ailleurs (une photo, un devis) ne réécrive pas tout le fichier clients.
    Un index par dossier évite de parcourir toute la base à chaque liste. */
-const SHARDS = ['clients', '_clientemail', '_imports'];
+const SHARDS = ['clients', '_clientemail', '_imports', 'entreprises'];
 const shardOf = k => { const top = k.slice(0, k.indexOf('/') >>> 0); return SHARDS.includes(top) ? top : ''; };
 
 class FileStore {

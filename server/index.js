@@ -21,7 +21,10 @@ const IA = require('./ia');
 const SEO = require('./seo');
 const TXT = require('./textes');
 const DIF = require('./diffusion');
+const PROFIL = require('./profil-contact');
 const FAC = require('./factures');
+const { creerEntreprises } = require('./entreprises');
+const DR = require('./droits');
 
 const ROOT = path.join(__dirname, '..');
 const PUBLIC = path.join(ROOT, 'public');
@@ -79,13 +82,14 @@ async function createApp(opts = {}) {
     const idx = await store.get('_useremail/' + sha(String(email).trim().toLowerCase()));
     return idx ? { id: idx.id, ...(await store.get('_users/' + idx.id)) } : null;
   }
-  async function createUser({ email, name, role, password }) {
+  async function createUser({ email, name, role, password, droits, prenom, nomFamille, portable }) {
     email = String(email || '').trim().toLowerCase();
     if (!isEmail(email)) throw Object.assign(new Error('E-mail invalide.'), { status: 400 });
     if (await findUserByEmail(email)) throw Object.assign(new Error('Ce compte existe déjà.'), { status: 409 });
     if (String(password || '').length < 10) throw Object.assign(new Error('Mot de passe : 10 caractères minimum.'), { status: 400 });
     const id = 'u_' + rid(9);
-    await store.set('_users/' + id, { email, name: String(name || '').trim(), role: role === 'manager' ? 'manager' : 'collab', passHash: await bcrypt.hash(password, 11), createdAt: new Date().toISOString(), disabled: false });
+    const d = droits ? DR.nettoyer(droits) : null;
+    await store.set('_users/' + id, { email, name: String(name || '').trim(), role: d ? DR.roleDe(d) : role === 'manager' ? 'manager' : 'collab', ...(d ? { droits: d } : {}), ...(prenom !== undefined ? { prenom, nomFamille } : {}), ...(portable ? { portable } : {}), passHash: await bcrypt.hash(password, 11), createdAt: new Date().toISOString(), disabled: false });
     await store.set('_useremail/' + sha(email), { id });
     return id;
   }
@@ -290,7 +294,7 @@ async function createApp(opts = {}) {
         const s = await store.get('_sessions/' + sha(tok));
         if (s && s.expires > Date.now()) {
           const u = await store.get('_users/' + s.userId);
-          if (u && !u.disabled) req.ctx = { uid: s.userId, role: u.role, email: u.email, name: u.name, session: sha(tok) };
+          if (u && !u.disabled) req.ctx = { uid: s.userId, role: u.role, email: u.email, name: u.name, session: sha(tok), droits: DR.droitsDe(u) };
         }
       }
       const ct = req.cookies.mg_c;
@@ -303,7 +307,10 @@ async function createApp(opts = {}) {
   const sameSite = (req, res, next) => (req.get('x-mg') === '1' ? next() : res.status(403).json({ error: 'Requête refusée.' }));
   const isTeam = req => req.ctx.role === 'manager' || req.ctx.role === 'collab';
   const team = (req, res, next) => (isTeam(req) ? next() : res.status(401).json({ error: 'Connexion requise.' }));
-  const manager = (req, res, next) => (req.ctx.role === 'manager' ? next() : res.status(403).json({ error: 'Réservé au Manager.' }));
+  /* droits détaillés (server/droits.js) : peut('prix'), peut('fichiers')… ; « Administrateur » a tout */
+  const nomDroit = k => (DR.DROITS.find(d => d.k === k) || {}).nom || k;
+  const refus = (res, k) => res.status(403).json({ error: `Vous n’avez pas le droit « ${nomDroit(k)} ». Demandez-le à un administrateur (Équipe & activité).` });
+  const peut = (...ks) => (req, res, next) => { const k = ks.find(x => !req.ctx.droits?.[x]); return k ? refus(res, k) : next(); };
   const wrap = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
   const publicWrites = limiter(+(env.PUBLIC_WRITE_LIMIT || 20), 10 * 60e3);
   const loginTries = limiter(10, 15 * 60e3);
@@ -517,6 +524,38 @@ async function createApp(opts = {}) {
     alerterEquipe(`Devis ${d.numero} ${accepte ? 'SIGNÉ' : 'refusé'} par le client`, `<p>Le devis ${esc(d.numero)} (${euros(t.ttcCents)} TTC) a été ${accepte ? 'signé en ligne par <b>' + esc(nom) + '</b>' : 'refusé'}.</p><p><a href="${SITE}/admin#/devis/${d.id}">Ouvrir</a></p>`, `Magnolia : devis ${d.numero} ${accepte ? 'signé' : 'refusé'}`).catch(() => {});
     res.json({ ok: true });
   }));
+  /* commentaire laissé par le client sur son devis : gardé sur le devis et envoyé au commercial du devis (e-mail + SMS) */
+  app.post('/api/devis/:token/commentaire', sameSite, json, wrap(async (req, res) => {
+    if (!publicWrites(req.ip)) return res.status(429).json({ error: 'Trop d’envois. Réessayez dans quelques minutes ou appelez-nous.' });
+    const d = await devisParToken(req.params.token);
+    if (!d || d.statut === 'brouillon') return res.status(404).json({ error: 'Devis introuvable.' });
+    const texte = String(req.body?.texte ?? '').replace(/\r/g, '').replace(/\n{3,}/g, '\n\n').trim().slice(0, 2000);
+    if (texte.length < 2) return res.status(400).json({ error: 'Écrivez votre commentaire.' });
+    if ((d.commentaires || []).length >= 50) return res.status(400).json({ error: 'Trop de commentaires sur ce devis : appelez-nous.' });
+    const cl = await store.get('clients/' + d.clientId);
+    const nom = nomPropre(cl?.nom || d.clientNom || '') || 'Le client';
+    const now = new Date().toISOString();
+    await store.set('devis/' + d.id, { ...d, commentaires: [...(d.commentaires || []), { at: now, texte, nom }] });
+    /* destinataire : le commercial du devis (coordonnées à jour dans Équipe & activité), sinon les alertes de l'équipe */
+    const R = (await cat.get()).reglages, P = (R.alertes?.personnes || []).filter(x => x.nom);
+    const c0 = d.commercial === null ? null : (d.commercial || P[0] || null);
+    const users = c0?.nom ? (await store.list('_users')).map(x => x.data).filter(u => u && !u.disabled) : [];
+    const memeNom = n => x => nomCle(x) === nomCle(n);
+    const uCom = c0?.nom ? users.find(u => nomCle(u.name) === nomCle(c0.nom)) : null;
+    const com = c0?.nom ? { nom: c0.nom, email: P.find(memeNom(c0.nom))?.email || c0.email || uCom?.email || '', tel: P.find(memeNom(c0.nom))?.tel || c0.tel || uCom?.portable || '' } : null;
+    const t = totaux(d), lien = `${SITE}/admin#/devis/${d.id}`;
+    const sujet = `Commentaire de ${nom} sur le devis ${d.numero}`;
+    const html = `<p>Bonjour${com?.nom ? ' ' + esc(com.nom.split(' ')[0]) : ''},</p><p><b>${esc(nom)}</b>${cl?.societe ? ' (' + esc(cl.societe) + ')' : ''} a laissé un commentaire sur le devis <b>${esc(d.numero)}</b> (${euros(t.ttcCents)} TTC) :</p><blockquote style="border-left:3px solid #c9a45c;margin:12px 0;padding:8px 14px;background:#f7f3ea">${esc(texte).replace(/\n/g, '<br>')}</blockquote><p>${cl?.tel ? `Téléphone : <a href="tel:${esc(cl.tel.replace(/\s/g, ''))}">${esc(cl.tel)}</a><br>` : ''}${cl?.email ? `E-mail : <a href="mailto:${esc(cl.email)}">${esc(cl.email)}</a><br>` : ''}<a href="${lien}">Ouvrir le devis dans le back-office</a></p>`;
+    const court = texte.replace(/\s+/g, ' ');
+    const sms = `Magnolia : ${nom} a commenté le devis ${d.numero} : « ${court.length > 200 ? court.slice(0, 197) + '…' : court} »${cl?.tel ? ' Tél. ' + cl.tel : ''}`;
+    try {
+      if (com?.email || com?.tel) {
+        if (com.email) await brevo.sendEmail({ to: com.email, name: com.nom, replyTo: cl?.email || undefined, subject: sujet, html, text: html.replace(/<[^>]+>/g, ' ') });
+        if (com.tel) await brevo.sendSms({ to: com.tel, content: sms });
+      } else await alerterEquipe(sujet, html, sms);
+    } catch (e) { log.error?.(e); }
+    res.json({ ok: true });
+  }));
   app.get('/facture/:token', wrap(async (req, res, next) => {
     const idx = await store.get('_facturetoken/' + sha(req.params.token));
     const f = idx ? await store.get('factures/' + idx.id) : null;
@@ -606,7 +645,7 @@ async function createApp(opts = {}) {
     audit({ uid: r.userId, name: u.name }, 'mot de passe réinitialisé', '');
     res.json({ ok: true });
   }));
-  app.get('/api/session', (req, res) => res.set('Cache-Control', 'no-store').json({ connecte: isTeam(req), role: req.ctx.role, nom: req.ctx.name || '', email: req.ctx.email || '' }));
+  app.get('/api/session', (req, res) => res.set('Cache-Control', 'no-store').json({ connecte: isTeam(req), role: req.ctx.role, nom: req.ctx.name || '', email: req.ctx.email || '', droits: req.ctx.droits || {} }));
   app.post('/api/auth/password', sameSite, json, team, wrap(async (req, res) => {
     const u = await store.get('_users/' + req.ctx.uid);
     if (!u || !(await bcrypt.compare(String(req.body?.current || ''), u.passHash))) return res.status(401).json({ error: 'Mot de passe actuel incorrect.' });
@@ -619,6 +658,50 @@ async function createApp(opts = {}) {
   /* ---------- back-office : API ---------- */
   const A = express.Router();
   A.use(team);
+  /* ---------- « voir seulement ses opportunités » : demandes, devis et factures dont on est le commercial,
+     plus celles sans commercial (nouvelles demandes du site pas encore prises en charge) ---------- */
+  const nomCle = x => String((typeof x === 'string' ? x : x?.nom) || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+  async function visibles(req) {
+    if (req.ctx.droits?.toutes) return null;
+    if (req._vis) return req._vis;
+    const [dem, dv, fa, R] = await Promise.all([store.list('demandes'), store.list('devis'), store.list('factures'), store.get('site/reglages')]);
+    const D = dem.map(x => ({ ...x.data, id: x.data?.id || x.id })), V = dv.map(x => ({ ...x.data, id: x.data?.id || x.id })), F = fa.map(x => ({ ...x.data, id: x.data?.id || x.id }));
+    const moi = new Set([nomCle(req.ctx.name)]);
+    for (const p of (R || {}).alertes?.personnes || []) if (p?.nom && p.email && String(p.email).trim().toLowerCase() === String(req.ctx.email || '').toLowerCase()) moi.add(nomCle(p.nom));
+    moi.delete('');
+    const demById = new Map(D.map(d => [d.id, d])), devById = new Map(V.map(v => [v.id, v]));
+    const devisDe = id => V.filter(v => v.demandeId === id).sort((x, y) => String(y.createdAt).localeCompare(String(x.createdAt)));
+    const comDem = d => { const l = devisDe(d.id); const m = l.find(x => x.statut === 'accepte') || l.find(x => x.statut === 'envoye') || l[0]; return nomCle(d.commercial) || nomCle(m?.commercial); };
+    const comDevis = v => nomCle(v.commercial) || (v.demandeId && demById.has(v.demandeId) ? nomCle(demById.get(v.demandeId).commercial) : '');
+    const comFac = f => nomCle(f.commercial) || (f.devisId && devById.has(f.devisId) ? comDevis(devById.get(f.devisId)) : '');
+    const ok = n => !n || moi.has(n);
+    req._vis = { moi, demandes: new Set(D.filter(d => ok(comDem(d))).map(d => d.id)), devis: new Set(V.filter(v => ok(comDevis(v))).map(v => v.id)), factures: new Set(F.filter(f => ok(comFac(f))).map(f => f.id)) };
+    return req._vis;
+  }
+  const OPP = ['demandes', 'devis', 'factures'];
+  const voitDoc = async (req, coll, id) => { const v = OPP.includes(coll) ? await visibles(req) : null; return !v || v[coll].has(id); };
+  /* droits par écran, et opportunités des autres commerciaux introuvables par leur adresse */
+  const ROUTES_DOC = [
+    [/^\/actions\/(?:envoyer-devis|relancer|dupliquer-devis|facture-depuis-devis|reglement-devis)\/([^/]+)/, 'devis'],
+    [/^\/devis\/([^/]+)\/apercu/, 'devis'],
+    [/^\/factures\/([^/]+)\/apercu/, 'factures'],
+    [/^\/actions\/(?:facture|facture-reglement|facture-reglement-retirer|facture-payee|envoyer-facture|relancer-facture|archiver-facture|avoir-facture)\/([^/]+)/, 'factures'],
+    [/^\/actions\/devis-depuis-demande\/([^/]+)/, 'demandes'],
+  ];
+  A.use(wrap(async (req, res, next) => {
+    const p = req.path, dr = req.ctx.droits || {};
+    if (/^\/(?:factures(?:\/|$)|actions\/(?:factures$|facture\/|facture-|envoyer-facture|relancer-facture|archiver-facture|avoir-facture|reglement-devis))/.test(p) && !dr.factures) return refus(res, 'factures');
+    if (/^\/(?:diffusion\/|ia\/diffusion-)/.test(p) && !dr.diffusion) return refus(res, 'diffusion');
+    if (/^\/ia\/(?:seo|texte-produit)$/.test(p) && !dr.produits) return refus(res, 'produits');
+    if (/^\/actions\/(?:journal|envois)$/.test(p) && !dr.equipe) return refus(res, 'equipe');
+    if (req.method !== 'GET') {
+      const coll = p.split('/')[1];
+      const besoin = { produits: 'produits', rubriques: 'produits', lieux: 'produits', avis: 'site', modeles: 'outils', pages: 'outils' }[coll];
+      if (besoin && !dr[besoin]) return refus(res, besoin);
+    }
+    for (const [re, coll] of ROUTES_DOC) { const m = p.match(re); if (m && !(await voitDoc(req, coll, decodeURIComponent(m[1])))) return res.status(404).json({ error: 'Introuvable : ce dossier est suivi par un autre commercial.' }); }
+    next();
+  }));
   /* tableau de bord : ?com=Nom filtre tout sur un commercial (« — » = sans commercial), comme le sélecteur du Suivi client */
   A.get('/stats', wrap(async (req, res) => {
     const [dem, dv, fa, us, rdv0, reg] = await Promise.all([store.list('demandes'), store.list('devis'), store.list('factures'), store.list('_users'), store.list('rdv'), store.get('site/reglages')]);
@@ -632,9 +715,10 @@ async function createApp(opts = {}) {
     const comDevis = v => nomDe(v.commercial) || (v.demandeId && demById.has(v.demandeId) ? nomDe(demById.get(v.demandeId).commercial) : '');
     const devById = new Map(devisTous.map(v => [v.id, v]));
     const comFac = f => nomDe(f.commercial) || (f.devisId && devById.has(f.devisId) ? comDevis(devById.get(f.devisId)) : '');
-    const com = String(req.query.com || '').trim();
+    const vis = await visibles(req); /* « seulement ses opportunités » : le tableau de bord ne montre que les siennes */
+    const com = vis ? '' : String(req.query.com || '').trim();
     const ok = n => !com || (com === '—' ? !n : n === com);
-    const demandes = demandesTous.filter(d => ok(comDem(d))), devis = devisTous.filter(v => ok(comDevis(v))), factures = facturesTous.filter(f => ok(comFac(f)));
+    const demandes = demandesTous.filter(d => ok(comDem(d)) && (!vis || vis.demandes.has(d.id))), devis = devisTous.filter(v => ok(comDevis(v)) && (!vis || vis.devis.has(v.id))), factures = req.ctx.droits.factures ? facturesTous.filter(f => ok(comFac(f)) && (!vis || vis.factures.has(f.id))) : [];
     const ici = d => d.toLocaleDateString('sv-SE', { timeZone: 'Europe/Paris' });
     const aujourdHui = ici(new Date()), mois = aujourdHui.slice(0, 7);
     const parStatut = Object.fromEntries(PIPELINE.map(k => [k, demandes.filter(d => d.statut === k && d.type !== 'contact').length]));
@@ -646,11 +730,11 @@ async function createApp(opts = {}) {
     const tranches = devis.filter(d => ['accepte', 'refuse'].includes(d.statut));
     const enAttente = devis.filter(d => d.statut === 'envoye');
     const persos = ((reg || {}).alertes?.personnes || []).map(x => nomDe(x));
-    const commerciaux = [...new Set([...us.map(u => u.data).filter(u => u && !u.disabled).map(u => nomDe(u.name)), ...persos, ...demandesTous.map(comDem), ...devisTous.map(comDevis)].filter(Boolean))].sort((x, y) => x.localeCompare(y, 'fr'));
-    const rdvDuJour = rdv0.map(d => d.data).filter(r => r && r.clientId && r.type && !r.fait && r.date === aujourdHui && (!com || !(r.commerciaux || []).length || (com !== '—' && r.commerciaux.includes(com))));
+    const commerciaux = vis ? [req.ctx.name].filter(Boolean) : [...new Set([...us.map(u => u.data).filter(u => u && !u.disabled).map(u => nomDe(u.name)), ...persos, ...demandesTous.map(comDem), ...devisTous.map(comDevis)].filter(Boolean))].sort((x, y) => x.localeCompare(y, 'fr'));
+    const rdvDuJour = rdv0.map(d => d.data).filter(r => r && r.clientId && r.type && !r.fait && r.date === aujourdHui && (!vis || !(r.commerciaux || []).length || r.commerciaux.some(n => vis.moi.has(nomCle(n)))) && (!com || !(r.commerciaux || []).length || (com !== '—' && r.commerciaux.includes(com))));
     res.set('Cache-Control', 'no-store').json({
-      com, commerciaux,
-      nouvellesTous: demandesTous.filter(aTraiterSrv).length,
+      com, commerciaux, siennes: !!vis,
+      nouvellesTous: demandesTous.filter(d => aTraiterSrv(d) && (!vis || vis.demandes.has(d.id))).length,
       nouvelles: demandes.filter(aTraiterSrv).length,
       parStatut,
       caSigneMoisCents: signes.filter(d => moisSigne(d) === mois).reduce((t, d) => t + totaux(d).ttcCents, 0),
@@ -671,9 +755,17 @@ async function createApp(opts = {}) {
   }));
 
   A.get('/site', wrap(async (req, res) => res.json((await store.get('site/reglages')) || {})));
+  /* chaque partie des réglages a son droit : tarifs = « Modifier les prix », coordonnées et banque = « Mon entreprise », alertes = « Gérer l'équipe » */
+  const GARDE_SITE = { tarifs: 'prix', alertes: 'equipe', entreprise: 'entreprise', paiement: 'entreprise', adresse: 'entreprise', telephone: 'entreprise', email: 'entreprise' };
+  const stable = v => JSON.stringify(v, (k, x) => x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => a.localeCompare(b))) : x);
   A.put('/site', sameSite, json, wrap(async (req, res) => {
     const before = (await store.get('site/reglages')) || {};
-    await store.set('site/reglages', { ...before, ...req.body, updatedAt: new Date().toISOString() });
+    const body = { ...(req.body || {}) }; delete body.updatedAt;
+    const changes = Object.keys(body).filter(k => stable(body[k]) !== stable(before[k]));
+    const refuses = changes.filter(k => !req.ctx.droits[GARDE_SITE[k] || 'site']);
+    if (refuses.length && refuses.length === changes.length) return refus(res, GARDE_SITE[refuses[0]] || 'site');
+    for (const k of refuses) { if (k in before) body[k] = before[k]; else delete body[k]; } /* le reste de l'écran est enregistré, la partie interdite reste telle quelle */
+    await store.set('site/reglages', { ...before, ...body, updatedAt: new Date().toISOString() });
     cat.invalidate(); audit(req.ctx, 'réglages du site modifiés', 'site/reglages');
     res.json({ ok: true });
   }));
@@ -683,11 +775,25 @@ async function createApp(opts = {}) {
     if (typeof data.cp === 'string') { data.cp = data.cp.replace(/\s/g, ''); if (data.cp !== (before?.cp || '')) data.departement = departementDe(data.cp) || data.departement || ''; }
     if (typeof data.tel === 'string' && data.tel !== (before?.tel || '')) { const t = normTel(data.tel); data.telE164 = t?.ok ? t.e164 : ''; if (t?.ok) data.tel = t.tel; }
     if (typeof data.email === 'string') data.email = data.email.trim().toLowerCase();
+    /* profil prestataire (métiers, DJ…) : listes propres, sans doublon */
+    for (const k of ['metiers', 'djStyles']) if (k in data) { data[k] = PROFIL.uniques((Array.isArray(data[k]) ? data[k] : []).map(x => String(x || '').trim().slice(0, 60))).slice(0, 30); if (!data[k].length) delete data[k]; }
+    for (const k of ['independant', 'permis', 'nePasContacter']) if (k in data && typeof data[k] !== 'boolean') data[k] = data[k] === 'on' || data[k] === 'true' || data[k] === true;
+    if ('djDepuis' in data) { const an = String(data.djDepuis || '').match(/(19|20)\d{2}/); data.djDepuis = an ? an[0] : ''; }
   }
+  /* listes de la fiche « Profil prestataire » : métiers et styles de DJ proposés, plus ceux déjà tapés */
+  A.get('/actions/profil-contact', wrap(async (req, res) => {
+    const { facettes } = await annuaireServeur();
+    const avec = (base, vus) => [...base, ...vus.map(x => x[0]).filter(x => !base.includes(x)).sort((a, b) => a.localeCompare(b, 'fr'))];
+    res.json({ metiers: avec(PROFIL.METIERS, facettes.metiers), djStyles: avec(PROFIL.DJ_STYLES, facettes.dj), contactDe: facettes.contactDe.map(x => x[0]) });
+  }));
   /* ---------- import du fichier clients (Excel / CSV) ---------- */
   const importClients = creerImportClients({ store, log });
-  importClients.routes(A, { sameSite, manager, wrap, audit });
+  importClients.routes(A, { sameSite, manager: peut('fichiers'), wrap, audit });
 
+  /* ---------- entreprises : plusieurs contacts reliés à une même fiche entreprise (server/entreprises.js) ---------- */
+  const ENT = creerEntreprises({ store, log, totaux });
+  ENT.routes(A, { sameSite, json, wrap, audit });
+  ENT.synchro().catch(e => log.warn?.('Entreprises : reprise impossible', e.message));
   /* ---------- clients : recherche et pages côté serveur (le fichier importé compte ~60 000 fiches) ---------- */
   const sansAcc = t => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   const telK = t => { const d = String(t || '').replace(/\D/g, ''); return d.length >= 9 ? d.slice(-9) : ''; };
@@ -703,13 +809,70 @@ async function createApp(opts = {}) {
     for (const { data: d } of fac) { if (d.clientId) { lies.add(d.clientId); plus(d.clientId, d.numero); } }
     const items = cl.map(({ id, data: c }) => ({
       c: { ...c, id, journal: undefined }, id, nb: nbDem.get(id) || 0, lie: lies.has(id) || (c.journal || []).length > 0,
-      importe: c.source === 'import CRM', last: String(c.derniereActivite || ''),
-      hay: sansAcc([c.nom, c.prenom, c.nomFamille, c.societe, c.email, c.ville, c.cp, extra.get(id)].join(' ')),
+      importe: c.source === 'import CRM', last: String(c.derniereActivite || ''), verrou: lies.has(id),
+      hay: sansAcc(texteFiche(c) + ' ' + (extra.get(id) || '')),
       tels: [c.tel, c.telE164, c.telAutre].map(telK).filter(Boolean),
+      k: critereClient(c),
     }));
     items.sort((a, b) => b.last.localeCompare(a.last));
-    idxClients = { v, items };
+    idxClients = { v, items, facettes: facettesClients(items) };
     return idxClients;
+  }
+  /* recherche au clavier : TOUTES les cases de la fiche (anciennes et nouvelles), sauf les données techniques */
+  const HORS_RECHERCHE = new Set(['id', 'journal', 'consentement', 'desinscrit', 'importId', 'importIds', 'importCree', 'telE164', 'entrepriseId', 'creeLe', 'derniereActivite', 'statutContact', 'caCrmCents', '_maj']);
+  function texteFiche(c) {
+    const out = [];
+    const walk = v => { if (v == null || typeof v === 'boolean') return; if (Array.isArray(v)) v.forEach(walk); else if (typeof v === 'object') Object.values(v).forEach(walk); else out.push(String(v)); };
+    for (const [k, v] of Object.entries(c || {})) if (!HORS_RECHERCHE.has(k)) walk(v);
+    if (c?.civilite === 'Mme') out.push('madame'); if (c?.civilite === 'M.') out.push('monsieur');
+    if (c?.independant) out.push('independant independante'); if (c?.permis) out.push('permis de conduire');
+    if (c?.nePasContacter) out.push('ne pas contacter');
+    return out.join(' ');
+  }
+  /* recherche multicritère de la liste Clients (listes déroulantes) */
+  function critereClient(c) {
+    const dep = String(c.departement || DIF.departement(c.cp) || '').toUpperCase();
+    return {
+      metiers: Array.isArray(c.metiers) ? c.metiers : [], dj: Array.isArray(c.djStyles) ? c.djStyles : [], contactDe: String(c.contactDe || '').trim(),
+      dep, civ: c.civilite === 'Mme' || c.civilite === 'M.' ? c.civilite : '', pro: !!String(c.societe || '').trim(),
+      email: /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(String(c.email || '').trim()), mobile: !!DIF.mobile(c.telE164 || c.tel),
+      stopEmail: !!c.desinscrit?.email, stopSms: !!c.desinscrit?.sms, npc: !!c.nePasContacter || !!(c.desinscrit?.email && c.desinscrit?.sms),
+      indep: c.independant === true, permis: c.permis === true, ville: String(c.ville || '').trim(),
+    };
+  }
+  function facettesClients(items) {
+    const m = { metiers: new Map(), dj: new Map(), contactDe: new Map(), dep: new Map() };
+    const n = (map, x) => { if (x) map.set(x, (map.get(x) || 0) + 1); };
+    for (const { k } of items) { k.metiers.forEach(x => n(m.metiers, x)); k.dj.forEach(x => n(m.dj, x)); n(m.contactDe, k.contactDe); n(m.dep, k.dep); }
+    const tri = map => [...map].sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0]), 'fr'));
+    return {
+      metiers: tri(m.metiers), dj: tri(m.dj), contactDe: tri(m.contactDe), dep: [...m.dep].sort((a, b) => a[0].localeCompare(b[0], 'fr', { numeric: true })),
+      indep: items.filter(a => a.k.indep).length, permis: items.filter(a => a.k.permis).length, npc: items.filter(a => a.k.npc).length,
+    };
+  }
+  const CRIT_CLIENTS = ['metier', 'dj', 'contactDe', 'dep', 'civ', 'pro', 'joignable', 'indep', 'permis', 'npc'];
+  function filtrerCriteres(items, q) {
+    const v = x => String(q[x] || '').slice(0, 80);
+    if (!CRIT_CLIENTS.some(x => v(x))) return items;
+    return items.filter(({ k }) => {
+      if (v('metier') && !(v('metier') === '*' ? k.metiers.length : k.metiers.includes(v('metier')))) return false;
+      if (v('dj') && !k.dj.includes(v('dj'))) return false;
+      if (v('contactDe') && k.contactDe !== v('contactDe')) return false;
+      if (v('dep') && !(v('dep') === 'idf' ? ['75', '77', '78', '91', '92', '93', '94', '95'].includes(k.dep) : v('dep') === 'aucun' ? !k.dep : k.dep === v('dep'))) return false;
+      if (v('civ') && k.civ !== (v('civ') === 'aucune' ? '' : v('civ'))) return false;
+      if (v('pro') === 'pro' && !k.pro) return false;
+      if (v('pro') === 'part' && k.pro) return false;
+      const j = v('joignable');
+      if (j === 'email' && !(k.email && !k.stopEmail)) return false;
+      if (j === 'sms' && !(k.mobile && !k.stopSms)) return false;
+      if (j === 'les2' && !(k.email && !k.stopEmail && k.mobile && !k.stopSms)) return false;
+      if (j === 'aucun' && ((k.email && !k.stopEmail) || (k.mobile && !k.stopSms))) return false;
+      if (v('indep') && !k.indep) return false;
+      if (v('permis') && !k.permis) return false;
+      if (v('npc') === 'oui' && !k.npc) return false;
+      if (v('npc') === 'non' && k.npc) return false;
+      return true;
+    });
   }
   function filtrerClients(items, q) {
     const words = sansAcc(q).trim().split(/\s+/).filter(Boolean);
@@ -721,39 +884,95 @@ async function createApp(opts = {}) {
   A.get('/clients', wrap(async (req, res, next) => {
     const q = req.query;
     if (q.q === undefined && q.page === undefined && !q.vue && !q.ids) return next();
-    const { items } = await annuaireServeur();
+    const { items, facettes } = await annuaireServeur();
     res.set('Cache-Control', 'no-store');
     /* clients « en activité » : tous, sauf les contacts importés qui n'ont encore ni demande, ni devis, ni note */
     if (q.vue === 'actifs') return res.json(items.filter(a => !a.importe || a.lie).map(a => a.c));
     if (q.ids) { const ids = new Set(String(q.ids).split(',').slice(0, 200)); return res.json(items.filter(a => ids.has(a.id)).map(a => a.c)); }
-    let l = filtrerClients(items, String(q.q || '').slice(0, 80));
+    let l = filtrerCriteres(filtrerClients(items, String(q.q || '').slice(0, 80)), q);
     if (q.filtre === 'importes') l = l.filter(a => a.importe); else if (q.filtre === 'autres') l = l.filter(a => !a.importe);
     const par = Math.min(200, Math.max(10, parseInt(q.par, 10) || 50)), page = Math.max(1, parseInt(q.page, 10) || 1);
-    res.json({ total: l.length, tous: items.length, importes: items.filter(a => a.importe).length, page, par, items: l.slice((page - 1) * par, page * par).map(a => ({ ...a.c, nbDemandes: a.nb })) });
+    res.json({ total: l.length, tous: items.length, importes: items.filter(a => a.importe).length, entreprises: await ENT.nombre(), facettes, page, par, items: l.slice((page - 1) * par, page * par).map(a => ({ ...a.c, nbDemandes: a.nb, verrou: a.verrou })), effacables: q.ids === undefined && q.avecIds ? l.filter(a => !a.verrou).map(a => a.id) : undefined });
+  }));
+
+  /* effacer des contacts cochés (Jean-Luc, 2026-11-24) : jamais un contact qui a une demande, un devis ou une facture ;
+     chaque effacement est gardé dans _effacements/<id> pour pouvoir tout remettre */
+  A.post('/actions/effacer-clients', sameSite, peut('effacerContacts'), json, wrap(async (req, res) => {
+    const ids = [...new Set((Array.isArray(req.body?.ids) ? req.body.ids : []).map(String).filter(x => /^[A-Za-z0-9_-]{1,120}$/.test(x)))].slice(0, 100000);
+    if (!ids.length) return res.status(400).json({ error: 'Aucun contact coché.' });
+    const { items } = await annuaireServeur();
+    const parId = new Map(items.map(a => [a.id, a]));
+    const lot = 'eff_' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '_' + rid(5).replace(/[^A-Za-z0-9]/g, 'x');
+    const gardes = [], effaces = [];
+    for (const id of ids) {
+      const a = parId.get(id);
+      if (!a) continue;
+      if (a.verrou) { gardes.push(a.c.nom || a.c.email || id); continue; }
+      const c = await store.get('clients/' + id);
+      if (!c) continue;
+      await store.set('_effacements/' + lot + '/' + id, { id, data: c });
+      await store.delete('clients/' + id);
+      if (c.email) { const k = '_clientemail/' + sha(String(c.email).toLowerCase()); const ix = await store.get(k); if (ix?.id === id) await store.delete(k); }
+      effaces.push(id);
+    }
+    if (effaces.length) {
+      await store.set('_effacements/' + lot, { id: lot, at: new Date().toISOString(), par: req.ctx.name || req.ctx.email || '', nb: effaces.length, statut: 'effacé' });
+      audit(req.ctx, 'contacts effacés', '_effacements/' + lot, `${effaces.length} contact(s)`);
+      await store.flush?.();
+    }
+    res.json({ ok: true, lot: effaces.length ? lot : null, effaces: effaces.length, gardes: gardes.length, exemplesGardes: gardes.slice(0, 5) });
+  }));
+  A.post('/actions/effacer-clients/:lot/remettre', sameSite, peut('effacerContacts'), wrap(async (req, res) => {
+    const lot = String(req.params.lot);
+    const doc = await store.get('_effacements/' + lot);
+    if (!doc || doc.statut !== 'effacé') return res.status(404).json({ error: 'Rien à remettre.' });
+    let remis = 0;
+    for (const { id, data } of await store.list('_effacements/' + lot)) {
+      const cid = data?.id || id;
+      if (data?.data && !(await store.get('clients/' + cid))) {
+        await store.set('clients/' + cid, data.data);
+        if (data.data.email) { const k = '_clientemail/' + sha(String(data.data.email).toLowerCase()); if (!(await store.get(k))) await store.set(k, { id: cid }); }
+        remis++;
+      }
+      await store.delete('_effacements/' + lot + '/' + id);
+    }
+    await store.set('_effacements/' + lot, { ...doc, statut: 'remis', remisLe: new Date().toISOString() });
+    audit(req.ctx, 'contacts remis', '_effacements/' + lot, `${remis} contact(s)`);
+    await store.flush?.();
+    res.json({ ok: true, remis });
+  }));
+  A.get('/actions/effacer-clients/historique', wrap(async (req, res) => {
+    res.json((await store.list('_effacements')).map(d => d.data).filter(d => d?.statut).sort((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, 10));
   }));
 
   A.get('/:coll', wrap(async (req, res, next) => {
     if (!COLLECTIONS.includes(req.params.coll)) return next();
-    const docs = (await store.list(req.params.coll)).map(d => ({ id: d.id, ...d.data, _maj: d.updatedAt }));
+    const vis = OPP.includes(req.params.coll) ? await visibles(req) : null;
+    const docs = (await store.list(req.params.coll)).map(d => ({ id: d.id, ...d.data, _maj: d.updatedAt })).filter(d => !vis || vis[req.params.coll].has(d.id));
     res.set('Cache-Control', 'no-store').json(docs);
   }));
   A.get('/:coll/:id', wrap(async (req, res, next) => {
     if (!COLLECTIONS.includes(req.params.coll)) return next();
     const d = await store.get(req.params.coll + '/' + req.params.id);
-    if (!d) return res.status(404).json({ error: 'Introuvable.' });
+    if (!d || !(await voitDoc(req, req.params.coll, req.params.id))) return res.status(404).json({ error: 'Introuvable.' });
     res.set('Cache-Control', 'no-store').json({ id: req.params.id, ...d });
   }));
+  /* tous les montants « prix… » et « cout… » d'une fiche (variantes comprises) : sans le droit « Modifier les prix », ils ne doivent pas bouger */
+  const empreintePrix = o => { const out = []; const walk = (x, ch) => { if (Array.isArray(x)) x.forEach((y, i) => walk(y, ch + '.' + i)); else if (x && typeof x === 'object') for (const [k, v] of Object.entries(x)) { if (/prix|cout/i.test(k) && (v == null || typeof v !== 'object')) { if (v != null && v !== '') out.push(ch + '.' + k + '=' + v); } else walk(v, ch + '.' + k); } }; walk(o, ''); return out.sort().join('|'); };
   A.put('/:coll/:id', sameSite, json, wrap(async (req, res, next) => {
     const { coll, id } = req.params;
     if (!COLLECTIONS.includes(coll) || !/^[A-Za-z0-9_-]{1,120}$/.test(id)) return next();
     const before = await store.get(coll + '/' + id);
+    if (before && !(await voitDoc(req, coll, id))) return res.status(404).json({ error: 'Introuvable : ce dossier est suivi par un autre commercial.' });
     let data = { ...(req.body || {}) };
     delete data._maj;
+    if (coll === 'produits' && before && !req.ctx.droits.prix && empreintePrix(data) !== empreintePrix(before)) return refus(res, 'prix');
     if (coll === 'devis') {
-      if (before && before.statut === 'accepte' && req.ctx.role !== 'manager') return res.status(403).json({ error: 'Un devis signé ne peut être modifié que par le Manager.' });
+      if (before && before.statut === 'accepte' && !req.ctx.droits.devisSignes) return res.status(403).json({ error: 'Ce devis est signé : il faut le droit « Modifier un devis signé » pour le changer.' });
       const err = controleMarge(data);
       if (err.length) return res.status(400).json({ error: 'Marge négative bloquée : ' + err.join(' ') });
       data.token = before?.token || data.token;
+      if (before?.commentaires) data.commentaires = before.commentaires; /* écrits par le client : jamais effacés par un enregistrement du back-office */
     }
     if (coll === 'demandes' && before && data.statut && data.statut !== before.statut) data.historique = [...(before.historique || []), { at: new Date().toISOString(), statut: data.statut, par: req.ctx.name || req.ctx.email }];
     if (coll === 'demandes' && before) {
@@ -774,6 +993,7 @@ async function createApp(opts = {}) {
     if (coll === 'clients' && typeof data.nom === 'string') data.nom = nomPropre(data.nom);
     if (coll === 'clients' && 'naissance' in data) data.naissance = dateNaissance(data.naissance);
     if (coll === 'clients') ficheClientNette(data, before);
+    if (coll === 'clients') { await ENT.avantClient(data, before); profilsCache = null; } /* envois groupés : la fiche corrigée se voit tout de suite */
     if (coll === 'demandes' && typeof data.contact?.nom === 'string') data.contact = { ...data.contact, nom: nomPropre(data.contact.nom) };
     if (coll === 'clients') { if (before?.journal) data.journal = before.journal; else delete data.journal; } /* notes et appels de l'historique jamais effacés par une fiche ouverte avant */
     data.updatedAt = new Date().toISOString();
@@ -797,9 +1017,11 @@ async function createApp(opts = {}) {
     let id = coll === 'produits' || coll === 'lieux' ? slugify(req.body?.titre || req.body?.nom) : coll === 'rubriques' ? slugify(req.body?.nom) : coll.slice(0, 1) + '_' + rid(7);
     if (await store.get(coll + '/' + id)) id = id + '-' + rid(3).toLowerCase().replace(/[^a-z0-9]/g, 'x');
     const data = { ...(req.body || {}), createdAt: new Date().toISOString() };
+    if (coll === 'produits' && !req.ctx.droits.prix) for (const k of Object.keys(data)) if (/prix|cout/i.test(k)) delete data[k]; /* nouvelle fiche sans prix : « Sur devis » */
     if (coll === 'clients' && typeof data.nom === 'string') data.nom = nomPropre(data.nom); if (coll === 'clients') data.id = id;
     if (coll === 'clients' && 'naissance' in data) data.naissance = dateNaissance(data.naissance);
     if (coll === 'clients') ficheClientNette(data, null);
+    if (coll === 'clients') await ENT.avantClient(data, null);
     if (coll === 'produits') Object.assign(data, { id, slug: id, statut: data.statut || 'masque', maison: true, photos: data.photos || [], description: data.description || [], sections: data.sections || [], groupes: [], variantes: [], details: [], regles: data.regles || { packs: true, personnel: 'service' }, ordre: -1 });
     if (coll === 'lieux') Object.assign(data, { slug: id, statut: data.statut || 'masque', photos: data.photos || [], equipements: data.equipements || [] });
     if (coll === 'rubriques') Object.assign(data, { slug: id, statut: data.statut || 'visible', ordre: data.ordre ?? 99, tva: data.tva || 10 });
@@ -814,7 +1036,8 @@ async function createApp(opts = {}) {
     const { coll, id } = req.params;
     if (!COLLECTIONS.includes(coll)) return next();
     if (['produits', 'lieux', 'rubriques'].includes(coll)) return res.status(400).json({ error: 'Pour le catalogue, on masque au lieu de supprimer.' });
-    if (['devis', 'factures'].includes(coll) && req.ctx.role !== 'manager') return res.status(403).json({ error: 'Réservé au Manager.' });
+    if (coll === 'devis' && !req.ctx.droits.effacerDevis) return refus(res, 'effacerDevis');
+    if (!(await voitDoc(req, coll, id))) return res.status(404).json({ error: 'Introuvable.' });
     if (coll === 'factures') return res.status(400).json({ error: 'Une facture ne se supprime pas : créez un avoir.' });
     const before = await store.get(coll + '/' + id);
     if (coll === 'devis' && before) {
@@ -1016,13 +1239,25 @@ async function createApp(opts = {}) {
   /* envoi groupé (comme Team Leader) : plusieurs devis du même client dans UN e-mail / SMS,
      chaque devis gardant son propre lien et sa propre signature. « apercu » = rien n'est envoyé. */
   const LETTRES = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  function messageDevis(cl, liste, msg, R) {
+  /* e-mail de devis : chaque lieu à privatiser du devis en 3 photos (une grande, deux petites), avec son nom et sa capacité */
+  function lieuxMailHtml(c, d) {
+    const abs = u => /^https?:\/\//.test(u) ? u : SITE + (String(u).startsWith('/') ? '' : '/') + u;
+    return views.lieuxDuDevis(c, d).map(l => {
+      const ph = [...new Set((l.photos || []).filter(Boolean))].slice(0, 3).map(abs);
+      const im = (u, h) => `<img src="${esc(u)}" alt="${esc(l.nom)}" width="100%" style="display:block;width:100%;height:${h}px;object-fit:cover;border:0">`;
+      const photos = !ph.length ? '' : ph.length === 1 ? `<tr><td colspan="2">${im(ph[0], 260)}</td></tr>`
+        : `<tr><td colspan="2" style="padding-bottom:4px">${im(ph[0], 260)}</td></tr><tr><td width="50%" style="padding-right:2px">${im(ph[1], 130)}</td><td width="50%" style="padding-left:2px">${ph[2] ? im(ph[2], 130) : ''}</td></tr>`;
+      return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e3d9c4;border-radius:10px;overflow:hidden;margin:14px 0;background:#f6f1e8;border-collapse:separate">${photos}<tr><td colspan="2" style="padding:14px 16px"><p style="margin:0;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#b08a4f">Votre lieu de réception${l.ville ? ' · ' + esc(l.ville) : ''}</p><p style="margin:4px 0 6px;font-size:20px;color:#1d3b2f"><b>${esc(l.nom)}</b></p>${l.capacite ? `<p style="margin:0 0 6px">Jusqu’à ${esc(l.capacite)} personnes</p>` : ''}${l.description ? `<p style="margin:0;color:#5d6661">${esc(String(l.description).slice(0, 220).replace(/\s+\S*$/, ''))}${String(l.description).length > 220 ? '…' : ''}</p>` : ''}</td></tr></table>`;
+    }).join('');
+  }
+  function messageDevis(cl, liste, msg, R, c = null) {
     const prenom = esc((cl.nom || '').split(' ')[0]);
     const plusieurs = liste.length > 1, ev = liste[0].evenement || {};
     const intro = msg ? `<p>${esc(msg).replace(/\n/g, '<br>')}</p>` : `<p>${plusieurs ? `Voici nos ${liste.length} propositions` : 'Voici votre devis'} pour votre ${esc(String(ev.type || 'événement').toLowerCase())}${ev.date ? ' du ' + esc(dateFr(ev.date)) : ''}${plusieurs ? ' : choisissez celle qui vous convient et signez-la en ligne.' : '.'}</p>`;
     const bloc = (d, i) => { const lien = `${SITE}/devis/${d.token}`, nom = d.titre || (plusieurs ? 'Proposition ' + LETTRES[i] : 'Votre devis');
       return `<div style="border:1px solid #e3d9c4;border-radius:10px;padding:14px 16px;margin:12px 0"><p style="margin:0 0 4px"><b>${esc(nom)}</b> · devis ${esc(d.numero)}</p><p style="margin:0 0 10px">${euros(totaux(d).ttcCents)} TTC${d.validiteJusquau ? ` · valable jusqu’au ${esc(dateFr(d.validiteJusquau))}` : ''}</p><a href="${lien}" style="background:#1d3b2f;color:#fff;padding:10px 18px;text-decoration:none;border-radius:4px;display:inline-block">Consulter et signer ${plusieurs ? 'cette proposition' : 'mon devis'}</a></div>`; };
-    const html = `<p>Bonjour ${prenom},</p>${intro}${liste.map(bloc).join('')}<p>L’équipe Magnolia Traiteur<br>${esc(R.telephone || '')}</p>`;
+    const lieuxH = c ? lieuxMailHtml(c, { lignes: liste.flatMap(d => d.lignes || []), evenement: liste[0].evenement }) : '';
+    const html = `<p>Bonjour ${prenom},</p>${intro}${lieuxH}${liste.map(bloc).join('')}<p>L’équipe Magnolia Traiteur<br>${esc(R.telephone || '')}</p>`;
     const sujet = plusieurs ? `Vos ${liste.length} devis Magnolia Traiteur` : `Votre devis Magnolia Traiteur ${liste[0].numero}`;
     const text = liste.map((d, i) => `${d.titre || (plusieurs ? 'Proposition ' + LETTRES[i] : 'Devis')} ${d.numero} (${euros(totaux(d).ttcCents)} TTC) : ${SITE}/devis/${d.token}`).join('\n');
     const sms = plusieurs ? `Magnolia Traiteur : vos ${liste.length} devis sont prêts. ${liste.map((d, i) => `${d.titre || 'Proposition ' + LETTRES[i]} (${euros(totaux(d).ttcCents)}) : ${SITE}/devis/${d.token}`).join(' · ')}`
@@ -1035,7 +1270,7 @@ async function createApp(opts = {}) {
     const liste = [];
     for (const id of ids) {
       const d = await store.get('devis/' + id);
-      if (!d) return res.status(404).json({ error: 'Devis introuvable.' });
+      if (!d || !(await voitDoc(req, 'devis', id))) return res.status(404).json({ error: 'Devis introuvable.' });
       if (!(d.lignes || []).length) return res.status(400).json({ error: `Le devis ${d.numero} est vide.` });
       const err = controleMarge(d); if (err.length) return res.status(400).json({ error: `Devis ${d.numero} : marge négative bloquée. ` + err.join(' ') });
       liste.push(d);
@@ -1045,7 +1280,7 @@ async function createApp(opts = {}) {
     if (!cl?.email) return res.status(400).json({ error: 'Ce client n’a pas d’e-mail.' });
     liste.sort((a, b) => String(a.numero).localeCompare(String(b.numero)));
     const R = (await cat.get()).reglages, msg = s(req.body?.message, 2000), canaux = (req.body?.canaux || ['email']).filter(x => ['email', 'sms'].includes(x));
-    const m = messageDevis(cl, liste, msg, R);
+    const m = messageDevis(cl, liste, msg, R, await cat.get());
     if (req.body?.apercu) return res.json({ apercu: true, a: cl.email, tel: cl.tel || '', ...m });
     if (canaux.includes('email')) await brevo.sendEmail({ to: cl.email, name: cl.nom, replyTo: R.email, subject: m.sujet, html: m.html, text: m.text });
     if (canaux.includes('sms') && cl.tel) await brevo.sendSms({ to: cl.tel, content: m.sms });
@@ -1072,7 +1307,7 @@ async function createApp(opts = {}) {
     const canaux = req.body?.canaux || ['email'];
     const msg = s(req.body?.message, 2000);
     if (canaux.includes('email')) await brevo.sendEmail({ to: cl.email, name: cl.nom, replyTo: R.email, subject: `Votre devis Magnolia Traiteur ${d.numero}`,
-      html: `<p>Bonjour ${esc((cl.nom || '').split(' ')[0])},</p>${msg ? `<p>${esc(msg).replace(/\n/g, '<br>')}</p>` : `<p>Voici votre devis pour votre ${esc(String(d.evenement?.type || 'événement').toLowerCase())}${d.evenement?.date ? ' du ' + esc(dateFr(d.evenement.date)) : ''} : <b>${euros(t.ttcCents)} TTC</b>.</p>`}<p><a href="${lien}" style="background:#1d3b2f;color:#fff;padding:12px 20px;text-decoration:none;border-radius:4px;display:inline-block">Consulter et signer mon devis</a></p><p>Il est valable jusqu’au ${esc(dateFr(d.validiteJusquau))}.</p><p>L’équipe Magnolia Traiteur<br>${esc(R.telephone)}</p>`,
+      html: `<p>Bonjour ${esc((cl.nom || '').split(' ')[0])},</p>${msg ? `<p>${esc(msg).replace(/\n/g, '<br>')}</p>` : `<p>Voici votre devis pour votre ${esc(String(d.evenement?.type || 'événement').toLowerCase())}${d.evenement?.date ? ' du ' + esc(dateFr(d.evenement.date)) : ''} : <b>${euros(t.ttcCents)} TTC</b>.</p>`}${lieuxMailHtml(c, d)}<p><a href="${lien}" style="background:#1d3b2f;color:#fff;padding:12px 20px;text-decoration:none;border-radius:4px;display:inline-block">Consulter et signer mon devis</a></p><p>Il est valable jusqu’au ${esc(dateFr(d.validiteJusquau))}.</p><p>L’équipe Magnolia Traiteur<br>${esc(R.telephone)}</p>`,
       text: `Votre devis ${d.numero} : ${lien}` });
     if (canaux.includes('sms') && cl.tel) await brevo.sendSms({ to: cl.tel, content: `Magnolia Traiteur : votre devis ${d.numero} (${euros(t.ttcCents)} TTC) est prêt. Consultez-le et signez en ligne : ${lien}` });
     await store.set('devis/' + d.id, { ...d, statut: d.statut === 'accepte' ? 'accepte' : 'envoye', envoyeLe: d.envoyeLe || now, envois: [...(d.envois || []), { at: now, canaux, par: req.ctx.name }] });
@@ -1124,7 +1359,8 @@ async function createApp(opts = {}) {
   /* liste enrichie : reste à payer, échéance, statut (à envoyer, non réglée, en retard, réglée, archivée…) */
   A.get('/actions/factures', wrap(async (req, res) => {
     const T = await tarifs();
-    const l = (await store.list('factures')).map(x => x.data).filter(Boolean).map(f => { const e = FAC.etat(f); return { ...f, lignes: undefined, etat: { dueCents: e.dueCents, regleCents: e.regleCents, resteCents: e.resteCents, ttcCents: e.ttcCents, nb: e.reglements.length }, statutF: FAC.statut(f, T), echeance: FAC.echeance(f, T), reglements: e.reglements }; });
+    const vis = await visibles(req);
+    const l = (await store.list('factures')).map(x => x.data).filter(Boolean).filter(f => !vis || vis.factures.has(f.id)).map(f => { const e = FAC.etat(f); return { ...f, lignes: undefined, etat: { dueCents: e.dueCents, regleCents: e.regleCents, resteCents: e.resteCents, ttcCents: e.ttcCents, nb: e.reglements.length }, statutF: FAC.statut(f, T), echeance: FAC.echeance(f, T), reglements: e.reglements }; });
     res.json(l.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))));
   }));
   A.get('/actions/facture/:id', wrap(async (req, res) => {
@@ -1244,7 +1480,7 @@ async function createApp(opts = {}) {
   }));
   /* une facture émise ne s'efface pas : l'avoir l'annule (numérotation continue A-année-n°) */
   A.post('/actions/avoir-facture/:id', sameSite, json, wrap(async (req, res) => {
-    if (req.ctx.role !== 'manager') return res.status(403).json({ error: 'Réservé au Manager.' });
+    if (!req.ctx.droits.factures) return refus(res, 'factures');
     const f = await store.get('factures/' + req.params.id);
     if (!f) return res.status(404).json({ error: 'Facture introuvable.' });
     if (f.type === 'avoir' || f.annuleeParAvoir) return res.status(400).json({ error: 'Cette facture est déjà annulée.' });
@@ -1279,11 +1515,15 @@ async function createApp(opts = {}) {
     const R = (await cat.get()).reglages, P = (R.alertes?.personnes || []).filter(x => x.nom);
     const users = (await store.list('_users')).map(d => d.data).filter(u => !u.disabled);
     const qui = r.commerciaux?.length ? r.commerciaux : [...new Set([...P.map(x => x.nom), ...users.map(u => u.name)])];
-    return qui.map(nom => { const p = P.find(x => x.nom === nom) || {}, u = users.find(x => x.name === nom) || {}; return { nom, email: p.email || u.email || '', tel: p.tel || '' }; });
+    return qui.map(nom => { const p = P.find(x => nomCle(x.nom) === nomCle(nom)) || {}, u = users.find(x => nomCle(x.name) === nomCle(nom)) || {}; return { nom, email: p.email || u.email || '', tel: p.tel || u.portable || '' }; });
   }
   A.post('/actions/rdv-client/:id', sameSite, json, wrap(async (req, res) => {
     const c0 = await store.get('clients/' + req.params.id), c = c0 && { ...c0, id: req.params.id }; /* une fiche créée dans le back-office n'a pas toujours son id dans le document */
     if (!c) return res.status(404).json({ error: 'Client introuvable.' });
+    if (String(c.societe || '').trim() && !c.entrepriseId) { /* Société pas encore reliée à sa fiche entreprise (site, import) : on la relie tout de suite */
+      const d = { ...c0 }; await ENT.avantClient(d, { ...c0, societe: '' });
+      if (d.entrepriseId) { await store.set('clients/' + req.params.id, d); c.entrepriseId = d.entrepriseId; }
+    }
     const b = req.body || {}, type = b.type === 'visio' ? 'visio' : 'appel';
     if (!/^\d{4}-\d{2}-\d{2}$/.test(b.date || '') || !/^\d{2}:\d{2}$/.test(b.heure || '')) return res.status(400).json({ error: 'Choisissez la date et l’heure.' });
     if (parisMs(b.date, b.heure) < Date.now() - 36e5) return res.status(400).json({ error: 'Cette date est déjà passée.' });
@@ -1381,9 +1621,10 @@ async function createApp(opts = {}) {
     const c0 = await store.get('clients/' + req.params.id), c = c0 && { ...c0, id: req.params.id }; /* une fiche créée dans le back-office n'a pas toujours son id dans le document */
     if (!c) return res.status(404).json({ error: 'Client introuvable.' });
     const [dem, dv, fac, out, rdv, camps] = await Promise.all(['demandes', 'devis', 'factures', '_outbox', 'rdv', '_campagnes'].map(k => store.list(k).then(l => l.map(x => x.data))));
-    const demandes = dem.filter(d => d.clientId === c.id);
-    const devisL = dv.filter(d => d.clientId === c.id || (d.demandeId && demandes.some(x => x.id === d.demandeId)));
-    const facts = fac.filter(f => f.clientId === c.id || devisL.some(d => d.id === f.devisId));
+    const vis = await visibles(req); /* « seulement ses opportunités » : les dossiers des autres commerciaux n'apparaissent pas */
+    const demandes = dem.filter(d => d.clientId === c.id && (!vis || vis.demandes.has(d.id)));
+    const devisL = dv.filter(d => (d.clientId === c.id || (d.demandeId && demandes.some(x => x.id === d.demandeId))) && (!vis || vis.devis.has(d.id)));
+    const facts = req.ctx.droits.factures ? fac.filter(f => (f.clientId === c.id || devisL.some(d => d.id === f.devisId)) && (!vis || vis.factures.has(f.id))) : [];
     const mails = [c.email, ...demandes.map(d => d.contact?.email)].filter(Boolean).map(x => String(x).trim().toLowerCase());
     const tels = [c.tel, ...demandes.map(d => d.contact?.tel)].map(telCourt).filter(x => x.length >= 8);
     const ev = [];
@@ -1403,6 +1644,7 @@ async function createApp(opts = {}) {
       for (const x of d.envois || []) { add(x.at, 'envoi', `Devis ${num} envoyé`, { detail: 'par ' + (x.canaux || ['email']).map(k => k === 'sms' ? 'SMS' : 'e-mail').join(' et '), montantCents: t.ttcCents, par: x.par, lien: d.token ? '/devis/' + d.token : '' }); lies.push([x.at, num]); }
       if (d.vuLe) add(d.vuLe, 'vu', `Le client a ouvert le devis ${num}`);
       for (const r of d.relances || []) { add(r.at, 'relance', `Relance : ${r.modele || ''}`.trim(), { detail: 'Devis ' + num, par: r.par }); lies.push([r.at, num, true]); }
+      for (const m of d.commentaires || []) add(m.at, 'commentaire', `Commentaire du client sur le devis ${num}`, { detail: m.texte, lien: '#/devis/' + d.id });
       if (d.signature) add(d.signature.at, 'signe', `Devis ${num} signé en ligne`, { detail: 'Signé par ' + (d.signature.nom || ''), montantCents: t.ttcCents, lien: d.token ? '/devis/' + d.token : '' });
       if (d.refuseLe) add(d.refuseLe, 'refus', `Devis ${num} refusé par le client`);
     }
@@ -1484,7 +1726,7 @@ async function createApp(opts = {}) {
   }
   const lienDesinscription = async id => SITE + '/desinscription?c=' + encodeURIComponent(id) + '&t=' + DIF.jeton(await secretDesinscription(), id);
   const canalDe = v => (v === 'sms' ? 'sms' : 'email');
-  const critDe = b => ({ statut: ['commandes', 'prospects'].includes(b?.statut) ? b.statut : '', montantMin: Math.max(0, Math.round(+b?.montantMin || 0)), deps: (Array.isArray(b?.deps) ? b.deps : []).map(x => s(x, 3)).slice(0, 120), types: (Array.isArray(b?.types) ? b.types : []).map(x => s(x, 60)).slice(0, 40), pro: ['pro', 'part'].includes(b?.pro) ? b.pro : '', accord: !!b?.accord });
+  const critDe = b => ({ statut: ['commandes', 'prospects'].includes(b?.statut) ? b.statut : '', montantMin: Math.max(0, Math.round(+b?.montantMin || 0)), deps: (Array.isArray(b?.deps) ? b.deps : []).map(x => s(x, 3)).slice(0, 120), types: (Array.isArray(b?.types) ? b.types : []).map(x => s(x, 60)).slice(0, 40), pro: ['pro', 'part'].includes(b?.pro) ? b.pro : '', accord: !!b?.accord, metiers: (Array.isArray(b?.metiers) ? b.metiers : []).map(x => s(x, 60)).slice(0, 40), dj: (Array.isArray(b?.dj) ? b.dj : []).map(x => s(x, 60)).slice(0, 40), contactDe: (Array.isArray(b?.contactDe) ? b.contactDe : []).map(x => s(x, 80)).slice(0, 60), civ: ['Mme', 'M.'].includes(b?.civ) ? b.civ : '' });
   /* destinataires : mode « critères » (tous ceux qui correspondent, moins ceux décochés) ou « un par un » (seulement ceux cochés) */
   function destinataires(l, canal, b) {
     const base = DIF.filtrer(l, canal, critDe(b?.criteres));
@@ -1494,13 +1736,15 @@ async function createApp(opts = {}) {
   }
   A.get('/diffusion/criteres', wrap(async (req, res) => {
     profilsCache = null; /* chaque ouverture de l'écran repart de données fraîches */
-    const l = await lesProfils(), deps = new Map(), types = new Map();
-    for (const p of l) { for (const d of p.deps) deps.set(d, (deps.get(d) || 0) + 1); for (const t of p.types) types.set(t, (types.get(t) || 0) + 1); }
+    const l = await lesProfils(), deps = new Map(), types = new Map(), mets = new Map(), djs = new Map(), cde = new Map();
+    const plus1 = (m, x) => { if (x) m.set(x, (m.get(x) || 0) + 1); };
+    for (const p of l) { for (const d of p.deps) plus1(deps, d); for (const t of p.types) plus1(types, t); p.metiers.forEach(x => plus1(mets, x)); p.dj.forEach(x => plus1(djs, x)); plus1(cde, p.contactDe); }
+    const parNb = m => [...m].sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0]), 'fr'));
     const R = (await cat.get()).reglages;
     res.json({
       total: l.length, email: DIF.filtrer(l, 'email').length, sms: DIF.filtrer(l, 'sms').length,
       stopEmail: l.filter(p => p.stopEmail).length, stopSms: l.filter(p => p.stopSms).length,
-      deps: [...deps].sort((a, b) => a[0].localeCompare(b[0], 'fr', { numeric: true })), types: [...types].sort((a, b) => b[1] - a[1]),
+      deps: [...deps].sort((a, b) => a[0].localeCompare(b[0], 'fr', { numeric: true })), types: [...types].sort((a, b) => b[1] - a[1]), metiers: parNb(mets), dj: parNb(djs), contactDe: parNb(cde),
       ia: ia.actif, brevo: brevo.live, lienSms: await lienSms(), moi: { email: req.ctx.email || '', tel: String(R.alertes?.sms || '').split(/[,;]/)[0].trim() }, creneauSms: DIF.creneauSms(),
     });
   }));
@@ -1625,31 +1869,77 @@ async function createApp(opts = {}) {
   }));
 
   A.get('/actions/agenda', wrap(async (req, res) => {
-    const [dem, rdv] = await Promise.all([store.list('demandes'), store.list('rdv')]);
+    const [dem, rdv, vis] = await Promise.all([store.list('demandes'), store.list('rdv'), visibles(req)]);
     const items = [
-      ...dem.map(d => d.data).filter(d => d.evenement?.date && d.type !== 'contact' && d.statut !== 'refuse').map(d => ({ id: d.id, type: 'evenement', date: d.evenement.date, titre: `${d.contact?.nom || ''} · ${d.evenement.type || ''}`, detail: `${d.evenement.invites || ''} pers. · ${d.evenement.ville || ''} · ${d.evenement.horaire || ''}`, statut: d.statut, commercial: d.commercial || '', lien: '#/demandes/' + d.id })),
-      ...rdv.map(r => ({ id: r.id, type: 'rdv', ...r.data, visio: r.data.lien || '', lien: r.data.clientId ? '#/clients/' + r.data.clientId : '#/agenda' })),
+      ...dem.map(d => d.data).filter(d => !vis || vis.demandes.has(d.id)).filter(d => d.evenement?.date && d.type !== 'contact' && d.statut !== 'refuse').map(d => ({ id: d.id, type: 'evenement', date: d.evenement.date, titre: `${d.contact?.nom || ''} · ${d.evenement.type || ''}`, detail: `${d.evenement.invites || ''} pers. · ${d.evenement.ville || ''} · ${d.evenement.horaire || ''}`, statut: d.statut, commercial: d.commercial || '', lien: '#/demandes/' + d.id })),
+      ...rdv.filter(r => !vis || !(r.data.commerciaux || []).length || r.data.commerciaux.some(n => vis.moi.has(nomCle(n)))).map(r => ({ id: r.id, type: 'rdv', ...r.data, visio: r.data.lien || '', lien: r.data.clientId ? '#/clients/' + r.data.clientId : '#/agenda' })),
       ...(await anniversaires(400)).map(a => ({ id: 'anniv-' + a.id, type: 'anniversaire', date: a.date, titre: '🎂 ' + a.nom, detail: `Anniversaire (${a.age} ans)`, statut: 'anniv', lien: '#/clients/' + a.id })),
     ];
     res.json(items.sort((a, b) => String(a.date).localeCompare(String(b.date))));
   }));
 
   /* équipe */
-  A.get('/actions/equipe', wrap(async (req, res) => res.json((await store.list('_users')).map(d => ({ id: d.id, email: d.data.email, nom: d.data.name, role: d.data.role, desactive: !!d.data.disabled, creeLe: d.data.createdAt })))));
-  A.post('/actions/equipe', sameSite, json, manager, wrap(async (req, res) => {
-    try { const id = await createUser({ email: req.body?.email, name: req.body?.nom, role: req.body?.role, password: req.body?.password }); audit(req.ctx, 'compte créé', '_users/' + id, req.body?.email); res.json({ ok: true, id }); }
-    catch (e) { res.status(e.status || 500).json({ error: e.message }); }
+  /* fiche d'un membre : Prénom, Nom (en MAJUSCULES) et Portable ; les anciens comptes n'ont qu'un nom complet, découpé à l'affichage */
+  const decouperNom = n => { const w = String(n || '').trim().split(/\s+/).filter(Boolean); if (w.length < 2) return { prenom: w[0] || '', nomFamille: '' }; let i = w.findIndex((x, k) => k >= 1 && /\p{L}{2}/u.test(x) && x === x.toLocaleUpperCase('fr-FR')); if (i < 1) i = 1; return { prenom: w.slice(0, i).join(' '), nomFamille: w.slice(i).join(' ') }; };
+  const partiesNom = u => { if (u.prenom !== undefined) return { prenom: u.prenom || '', nomFamille: u.nomFamille || '' }; const d = decouperNom(u.name); return { ...d, nomFamille: d.nomFamille.toLocaleUpperCase('fr-FR') }; };
+  const portableNet = v => { const t = String(v || '').trim(); if (!t) return { ok: true, tel: '' }; const n = normTel(t); return n?.ok ? { ok: true, tel: n.tel } : { ok: false }; };
+  A.get('/actions/equipe', wrap(async (req, res) => res.json((await store.list('_users')).map(d => ({ id: d.id, email: d.data.email, nom: d.data.name, ...partiesNom(d.data), portable: d.data.portable || '', role: d.data.role, droits: DR.droitsDe(d.data), desactive: !!d.data.disabled, creeLe: d.data.createdAt })))));
+  A.get('/actions/droits', (req, res) => res.json({ droits: DR.DROITS, modeles: DR.MODELES }));
+  /* on ne donne jamais un droit qu'on n'a pas soi-même (sinon : se créer un compte Administrateur) */
+  const droitsInterdits = (req, d) => DR.CLES.filter(k => d[k] && !req.ctx.droits[k]);
+  const adminsActifs = async sauf => (await store.list('_users')).filter(x => x.id !== sauf && !x.data.disabled && DR.droitsDe(x.data).admin).length;
+  async function mailAcces({ email, nom, password }, par) {
+    const R = (await cat.get()).reglages || {};
+    const lien = SITE + '/admin';
+    const prenom = esc(String(nom || '').split(' ')[0]);
+    return brevo.sendEmail({ to: email, name: nom, subject: 'Vos accès au back-office Magnolia Traiteur',
+      html: `<p>Bonjour ${prenom},</p><p>${esc(par || 'L’équipe')} vous a créé un accès au back-office de Magnolia Traiteur.</p><p><b>Adresse :</b> <a href="${esc(lien)}">${esc(lien)}</a><br><b>E-mail :</b> ${esc(email)}<br><b>Mot de passe provisoire :</b> ${esc(password)}</p><p>Après votre première connexion, changez ce mot de passe dans « Équipe &amp; activité › Mon mot de passe ».</p><p>L’équipe Magnolia Traiteur<br>${esc(R.telephone || '')}</p>`,
+      text: `Bonjour, vos accès au back-office Magnolia Traiteur : ${lien} — e-mail ${email} — mot de passe provisoire ${password}. Changez-le après votre première connexion.` });
+  }
+  A.post('/actions/equipe', sameSite, json, peut('equipe'), wrap(async (req, res) => {
+    const b = req.body || {};
+    const droits = b.droits ? DR.nettoyer(b.droits) : DR.nettoyer(b.role === 'manager' ? { admin: true } : DR.COLLAB_AVANT);
+    const trop = droitsInterdits(req, droits); if (trop.length) return refus(res, trop[0]);
+    const prenom = String(b.prenom ?? '').trim(), nomF = String(b.nomFamille ?? '').trim();
+    const nomComplet = b.prenom !== undefined ? nomPropre(prenom, nomF) : nomPropre(String(b.nom || '').trim());
+    if (b.prenom !== undefined && (!prenom || !nomF)) return res.status(400).json({ error: 'Écrivez le prénom et le nom.' });
+    if (nomComplet.length < 2) return res.status(400).json({ error: 'Écrivez le prénom et le nom.' });
+    const tel = portableNet(b.portable); if (!tel.ok) return res.status(400).json({ error: 'Portable illisible : écrivez-le comme 06 12 34 56 78.' });
+    b.nom = nomComplet;
+    try {
+      const parts = decouperNom(nomComplet);
+      const id = await createUser({ email: b.email, name: nomComplet.slice(0, 80), password: b.password, droits, prenom: b.prenom !== undefined ? nomPropre(prenom, '') : parts.prenom, nomFamille: b.prenom !== undefined ? nomF.toLocaleUpperCase('fr-FR') : parts.nomFamille, portable: tel.tel });
+      audit(req.ctx, 'compte créé', '_users/' + id, b.email);
+      let mail = null;
+      if (b.envoyerAcces) { const r = await mailAcces({ email: String(b.email).trim().toLowerCase(), nom: nomPropre(String(b.nom).trim()), password: String(b.password) }, req.ctx.name); mail = { ok: !r?.error, live: brevo.live, erreur: r?.error || '' }; }
+      res.json({ ok: true, id, mail });
+    } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
   }));
-  A.patch('/actions/equipe/:id', sameSite, json, manager, wrap(async (req, res) => {
+  A.patch('/actions/equipe/:id', sameSite, json, peut('equipe'), wrap(async (req, res) => {
     const u = await store.get('_users/' + req.params.id); if (!u) return res.status(404).json({ error: 'Compte introuvable.' });
-    if (req.params.id === req.ctx.uid && (req.body.desactive || req.body.role === 'collab')) return res.status(400).json({ error: 'Vous ne pouvez pas retirer vos propres droits.' });
+    const b = req.body || {}, moi = req.params.id === req.ctx.uid;
+    const avant = DR.droitsDe(u);
+    if (avant.admin && !req.ctx.droits.admin) return res.status(403).json({ error: 'Seul un Administrateur peut modifier le compte d’un Administrateur.' });
+    let droits = b.droits ? DR.nettoyer(b.droits) : ['manager', 'collab'].includes(b.role) ? DR.nettoyer(b.role === 'manager' ? { admin: true } : DR.COLLAB_AVANT) : null;
+    if (droits && JSON.stringify(droits) === JSON.stringify(avant)) droits = null;
+    if (moi && (b.desactive || droits)) return res.status(400).json({ error: 'Vous ne pouvez pas changer vos propres droits ni désactiver votre compte : demandez-le à un autre administrateur.' });
+    if (droits) { const trop = droitsInterdits(req, droits); if (trop.length) return refus(res, trop[0]); }
+    if (avant.admin && !u.disabled && (b.desactive || (droits && !droits.admin)) && !(await adminsActifs(req.params.id))) return res.status(400).json({ error: 'Il doit toujours rester au moins un Administrateur actif.' });
     const next = { ...u };
-    if (typeof req.body.desactive === 'boolean') next.disabled = req.body.desactive;
-    if (['manager', 'collab'].includes(req.body.role)) next.role = req.body.role;
-    if (typeof req.body.nom === 'string') { const n = req.body.nom.trim().slice(0, 80); if (n.length < 2) return res.status(400).json({ error: 'Écrivez le prénom et le nom.' }); next.name = n; }
-    if (req.body.password) { if (String(req.body.password).length < 10) return res.status(400).json({ error: 'Mot de passe : 10 caractères minimum.' }); next.passHash = await bcrypt.hash(String(req.body.password), 11); }
+    if (typeof b.desactive === 'boolean') next.disabled = b.desactive;
+    if (droits) { next.droits = droits; next.role = DR.roleDe(droits); }
+    if (typeof b.nom === 'string') { const n = b.nom.trim().slice(0, 80); if (n.length < 2) return res.status(400).json({ error: 'Écrivez le prénom et le nom.' }); next.name = n; const pn = decouperNom(n); next.prenom = pn.prenom; next.nomFamille = pn.nomFamille; }
+    if (typeof b.prenom === 'string' || typeof b.nomFamille === 'string') {
+      const cur = partiesNom(u);
+      const pr = nomPropre(String(b.prenom ?? cur.prenom).trim(), ''), nf = String(b.nomFamille ?? cur.nomFamille).trim().toLocaleUpperCase('fr-FR');
+      if (!pr || !nf) return res.status(400).json({ error: 'Écrivez le prénom et le nom.' });
+      next.prenom = pr; next.nomFamille = nf; next.name = (pr + ' ' + nf).slice(0, 80);
+    }
+    if (typeof b.portable === 'string') { const t = portableNet(b.portable); if (!t.ok) return res.status(400).json({ error: 'Portable illisible : écrivez-le comme 06 12 34 56 78.' }); next.portable = t.tel; }
+    if (b.password) { if (String(b.password).length < 10) return res.status(400).json({ error: 'Mot de passe : 10 caractères minimum.' }); next.passHash = await bcrypt.hash(String(b.password), 11); }
     await store.set('_users/' + req.params.id, next);
-    audit(req.ctx, 'compte modifié', '_users/' + req.params.id, u.email);
+    audit(req.ctx, droits ? 'droits modifiés' : 'compte modifié', '_users/' + req.params.id, u.email + (droits ? ' : ' + (droits.admin ? 'Administrateur' : DR.DROITS.filter(d => droits[d.k]).map(d => d.nom).join(', ') || 'aucun droit') : ''));
+    if (b.desactive) for (const d of await store.list('_sessions')) if (d.data?.userId === req.params.id) await store.delete('_sessions/' + d.id); /* compte désactivé : déconnecté tout de suite */
     res.json({ ok: true });
   }));
   /* essai d'envoi : un e-mail à la personne connectée, et un SMS si un numéro est donné */
@@ -1671,30 +1961,32 @@ async function createApp(opts = {}) {
   /* ---------- Excel : export (CSV « ; » lisible par Excel en français) et mise à jour des prix ---------- */
   const csv = (rows) => '\ufeff' + rows.map(r => r.map(v => { const x = v == null ? '' : String(v); return /[;"\n\r]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; }).join(';')).join('\r\n');
   const eurCsv = c => c == null ? '' : (c / 100).toFixed(2).replace('.', ',');
-  A.get('/actions/export/:quoi', wrap(async (req, res) => {
+  A.get('/actions/export/:quoi', peut('fichiers'), wrap(async (req, res) => {
     const q = req.params.quoi; let rows;
+    if (['factures', 'reglements'].includes(q) && !req.ctx.droits.factures) return refus(res, 'factures');
+    const vis = await visibles(req), voit = (coll, d) => !vis || vis[coll].has(d.id);
     if (q === 'catalogue') {
       const c = await cat.get(); const rubs = new Map(c.rubriques.map(r => [r.slug, r.nom]));
       rows = [['Code (ne pas modifier)', 'Prestation', 'Rubrique', 'Prix TTC (€)', 'Par', 'Minimum', 'Coût de revient TTC (€)', 'TVA %', 'Statut (visible / masque)', 'Maison (oui / non)'],
         ...c.produits.map(p => [p.slug, p.titre, rubs.get(p.rubrique) || p.rubrique, eurCsv(p.prixCents), p.unite || '', p.min || '', eurCsv(p.coutCents), p.tva ?? '', p.statut || 'visible', p.maison ? 'oui' : 'non'])];
     } else if (q === 'demandes') {
       rows = [['Réf.', 'Reçue le', 'Type', 'Nom', 'Société', 'E-mail', 'Téléphone', 'Événement', 'Date', 'Invités', 'Code postal', 'Ville', 'Estimé TTC (€)', 'Étape'],
-        ...(await store.list('demandes')).map(d => d.data).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).map(d => [d.ref, String(d.createdAt || '').slice(0, 10), d.type, d.contact?.nom, d.contact?.societe, d.contact?.email, d.contact?.tel, d.evenement?.type || d.sujet, d.evenement?.date, d.evenement?.invites, d.evenement?.cp, d.evenement?.ville, eurCsv(d.totalEstimeCents), d.statut])];
+        ...(await store.list('demandes')).map(d => d.data).filter(d => voit('demandes', d)).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).map(d => [d.ref, String(d.createdAt || '').slice(0, 10), d.type, d.contact?.nom, d.contact?.societe, d.contact?.email, d.contact?.tel, d.evenement?.type || d.sujet, d.evenement?.date, d.evenement?.invites, d.evenement?.cp, d.evenement?.ville, eurCsv(d.totalEstimeCents), d.statut])];
     } else if (q === 'clients') {
       rows = [['Nom', 'Société', 'E-mail', 'Téléphone', 'Autre téléphone', 'Adresse', 'Code postal', 'Ville', 'Département', 'Créé le', 'Dernière activité', 'Source', 'Accepte les e-mails', 'Accepte les SMS'],
         ...(await store.list('clients')).map(d => d.data).map(c => [c.nom, c.societe, c.email, c.tel, c.telAutre, c.adresse, c.cp, c.ville, c.departement, String(c.creeLe || '').slice(0, 10), String(c.derniereActivite || '').slice(0, 10), c.source,
           c.desinscrit?.email ? 'non (désinscrit)' : c.consentement?.email ? 'oui' : '', c.desinscrit?.sms ? 'non (STOP)' : c.consentement?.sms ? 'oui' : ''])];
     } else if (q === 'factures') {
       const T = (await cat.get()).reglages.tarifs || {};
-      const docs = (await store.list('factures')).map(d => d.data).sort((a, b) => String(a.numero).localeCompare(String(b.numero)));
+      const docs = (await store.list('factures')).map(d => d.data).filter(d => voit('factures', d)).sort((a, b) => String(a.numero).localeCompare(String(b.numero)));
       rows = [['N° facture', 'Type', 'Date', 'Client', 'Société', 'E-mail', 'N° devis', 'Objet', 'Total TTC (€)', 'Total HT (€)', 'Déjà réglé (€)', 'Reste dû (€)', 'Échéance', 'Nombre de règlements', 'Détail des règlements', 'Statut', 'Envoyée le', 'Relances'],
         ...docs.map(f => { const e = FAC.etat(f), t = totaux(f), sg = f.type === 'avoir' ? -1 : 1; return [f.numero, { acompte: 'Acompte', solde: 'Solde', totale: 'Facture', avoir: 'Avoir' }[f.type] || '', f.date, f.client?.nom, f.client?.societe, f.client?.email, f.devisNumero, f.objet, eurCsv(sg * e.dueCents), eurCsv(sg * t.htCents), eurCsv(e.regleCents), eurCsv(f.type === 'avoir' ? 0 : e.resteCents), FAC.echeance(f, T), e.reglements.length, e.reglements.map(r => `${r.date} ${r.moyen} ${eurCsv(r.montantCents)}`).join(' | '), FAC.STATUTS[FAC.statut(f, T)], String(f.envoyeeLe || '').slice(0, 10), (f.relances || []).length]; })];
     } else if (q === 'reglements') {
-      const docs = (await store.list('factures')).map(d => d.data);
+      const docs = (await store.list('factures')).map(d => d.data).filter(d => voit('factures', d));
       rows = [['Date', 'Montant (€)', 'Moyen de paiement', 'N° facture', 'Client', 'N° devis', 'Note', 'Saisi par'],
         ...docs.flatMap(f => FAC.libelles(f).map(r => [r.date, eurCsv(r.montantCents), r.moyen, f.numero, f.client?.nom, f.devisNumero, [r.libelle, r.note].filter(Boolean).join(' · '), r.par])).sort((a, b) => String(a[0]).localeCompare(String(b[0])))];
     } else if (q === 'devis') {
-      const docs = (await store.list(q)).map(d => d.data);
+      const docs = (await store.list(q)).map(d => d.data).filter(d => voit('devis', d));
       rows = [[q === 'devis' ? 'N° devis' : 'N° facture', 'Client', 'Date', 'Total TTC (€)', 'Total HT (€)', 'Marge (€)', 'Statut'],
         ...docs.map(d => { const t = totaux(d); return [d.numero, d.clientNom || d.client?.nom, String(d.envoyeLe || d.date || d.createdAt || '').slice(0, 10), eurCsv(q === 'factures' ? d.totalCents ?? t.ttcCents : t.ttcCents), eurCsv(t.htCents), eurCsv(t.margeCents), q === 'factures' ? (d.payee ? 'payée' : 'à encaisser') : d.statut]; })];
     } else return res.status(404).json({ error: 'Export inconnu.' });
@@ -1702,7 +1994,7 @@ async function createApp(opts = {}) {
     res.set('Content-Disposition', `attachment; filename="magnolia-${q}-${new Date().toISOString().slice(0, 10)}.csv"`).type('text/csv; charset=utf-8').send(csv(rows));
   }));
   /* mise à jour par fichier : seules les colonnes prix, minimum, coût, TVA, statut et maison sont reprises ; jamais de création ni de suppression */
-  A.post('/actions/import-catalogue', sameSite, express.json({ limit: '2mb' }), manager, wrap(async (req, res) => {
+  A.post('/actions/import-catalogue', sameSite, express.json({ limit: '2mb' }), peut('fichiers', 'prix'), wrap(async (req, res) => {
     const lignes = Array.isArray(req.body?.lignes) ? req.body.lignes.slice(0, 2000) : [];
     const cents = v => { const x = String(v ?? '').replace(/\s|€/g, '').replace(',', '.'); if (x === '') return null; const n = Math.round(parseFloat(x) * 100); return Number.isFinite(n) && n >= 0 ? n : undefined; };
     let maj = 0; const erreurs = [];
@@ -1752,7 +2044,7 @@ async function createApp(opts = {}) {
     walk(path.join(PUBLIC, 'site'), '/site');
     res.json({ envoyes: envoyes.sort((a, b) => b.at.localeCompare(a.at)), site });
   }));
-  A.post('/actions/reimporter', sameSite, manager, wrap(async (req, res) => {
+  A.post('/actions/reimporter', sameSite, peut('admin'), wrap(async (req, res) => {
     const r = await seed(store, { force: true, log }); await importerAvisAncienSite(store, { log }); await initSousRubriques(store, { log });
     cat.invalidate(); audit(req.ctx, 'catalogue réimporté depuis le brouillon', '');
     res.json({ ok: true, ...r });

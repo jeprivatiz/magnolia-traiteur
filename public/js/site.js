@@ -543,6 +543,24 @@
     try { await post('/api/client/lien', { email: lien.email.value }); $('[data-lien-msg]').textContent = 'Si une demande existe avec cette adresse, un lien de connexion vient de vous être envoyé. Pensez à regarder vos courriers indésirables.'; }
     catch (err) { $('[data-lien-msg]').textContent = err.message; }
   });
+  const cf = $('[data-com] [data-com-form]');
+  if (cf) {
+    const token = cf.closest('[data-com]').dataset.com;
+    cf.addEventListener('submit', async e => {
+      e.preventDefault();
+      const msg = $('[data-com-msg]', cf), btn = $('button', cf);
+      if (cf.texte.value.trim().length < 2) { msg.textContent = 'Écrivez votre commentaire.'; cf.texte.focus(); return; }
+      btn.disabled = true; msg.textContent = 'Envoi…';
+      try {
+        await post(`/api/devis/${token}/commentaire`, { texte: cf.texte.value });
+        const ul = $('.com-liste', cf.parentNode) || cf.parentNode.insertBefore(Object.assign(document.createElement('ul'), { className: 'com-liste' }), cf);
+        const li = document.createElement('li'), p = document.createElement('p'), sm = document.createElement('small');
+        p.textContent = cf.texte.value.trim(); sm.textContent = 'Envoyé à l’instant'; li.append(p, sm); ul.append(li);
+        cf.texte.value = ''; msg.textContent = '✓ Merci, votre commentaire est bien envoyé. Votre conseiller vous répond rapidement.';
+      } catch (err) { msg.textContent = err.message; }
+      btn.disabled = false;
+    });
+  }
   const acc = $('[data-accept]');
   if (acc) {
     const token = acc.closest('[data-sign]').dataset.sign;
