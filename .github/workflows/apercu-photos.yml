@@ -1,0 +1,51 @@
+name: Aperçu photos (temporaire)
+on:
+  push:
+    branches: [claude/project-thread-27zurf]
+    paths: [.github/workflows/apercu-photos.yml]
+permissions:
+  contents: write
+jobs:
+  apercu:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Télécharger les candidates
+        run: |
+          mkdir -p apercu-photos/px apercu-photos/rom
+          cd apercu-photos/px
+          for id in 15626438 235294 5799612 6707512 21998617 15222245 6707511 6146103 1300975 \
+            15055531 33973574 30808951 8384965 31117396 \
+            17594022 17594024 35798654 1906435 14147300 \
+            11137525 1870724 5546551 57043 7676060 3537844 36784776 \
+            16014880 1346345 239581 15779773 11168993 239578 \
+            28735376 10342590 26382427 \
+            132694 291528 24247232 10311447 4110007 6378949 \
+            907142 15071184 2144112 3850977 3851074 10342001 7552445 9501692 3740177 \
+            38431059 36361401; do
+            curl -fsSL -A "Mozilla/5.0" -o "$id.jpg" "https://images.pexels.com/photos/$id/pexels-photo-$id.jpeg?auto=compress&cs=tinysrgb&w=500" || echo "échec $id"
+          done
+          cd ../rom
+          UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36"
+          pages="https://www.laromainville.fr/41-pieces-montees https://www.laromainville.fr/13-pieces-montees-choux https://www.laromainville.fr/14-pieces-montees-classiques https://www.laromainville.fr/85-piece-montee-macarons https://www.laromainville.fr/218-fraisiers https://www.laromainville.fr/216-gateaux-gourmands https://www.laromainville.fr/217-gateaux-fruites https://www.laromainville.fr/155-grands-gateaux-jusqu-a-64-parts https://www.laromainville.fr/87-cocktails"
+          for q in croquant framboisine chocolat craqueline macaron pyramide fraisier; do pages="$pages https://www.laromainville.fr/recherche?controller=search&s=$q"; done
+          : > produits.txt
+          for p in $pages; do
+            curl -fsSL -A "$UA" "$p" -o page.html || { echo "échec $p"; continue; }
+            grep -oE 'https://www\.laromainville\.fr/[a-z0-9-]+/[0-9]+-[0-9-]*[a-z0-9-]+\.html' page.html >> produits.txt || true
+          done
+          sort -u produits.txt -o produits.txt; wc -l produits.txt
+          : > images.txt
+          while read u; do
+            curl -fsSL -A "$UA" "$u" -o prod.html || continue
+            t=$(grep -oE '<title>[^<]*' prod.html | head -1 | sed 's/<title>//')
+            grep -oE 'https://www\.laromainville\.fr/[0-9]+-[a-z_]+/[a-z0-9-]+\.jpg' prod.html | sed -E 's#/([0-9]+)-[a-z_]+/#/\1-large_default/#' | sort -u | while read i; do echo "$i|$u|$t" >> images.txt; done
+          done < produits.txt
+          n=0
+          while IFS='|' read i u t; do n=$((n+1)); curl -fsSL -A "$UA" -o "r$n.jpg" "$i" && echo "r$n|$i|$u|$t" >> index.txt; done < <(sort -u images.txt | head -150)
+          ls | head; wc -l index.txt
+      - name: Enregistrer
+        run: |
+          git config user.name "magnolia-bot"; git config user.email "magnolia-bot@users.noreply.github.com"
+          git add apercu-photos; git commit -m "Aperçu photos (temporaire)"; git push
