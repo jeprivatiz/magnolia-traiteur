@@ -1053,6 +1053,20 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('site/reglages', { ...(await store.get('site/reglages')), sansFiligrane1: true });
   }
 
+  /* Grand pack traiteur avec vasque : la photo était une affiche pleine de texte (« Détails des éléments livrés »),
+     contraire à la règle de Jean-Luc (pas de photo avec texte ni brochure). Remplacée une fois par une vraie photo
+     libre : vasque à champagne, flûtes et serviettes blanches (Pexels 37558708). */
+  const RGp = await store.get('site/reglages');
+  if (RGp && !RGp.grandPackPhoto1) {
+    const AFFICHE = '/site/c/antilles-unit/produit-23.webp.webp';
+    for (const { id, data: p } of await store.list('produits')) {
+      if (!(p.photos || []).some(ph => ph.src === AFFICHE)) continue;
+      await store.set('produits/' + id, { ...p, photos: p.photos.map(ph => ph.src === AFFICHE
+        ? { src: pexels(37558708), alt: 'Vasque à champagne, flûtes et serviettes blanches sur le buffet' } : ph) });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), grandPackPhoto1: true });
+  }
+
   /* La carte Magnolia en sections : Entrées, Plats, Plateau de fromages, Desserts (Jean-Luc, 2026-11-22).
      Pas d'accompagnements : les plats sont déjà accompagnés. Une fois ; chaque fiche reste modifiable (liste « Section »). */
   const RCm = await store.get('site/reglages');
