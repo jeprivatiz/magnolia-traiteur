@@ -1239,13 +1239,25 @@ async function createApp(opts = {}) {
   /* envoi groupé (comme Team Leader) : plusieurs devis du même client dans UN e-mail / SMS,
      chaque devis gardant son propre lien et sa propre signature. « apercu » = rien n'est envoyé. */
   const LETTRES = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  function messageDevis(cl, liste, msg, R) {
+  /* e-mail de devis : chaque lieu à privatiser du devis en 3 photos (une grande, deux petites), avec son nom et sa capacité */
+  function lieuxMailHtml(c, d) {
+    const abs = u => /^https?:\/\//.test(u) ? u : SITE + (String(u).startsWith('/') ? '' : '/') + u;
+    return views.lieuxDuDevis(c, d).map(l => {
+      const ph = [...new Set((l.photos || []).filter(Boolean))].slice(0, 3).map(abs);
+      const im = (u, h) => `<img src="${esc(u)}" alt="${esc(l.nom)}" width="100%" style="display:block;width:100%;height:${h}px;object-fit:cover;border:0">`;
+      const photos = !ph.length ? '' : ph.length === 1 ? `<tr><td colspan="2">${im(ph[0], 260)}</td></tr>`
+        : `<tr><td colspan="2" style="padding-bottom:4px">${im(ph[0], 260)}</td></tr><tr><td width="50%" style="padding-right:2px">${im(ph[1], 130)}</td><td width="50%" style="padding-left:2px">${ph[2] ? im(ph[2], 130) : ''}</td></tr>`;
+      return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e3d9c4;border-radius:10px;overflow:hidden;margin:14px 0;background:#f6f1e8;border-collapse:separate">${photos}<tr><td colspan="2" style="padding:14px 16px"><p style="margin:0;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#b08a4f">Votre lieu de réception${l.ville ? ' · ' + esc(l.ville) : ''}</p><p style="margin:4px 0 6px;font-size:20px;color:#1d3b2f"><b>${esc(l.nom)}</b></p>${l.capacite ? `<p style="margin:0 0 6px">Jusqu’à ${esc(l.capacite)} personnes</p>` : ''}${l.description ? `<p style="margin:0;color:#5d6661">${esc(String(l.description).slice(0, 220).replace(/\s+\S*$/, ''))}${String(l.description).length > 220 ? '…' : ''}</p>` : ''}</td></tr></table>`;
+    }).join('');
+  }
+  function messageDevis(cl, liste, msg, R, c = null) {
     const prenom = esc((cl.nom || '').split(' ')[0]);
     const plusieurs = liste.length > 1, ev = liste[0].evenement || {};
     const intro = msg ? `<p>${esc(msg).replace(/\n/g, '<br>')}</p>` : `<p>${plusieurs ? `Voici nos ${liste.length} propositions` : 'Voici votre devis'} pour votre ${esc(String(ev.type || 'événement').toLowerCase())}${ev.date ? ' du ' + esc(dateFr(ev.date)) : ''}${plusieurs ? ' : choisissez celle qui vous convient et signez-la en ligne.' : '.'}</p>`;
     const bloc = (d, i) => { const lien = `${SITE}/devis/${d.token}`, nom = d.titre || (plusieurs ? 'Proposition ' + LETTRES[i] : 'Votre devis');
       return `<div style="border:1px solid #e3d9c4;border-radius:10px;padding:14px 16px;margin:12px 0"><p style="margin:0 0 4px"><b>${esc(nom)}</b> · devis ${esc(d.numero)}</p><p style="margin:0 0 10px">${euros(totaux(d).ttcCents)} TTC${d.validiteJusquau ? ` · valable jusqu’au ${esc(dateFr(d.validiteJusquau))}` : ''}</p><a href="${lien}" style="background:#1d3b2f;color:#fff;padding:10px 18px;text-decoration:none;border-radius:4px;display:inline-block">Consulter et signer ${plusieurs ? 'cette proposition' : 'mon devis'}</a></div>`; };
-    const html = `<p>Bonjour ${prenom},</p>${intro}${liste.map(bloc).join('')}<p>L’équipe Magnolia Traiteur<br>${esc(R.telephone || '')}</p>`;
+    const lieuxH = c ? lieuxMailHtml(c, { lignes: liste.flatMap(d => d.lignes || []), evenement: liste[0].evenement }) : '';
+    const html = `<p>Bonjour ${prenom},</p>${intro}${lieuxH}${liste.map(bloc).join('')}<p>L’équipe Magnolia Traiteur<br>${esc(R.telephone || '')}</p>`;
     const sujet = plusieurs ? `Vos ${liste.length} devis Magnolia Traiteur` : `Votre devis Magnolia Traiteur ${liste[0].numero}`;
     const text = liste.map((d, i) => `${d.titre || (plusieurs ? 'Proposition ' + LETTRES[i] : 'Devis')} ${d.numero} (${euros(totaux(d).ttcCents)} TTC) : ${SITE}/devis/${d.token}`).join('\n');
     const sms = plusieurs ? `Magnolia Traiteur : vos ${liste.length} devis sont prêts. ${liste.map((d, i) => `${d.titre || 'Proposition ' + LETTRES[i]} (${euros(totaux(d).ttcCents)}) : ${SITE}/devis/${d.token}`).join(' · ')}`
@@ -1268,7 +1280,7 @@ async function createApp(opts = {}) {
     if (!cl?.email) return res.status(400).json({ error: 'Ce client n’a pas d’e-mail.' });
     liste.sort((a, b) => String(a.numero).localeCompare(String(b.numero)));
     const R = (await cat.get()).reglages, msg = s(req.body?.message, 2000), canaux = (req.body?.canaux || ['email']).filter(x => ['email', 'sms'].includes(x));
-    const m = messageDevis(cl, liste, msg, R);
+    const m = messageDevis(cl, liste, msg, R, await cat.get());
     if (req.body?.apercu) return res.json({ apercu: true, a: cl.email, tel: cl.tel || '', ...m });
     if (canaux.includes('email')) await brevo.sendEmail({ to: cl.email, name: cl.nom, replyTo: R.email, subject: m.sujet, html: m.html, text: m.text });
     if (canaux.includes('sms') && cl.tel) await brevo.sendSms({ to: cl.tel, content: m.sms });
@@ -1295,7 +1307,7 @@ async function createApp(opts = {}) {
     const canaux = req.body?.canaux || ['email'];
     const msg = s(req.body?.message, 2000);
     if (canaux.includes('email')) await brevo.sendEmail({ to: cl.email, name: cl.nom, replyTo: R.email, subject: `Votre devis Magnolia Traiteur ${d.numero}`,
-      html: `<p>Bonjour ${esc((cl.nom || '').split(' ')[0])},</p>${msg ? `<p>${esc(msg).replace(/\n/g, '<br>')}</p>` : `<p>Voici votre devis pour votre ${esc(String(d.evenement?.type || 'événement').toLowerCase())}${d.evenement?.date ? ' du ' + esc(dateFr(d.evenement.date)) : ''} : <b>${euros(t.ttcCents)} TTC</b>.</p>`}<p><a href="${lien}" style="background:#1d3b2f;color:#fff;padding:12px 20px;text-decoration:none;border-radius:4px;display:inline-block">Consulter et signer mon devis</a></p><p>Il est valable jusqu’au ${esc(dateFr(d.validiteJusquau))}.</p><p>L’équipe Magnolia Traiteur<br>${esc(R.telephone)}</p>`,
+      html: `<p>Bonjour ${esc((cl.nom || '').split(' ')[0])},</p>${msg ? `<p>${esc(msg).replace(/\n/g, '<br>')}</p>` : `<p>Voici votre devis pour votre ${esc(String(d.evenement?.type || 'événement').toLowerCase())}${d.evenement?.date ? ' du ' + esc(dateFr(d.evenement.date)) : ''} : <b>${euros(t.ttcCents)} TTC</b>.</p>`}${lieuxMailHtml(c, d)}<p><a href="${lien}" style="background:#1d3b2f;color:#fff;padding:12px 20px;text-decoration:none;border-radius:4px;display:inline-block">Consulter et signer mon devis</a></p><p>Il est valable jusqu’au ${esc(dateFr(d.validiteJusquau))}.</p><p>L’équipe Magnolia Traiteur<br>${esc(R.telephone)}</p>`,
       text: `Votre devis ${d.numero} : ${lien}` });
     if (canaux.includes('sms') && cl.tel) await brevo.sendSms({ to: cl.tel, content: `Magnolia Traiteur : votre devis ${d.numero} (${euros(t.ttcCents)} TTC) est prêt. Consultez-le et signez en ligne : ${lien}` });
     await store.set('devis/' + d.id, { ...d, statut: d.statut === 'accepte' ? 'accepte' : 'envoye', envoyeLe: d.envoyeLe || now, envois: [...(d.envois || []), { at: now, canaux, par: req.ctx.name }] });

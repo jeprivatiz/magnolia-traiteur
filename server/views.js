@@ -890,6 +890,39 @@ function remplirCgv(texte, R) {
     .replace(/\{\{mediateur\}\}/g, I.mediateur ? `le médiateur ${I.mediateur}` : 'un médiateur de la consommation, dont les coordonnées lui sont communiquées sur simple demande,');
 }
 
+/* Lieux à privatiser présents dans un devis (Jean-Luc, 2026-11-24) : ligne venue du site (produit « lieu-<slug> »),
+   ligne du back-office qui porte le nom d'un lieu, ou lieu de l'événement = nom d'un lieu. Chacun est montré en 3 photos. */
+const normLieu = x => String(x || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+function lieuxDuDevis(c, d) {
+  const tous = c.lieux || [], vus = new Map();
+  const ajoute = l => { if (l && !vus.has(l.slug)) vus.set(l.slug, l); };
+  for (const ln of d.lignes || []) {
+    if (ln.type === 'titre') continue;
+    const m = /^lieu-(.+)$/.exec(String(ln.produit || ''));
+    if (m) { ajoute(tous.find(l => l.slug === m[1])); continue; }
+    const t = ' ' + normLieu(ln.designation) + ' ';
+    ajoute(tous.find(l => normLieu(l.nom).length >= 6 && t.includes(' ' + normLieu(l.nom) + ' ')));
+  }
+  const ev = normLieu(d.evenement?.lieu);
+  if (ev) ajoute(tous.find(l => normLieu(l.nom).length >= 6 && (' ' + ev + ' ').includes(' ' + normLieu(l.nom) + ' ')));
+  return [...vus.values()];
+}
+function devisLieuxHtml(c, d) {
+  const L = lieuxDuDevis(c, d);
+  if (!L.length) return '';
+  const carte = l => {
+    const ph = [...new Set((l.photos || []).filter(Boolean))].slice(0, 3);
+    const infos = [l.type, l.ville].filter(Boolean).map(esc).join(' · ');
+    return `<article class="dl-lieu">
+    <div class="dl-mos dl-n${ph.length}">${ph.map((s, i) => `<figure class="dl-ph${i ? '' : ' dl-g'}"><img src="${esc(s)}" alt="${esc(l.nom)}${i ? ` · photo ${i + 1}` : ''}"${i ? ' loading="lazy"' : ''}>${i ? '' : `<figcaption><span>${infos || 'Lieu de réception'}</span><b>${esc(l.nom)}</b></figcaption>`}</figure>`).join('')}</div>
+    <div class="dl-txt">${ph.length ? '' : `<p class="eyebrow">${infos || 'Lieu de réception'}</p><h3>${esc(l.nom)}</h3>`}
+    ${(l.capacite || (l.equipements || []).length) ? `<ul class="dl-atouts">${l.capacite ? `<li><b>Jusqu’à ${esc(l.capacite)}</b> personnes</li>` : ''}${(l.equipements || []).slice(0, 4).map(e => `<li>${esc(e)}</li>`).join('')}</ul>` : ''}
+    ${l.description ? `<p>${esc(trunc(l.description, 330))}</p>` : ''}
+    ${l.slug && l.statut !== 'masque' ? `<p class="noprint"><a class="lnk" href="/lieux/${esc(l.slug)}" target="_blank" rel="noopener">Découvrir le lieu en photos ${icon.arrow}</a></p>` : ''}</div></article>`;
+  };
+  return `<section class="dl-lieux" aria-label="Votre lieu de réception"><p class="eyebrow">${L.length > 1 ? 'Vos lieux de réception' : 'Votre lieu de réception'}</p>${L.map(carte).join('')}</section>`;
+}
+
 function devisPage(c, d0, t, { client, demande, apercu = false }) {
   const R = c.reglages;
   /* aperçu équipe : le devis tel que le client le recevra, sans rien envoyer ni signer */
@@ -910,6 +943,7 @@ function devisPage(c, d0, t, { client, demande, apercu = false }) {
   ${(() => { const nat = d.evenement?.type || demande?.evenement?.type || '', dt = d.evenement?.date || demande?.evenement?.date, nb = d.evenement?.invites || demande?.evenement?.invites, lieu = d.evenement?.lieu || demande?.evenement?.ville || '';
     return `<div><p class="eyebrow">Événement</p><p>${nat ? `Nature : <b>${esc(nat)}</b><br>` : ''}${dt ? `Le ${esc(dateFr(dt))}<br>` : ''}${nb ? `${esc(nb)} personne${+nb > 1 ? 's' : ''}<br>` : ''}${lieu ? esc(lieu) : ''}</p></div>`; })()}${com?.nom ? `<div><p class="eyebrow">Votre conseiller</p><p><b>${esc(com.nom)}</b>${com.tel ? `<br><a href="tel:${esc(com.tel.replace(/\s/g, ''))}">${esc(com.tel)}</a>` : ''}${com.email ? `<br>${esc(com.email)}` : ''}</p></div>` : ''}</div>
   ${d.intro ? `<p class="doc-intro">${esc(d.intro)}</p>` : ''}
+  ${devisLieuxHtml(c, d)}
   ${devisLignesHtml(d)}
   ${totauxHtml(t)}
   ${d.conditions ? `<p class="small">${esc(d.conditions)}</p>` : ''}
@@ -962,4 +996,4 @@ function facturePage(c, f, t, { apercu = false } = {}) {
 }
 
 module.exports = {
-  sectionsRub, plateau3dHtml, universListe, RANGEMENTS, pageSpecialites, specialite, sousVisibles, layout, home, boutique, produit, lieux, filtrerLieux, lieu, selection, texte, maison, livraison, commander, temoignages, contact, legal, erreur, espaceConnexion, espace, devisPage, facturePage, textToHtml, V, BANDEAUX_DEFAUT };
+  sectionsRub, plateau3dHtml, universListe, RANGEMENTS, pageSpecialites, specialite, sousVisibles, layout, home, boutique, produit, lieux, filtrerLieux, lieu, selection, texte, maison, livraison, commander, temoignages, contact, legal, erreur, espaceConnexion, espace, devisPage, lieuxDuDevis, facturePage, textToHtml, V, BANDEAUX_DEFAUT };
