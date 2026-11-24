@@ -38,7 +38,7 @@
 
   /* ---------- structure ---------- */
   /* menu « Espace équipe » comme Je Privatise : CRM regroupe Demandes de devis, Suivi client, Devis et Factures */
-  const CRM = ['demandes', 'suivi', 'devis', 'factures'];
+  const CRM = ['demandes', 'suivi', 'devis', 'factures', 'clients'];
   const MENU = [
     ['', 'Tableau de bord'],
     ['crm', 'CRM'],
@@ -46,8 +46,8 @@
     ['suivi', 'Suivi client'],
     ['devis', 'Devis'],
     ['factures', 'Factures'],
-    ['agenda', 'Agenda'],
     ['clients', 'Clients'],
+    ['agenda', 'Agenda'],
     ['-'],
     ['catalogue', 'Catalogue'],
     ['lieux', 'Lieux'],
@@ -64,7 +64,7 @@
     const open = CRM.includes(cur) || mem.get('mg_crm') === '1';
     const nb = cache.nouvelles ? String(cache.nouvelles) : '';
     const item = m => m[0] === '-' ? '<hr>'
-      : m[0] === 'crm' ? `<button type="button" class="chip crm-btn" data-tab="crm" data-crm aria-expanded="${open}" title="Demandes de devis, Suivi client, Devis, Factures">CRM<span>${nb}</span></button>`
+      : m[0] === 'crm' ? `<button type="button" class="chip crm-btn" data-tab="crm" data-crm aria-expanded="${open}" title="Demandes de devis, Suivi client, Devis, Factures, Clients">CRM<span>${nb}</span></button>`
       : `<a href="#/${m[0]}" data-tab="${m[0]}" class="chip${CRM.includes(m[0]) ? ' crm-sub' : ''}${cur === m[0] ? ' on' : ''}"${cur === m[0] ? ' aria-current="page"' : ''}>${m[1]}${m[0] === 'demandes' ? `<span>${nb}</span>` : ''}</a>`;
     return `<div class="bo">
       <aside class="side" id="side"><a class="logo" href="#/"><img src="/brand/monogramme.svg" alt=""><span>Magnolia<small>Back-office</small></span></a><a class="go-site" href="/" target="_blank" rel="noopener">🌐 Aller sur le site ↗</a>
