@@ -78,8 +78,31 @@ async function createApp(opts = {}) {
     return id;
   }
   if (env.ADMIN_EMAIL && env.ADMIN_PASSWORD && !(await store.list('_users')).length) {
-    await createUser({ email: env.ADMIN_EMAIL, name: env.ADMIN_NAME || 'Manager', role: 'manager', password: env.ADMIN_PASSWORD });
+    await createUser({ email: env.ADMIN_EMAIL, name: env.ADMIN_NAME || 'Liam Bernard', role: 'manager', password: env.ADMIN_PASSWORD });
     log.log?.('[comptes] compte Manager créé pour ' + env.ADMIN_EMAIL);
+  }
+  /* une seule fois (demande de Jean-Luc, 2026-11-24) : le compte nommé « Manager » s'appelle Liam Bernard, partout où ce nom était repris */
+  if (!(await store.get('_migr/nomManager'))) {
+    const NOM = 'Liam Bernard', ren = x => x === 'Manager' ? NOM : x;
+    const parMaj = l => Array.isArray(l) ? l.map(x => x && x.par === 'Manager' ? { ...x, par: NOM } : x) : l;
+    for (const { id, data: u } of await store.list('_users')) if (String(u.name || '').trim() === 'Manager') await store.set('_users/' + id, { ...u, name: NOM });
+    for (const { id, data: d } of await store.list('demandes')) {
+      const next = { ...d };
+      if ('commercial' in d) next.commercial = ren(d.commercial);
+      if (d.relancesNotees) next.relancesNotees = parMaj(d.relancesNotees);
+      if (d.historique) next.historique = parMaj(d.historique);
+      if (JSON.stringify(next) !== JSON.stringify(d)) await store.set('demandes/' + id, next);
+    }
+    for (const { id, data: v } of await store.list('devis')) {
+      const next = { ...v };
+      if ('creePar' in v) next.creePar = ren(v.creePar);
+      if (v.commercial?.nom === 'Manager') next.commercial = { ...v.commercial, nom: NOM };
+      if (v.envois) next.envois = parMaj(v.envois);
+      if (v.relances) next.relances = parMaj(v.relances);
+      if (JSON.stringify(next) !== JSON.stringify(v)) await store.set('devis/' + id, next);
+    }
+    for (const { id, data: c } of await store.list('clients')) if ((c.journal || []).some(j => j.par === 'Manager')) await store.set('clients/' + id, { ...c, journal: parMaj(c.journal) });
+    await store.set('_migr/nomManager', { at: new Date().toISOString() });
   }
 
   /* ---------- journal d'activité chaîné (toute modification se voit) ---------- */
@@ -809,6 +832,7 @@ async function createApp(opts = {}) {
     const next = { ...u };
     if (typeof req.body.desactive === 'boolean') next.disabled = req.body.desactive;
     if (['manager', 'collab'].includes(req.body.role)) next.role = req.body.role;
+    if (typeof req.body.nom === 'string') { const n = req.body.nom.trim().slice(0, 80); if (n.length < 2) return res.status(400).json({ error: 'Écrivez le prénom et le nom.' }); next.name = n; }
     if (req.body.password) { if (String(req.body.password).length < 10) return res.status(400).json({ error: 'Mot de passe : 10 caractères minimum.' }); next.passHash = await bcrypt.hash(String(req.body.password), 11); }
     await store.set('_users/' + req.params.id, next);
     audit(req.ctx, 'compte modifié', '_users/' + req.params.id, u.email);
