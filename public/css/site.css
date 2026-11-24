@@ -254,6 +254,8 @@ section { margin: clamp(56px, 8vw, 110px) auto; }
 .tile:hover .tile-v { transform: scale(1.06); }
 .tile-t { position: absolute; left: 18px; right: 18px; bottom: 16px; }
 .tile-t b { display: block; font-family: var(--serif); font-size: 1.55rem; font-weight: 500; line-height: 1.1; }
+.tile-t .br-m { display: none; } /* « Plateaux » / « de fruits de mer » sur deux lignes, téléphone seulement */
+@media (max-width: 640px) { .tile-t .br-m { display: inline; } }
 .tile-t small { display: block; font-size: .82rem; opacity: .9; margin-top: 4px; }
 @media (max-width: 980px) { .tiles { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 640px) { .tiles { grid-template-columns: 1fr 1fr; gap: 10px; } .tile-t b { font-size: 1.2rem; } .tile-t { left: 12px; right: 12px; bottom: 12px; } }

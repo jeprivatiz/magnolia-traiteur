@@ -189,7 +189,7 @@ function univers(c) {
   const globe = r => { const ids = sousVisibles(r).map(x => (lieuDe(x)?.[2] || []).map(String)).filter(g => g.length).concat([['250']]); // un groupe de pays par spécialité (France en dernier)
     return `<a class="tile vg" href="${rubHref(r)}" data-vg='${esc(JSON.stringify(ids))}'>${img('/site/c/paysages/antilles.webp', '')}<canvas aria-hidden="true"></canvas><span class="tile-t"><b>${esc(r.nom)}</b><small>${esc(r.accroche || 'Dix traiteurs, une seule maison')}</small></span></a>`; };
   return rubs.map(r => r.slug === 'lieux' ? lieux : r.slug === 'saveurs-du-monde' ? globe(r) : `<a class="tile" href="${rubHref(r)}">
-    ${img(r.photoAccueil || r.photo, '')}${r.slug === 'carte-magnolia' ? MENU_TABLE : videoAccueil(r.slug)}<span class="tile-t"><b>${esc(r.nom)}</b>${r.accroche ? `<small>${esc(r.accroche)}</small>` : `<small>${c.byRub.get(r.slug)?.length || 0} prestations</small>`}</span></a>`).join('')
+    ${img(r.photoAccueil || r.photo, '')}${r.slug === 'carte-magnolia' ? MENU_TABLE : videoAccueil(r.slug)}<span class="tile-t"><b>${esc(r.nom).replace(/^(Plateaux?) (?=de fruits de mer)/i, '$1<br class="br-m"> ')}</b>${r.accroche ? `<small>${esc(r.accroche)}</small>` : `<small>${c.byRub.get(r.slug)?.length || 0} prestations</small>`}</span></a>`).join('')
     + (rubs.some(r => r.slug === 'lieux') ? '' : lieux);
 }
 
