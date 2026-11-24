@@ -6,7 +6,7 @@ Branchement : `VIDEOS_ACCUEIL` dans `server/views.js`, lecture dans `public/js/s
 
 | Vignette | Fichier | Source (Pexels) | Auteur |
 |---|---|---|---|
-| Cocktails & buffet français | cocktail | https://www.pexels.com/video/6396011/ (People Getting Glasses from the Tray While a Woman is Pouring) : service au plateau | Pavel Danilyuk |
+| Cocktails & buffet français | cocktail | https://www.pexels.com/video/6760596/ (Close Up Shot of Food on the Table : petits fours salés sur plateaux, sans service) | Kampus Production |
 | Boissons | boissons | https://www.pexels.com/video/7219888/ (Pouring a Cocktail Drink on a Crystal Glass) | ArtHouse Studio |
 | Traiteur végétarien et vegan | vegetarien | https://www.pexels.com/video/4959964/ (Person Making Salad) | ArtHouse Studio |
 | Animations salées | burgers | https://www.pexels.com/video/37296040/ (Close-up of Burgers Cooking on a Griddle) | Mihman Duğanlı |
@@ -19,4 +19,4 @@ Branchement : `VIDEOS_ACCUEIL` dans `server/views.js`, lecture dans `public/js/s
 | Coffrets & plateaux | coffrets | https://www.pexels.com/video/7550987/ (personne qui referme un coffret blanc) | Hanna Pad |
 | Lieux de réception | peniche | https://www.pexels.com/video/9756181/ (Friends Having Fun Together, sur un bateau) | KoolShooters |
 
-Non trouvé en vidéo libre : quelqu'un qui FABRIQUE des churros (seulement des churros prêts), une serveuse qui présente un plateau de petits fours aux invités (on a une hôtesse en robe noire au plateau de coupes de champagne), un coffret repas garni qu'on referme (on a un coffret blanc élégant).
+Non trouvé en vidéo libre : quelqu'un qui FABRIQUE des churros (seulement des churros prêts), une serveuse qui présente un plateau de petits fours aux invités (Jean-Luc ne veut plus de service au plateau), un buffet traiteur avec nappe et rehausseurs (on a des petits fours salés en gros plan), un coffret repas garni qu'on referme (on a un coffret blanc élégant).
