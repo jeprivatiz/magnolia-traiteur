@@ -163,7 +163,10 @@ function univers(c) {
   /* la vignette Lieux prend la place de la rubrique « lieux » (ordre du back-office) */
   const lieux = `<a class="tile" href="/lieux">${img(c.lieux[0]?.photos?.[0], '')}<span class="tile-t"><b>Lieux de réception</b><small>${c.lieux.filter(l => l.statut !== 'masque').length} lieux à privatiser</small></span></a>`;
   const rubs = c.rubriques.filter(r => r.statut !== 'masque');
-  return rubs.map(r => r.slug === 'lieux' ? lieux : `<a class="tile" href="${rubHref(r)}">
+  /* Saveurs du monde : seule vignette animée, un petit globe qui tourne sur fond de verdure (Jean-Luc, 2026-11-24) */
+  const globe = r => { const ids = [...new Set(sousVisibles(r).flatMap(x => lieuDe(x)?.[2] || []).concat(['250']))];
+    return `<a class="tile vg" href="${rubHref(r)}" data-vg='${esc(JSON.stringify(ids))}'>${img('/site/c/paysages/antilles.webp', '')}<canvas aria-hidden="true"></canvas><span class="tile-t"><b>${esc(r.nom)}</b><small>${esc(r.accroche || 'Dix traiteurs, une seule maison')}</small></span></a>`; };
+  return rubs.map(r => r.slug === 'lieux' ? lieux : r.slug === 'saveurs-du-monde' ? globe(r) : `<a class="tile" href="${rubHref(r)}">
     ${img(r.photoAccueil || r.photo, '')}<span class="tile-t"><b>${esc(r.nom)}</b>${r.accroche ? `<small>${esc(r.accroche)}</small>` : `<small>${c.byRub.get(r.slug)?.length || 0} prestations</small>`}</span></a>`).join('')
     + (rubs.some(r => r.slug === 'lieux') ? '' : lieux);
 }
@@ -251,7 +254,7 @@ ${etapes(c)}
 ${avisBloc(c)}
 <section class="cta wrap"><h2>Votre événement commence ici</h2><div class="row"><a class="btn btn-vert" href="/boutique">Composer mon événement</a><a class="lnk" href="tel:${esc((R.telephone || '').replace(/\s/g, ''))}">ou appelez le ${esc(R.telephone)}</a></div></section>`;
   const schema = { '@context': 'https://schema.org', '@type': 'Caterer', '@id': '#magnolia', name: R.nom, telephone: R.telephone, email: R.email, address: { '@type': 'PostalAddress', streetAddress: '15 rue de Norvège', postalCode: '91140', addressLocality: 'Villebon-sur-Yvette', addressCountry: 'FR' }, areaServed: 'Île-de-France', aggregateRating: { '@type': 'AggregateRating', ratingValue: '4.9', reviewCount: 800 } };
-  return layout(c, { body, schema, bodyClass: 'home', description: A.sousTitre, image: vids[0]?.poster });
+  return layout(c, { body, schema, bodyClass: 'home', description: A.sousTitre, image: vids[0]?.poster, scripts: `<script src="/js/vignette-globe.js?v=${V}" defer></script>` });
 }
 
 /* Grand bandeau photo en haut des pages d'arrivée (publicité Google Ads) : photo ou vidéo, titre, texte, boutons, ligne de confiance.
@@ -369,7 +372,8 @@ function pageGlobe(c, r) {
   <p class="sm-aide" aria-hidden="true">Faites tourner le globe et touchez un pays</p>
   <script type="application/json" data-sm-data>${JSON.stringify(items).replace(/</g, '\\u003c')}</script>
 </section>`;
-  return layout(c, { title: r.seoTitre || r.titrePage || r.nom, description: r.seoDescription || r.chapo || '', body, path: '/' + r.slug, image: '/site/c/paysages/antilles.webp', bodyClass: 'sm-page',
+  return layout(c, { title: r.seoTitre || r.titrePage || r.nom, description: r.seoDescription || r.chapo || '', body, path: '/' + r.slug, /* vignette de partage : la photo d'arrivée avec « Dix traiteurs, une seule maison. » écrit dessus (Jean-Luc, 2026-11-23) */
+    image: '/site/partage/saveurs-du-monde.jpg', bodyClass: 'sm-page',
     /* aperçu au partage (SMS, WhatsApp…) sous le titre (Jean-Luc, 2026-11-23) */
     partage: r.partageTexte || 'Dix traiteurs, une seule maison.',
     head: '<link rel="stylesheet" href="/vendor/maplibre5/maplibre-gl.css">', scripts: `<script src="/vendor/maplibre5/maplibre-gl.js" defer></script><script src="/js/globe.js?v=${V}" defer></script>` });
