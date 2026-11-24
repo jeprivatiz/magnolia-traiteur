@@ -617,6 +617,8 @@
           <label>Lien de paiement de l’acompte <small>(SumUp, Stripe, banque…)</small><input name="lienPaiement" value="${esc(d.lienPaiement || '')}" placeholder="https://"></label></section>
       </div>
       <section class="box"><label>Texte d’introduction<textarea name="intro" rows="2">${esc(d.intro || '')}</textarea></label></section>
+      ${lock ? '' : `<section class="box ia-modif"><h2>✨ Demander à l’IA de modifier ce devis</h2><p class="muted sm">Écrivez ou dictez ce qu’il faut changer, par exemple : « Supprime le DJ et mets une contorsionniste à la place », « passe à 80 invités », « ajoute 2 serveurs pendant 5 h ». L’IA vous montre les changements avant de les appliquer. Vous pouvez toujours modifier les lignes vous-même.</p>
+        <textarea id="iam-t" rows="2" placeholder="Ex. : supprime le DJ et mets une contorsionniste à la place"></textarea><div class="row"><button type="button" class="btn aq-btn" data-iam>✨ Proposer la modification</button><button type="button" class="btn ghost sm" data-iam-mic>🎤 Dicter</button><span id="iam-msg" class="muted sm"></span></div><div id="iam-res"></div></section>`}
       <section class="box"><div class="bh"><h2>Lignes du devis</h2><div class="row"><select data-addprod class="wide"><option value="">+ Ajouter une prestation du catalogue…</option>${cat.filter(p => p.statut !== 'masque').sort((a, b) => a.titre.localeCompare(b.titre)).map(p => `<option value="${esc(p.slug)}">${esc(p.titre)} · ${p.prixCents == null ? 'sur devis' : euros(p.prixCents)}</option>`).join('')}</select><button type="button" class="btn ghost sm" data-addline>+ Ligne libre</button><button type="button" class="btn ghost sm" data-addtitle>+ Titre</button></div></div>
         <div class="table"><table class="lines"><thead><tr><th></th><th>Désignation</th><th class="n">Qté</th><th>Unité</th><th class="n">PU TTC</th><th class="n">Coût TTC</th><th>TVA</th><th class="n">Total TTC</th><th></th></tr></thead><tbody id="lines"></tbody></table></div>
         <div class="totbox"><div class="g2"><label>Remise TTC (€)<input name="remise" value="${fromCents(d.remiseCents || 0)}" inputmode="decimal"></label></div><dl id="totaux"></dl></div></section>
@@ -677,7 +679,33 @@
       lignes.push({ designation: p.titre, detail: '', qte: p.min || 1, unite: p.unite || 'unité', puCents: p.prixCents || 0, coutCents: p.coutCents ?? null, tva: p.tva ?? 10, produit: p.slug });
       e.target.value = ''; draw(); dirty();
     });
-    form.addEventListener('input', e => { if (!e.target.closest('#lines')) dirty(); });
+    form.addEventListener('input', e => { if (!e.target.closest('#lines, .ia-modif')) dirty(); });
+    /* « Demander à l'IA de modifier ce devis » : proposition → changements affichés → Appliquer ou Annuler */
+    const iamT = $('#iam-t'), iamMsg = $('#iam-msg'), iamRes = $('#iam-res');
+    if (iamT) {
+      micPour($('[data-iam-mic]'), iamT, iamMsg);
+      const proposer = async () => {
+        const consigne = iamT.value.trim(); if (consigne.length < 3) { iamMsg.innerHTML = '<span class="err">Écrivez d’abord ce que l’IA doit changer.</span>'; return; }
+        const b = $('[data-iam]'); b.disabled = true; iamMsg.textContent = 'L’IA prépare la modification… (quelques secondes)'; iamRes.innerHTML = '';
+        try {
+          const r = await api(A + '/ia/modifier-devis', { method: 'POST', body: { consigne, lignes, remiseCents: toCents(form.remise.value) || 0, evenement: { type: form.ev_type.value, date: form.ev_date.value, invites: +form.ev_invites.value || null, lieu: form.ev_lieu.value } } });
+          iamMsg.textContent = '';
+          const avant = tot({ lignes, remiseCents: toCents(form.remise.value) || 0 }).ttc, apres = tot({ lignes: r.lignes, remiseCents: r.remiseCents }).ttc;
+          const ico = { ajoute: '＋', retire: '−', modifie: '✎' };
+          iamRes.innerHTML = `<div class="iam-prop">${r.explication ? `<p><b>${esc(r.explication)}</b></p>` : ''}${r.changements.length ? `<ul class="iam-ch">${r.changements.map(x => `<li class="c-${x.type}"><span>${ico[x.type]}</span>${esc(x.texte)}</li>`).join('')}</ul><p>Total TTC : ${euros(avant)} → <b>${euros(apres)}</b></p><div class="row"><button type="button" class="btn" data-iam-ok>✓ Appliquer</button><button type="button" class="btn ghost" data-iam-no>Annuler</button></div>` : '<p class="muted">Aucun changement proposé. Reformulez votre demande.</p>'}</div>`;
+          $('[data-iam-ok]')?.addEventListener('click', () => {
+            lignes = r.lignes; form.remise.value = fromCents(r.remiseCents || 0);
+            if (r.invites) form.ev_invites.value = r.invites;
+            iamRes.innerHTML = ''; iamT.value = ''; draw(); dirty();
+            toast('Modification appliquée : vérifiez les lignes, puis cliquez sur Enregistrer.');
+          });
+          $('[data-iam-no]')?.addEventListener('click', () => { iamRes.innerHTML = ''; });
+        } catch (err) { iamMsg.innerHTML = `<span class="err">${esc(err.message)}</span>`; }
+        finally { b.disabled = false; }
+      };
+      $('[data-iam]').addEventListener('click', proposer);
+      iamT.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); proposer(); } });
+    }
     const enregistrer = async () => {
       const f = Object.fromEntries(new FormData(form));
       const cl = cache.clients.find(c => c.id === f.clientId);

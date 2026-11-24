@@ -108,4 +108,94 @@ function nettoyerArticles(liste, c, visibles) {
   }).filter(Boolean).slice(0, 25);
 }
 
-module.exports = { createIa, json, promptFiche, catalogueCompact, promptProduits, nettoyerFiche, nettoyerArticles };
+/* ---------- « Demander à l'IA de modifier ce devis » ----------
+   L'IA reçoit les lignes actuelles + la consigne de l'équipe (« supprime le DJ et mets une contorsionniste »)
+   et répond par une liste d'opérations. Le serveur applique ces opérations lui-même : prix, coût et TVA
+   viennent toujours du catalogue, quantité jamais sous le minimum. Rien n'est enregistré : l'équipe valide. */
+function promptModif({ lignes, evenement, remiseCents, consigne, compact, tarifs }) {
+  const L = (lignes || []).map((l, i) => l.type === 'titre'
+    ? `${i} | TITRE | ${str(l.designation, 120)}`
+    : `${i} | ${str(l.designation, 120)}${l.detail ? ' (' + str(l.detail, 120) + ')' : ''} | qte ${l.qte} ${l.unite || ''} | ${euro(l.puCents || 0)} TTC l'unité${l.produit ? ' | catalogue : ' + l.produit : ' | ligne libre'}`).join('\n');
+  return `Tu es conseiller commercial chez Magnolia Traiteur. Voici un devis en cours. L'équipe te demande une modification. Applique EXACTEMENT ce qui est demandé, rien de plus.
+Réponds UNIQUEMENT avec un objet JSON, sans texte autour :
+{"operations":[...],"explication":"une phrase en français qui résume ce que tu as fait"}
+Opérations possibles (indices = numéros de ligne ci-dessous, ceux du devis AVANT modification) :
+- {"op":"supprimer","ligne":3}
+- {"op":"quantite","ligne":3,"qte":80}
+- {"op":"prix","ligne":3,"puTTC":12.5}  (seulement si l'équipe demande un prix précis)
+- {"op":"texte","ligne":3,"designation":"…","detail":"…"}
+- {"op":"ajouter","slug":"identifiant du catalogue","qte":40,"detail":"","apres":3}  ("apres" = indice de la ligne après laquelle insérer, -1 pour le début, absent = à la fin ; pour REMPLACER une ligne, supprime-la et ajoute la nouvelle avec "apres" = son indice)
+- {"op":"personnel","serveurs":2,"heures":5,"apres":3}  (personnel de service à ${euro(tarifs.personnel?.heureCents || 4188)} TTC l'heure)
+- {"op":"libre","designation":"…","detail":"","qte":1,"unite":"forfait","puTTC":150,"tva":20,"apres":3}  (seulement si rien ne convient dans le catalogue ET que l'équipe donne le prix)
+- {"op":"titre","designation":"…","apres":3}
+- {"op":"invites","nombre":80}  (change le nombre d'invités de l'événement ; si l'équipe le demande, adapte aussi avec "quantite" les lignes vendues par personne)
+- {"op":"remise","euros":50}  (remise TTC sur le total ; 0 pour l'enlever)
+Règles : choisis les prestations UNIQUEMENT dans le catalogue ci-dessous (une ligne : identifiant | titre | rubrique | prix | minimum) ; quantité jamais sous le minimum. Si la demande est impossible ou floue, renvoie "operations":[] et explique pourquoi dans "explication".
+
+Événement : ${JSON.stringify({ type: evenement?.type || '', date: evenement?.date || '', invites: evenement?.invites || '', lieu: evenement?.lieu || '' })}
+Remise actuelle : ${euro(remiseCents || 0)}
+
+Lignes du devis (indice | désignation | quantité | prix TTC | origine) :
+${L || '(aucune ligne)'}
+
+Demande de l'équipe :
+"""${String(consigne).slice(0, 3000)}"""
+
+Catalogue :
+${compact.texte}`;
+}
+
+function appliquerModif(rep, { lignes, evenement, remiseCents }, c, visibles, tarifs = {}) {
+  const ok = new Map(visibles.map(p => [p.slug, p]));
+  const src = (lignes || []).map(l => ({ ...l }));
+  const ops = (Array.isArray(rep?.operations) ? rep.operations : []).slice(0, 60);
+  const idx = v => { const n = Math.round(+v); return Number.isInteger(n) && n >= 0 && n < src.length ? n : null; };
+  const suppr = new Set(), inserts = new Map(), changes = [];
+  const pos = v => { const n = Math.round(+v); return v == null || v === '' || Number.isNaN(n) ? 'fin' : n < 0 ? -1 : Math.min(n, src.length - 1); };
+  const inserer = (apres, l) => { const k = pos(apres); if (!inserts.has(k)) inserts.set(k, []); inserts.get(k).push(l); };
+  let inv = evenement?.invites ?? null, remise = remiseCents || 0;
+  for (const o of ops) {
+    const op = str(o?.op, 20);
+    if (op === 'supprimer') { const i = idx(o.ligne); if (i != null && !suppr.has(i)) { suppr.add(i); changes.push({ type: 'retire', texte: src[i].designation + (src[i].type === 'titre' ? ' (titre)' : ` · ${src[i].qte} ${src[i].unite || ''}`.trimEnd()) }); } }
+    else if (op === 'quantite') {
+      const i = idx(o.ligne); if (i == null || src[i].type === 'titre') continue;
+      const p = src[i].produit ? c.bySlug?.get(src[i].produit) : null, min = Math.max(1, +(p?.min || 1));
+      const q = Math.max(p ? min : 0.01, Math.min(100000, +String(o.qte).replace(',', '.') || 0));
+      if (q && q !== +src[i].qte) { changes.push({ type: 'modifie', texte: `${src[i].designation} : quantité ${src[i].qte} → ${q}${p && q === min && +o.qte < min ? ' (minimum)' : ''}` }); src[i].qte = q; }
+    } else if (op === 'prix') {
+      const i = idx(o.ligne), pu = Math.round(+String(o.puTTC).replace(',', '.') * 100); if (i == null || src[i].type === 'titre' || !(pu >= 0)) continue;
+      if (pu !== src[i].puCents) { changes.push({ type: 'modifie', texte: `${src[i].designation} : prix ${euro(src[i].puCents || 0)} → ${euro(pu)}` }); src[i].puCents = pu; }
+    } else if (op === 'texte') {
+      const i = idx(o.ligne); if (i == null) continue;
+      const d = str(o.designation, 200), det = o.detail != null ? str(o.detail, 400) : null;
+      if (d && d !== src[i].designation) { changes.push({ type: 'modifie', texte: `« ${src[i].designation} » → « ${d} »` }); src[i].designation = d; }
+      if (det != null && det !== (src[i].detail || '')) { src[i].detail = det; if (!d) changes.push({ type: 'modifie', texte: `${src[i].designation} : détail modifié` }); }
+    } else if (op === 'ajouter') {
+      const p = ok.get(str(o.slug, 160)); if (!p) continue;
+      const min = Math.max(1, +p.min || 1), q = Math.max(min, Math.min(100000, Math.round(+o.qte || min)));
+      const l = { designation: p.titre, detail: str(o.detail, 400), qte: q, unite: p.unite || 'unité', puCents: p.prixCents ?? 0, coutCents: p.coutCents ?? null, tva: p.tva ?? 10, produit: p.slug };
+      inserer(o.apres, l); changes.push({ type: 'ajoute', texte: `${p.titre} · ${q} ${p.unite || ''} × ${p.prixCents == null ? 'prix à confirmer' : euro(p.prixCents)}`.replace(/\s+·/, ' ·') });
+    } else if (op === 'personnel') {
+      const nb = Math.max(1, Math.min(50, Math.round(+o.serveurs || 1))), h = Math.max(tarifs.personnel?.minHeures || 4, Math.min(24, Math.round(+o.heures || 0)));
+      inserer(o.apres, { designation: tarifs.personnel?.label || 'Personnel de service', detail: `${nb} pers. × ${h} h`, qte: nb * h, unite: 'heure', puCents: tarifs.personnel?.heureCents || 4188, coutCents: null, tva: 20 });
+      changes.push({ type: 'ajoute', texte: `Personnel de service · ${nb} pers. × ${h} h` });
+    } else if (op === 'libre') {
+      const d = str(o.designation, 200), pu = Math.round(+String(o.puTTC).replace(',', '.') * 100); if (!d || !(pu >= 0)) continue;
+      const q = Math.max(0.01, Math.min(100000, +o.qte || 1));
+      inserer(o.apres, { designation: d, detail: str(o.detail, 400), qte: q, unite: str(o.unite, 30) || 'forfait', puCents: pu, coutCents: null, tva: [5.5, 10, 20].includes(+o.tva) ? +o.tva : 20 });
+      changes.push({ type: 'ajoute', texte: `${d} · ${q} × ${euro(pu)} (ligne libre)` });
+    } else if (op === 'titre') {
+      const d = str(o.designation, 120); if (!d) continue; inserer(o.apres, { type: 'titre', designation: d }); changes.push({ type: 'ajoute', texte: `Titre « ${d} »` });
+    } else if (op === 'invites') {
+      const n = Math.max(1, Math.min(10000, Math.round(+o.nombre || 0))); if (n && n !== +inv) { changes.push({ type: 'modifie', texte: `Invités : ${inv || '—'} → ${n}` }); inv = n; }
+    } else if (op === 'remise') {
+      const r = Math.max(0, Math.round(+String(o.euros).replace(',', '.') * 100) || 0); if (r !== remise) { changes.push({ type: 'modifie', texte: `Remise : ${euro(remise)} → ${euro(r)}` }); remise = r; }
+    }
+  }
+  const out = [...(inserts.get(-1) || [])];
+  src.forEach((l, i) => { if (!suppr.has(i)) out.push(l); out.push(...(inserts.get(i) || [])); });
+  out.push(...(inserts.get('fin') || []));
+  return { lignes: out.slice(0, 300), invites: inv, remiseCents: remise, changements: changes, explication: str(rep?.explication, 400) };
+}
+
+module.exports = { createIa, json, promptFiche, catalogueCompact, promptProduits, nettoyerFiche, nettoyerArticles, promptModif, appliquerModif };

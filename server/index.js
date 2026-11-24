@@ -595,6 +595,17 @@ async function createApp(opts = {}) {
     try { res.json({ articles: IA.nettoyerArticles(IA.json(await ia.demander(IA.promptProduits(fichePourIa, s(req.body?.texte, 6000), compact, c.reglages.tarifs || {}), { effort: 'medium', maxTokens: 6000 })), c, compact.visibles) }); }
     catch (e) { iaErreur(res, e); }
   }));
+  A.post('/ia/modifier-devis', sameSite, json, wrap(async (req, res) => {
+    if (!iaLimit(req.ctx.uid)) return res.status(429).json({ error: 'Trop de demandes : réessayez dans une minute.' });
+    const consigne = s(req.body?.consigne, 3000);
+    if (consigne.length < 3) return res.status(400).json({ error: 'Écrivez ce que l’IA doit changer.' });
+    const c = await cat.get(), compact = IA.catalogueCompact(c), T = c.reglages.tarifs || {};
+    const etat = { lignes: (Array.isArray(req.body?.lignes) ? req.body.lignes : []).slice(0, 300), evenement: req.body?.evenement || {}, remiseCents: Math.max(0, Math.round(+req.body?.remiseCents || 0)) };
+    try {
+      const rep = IA.json(await ia.demander(IA.promptModif({ ...etat, consigne, compact, tarifs: T }), { effort: 'medium', maxTokens: 4000 }));
+      res.json(IA.appliquerModif(rep, etat, c, compact.visibles, T));
+    } catch (e) { iaErreur(res, e); }
+  }));
   A.post('/actions/commande-ia', sameSite, json, wrap(async (req, res) => {
     const c = await cat.get(), T = c.reglages.tarifs || {};
     const f = IA.nettoyerFiche(req.body?.fiche || {}, c.reglages.evenements || []);
