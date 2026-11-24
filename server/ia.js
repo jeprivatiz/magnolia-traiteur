@@ -222,7 +222,7 @@ Règles impératives :
 - ${max} caractères MAXIMUM au total (espaces compris) — c'est ${nbSms} SMS. Compte bien.
 - Commence par « Magnolia Traiteur : » puis « Bonjour {prenom}, » ou directement le message si la place manque ({prenom} sera remplacé par le prénom).
 - Écris sans accents circonflexes ni ç (ex. « fete », « garcon ») et sans guillemets typographiques, pour que le SMS reste au format standard. Les é è à ù sont permis.
-- N'invente AUCUN prix, date ou offre absente des informations. Mets le numéro 07 63 66 98 92 ou l'adresse du site si la place le permet.
+- N'invente AUCUN prix, date ou offre absente des informations. Mets le numéro 07 63 66 98 92 si la place le permet. N'écris PAS l'adresse du site internet : elle est ajoutée automatiquement à la fin.
 - N'ajoute PAS la mention STOP (ajoutée automatiquement), ni emoji.
 Réponds UNIQUEMENT avec un objet JSON : {"texte":""}
 

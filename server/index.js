@@ -59,6 +59,13 @@ async function createApp(opts = {}) {
   const cat = createCatalogue(store);
   const brevo = opts.brevo || createBrevo({ env, store, log });
   const ia = IA.createIa({ env, ask: opts.iaAsk, log });
+  /* règle de Jean-Luc (2026-11-24) : chaque SMS envoyé à un client contient l'adresse du site (Mon entreprise › Site internet),
+     ajoutée à la fin s'il n'a pas déjà un lien vers le site ; pas pour les alertes envoyées à l'équipe */
+  const lienSms = async () => DIF.lienCourt((await cat.get()).reglages?.entreprise?.site ?? 'magnoliatraiteur.fr');
+  {
+    const smsBrut = brevo.sendSms.bind(brevo);
+    brevo.sendSms = async (o = {}) => o.lien === false ? smsBrut(o) : smsBrut({ ...o, content: DIF.avecLien(o.content, await lienSms().catch(() => ''), [DIF.lienCourt(SITE)]) });
+  }
   const prod = env.NODE_ENV === 'production';
   const SITE = (env.SITE_URL || 'http://localhost:' + (env.PORT || 3000)).replace(/\/$/, '');
   const uploadDir = path.resolve(env.UPLOAD_DIR || path.join(ROOT, 'var', 'uploads'));
@@ -238,7 +245,7 @@ async function createApp(opts = {}) {
     const R = (await cat.get()).reglages;
     const mails = String(R.alertes?.emails || env.ALERT_EMAILS || '').split(/[,;\s]+/).filter(isEmail);
     for (const m of mails) await brevo.sendEmail({ to: m, subject: sujet, html, text: html.replace(/<[^>]+>/g, ' ') });
-    for (const t of String(R.alertes?.sms || '').split(/[,;]+/).map(s => s.trim()).filter(Boolean)) await brevo.sendSms({ to: t, content: sms || sujet });
+    for (const t of String(R.alertes?.sms || '').split(/[,;]+/).map(s => s.trim()).filter(Boolean)) await brevo.sendSms({ to: t, content: sms || sujet, lien: false });
   }
 
   const s = (v, n = 200) => String(v ?? '').trim().slice(0, n);
@@ -1001,7 +1008,7 @@ async function createApp(opts = {}) {
       total: l.length, email: DIF.filtrer(l, 'email').length, sms: DIF.filtrer(l, 'sms').length,
       stopEmail: l.filter(p => p.stopEmail).length, stopSms: l.filter(p => p.stopSms).length,
       deps: [...deps].sort((a, b) => a[0].localeCompare(b[0], 'fr', { numeric: true })), types: [...types].sort((a, b) => b[1] - a[1]),
-      ia: ia.actif, brevo: brevo.live, moi: { email: req.ctx.email || '', tel: String(R.alertes?.sms || '').split(/[,;]/)[0].trim() }, creneauSms: DIF.creneauSms(),
+      ia: ia.actif, brevo: brevo.live, lienSms: await lienSms(), moi: { email: req.ctx.email || '', tel: String(R.alertes?.sms || '').split(/[,;]/)[0].trim() }, creneauSms: DIF.creneauSms(),
     });
   }));
   A.post('/diffusion/selection', sameSite, json, wrap(async (req, res) => {
@@ -1031,12 +1038,13 @@ async function createApp(opts = {}) {
     const infos = s(req.body?.infos, 4000), nbSms = Math.min(3, Math.max(1, +req.body?.nbSms | 0 || 1));
     if (infos.length < 5) return res.status(400).json({ error: 'Écrivez d’abord les informations à faire passer.' });
     /* place restante une fois la mention STOP ajoutée (format standard : 160 puis 153 caractères par SMS) */
-    const max = (nbSms === 1 ? 160 : nbSms * 153) - (DIF.STOP_AFFICHE.length + 1);
+    const L = await lienSms();
+    const max = (nbSms === 1 ? 160 : nbSms * 153) - (DIF.STOP_AFFICHE.length + 1) - (L ? L.length + 1 : 0);
     try {
       let texte = '';
       for (let essai = 0; essai < 2; essai++) {
         texte = DIF.versGsm(s(IA.json(await ia.demander(IA.promptSms(infos, { nbSms, max: max - 8 - essai * 15 }))).texte, 700));
-        if (DIF.comptage(DIF.smsFinal(texte, { prenom: 'Alexandra' })).sms <= nbSms) break;
+        if (DIF.comptage(DIF.smsFinal(texte, { prenom: 'Alexandra', lien: L })).sms <= nbSms) break;
       }
       res.json({ texte });
     } catch (e) { iaErreur(res, e); }
@@ -1048,11 +1056,11 @@ async function createApp(opts = {}) {
     const bouton = m.bouton && s(m.bouton.texte, 40) ? { texte: s(m.bouton.texte, 40), lien: s(m.bouton.lien, 300) } : null;
     return { objet: s(m.objet, 150), titre: s(m.titre, 150), corps: s(m.corps, 8000), photo: /^(\/|https:\/\/)/.test(s(m.photo, 400)) ? s(m.photo, 400) : '', bouton };
   }
-  const verifier = (m, canal) => canal === 'sms' ? (!m.texte ? 'Écrivez le SMS.' : DIF.comptage(DIF.smsFinal(m.texte, { prenom: 'Alexandra' })).sms > 3 ? 'Le SMS est trop long : 3 SMS au maximum.' : '') : (!m.objet ? 'Écrivez l’objet de l’e-mail.' : !m.corps ? 'Écrivez le texte de l’e-mail.' : '');
+  const verifier = async (m, canal) => canal === 'sms' ? (!m.texte ? 'Écrivez le SMS.' : DIF.comptage(DIF.smsFinal(m.texte, { prenom: 'Alexandra', lien: await lienSms() })).sms > 3 ? 'Le SMS est trop long : 3 SMS au maximum.' : '') : (!m.objet ? 'Écrivez l’objet de l’e-mail.' : !m.corps ? 'Écrivez le texte de l’e-mail.' : '');
   A.post('/diffusion/apercu', sameSite, json, wrap(async (req, res) => {
     const canal = canalDe(req.body?.canal), m = messageDe(req.body, canal), R = (await cat.get()).reglages;
     const prenom = DIF.prenomDe(req.body?.prenom) || 'Alexandra';
-    if (canal === 'sms') { const t = DIF.smsFinal(m.texte, { prenom }); return res.json({ texte: t.replace(DIF.STOP, DIF.STOP_AFFICHE), ...DIF.comptage(t) }); }
+    if (canal === 'sms') { const t = DIF.smsFinal(m.texte, { prenom, lien: await lienSms() }); return res.json({ texte: t.replace(DIF.STOP, DIF.STOP_AFFICHE), ...DIF.comptage(t) }); }
     res.json({ html: DIF.emailHtml({ ...m, prenom, R, site: SITE, lienDesinscription: SITE + '/desinscription', apercu: true }) });
   }));
   async function envoyerUn(canal, m, p, R, extra = {}) {
@@ -1068,7 +1076,7 @@ async function createApp(opts = {}) {
   }
   A.post('/diffusion/essai', sameSite, json, wrap(async (req, res) => {
     const canal = canalDe(req.body?.canal), m = messageDe(req.body, canal), R = (await cat.get()).reglages;
-    const err = verifier(m, canal); if (err) return res.status(400).json({ error: err });
+    const err = await verifier(m, canal); if (err) return res.status(400).json({ error: err });
     const a = s(req.body?.a, 160);
     if (canal === 'sms') {
       if (!DIF.mobile(a)) return res.status(400).json({ error: 'Indiquez votre numéro de portable (06 ou 07).' });
@@ -1081,14 +1089,14 @@ async function createApp(opts = {}) {
   const campagnesEnCours = new Map();
   A.post('/diffusion/envoyer', sameSite, json, wrap(async (req, res) => {
     const canal = canalDe(req.body?.canal), m = messageDe(req.body, canal), R = (await cat.get()).reglages;
-    const err = verifier(m, canal); if (err) return res.status(400).json({ error: err });
+    const err = await verifier(m, canal); if (err) return res.status(400).json({ error: err });
     if (canal === 'sms') { const cr = DIF.creneauSms(); if (!cr.ok) return res.status(400).json({ error: cr.raison }); }
     profilsCache = null;
     const liste = destinataires(await lesProfils(), canal, req.body);
     if (!liste.length) return res.status(400).json({ error: 'Aucun destinataire sélectionné.' });
     if (+req.body?.confirme !== liste.length) return res.status(409).json({ error: `Le nombre de destinataires a changé (${liste.length}). Vérifiez puis confirmez à nouveau.`, nb: liste.length });
     const id = 'cp_' + rid(8), now = new Date().toISOString();
-    const nbSms = canal === 'sms' ? DIF.comptage(DIF.smsFinal(m.texte, { prenom: 'Alexandra' })).sms : 0;
+    const nbSms = canal === 'sms' ? DIF.comptage(DIF.smsFinal(m.texte, { prenom: 'Alexandra', lien: await lienSms() })).sms : 0;
     const camp = { id, canal, message: m, criteres: critDe(req.body?.criteres), mode: req.body?.mode === 'manuel' ? 'manuel' : 'criteres', nb: liste.length, nbSms, ids: liste.map(p => p.id), envoyes: 0, echecs: [], statut: 'en_cours', live: brevo.live, at: now, par: req.ctx.name || req.ctx.email || '' };
     await store.set('_campagnes/' + id, camp);
     audit(req.ctx, canal === 'sms' ? 'SMS groupé envoyé' : 'e-mail groupé envoyé', '_campagnes/' + id, `${liste.length} destinataires · ${m.objet || m.texte.slice(0, 60)}`);
@@ -1160,7 +1168,7 @@ async function createApp(opts = {}) {
     const tels = (s(req.body?.tel, 30) ? [s(req.body.tel, 30)] : String(R.alertes?.sms || '').split(/[,;]+/).map(x => x.trim()).filter(Boolean)).slice(0, 5);
     const sms = [];
     for (const tel of tels) {
-      const r = await brevo.sendSms({ to: tel, content: 'Magnolia : SMS d’essai envoyé depuis le back-office.' });
+      const r = await brevo.sendSms({ to: tel, content: 'Magnolia : SMS d’essai envoyé depuis le back-office.', lien: false });
       sms.push({ tel, erreur: r?.error || r?.skipped || '' });
     }
     audit(req.ctx, 'envoi d’essai', '', tels.length ? 'e-mail + SMS' : 'e-mail');
