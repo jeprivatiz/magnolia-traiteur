@@ -249,8 +249,7 @@ section { margin: clamp(56px, 8vw, 110px) auto; }
 .tile::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 35%, rgba(8, 12, 10, .82)); z-index: -1; }
 .tile:hover img { transform: scale(1.06); }
 /* vignettes vidéo de l'accueil : la vidéo couvre la photo une fois lancée (fondu), même zoom au survol */
-.tile .tile-v { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: -2; opacity: 0; transition: opacity .5s, transform .6s; pointer-events: none; }
-.tile .tile-v.on { opacity: 1; }
+.tile .tile-v { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: -2; transition: transform .6s; pointer-events: none; }
 .tile:hover .tile-v { transform: scale(1.06); }
 .tile-t { position: absolute; left: 18px; right: 18px; bottom: 16px; }
 .tile-t b { display: block; font-family: var(--serif); font-size: 1.55rem; font-weight: 500; line-height: 1.1; }
