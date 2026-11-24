@@ -54,6 +54,8 @@ function createCatalogue(store) {
 /* prix affiché sur une carte : « 24,90 € / personne » ou « Sur devis » */
 function prixCourt(p, euros) {
   if (p.prixCents == null) return { prix: 'Sur devis', unite: '' };
+  /* corbeille à plusieurs contenances : « dès 78,00 € » */
+  if ((p.groupes || []).some(g => g.radio && (g.options || []).length > 1)) return { prix: 'dès ' + euros(p.prixCents), unite: p.unite ? '/ ' + p.unite : '' };
   return { prix: euros(p.prixCents), unite: p.unite ? '/ ' + p.unite + (p.contenuPortion ? ` (${p.contenuPortion})` : '') : '' };
 }
 

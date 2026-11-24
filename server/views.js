@@ -507,6 +507,10 @@ function produit(c, p) {
   const photos = p.photos || [];
   const proches = (c.byRub.get(p.rubrique) || []).filter(x => x.slug !== p.slug).slice(0, 8);
   const prixTxt = p.prixCents == null ? 'Sur devis' : euros(p.prixCents);
+  /* prix selon la contenance (corbeilles) : fourchette « 78,00 € – 156,00 € » */
+  const gR = (p.groupes || []).find(g => g.radio && (g.options || []).length > 1);
+  const prixMax = gR && p.prixCents != null ? p.prixCents + Math.max(...gR.options.map(o => o.supCents || 0)) : null;
+  const prixHaut = prixMax ? `${euros(p.prixCents)} – ${euros(prixMax)}` : prixTxt;
   const media = `
   <div class="gal" data-gal>
     <div class="gal-main">${p.video ? `<video src="${esc(p.video.src)}" poster="${esc(p.video.poster || '')}" muted loop playsinline autoplay preload="metadata" data-gal-item></video>` : ''}
@@ -525,7 +529,7 @@ function produit(c, p) {
     <div class="fiche-info">
       <p class="eyebrow"><a href="/${esc(r.slug)}">${esc(r.nom)}</a></p>
       <h1>${esc(p.titre)}</h1>
-      <p class="fiche-prix"><b>${esc(prixTxt)}</b>${p.prixCents != null ? ` <span>TTC${p.unite ? ' par ' + esc(p.unite) : ''}${p.contenuPortion ? ` <strong class="portion">(${esc(p.contenuPortion)})</strong>` : ''}</span>` : ''}${p.min > 1 ? `<span class="min">· dès ${p.min} ${esc(p.unite || '')}${p.min > 1 && p.unite && !/s$/.test(p.unite) ? 's' : ''}</span>` : ''}</p>
+      <p class="fiche-prix"><b>${esc(prixHaut)}</b>${p.prixCents != null ? ` <span>TTC${p.unite ? ' par ' + esc(p.unite) : ''}${p.contenuPortion ? ` <strong class="portion">(${esc(p.contenuPortion)})</strong>` : ''}</span>` : ''}${p.min > 1 ? `<span class="min">· dès ${p.min} ${esc(p.unite || '')}${p.min > 1 && p.unite && !/s$/.test(p.unite) ? 's' : ''}</span>` : ''}</p>
       ${(p.description || [p.extrait]).filter(Boolean).map(t => `<p class="desc">${esc(t)}</p>`).join('')}
       <form class="conf" data-conf='${esc(JSON.stringify(conf))}' novalidate>
         <div data-conf-body></div>
