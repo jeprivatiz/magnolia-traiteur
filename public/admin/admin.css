@@ -1276,3 +1276,47 @@ h1 .formule { font-size: .55em; margin-top: .3em; }
 }
 .en-lier label { display: flex; flex-direction: column; align-items: stretch; gap: 6px; font-weight: 600; }
 .en-lier input { width: 100%; max-width: none; }
+
+/* ---------- Équipe & activité : comptes et droits détaillés ---------- */
+.btn.eq-add { background: var(--or); border-color: var(--or); color: #fff; font-weight: 600; box-shadow: 0 4px 14px rgba(176, 138, 79, .3); }
+.btn.eq-add:hover { background: #9d7a43; }
+.eq-nouveau { border: 2px solid var(--or); background: color-mix(in srgb, var(--or) 6%, var(--carte)); }
+.eq-nouveau h3 { margin: 6px 0 4px; }
+.eq-mdp { display: flex; gap: 8px; align-items: center; margin-top: 4px; }
+.eq-mdp input { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .03em; margin: 0; }
+.eq-mail { align-self: end; margin-bottom: 18px; }
+.eq-mods { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 14px; }
+.chip-mod { font: 500 .88rem var(--sans); padding: 7px 14px; border-radius: 999px; border: 1px solid var(--ligne); background: var(--carte); color: var(--vert); cursor: pointer; }
+.chip-mod:hover { border-color: var(--vert); }
+.chip-mod.on { background: var(--vert); border-color: var(--vert); color: #fff; }
+.eq-droits { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; margin: 6px 0 14px; }
+.eq-droit { display: flex; gap: 10px; align-items: flex-start; margin: 0; padding: 10px 12px; border: 1px solid var(--ligne); border-radius: 10px; background: var(--doux); color: var(--texte); cursor: pointer; transition: border-color .15s, background .15s; }
+.eq-droit input { margin-top: 2px; flex: none; }
+.eq-droit b { display: block; font-size: .92rem; font-weight: 600; }
+.eq-droit small { display: block; color: var(--gris); font-weight: 400; line-height: 1.35; margin-top: 2px; }
+.eq-droit.on { border-color: var(--vert-ok); background: color-mix(in srgb, var(--vert-ok) 9%, var(--carte)); }
+.eq-droit.eq-admin { grid-column: 1 / -1; border-color: var(--or); background: color-mix(in srgb, var(--or) 10%, var(--carte)); }
+.eq-droit.eq-admin.on { background: color-mix(in srgb, var(--or) 20%, var(--carte)); }
+.eq-droit:has(input:disabled) { cursor: default; }
+.eq-liste { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.eq-carte { border: 1px solid var(--ligne); border-radius: 12px; padding: 12px 14px; background: var(--carte); }
+.eq-carte.off { opacity: .6; }
+.eq-tete { display: flex; align-items: center; gap: 12px; }
+.eq-av { flex: none; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--vert); color: #fff; font-weight: 600; font-size: .9rem; }
+.eq-id { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.eq-id input { max-width: 320px; font-weight: 600; }
+.eq-id small { color: var(--gris); overflow-wrap: anywhere; }
+.eq-bad { flex: none; }
+.pill.eq-pill-admin { --c: var(--or); }
+.pill.eq-pill { --c: var(--vert-ok); }
+.pill.eq-off { --c: var(--gris); }
+.eq-res { margin: 8px 0 4px; font-size: .86rem; color: var(--gris); }
+.eq-act { margin-top: 6px; align-items: center; }
+.eq-act .btn.on { background: var(--doux); border-color: var(--vert); }
+.eq-panneau { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--ligne); }
+input.verrou { background: var(--doux); color: var(--gris); cursor: not-allowed; }
+@media (max-width: 640px) {
+  .eq-tete { flex-wrap: wrap; }
+  .eq-bad { width: 100%; padding-left: 52px; }
+  .eq-droits { grid-template-columns: 1fr; }
+}

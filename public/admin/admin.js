@@ -69,6 +69,10 @@
   const UNITES = ['personne', 'pièce', 'portion', 'plateau', 'coffret', 'corbeille', 'gâteau', 'forfait', 'prestation', 'heure', 'location', 'bouteille', 'lot de 6', 'conditionnement', 'litre', 'table', 'chaise', 'km', 'unité'];
   const ALLERGENES = ['Gluten', 'Crustacés', 'Œufs', 'Poissons', 'Arachides', 'Soja', 'Lait', 'Fruits à coque', 'Céleri', 'Moutarde', 'Sésame', 'Sulfites', 'Lupin', 'Mollusques'];
   let session = null, cache = {};
+  /* droits détaillés du compte connecté (Équipe & activité) ; « Administrateur » a tout */
+  const peut = k => !!session?.droits?.[k];
+  const DROIT_ECRAN = { factures: 'factures', catalogue: 'produits', lieux: 'produits', site: 'site', avis: 'site', medias: 'site', entreprise: 'entreprise', outils: ['outils', 'fichiers'] };
+  const voitEcran = r => { const d = DROIT_ECRAN[r]; return !d || [].concat(d).some(peut); };
 
   /* ---------- structure ---------- */
   /* menu « Espace équipe » comme Je Privatise : CRM regroupe Demandes de devis, Suivi client, Devis et Factures */
@@ -97,15 +101,16 @@
   function shell(inner, cur) {
     const open = CRM.includes(cur) || mem.get('mg_crm') === '1';
     const nb = cache.nouvelles ? String(cache.nouvelles) : '';
-    const item = m => m[0] === '-' ? '<hr>'
+    const item = m => m[0] !== '-' && m[0] !== 'crm' && !voitEcran(m[0]) ? '' : m[0] === '-' ? '<hr>'
       : m[0] === 'crm' ? `<button type="button" class="chip crm-btn" data-tab="crm" data-crm aria-expanded="${open}" title="Demandes de devis, Suivi client, Devis, Factures, Clients">CRM<span>${nb}</span></button>`
       : `<a href="#/${m[0]}" data-tab="${m[0]}" class="chip${CRM.includes(m[0]) ? ' crm-sub' : ''}${cur === m[0] ? ' on' : ''}"${cur === m[0] ? ' aria-current="page"' : ''}>${m[1]}${m[0] === 'demandes' ? `<span>${nb}</span>` : ''}</a>`;
     return `<div class="bo">
       <aside class="side" id="side"><a class="logo" href="#/"><img src="/brand/monogramme.svg" alt=""><span>Magnolia<small>Back-office</small></span></a><a class="go-site" href="/" target="_blank" rel="noopener">🌐 Aller sur le site ↗</a>
-      <nav class="tabs${open ? ' crm-open' : ''}"><p class="tabs-lab">Espace équipe</p>${MENU.map(item).join('')}</nav>
-      <div class="me"><span>${esc(session.nom || session.email)}<small>${session.role === 'manager' ? 'Manager' : 'Collaborateur'}</small></span><button class="lnk" data-logout>Déconnexion</button></div></aside>
+      <nav class="tabs${open ? ' crm-open' : ''}"><p class="tabs-lab">Espace équipe</p>${MENU.filter(m => m[0] === '-' || m[0] === 'crm' || voitEcran(m[0])).filter((m, i, l) => m[0] !== '-' || (i > 0 && l[i - 1][0] !== '-' && i < l.length - 1)).map(item).join('')}</nav>
+      <div class="me"><span>${esc(session.nom || session.email)}<small>${peut('admin') ? 'Administrateur' : peut('toutes') ? 'Équipe' : 'Commercial · ses dossiers'}</small></span><button class="lnk" data-logout>Déconnexion</button></div></aside>
       <div class="main"><header class="mtop"><button class="burger" data-burger aria-label="Menu">☰</button><span class="mtitle">${esc((MENU.find(m => m[0] === cur) || [, ''])[1])}</span><a class="go-site sm" href="/" target="_blank" rel="noopener">🌐 Le site ↗</a></header><div class="content">${inner}</div></div></div>`;
   }
+  const sansAcces = async () => `<div class="ph"><h1>Accès non autorisé</h1></div><section class="box"><p>Votre compte n’a pas le droit d’ouvrir cet écran.</p><p class="muted sm">Un administrateur peut vous le donner dans <b>Équipe &amp; activité</b>, en cochant la case qui correspond.</p><a class="btn" href="#/">← Tableau de bord</a></section>`;
   const page = (titre, actions, body) => `<div class="ph"><h1>${titre}</h1><div class="pa">${actions || ''}</div></div>${body}`;
 
   /* ---------- routeur ---------- */
@@ -130,7 +135,9 @@
     if (!session) return login();
     const [route, id, sub] = location.hash.replace(/^#\/?/, '').split('?')[0].split('/');
     const views = { '': dashboard, demandes, suivi, devis, factures, agenda, clients, catalogue, produit, lieux, lieu, site, avis, medias, entreprise, equipe, outils };
-    const fn = route === 'catalogue' && id ? produit : route === 'lieux' && id ? lieu : views[route] || dashboard;
+    let fn = route === 'catalogue' && id ? produit : route === 'lieux' && id ? lieu : views[route] || dashboard;
+    if (!voitEcran(route)) fn = sansAcces;
+    if (!peut('toutes') && typeof SV !== 'undefined') { SV.o = ''; mem.set('mg_commercial', ''); } /* « seulement ses opportunités » : pas de filtre sur un autre commercial */
     if (CRM.includes(route)) mem.set('mg_crm_last', route);
     if (!cache.nouvelles && cache.nouvelles !== 0) api(A + '/demandes').then(l => { cache.nouvelles = l.filter(d => aTraiter(d, cache.devisL || [])).length; $$('#side .chip[data-tab=demandes] span, #side .crm-btn span').forEach(x => { x.textContent = cache.nouvelles || ''; }); }).catch(() => {});
     app.innerHTML = shell('<p class="muted">Chargement…</p>', route === 'produit' ? 'catalogue' : route);
@@ -694,7 +701,7 @@
     const effacable = d => d.statut !== 'accepte';
     const filtre = `<div class="dv-who"><span class="qs-olab">Commercial</span><label class="qs-csel"><span aria-hidden="true">👤</span><select data-dvcom aria-label="Choisir le commercial"><option value=""${!qui ? ' selected' : ''}>Tous les commerciaux</option>${noms.map(n => `<option value="${esc(n)}"${qui === n ? ' selected' : ''}>${esc(n)}</option>`).join('')}<option value="—"${qui === '—' ? ' selected' : ''}>Sans commercial</option></select></label><span class="muted sm">${list.length} devis${qui ? ` · ${euros(list.reduce((t, d) => t + tot(d).ttc, 0))} TTC` : ''}</span></div>`;
     if (tous.length && !list.length) return page('Devis', '<button type="button" class="btn ghost aq-btn" data-aiq>✨ Devis avec l’IA</button><a class="btn" href="#/devis/nouveau">+ Nouveau devis</a>', filtre + '<div class="vide"><p>Aucun devis pour ce commercial.</p></div>');
-    return page('Devis', '<button type="button" class="btn ghost aq-btn" data-aiq>✨ Devis avec l’IA</button><a class="btn" href="#/devis/nouveau">+ Nouveau devis</a>', list.length ? `${filtre}<div class="row sel-bar"><button type="button" class="btn danger sm" data-effacer disabled>🗑 Effacer</button><span class="muted sm" data-nbsel>Cochez les devis à effacer.</span></div><div class="table"><table><thead><tr><th class="ck"><input type="checkbox" data-tout aria-label="Tout cocher" title="Tout cocher"></th><th>N°</th><th>Client</th><th>Nature de l’événement</th><th>Date</th><th class="n">Personnes</th><th>Commercial</th><th class="n">Total TTC</th><th>Statut</th><th>Vu par le client</th></tr></thead><tbody>
+    return page('Devis', '<button type="button" class="btn ghost aq-btn" data-aiq>✨ Devis avec l’IA</button><a class="btn" href="#/devis/nouveau">+ Nouveau devis</a>', list.length ? `${filtre}<div class="row sel-bar">${peut('effacerDevis') ? '<button type="button" class="btn danger sm" data-effacer disabled>🗑 Effacer</button>' : ''}<span class="muted sm" data-nbsel>Cochez les devis à effacer.</span></div><div class="table"><table><thead><tr><th class="ck"><input type="checkbox" data-tout aria-label="Tout cocher" title="Tout cocher"></th><th>N°</th><th>Client</th><th>Nature de l’événement</th><th>Date</th><th class="n">Personnes</th><th>Commercial</th><th class="n">Total TTC</th><th>Statut</th><th>Vu par le client</th></tr></thead><tbody>
       ${list.map(d => `<tr data-href="#/devis/${d.id}"><td class="ck">${effacable(d) ? `<input type="checkbox" data-sel="${esc(d.id)}" data-num="${esc(d.numero)}" data-st="${esc(d.statut)}" aria-label="Sélectionner ${esc(d.numero)}">` : '<span title="Devis signé : ne peut pas être effacé">🔒</span>'}</td><td class="nw"><b>${esc(d.numero)}</b>${(d.commentaires || []).length ? ` <span title="${d.commentaires.length} commentaire(s) du client">💬</span>` : ''}</td><td>${esc(d.clientNom)}</td><td>${esc(d.evenement?.type || '—')}</td><td class="nw">${d.evenement?.date ? dateFr(d.evenement.date) : '—'}</td><td class="n nw">${d.evenement?.invites ? esc(d.evenement.invites) + ' pers.' : '—'}</td><td>${esc(comDe(d) || '—')}</td><td class="n">${euros(tot(d).ttc)}</td><td><span class="pill d-${d.statut}">${DSTAT[d.statut]}</span></td><td>${d.vuLe ? dateH(d.vuLe) : '—'}</td></tr>`).join('')}</tbody></table></div>` : '<div class="vide"><p>Aucun devis.</p><p class="muted">Créez un devis depuis une demande (les lignes sont reprises) ou partez d’un devis vierge.</p></div>');
   }
   devis.after = id => {
@@ -746,11 +753,11 @@
     cache.R = R0; cache.tousDevis = tous;
     const facsDv = facsL.filter(x => x.devisId === d.id);
     const signe = d.statut === 'accepte';
-    const lock = signe && session.role !== 'manager';
+    const lock = signe && !peut('devisSignes');
     return page(`Devis ${esc(d.numero)} <span class="pill d-${d.statut}">${DSTAT[d.statut]}</span>`, `<a class="btn ghost" href="#/devis">← Devis</a><button class="btn ghost" type="button" data-dup>⧉ Dupliquer ce devis</button>${d.clientId ? `<button class="btn ghost" type="button" data-newcl>+ Nouveau devis pour ce client</button>` : ''}${d.statut !== 'brouillon' ? `<a class="btn ghost" href="/devis/${d.token}" target="_blank">Voir comme le client ↗</a>` : ''}`, `
       ${d.iaDraft && d.statut === 'brouillon' ? '<p class="aq-info">✨ Devis préparé avec l’IA à partir de la commande du client : vérifiez les lignes, les quantités et le texte, enregistrez, puis envoyez-le.</p>' : ''}
       ${(d.commentaires || []).length ? `<section class="box dv-coms"><h2>💬 Commentaires du client <small class="muted">(${d.commentaires.length})</small></h2><p class="muted sm">Laissés sur la page du devis : le commercial les reçoit par e-mail et SMS.</p><ul>${d.commentaires.slice().reverse().map(m => `<li><p>${esc(m.texte).replace(/\n/g, '<br>')}</p><small>${esc(m.nom || 'Client')} · ${dateH(m.at)}</small></li>`).join('')}</ul></section>` : ''}
-      ${signe ? `<p class="okbox">✓ Signé en ligne par <b>${esc(d.signature?.nom)}</b> le ${dateH(d.signature?.at)}.${lock ? ' Seul le Manager peut le modifier.' : ''}</p>` : ''}
+      ${signe ? `<p class="okbox">✓ Signé en ligne par <b>${esc(d.signature?.nom)}</b> le ${dateH(d.signature?.at)}.${lock ? ' Il faut le droit « Modifier un devis signé » pour le changer.' : ''}</p>` : ''}
       <form id="dv" class="${lock ? 'lock' : ''}">
       <div class="cols">
         <section class="box"><h2>Client</h2><label class="dv-clq">Chercher dans tous les clients <small>(dont le fichier importé)</small><input type="search" data-dvclq placeholder="🔍 Nom, téléphone, e-mail, ville…" autocomplete="off"></label><label>Client<select name="clientId"><option value="">— Choisir —</option>${clientsL.sort((a, b) => (a.nom || '').localeCompare(b.nom || '')).map(c => `<option value="${c.id}"${c.id === d.clientId ? ' selected' : ''}>${esc(c.nom)} · ${esc(c.email)}</option>`).join('')}</select></label><p class="muted sm"><a href="#/clients/nouveau">+ Nouveau client</a>${d.clientId ? ` · <a href="#/clients/${esc(d.clientId)}">Fiche client</a>` : ''}</p>${(() => { const autres = (cache.tousDevis || []).filter(x => x.clientId && x.clientId === d.clientId && x.id !== d.id); return autres.length ? `<p class="sm"><b>Autres devis de ce client</b></p><ul class="histo">${autres.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).map(x => `<li><a href="#/devis/${x.id}">${esc(x.numero)}</a> · ${euros(tot(x).ttc)} <span class="pill d-${x.statut}">${DSTAT[x.statut]}</span></li>`).join('')}</ul>` : ''; })()}${d.copieDe ? `<p class="muted sm">Copie du devis ${esc(d.copieDe)}.</p>` : ''}</section>
@@ -1032,7 +1039,7 @@
             : fermee ? '<p class="muted sm">' + (avoir ? 'Un avoir est définitif.' : 'Facture annulée : elle reste dans l’onglet « Avoirs et annulées ».') + '</p>'
             : e.payee ? '<p class="muted sm">Facture entièrement réglée : vous pouvez l’archiver.</p><button class="btn" type="button" data-farch="1">🗄 Archiver la facture</button>'
             : '<p class="muted sm">Elle reste dans « Non réglées » tant qu’il reste un solde. Une fois payée, elle pourra être archivée.</p>'}
-          ${!fermee && session.role === 'manager' ? `<details class="fa-avoir"><summary>Annuler cette facture (avoir)</summary><p class="muted sm">Une facture émise ne se supprime jamais (numérotation légale). L’avoir l’annule et porte son propre numéro.</p><label>Motif<input id="amotif" placeholder="ex. événement annulé, erreur de facturation"></label><button class="btn ghost danger" type="button" data-avoir>Créer l’avoir</button></details>` : ''}</section>
+          ${!fermee && peut('factures') ? `<details class="fa-avoir"><summary>Annuler cette facture (avoir)</summary><p class="muted sm">Une facture émise ne se supprime jamais (numérotation légale). L’avoir l’annule et porte son propre numéro.</p><label>Motif<input id="amotif" placeholder="ex. événement annulé, erreur de facturation"></label><button class="btn ghost danger" type="button" data-avoir>Créer l’avoir</button></details>` : ''}</section>
       </div>`);
   }
   factureFiche.after = id => {
@@ -1111,12 +1118,14 @@
   const CL = { q: '', page: 1, filtre: '' };
   async function clients(id, sub) {
     if (id === 'entreprises') return sub ? ficheEntreprise(sub) : entreprises();
+    if ((id === 'email' || id === 'sms') && !peut('diffusion')) return sansAcces();
+    if (id === 'importer' && !peut('fichiers')) return sansAcces();
     if (id === 'email' || id === 'sms') return diffusion(id);
     if (id === 'importer') return importerClients();
     if (id === 'appels') return appelsClients();
     if (id) return client(id);
     const r = await api(`${A}/clients?par=50&page=${CL.page}&filtre=${CL.filtre}&q=${encodeURIComponent(CL.q)}`);
-    return page('Clients', `${session.role === 'manager' ? '<a class="btn ghost" href="#/clients/importer">⬆ Importer des clients</a>' : ''}<a class="btn" href="#/clients/nouveau">+ Nouveau client</a>`, `
+    return page('Clients', `${peut('fichiers') ? '<a class="btn ghost" href="#/clients/importer">⬆ Importer des clients</a>' : ''}<a class="btn" href="#/clients/nouveau">+ Nouveau client</a>`, `
       ${ongletsClients('')}${bandeauClients('', r.tous, r.entreprises)}<div class="cl-bar"><input type="search" placeholder="🔍 Nom, prénom, téléphone, e-mail, société, ville, code postal…" data-q value="${esc(CL.q)}" aria-label="Rechercher un client">
         <div class="cl-f">${[['', `Tous (${r.tous.toLocaleString('fr-FR')})`], ['importes', `Fichier importé (${r.importes.toLocaleString('fr-FR')})`], ['autres', 'Site et back-office']].map(([k, l]) => `<button type="button" class="qs-own-b${CL.filtre === k ? ' on' : ''}" data-clf="${k}">${l}</button>`).join('')}</div></div>
       <div id="clTable">${tableClients(r)}</div>`);
@@ -1319,7 +1328,7 @@
     brancherAnnul();
   };
   /* ---------- Clients › « Envoyer un e-mail » / « Envoyer un SMS » : sélection multicritère, rédaction par l'IA, aperçu, essai, envoi ---------- */
-  const ongletsClients = cur => `<nav class="df-tabs" aria-label="Clients">${[['', '👥 Liste des clients'], ['email', '✉️ Envoyer un e-mail'], ['sms', '💬 Envoyer un SMS'], ['appels', '📞 Programmer un appel']].map(([k, l]) => `<a href="#/clients${k ? '/' + k : ''}" class="df-tab${cur === k ? ' on' : ''}"${cur === k ? ' aria-current="page"' : ''}>${l}</a>`).join('')}</nav>`;
+  const ongletsClients = cur => `<nav class="df-tabs" aria-label="Clients">${[['', '👥 Liste des clients'], ['email', '✉️ Envoyer un e-mail'], ['sms', '💬 Envoyer un SMS'], ['appels', '📞 Programmer un appel']].filter(([k]) => peut('diffusion') || !['email', 'sms'].includes(k)).map(([k, l]) => `<a href="#/clients${k ? '/' + k : ''}" class="df-tab${cur === k ? ' on' : ''}"${cur === k ? ' aria-current="page"' : ''}>${l}</a>`).join('')}</nav>`;
   const DFK = canal => 'mg_dif_' + canal;
   const MONTANTS = [[0, 'Peu importe'], [10000, 'Plus de 100 €'], [30000, 'Plus de 300 €'], [50000, 'Plus de 500 €'], [100000, 'Plus de 1 000 €'], [200000, 'Plus de 2 000 €'], [500000, 'Plus de 5 000 €'], ['autre', 'Autre montant…']];
   const IDF = ['75', '77', '78', '91', '92', '93', '94', '95'];
@@ -1936,12 +1945,12 @@
           <div class="ia-ligne"><button type="button" class="btn ghost sm ia-btn" data-desc-ia>✨ Améliorer la description avec l’IA</button><small class="muted">L’IA propose une version enrichie ; relisez-la puis enregistrez.</small></div>
           ${seoBloc('produit', p.seoTitre, p.seoDescription, ` data-id="${esc(p.id || p.slug)}"`)}
         </section>
-        <section class="box"><h2>Prix et quantités</h2>
-          <label>Prix TTC (€) <small>vide = « Sur devis »</small><input name="prix" value="${fromCents(p.prixCents)}" inputmode="decimal"></label>
+        <section class="box"><h2>Prix et quantités</h2>${peut('prix') ? '' : '<p class="muted sm">🔒 Les prix sont verrouillés pour votre compte (droit « Modifier les prix »).</p>'}
+          <label>Prix TTC (€) <small>vide = « Sur devis »</small><input name="prix" value="${fromCents(p.prixCents)}" inputmode="decimal"${peut('prix') ? '' : ' readonly class="verrou"'}></label>
           <div class="g2"><label>Par<select name="unite">${[...new Set([p.unite || '', ...UNITES])].map(u => `<option${u === (p.unite || '') ? ' selected' : ''}>${esc(u)}</option>`).join('')}</select></label>
           <label>Contenu <small>ex. « 4 brochettes », vide = rien d’affiché</small><input name="contenuPortion" value="${esc(p.contenuPortion || '')}" placeholder="4 brochettes"></label></div>
           <div class="g2"><label>Minimum<select name="min">${[...new Set([1, 2, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30, 40, 50, p.min || 1])].sort((a, b) => a - b).map(n => `<option${n === (p.min || 1) ? ' selected' : ''}>${n}</option>`).join('')}</select></label></div>
-          <div class="g2"><label>Coût de revient TTC (€) <small>pour la marge</small><input name="cout" value="${fromCents(p.coutCents)}" inputmode="decimal"></label>
+          <div class="g2"><label>Coût de revient TTC (€) <small>pour la marge</small><input name="cout" value="${fromCents(p.coutCents)}" inputmode="decimal"${peut('prix') ? '' : ' readonly class="verrou"'}></label>
           <label>TVA<select name="tva">${[5.5, 10, 20].map(t => `<option value="${t}"${+(p.tva ?? 10) === t ? ' selected' : ''}>${String(t).replace('.', ',')} %</option>`).join('')}</select></label></div>
           <label class="chk"><input type="checkbox" name="r_personnel" ${p.regles?.personnel ? 'checked' : ''}> Proposer le personnel de service</label>
           <label class="chk"><input type="checkbox" name="r_packs" ${p.regles?.packs ? 'checked' : ''}> Proposer les packs traiteur</label>
@@ -2183,12 +2192,13 @@
       <section class="box"><h2>Les incontournables</h2><p class="muted sm">Les prestations mises en avant sur l’accueil, dans l’ordre.</p><div class="incs">${[0, 1, 2, 3, 4, 5, 6, 7].map(i => `<select name="inc${i}"><option value="">—</option>${prods.filter(p => p.statut !== 'masque').sort((a, b) => a.titre.localeCompare(b.titre)).map(p => `<option value="${esc(p.slug)}"${(Ac.incontournables || [])[i] === p.slug ? ' selected' : ''}>${esc(titreTexte(p.titre))}</option>`).join('')}</select>`).join('')}</div></section>
       <section class="box"><h2>Photos des blocs</h2><div class="g2">${photoField('photoMaison', Ac.photoMaison, 'Bloc « La maison Magnolia »')}${photoField('photoCommande', Ac.photoCommande, 'Bloc « Comment commander »')}</div></section>
       <section class="box"><h2>Coordonnées</h2><div class="g2"><p class="muted sm span2">Téléphone, e-mail, adresse, SIRET, banque… : dans <a href="#/entreprise">🏢 Mon entreprise</a>.</p><label>Horaires<input name="horaires" value="${esc(R.horaires || '')}"></label><label>Slogan<input name="slogan" value="${esc(R.slogan || '')}"></label><label>Instagram<input name="instagram" value="${esc(R.instagram || '')}"></label><label>Note Google<input name="g_note" value="${esc(R.avisGoogle?.note || '')}"></label><label>Nombre d’avis Google<input name="g_nombre" value="${esc(R.avisGoogle?.nombre || '')}"></label></div><label>Mention en bas de page<input name="mentionPied" value="${esc(R.mentionPied || '')}"></label></section>
-      <section class="box"><h2>Tarifs communs (TTC)</h2><div class="g3"><label>Livraison (€ / km aller-retour)<input name="km" value="${fromCents(T.kmCents)}"></label><label>Livraison offerte dès (€ TTC de commande, 0 = jamais)<input name="offerte" inputmode="decimal" value="${fromCents(T.livraisonOfferteCents ?? 70000)}"></label><label>Personnel (€ / heure)<input name="ph" value="${fromCents(T.personnel?.heureCents)}"></label><label>Heures minimum<select name="pmin">${[2, 3, 4, 5, 6].map(n => `<option${(T.personnel?.minHeures || 4) === n ? ' selected' : ''}>${n}</option>`).join('')}</select></label><label>Petit pack (€ / pers.)<input name="pk0" value="${fromCents(T.packs?.[0]?.prixCents)}"></label><label>Grand pack (€ / pers.)<input name="pk1" value="${fromCents(T.packs?.[1]?.prixCents)}"></label><label>Acompte par défaut<select name="acompte">${[20, 30, 40, 50].map(n => `<option value="${n}"${(T.acomptePct ?? 50) === n ? ' selected' : ''}>${n} %</option>`).join('')}</select></label><label>Paiement total en dessous de (€ TTC)<input name="seuilAcompte" value="${fromCents(T.seuilAcompteCents ?? 80000)}" inputmode="decimal"></label></div></section>
+      <section class="box" data-tarifs><h2>Tarifs communs (TTC)${peut('prix') ? '' : ' <span class="pill">🔒 verrouillés pour votre compte</span>'}</h2><div class="g3"><label>Livraison (€ / km aller-retour)<input name="km" value="${fromCents(T.kmCents)}"></label><label>Livraison offerte dès (€ TTC de commande, 0 = jamais)<input name="offerte" inputmode="decimal" value="${fromCents(T.livraisonOfferteCents ?? 70000)}"></label><label>Personnel (€ / heure)<input name="ph" value="${fromCents(T.personnel?.heureCents)}"></label><label>Heures minimum<select name="pmin">${[2, 3, 4, 5, 6].map(n => `<option${(T.personnel?.minHeures || 4) === n ? ' selected' : ''}>${n}</option>`).join('')}</select></label><label>Petit pack (€ / pers.)<input name="pk0" value="${fromCents(T.packs?.[0]?.prixCents)}"></label><label>Grand pack (€ / pers.)<input name="pk1" value="${fromCents(T.packs?.[1]?.prixCents)}"></label><label>Acompte par défaut<select name="acompte">${[20, 30, 40, 50].map(n => `<option value="${n}"${(T.acomptePct ?? 50) === n ? ' selected' : ''}>${n} %</option>`).join('')}</select></label><label>Paiement total en dessous de (€ TTC)<input name="seuilAcompte" value="${fromCents(T.seuilAcompteCents ?? 80000)}" inputmode="decimal"></label></div></section>
       <section class="box"><h2>Publicité Google Ads</h2><p class="muted sm">Renseignez l’identifiant du compte (AW-…) et les libellés de conversion donnés par Google Ads. Chaque demande de devis envoyée est alors comptée, avec son montant estimé. Rien n’est mesuré sans l’accord du visiteur.</p><div class="g3"><label>Identifiant du compte<input name="ads_id" value="${esc(R.suivi?.googleAdsId || '')}" placeholder="AW-123456789"></label><label>Libellé « demande de devis »<input name="ads_dem" value="${esc(R.suivi?.conversionDemande || '')}"></label><label>Libellé « message de contact »<input name="ads_con" value="${esc(R.suivi?.conversionContact || '')}"></label></div></section>
       <section class="box"><h2>Redirections (bascule de l’ancien site)</h2><p class="muted sm">Une ligne par ancienne adresse : « /ancienne-page /nouvelle-page ». Une ancienne adresse finissant par * couvre toutes les pages qui commencent pareil. Google transfère alors le référencement (redirection 301).</p><textarea name="redirections" rows="5" class="mono" placeholder="/nos-buffets /saveurs-du-monde&#10;/blog/* /conseils">${esc(R.redirections || '')}</textarea></section>
       <div class="actions sticky"><button class="btn">Enregistrer</button><span class="muted" id="dirty"></span></div></form>`);
   }
   site.after = async () => {
+    if (!peut('prix')) $$('[data-tarifs] input, [data-tarifs] select').forEach(i => { i.readOnly = true; i.classList.add('verrou'); if (i.tagName === 'SELECT') i.addEventListener('mousedown', e => e.preventDefault()); });
     const form = $('#sf'); bindPhotos(form);
     const [rubs, lieuxL] = await Promise.all([cache.rubriques || api(A + '/rubriques'), api(A + '/lieux')]);
     const DEST = [['', 'Rechercher ce mot'], ['/boutique', 'La boutique (tout)'], ...rubs.filter(r => r.statut !== 'masque').sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0)).flatMap(r => [['/' + r.slug, 'Univers · ' + r.nom], ...(r.sous || []).map(x => [`/${r.slug}/${x.slug}`, '   ' + r.nom + ' › ' + x.nom])]),
@@ -2280,19 +2290,64 @@
   };
 
   /* ---------- équipe et activité ---------- */
+  /* droits détaillés : une case par droit, « Administrateur » coche tout (server/droits.js) */
+  const mdpProvisoire = () => { const L = 'abcdefghjkmnpqrstuvwxyz', C = '23456789'; const r = n => { const a = new Uint32Array(1); crypto.getRandomValues(a); return a[0] % n; }; let t = 'Magnolia-'; for (let i = 0; i < 4; i++) t += L[r(L.length)]; for (let i = 0; i < 4; i++) t += C[r(C.length)]; return t; };
+  const resumeDroits = (d, DR) => d.admin ? 'Peut tout faire' : DR.filter(x => x.k !== 'admin' && d[x.k]).map(x => x.nom).join(' · ') || 'Aucun droit : voit seulement ses dossiers';
+  function casesDroits(d, DR, { lecture = false, attr = '' } = {}) {
+    return `<div class="eq-droits"${attr}>${DR.map(x => {
+      const on = !!d[x.k], grise = lecture || (d.admin && x.k !== 'admin');
+      return `<label class="eq-droit${x.k === 'admin' ? ' eq-admin' : ''}${on ? ' on' : ''}"><input type="checkbox" data-droit="${x.k}"${on ? ' checked' : ''}${grise ? ' disabled' : ''}><span><b>${esc(x.nom)}</b><small>${esc(x.k === 'toutes' && !on ? 'Non coché : la personne ne voit que SES demandes, devis et factures, plus les nouvelles demandes du site que personne n’a encore prises.' : x.aide)}</small></span></label>`;
+    }).join('')}</div>`;
+  }
+  const lireDroits = box => Object.fromEntries($$('[data-droit]', box).map(i => [i.dataset.droit, i.checked]));
+  /* cocher « Administrateur » coche et grise le reste */
+  function lierCases(box) {
+    box.addEventListener('change', e => {
+      const i = e.target.closest('[data-droit]'); if (!i) return;
+      if (i.dataset.droit === 'admin') $$('[data-droit]', box).forEach(x => { if (x === i) return; if (i.checked) { x.dataset.memo = x.checked ? '1' : '0'; x.checked = true; } else x.checked = x.dataset.memo === '1'; x.disabled = i.checked; });
+      $$('.eq-droit', box).forEach(l => l.classList.toggle('on', $('input', l).checked));
+      box.dispatchEvent(new CustomEvent('droits'));
+    });
+  }
   async function equipe() {
-    const [users, j, env, R] = await Promise.all([api(A + '/actions/equipe'), api(A + '/actions/journal'), api(A + '/actions/envois'), api(A + '/site')]);
-    const al = R.alertes || {};
-    alertePers = Array.isArray(al.personnes) ? al.personnes.map(x => ({ ...x }))
-      : (() => { const m = String(al.emails || '').split(/[,;\s]+/).filter(Boolean), t = String(al.sms || '').split(/[,;]+/).map(x => x.trim()).filter(Boolean); return Array.from({ length: Math.max(m.length, t.length) }, (_, i) => ({ nom: '', tel: t[i] || '', email: m[i] || '' })); })();
-    const mgr = session.role === 'manager';
-    return page('Équipe & activité', '', `<div class="cols">
-      <section class="box"><h2>Comptes</h2><ul class="list">${users.map(u => `<li><span>${mgr ? `<input class="unom" data-unom="${u.id}" value="${esc(u.nom || '')}" placeholder="Prénom Nom" aria-label="Nom affiché">` : `<b>${esc(u.nom || u.email)}</b>`}<small>${esc(u.email)}</small></span><span>${mgr ? `<select data-role="${u.id}"><option value="collab">Collaborateur</option><option value="manager"${u.role === 'manager' ? ' selected' : ''}>Manager</option></select> <button class="lnk" data-dis="${u.id}" data-v="${u.desactive ? 0 : 1}">${u.desactive ? 'Réactiver' : 'Désactiver'}</button>` : `<span class="pill">${u.role === 'manager' ? 'Manager' : 'Collaborateur'}</span>`}</span></li>`).join('')}</ul>
-        ${mgr ? `<form id="nu"><h3>Ajouter un membre</h3><div class="g2"><label>Nom<input name="nom" required></label><label>E-mail<input type="email" name="email" required></label><label>Mot de passe provisoire<input name="password" minlength="10" required></label><label>Rôle<select name="role"><option value="collab">Collaborateur</option><option value="manager">Manager</option></select></label></div><button class="btn">Créer le compte</button></form>` : ''}
+    const gere = peut('equipe');
+    const [users, conf, j, env, R] = await Promise.all([api(A + '/actions/equipe'), api(A + '/actions/droits'), gere ? api(A + '/actions/journal') : null, gere ? api(A + '/actions/envois') : null, gere ? api(A + '/site') : null]);
+    cache.droitsConf = conf; cache.equipeUsers = users;
+    const DR = conf.droits;
+    const moi = users.find(u => u.email === session.email);
+    if (gere) {
+      const al = R.alertes || {};
+      alertePers = Array.isArray(al.personnes) ? al.personnes.map(x => ({ ...x }))
+        : (() => { const m = String(al.emails || '').split(/[,;\s]+/).filter(Boolean), t = String(al.sms || '').split(/[,;]+/).map(x => x.trim()).filter(Boolean); return Array.from({ length: Math.max(m.length, t.length) }, (_, i) => ({ nom: '', tel: t[i] || '', email: m[i] || '' })); })();
+    }
+    const carte = u => {
+      const estMoi = u.email === session.email, bloque = estMoi || (u.droits.admin && !peut('admin'));
+      const badge = u.desactive ? '<span class="pill eq-off">Désactivé</span>' : u.droits.admin ? '<span class="pill eq-pill-admin">★ Administrateur</span>' : `<span class="pill eq-pill">${DR.filter(x => x.k !== 'admin' && u.droits[x.k]).length} droit(s)</span>`;
+      return `<li class="eq-carte${u.desactive ? ' off' : ''}" data-uid="${u.id}">
+        <div class="eq-tete"><span class="eq-av">${esc(initiales(u.nom || u.email))}</span>
+          <div class="eq-id">${gere && !bloque ? `<input class="unom" data-unom="${u.id}" value="${esc(u.nom || '')}" placeholder="Prénom Nom" aria-label="Nom affiché">` : `<b>${esc(u.nom || u.email)}</b>`}<small>${esc(u.email)}${estMoi ? ' · c’est vous' : ''}</small></div>
+          <div class="eq-bad">${badge}</div></div>
+        <p class="eq-res">${esc(resumeDroits(u.droits, DR))}</p>
+        ${gere ? `<div class="row eq-act"><button type="button" class="btn ghost sm" data-ouvrir="${u.id}">🔑 ${bloque ? 'Voir les droits' : 'Modifier les droits'}</button>${!bloque ? `<button type="button" class="lnk" data-dis="${u.id}" data-v="${u.desactive ? 0 : 1}">${u.desactive ? 'Réactiver le compte' : 'Désactiver le compte'}</button>` : ''}</div>
+        <div class="eq-panneau" data-pan="${u.id}" hidden>${bloque ? `<p class="muted sm">${estMoi ? 'Vous ne pouvez pas changer vos propres droits : demandez-le à un autre administrateur.' : 'Seul un Administrateur peut changer les droits d’un Administrateur.'}</p>` : ''}${casesDroits(u.droits, DR, { lecture: bloque })}${bloque ? '' : `<div class="row"><button type="button" class="btn sm" data-savedr="${u.id}">Enregistrer les droits</button><span class="muted sm" data-drmsg="${u.id}"></span></div>`}</div>` : ''}
+      </li>`;
+    };
+    const modeles = Object.entries(conf.modeles).map(([k, m]) => `<button type="button" class="chip-mod" data-modele="${k}">${esc(m.nom)}</button>`).join('') + '<button type="button" class="chip-mod" data-modele="">Sur mesure</button>';
+    const nouveau = gere ? `<section class="box eq-nouveau" id="eqNouveau" hidden><div class="hc-th"><h2>👤 Ajouter une personne</h2><button type="button" class="lnk" data-fermer>Fermer</button></div>
+      <form id="nu"><div class="g2"><label>Prénom et nom<input name="nom" required placeholder="ex. Romain GOUJON" data-nomclient></label><label>E-mail<input type="email" name="email" required placeholder="prenom@magnoliatraiteur.fr"></label>
+        <label>Mot de passe provisoire <small>(la personne le changera)</small><span class="eq-mdp"><input name="password" minlength="10" required value="${esc(mdpProvisoire())}"><button type="button" class="btn ghost sm" data-mdp>🔄 Autre</button></span></label>
+        <label class="chk eq-mail"><input type="checkbox" name="envoyerAcces" checked> Lui envoyer ses accès par e-mail (lien du back-office, e-mail et mot de passe provisoire)</label></div>
+        <h3>Son rôle</h3><p class="muted sm">Choisissez un modèle pour cocher les cases d’un coup, puis ajustez case par case.</p><div class="eq-mods">${modeles}</div>
+        <div data-casesnu>${casesDroits(conf.modeles.commercial.droits, DR)}</div>
+        <div class="row"><button class="btn">Créer le compte</button><button type="button" class="btn ghost" data-fermer>Annuler</button></div></form></section>` : '';
+    return page('Équipe & activité', gere ? '<button type="button" class="btn eq-add" data-nouveau>+ Ajouter une personne</button>' : '', `${nouveau}
+      ${gere ? `<section class="box"><h2>Les comptes de l’équipe <small class="muted">(${users.filter(u => !u.desactive).length} actif${users.filter(u => !u.desactive).length > 1 ? 's' : ''})</small></h2><p class="muted sm">Chaque personne a ses propres cases. Un menu non autorisé disparaît de son back-office, et le serveur refuse l’action même si on essaie autrement.</p><ul class="eq-liste">${users.map(carte).join('')}</ul></section>` : ''}
+      <div class="cols">
+      <section class="box"><h2>Mon compte</h2>${moi ? `<p class="eq-res"><b>Vos droits :</b> ${esc(resumeDroits(moi.droits, DR))}</p>` : ''}
         <form id="pw"><h3>Mon mot de passe</h3><div class="g2"><label>Actuel<input type="password" name="current" required></label><label>Nouveau (10 caractères min.)<input type="password" name="password" minlength="10" required></label></div><button class="btn ghost">Changer</button></form></section>
-      <section class="box"><h2>Journal d’activité <span class="pill ${j.intact ? 'd-accepte' : 'd-refuse'}">${j.intact ? 'intact' : 'ALTÉRÉ'}</span></h2><p class="muted sm">Chaque action est enregistrée et chaînée : une modification du journal se verrait.</p><ul class="journal">${j.lignes.map(l => `<li><time>${dateH(l.at)}</time> <b>${esc(l.who)}</b> ${esc(l.op)} <small>${esc(l.resume || l.path)}</small></li>`).join('')}</ul></section></div>
-      <section class="box"><h2>Alertes de l’équipe</h2><p class="muted sm">Ces personnes sont prévenues à chaque nouvelle demande (e-mail et SMS) et reçoivent le récapitulatif des dossiers sans action depuis 24 h.</p><div id="alp"></div><div class="row"><button type="button" class="btn ghost sm" data-addal>+ Ajouter une personne</button><button type="button" class="btn sm" data-saveal>Enregistrer les alertes</button></div></section>
-      <section class="box"><h2>E-mails et SMS envoyés ${env.live ? '' : '<span class="pill d-envoye">mode test : Brevo non branché</span>'}</h2><div class="row"><input type="tel" data-testtel placeholder="Portable pour un SMS d’essai (sinon : ceux des alertes)" style="max-width:320px"><button class="btn ghost sm" data-test>Envoyer un essai</button></div><ul class="journal">${env.envois.map(e => `<li><time>${dateH(e.at)}</time> ${e.kind === 'sms' ? 'SMS' : 'E-mail'} → <b>${esc(e.kind === 'sms' ? e.payload.recipient : e.payload.to?.[0]?.email)}</b> <small>${esc(e.kind === 'sms' ? e.payload.content : e.payload.subject)}</small>${e.result?.error ? ` <span class="pill d-refuse">refusé : ${esc(e.result.error)}</span>` : e.live && e.result && e.result !== 'test' ? ' <span class="pill d-accepte">accepté par Brevo</span>' : ''}</li>`).join('') || '<li class="muted">Aucun envoi.</li>'}</ul></section>`);
+      ${gere ? `<section class="box"><h2>Journal d’activité <span class="pill ${j.intact ? 'd-accepte' : 'd-refuse'}">${j.intact ? 'intact' : 'ALTÉRÉ'}</span></h2><p class="muted sm">Chaque action est enregistrée et chaînée : une modification du journal se verrait.</p><ul class="journal">${j.lignes.map(l => `<li><time>${dateH(l.at)}</time> <b>${esc(l.who)}</b> ${esc(l.op)} <small>${esc(l.resume || l.path)}</small></li>`).join('')}</ul></section>` : ''}</div>
+      ${gere ? `<section class="box"><h2>Alertes de l’équipe</h2><p class="muted sm">Ces personnes sont prévenues à chaque nouvelle demande (e-mail et SMS) et reçoivent le récapitulatif des dossiers sans action depuis 24 h.</p><div id="alp"></div><div class="row"><button type="button" class="btn ghost sm" data-addal>+ Ajouter une personne à prévenir</button><button type="button" class="btn sm" data-saveal>Enregistrer les alertes</button></div></section>
+      <section class="box"><h2>E-mails et SMS envoyés ${env.live ? '' : '<span class="pill d-envoye">mode test : Brevo non branché</span>'}</h2><div class="row"><input type="tel" data-testtel placeholder="Portable pour un SMS d’essai (sinon : ceux des alertes)" style="max-width:320px"><button class="btn ghost sm" data-test>Envoyer un essai</button></div><ul class="journal">${env.envois.map(e => `<li><time>${dateH(e.at)}</time> ${e.kind === 'sms' ? 'SMS' : 'E-mail'} → <b>${esc(e.kind === 'sms' ? e.payload.recipient : e.payload.to?.[0]?.email)}</b> <small>${esc(e.kind === 'sms' ? e.payload.content : e.payload.subject)}</small>${e.result?.error ? ` <span class="pill d-refuse">refusé : ${esc(e.result.error)}</span>` : e.live && e.result && e.result !== 'test' ? ' <span class="pill d-accepte">accepté par Brevo</span>' : ''}</li>`).join('') || '<li class="muted">Aucun envoi.</li>'}</ul></section>` : ''}`);
   }
   const essaiEnvoi = async () => { try {
     const r = await api(A + '/actions/envoi-test', { method: 'POST', body: { tel: $('[data-testtel]').value } });
@@ -2308,6 +2363,9 @@
   const drawAl = () => { $('#alp').innerHTML = alertePers.map((x, i) => `<div class="g3 alp" data-i="${i}"><label>Nom<input data-k="nom" value="${esc(x.nom || '')}" placeholder="Prénom Nom"></label><label>Portable (SMS)<input type="tel" data-k="tel" value="${esc(x.tel || '')}" placeholder="06 12 34 56 78"></label><label>E-mail<input type="email" data-k="email" value="${esc(x.email || '')}"></label><button type="button" class="lnk" data-delal="${i}">Retirer</button></div>`).join('') || '<p class="muted sm">Personne n’est prévenu pour l’instant.</p>'; };
   const lireAl = () => { $$('#alp .alp').forEach(row => { const x = alertePers[+row.dataset.i]; row.querySelectorAll('[data-k]').forEach(inp => { x[inp.dataset.k] = inp.value.trim(); }); }); return alertePers; };
   equipe.after = () => {
+    $('#pw').addEventListener('submit', async e => { e.preventDefault(); try { await api('/api/auth/password', { method: 'POST', body: Object.fromEntries(new FormData(e.target)) }); toast('Mot de passe changé.'); e.target.reset(); } catch (err) { toast(err.message, true); } });
+    if (!peut('equipe')) return;
+    const DR = cache.droitsConf.droits;
     drawAl();
     $('[data-addal]')?.addEventListener('click', () => { lireAl(); alertePers.push({ nom: '', tel: '', email: '' }); drawAl(); $$('#alp [data-k="nom"]').pop()?.focus(); });
     $('#alp')?.addEventListener('click', e => { const b = e.target.closest('[data-delal]'); if (!b) return; lireAl(); alertePers.splice(+b.dataset.delal, 1); drawAl(); });
@@ -2317,21 +2375,45 @@
       catch (err) { toast(err.message, true); }
     });
     $('[data-test]')?.addEventListener('click', essaiEnvoi);
-    $('#nu')?.addEventListener('submit', async e => { e.preventDefault(); try { await api(A + '/actions/equipe', { method: 'POST', body: Object.fromEntries(new FormData(e.target)) }); toast('Compte créé.'); render(); } catch (err) { toast(err.message, true); } });
-    $('#pw').addEventListener('submit', async e => { e.preventDefault(); try { await api('/api/auth/password', { method: 'POST', body: Object.fromEntries(new FormData(e.target)) }); toast('Mot de passe changé.'); e.target.reset(); } catch (err) { toast(err.message, true); } });
+    /* « + Ajouter une personne » */
+    const box = $('#eqNouveau'), cases = $('[data-casesnu]');
+    const montrer = v => { box.hidden = !v; if (v) { box.scrollIntoView({ behavior: 'smooth', block: 'start' }); $('input[name=nom]', box).focus(); } };
+    $('[data-nouveau]').addEventListener('click', () => montrer(true));
+    $$('[data-fermer]', box).forEach(b => b.addEventListener('click', () => montrer(false)));
+    $('[data-mdp]').addEventListener('click', () => { $('input[name=password]', box).value = mdpProvisoire(); });
+    lierCases(cases);
+    const choisir = k => { $$('.chip-mod', box).forEach(c => c.classList.toggle('on', c.dataset.modele === k)); if (k) { cases.innerHTML = casesDroits(cache.droitsConf.modeles[k].droits, DR); } };
+    choisir('commercial');
+    $$('.chip-mod', box).forEach(c => c.addEventListener('click', () => choisir(c.dataset.modele)));
+    cases.addEventListener('droits', () => $$('.chip-mod', box).forEach(c => c.classList.toggle('on', c.dataset.modele === '')));
+    $('#nu').addEventListener('submit', async e => {
+      e.preventDefault();
+      const f = Object.fromEntries(new FormData(e.target));
+      try {
+        const r = await api(A + '/actions/equipe', { method: 'POST', body: { nom: f.nom, email: f.email, password: f.password, envoyerAcces: !!f.envoyerAcces, droits: lireDroits(cases) } });
+        toast(`Compte créé pour ${f.nom.trim()}.` + (r.mail ? (r.mail.erreur ? ' L’e-mail d’accès n’est pas parti : ' + r.mail.erreur : r.mail.live ? ' Ses accès lui ont été envoyés par e-mail.' : ' (Mode test : e-mail noté, rien n’est parti.)') : ' Donnez-lui son mot de passe provisoire : ' + f.password), !!r.mail?.erreur);
+        render();
+      } catch (err) { toast(err.message, true); }
+    });
+    /* droits d'un compte existant */
+    $$('[data-ouvrir]').forEach(b => b.addEventListener('click', () => { const p = $(`[data-pan="${b.dataset.ouvrir}"]`); p.hidden = !p.hidden; b.classList.toggle('on', !p.hidden); }));
+    $$('.eq-panneau').forEach(p => { const d = $('.eq-droits', p); if (d) lierCases(d); });
+    $$('[data-savedr]').forEach(b => b.addEventListener('click', async () => {
+      const id = b.dataset.savedr, d = lireDroits($(`[data-pan="${id}"]`));
+      try { await api(`${A}/actions/equipe/${id}`, { method: 'PATCH', body: { droits: d } }); toast('Droits enregistrés : ils s’appliquent dès son prochain clic.'); render(); } catch (err) { toast(err.message, true); }
+    }));
     $$('[data-unom]').forEach(i => i.addEventListener('change', async () => { try { await api(`${A}/actions/equipe/${i.dataset.unom}`, { method: 'PATCH', body: { nom: i.value } }); toast('Nom enregistré : ' + i.value.trim()); session = null; render(); } catch (err) { toast(err.message, true); render(); } }));
-    $$('[data-role]').forEach(s => s.addEventListener('change', async () => { try { await api(`${A}/actions/equipe/${s.dataset.role}`, { method: 'PATCH', body: { role: s.value } }); toast('Rôle modifié.'); } catch (err) { toast(err.message, true); render(); } }));
-    $$('[data-dis]').forEach(b => b.addEventListener('click', async () => { try { await api(`${A}/actions/equipe/${b.dataset.dis}`, { method: 'PATCH', body: { desactive: b.dataset.v === '1' } }); render(); } catch (err) { toast(err.message, true); } }));
+    $$('[data-dis]').forEach(b => b.addEventListener('click', async () => { if (b.dataset.v === '1' && !confirm('Désactiver ce compte ? La personne est déconnectée tout de suite et ne peut plus se connecter (vous pourrez le réactiver).')) return; try { await api(`${A}/actions/equipe/${b.dataset.dis}`, { method: 'PATCH', body: { desactive: b.dataset.v === '1' } }); render(); } catch (err) { toast(err.message, true); } }));
   };
 
   /* ---------- outils ---------- */
   async function outils() {
-    const [mods, pages] = await Promise.all([api(A + '/modeles'), api(A + '/pages')]);
-    return page('Outils', '', `<section class="box"><h2>Excel</h2><p class="muted sm">Les fichiers s’ouvrent directement dans Excel. Pour changer beaucoup de prix d’un coup : exportez le catalogue, modifiez les colonnes prix, minimum, coût, TVA, statut ou maison, enregistrez en CSV, puis renvoyez le fichier. Rien n’est créé ni supprimé, et un prix sous le coût est refusé.</p>
-      <div class="row">${[['catalogue', 'Catalogue'], ['demandes', 'Demandes'], ['clients', 'Clients'], ['devis', 'Devis'], ['factures', 'Factures'], ['reglements', 'Règlements']].map(([k, l]) => `<a class="btn ghost sm" href="${A}/actions/export/${k}">⬇ ${l}</a>`).join('')}${session.role === 'manager' ? '<label class="btn sm up">⬆ Mettre à jour le catalogue<input type="file" accept=".csv,text/csv" hidden data-importcat></label>' : ''}</div><div id="impres"></div></section>
-      <section class="box"><h2>Modèles de relance</h2><p class="muted sm">Variables : {prenom} {nom} {numero} {evenement} {date} {lien} {montant}</p>${mods.map(m => `<form class="mod" data-id="${m.id}"><div class="g3"><label>Nom<input name="nom" value="${esc(m.nom)}"></label><label>Canal<select name="canal"><option value="email">E-mail</option><option value="sms"${m.canal === 'sms' ? ' selected' : ''}>SMS</option></select></label><label>Sujet<input name="sujet" value="${esc(m.sujet || '')}"></label></div><textarea name="texte" rows="5">${esc(m.texte)}</textarea><button class="btn ghost sm">Enregistrer</button></form>`).join('')}<button class="btn ghost" data-newm>+ Nouveau modèle</button></section>
-      <section class="box"><h2>Pages administratives</h2><p class="muted sm">CGV, mentions légales, confidentialité, allergènes… Une ligne courte devient un intertitre.</p>${pages.map(p => `<details><summary>${esc(p.titre)} <small class="muted">${esc(p.url)}</small></summary><form class="pg" data-id="${p.id}"><label>Titre<input name="titre" value="${esc(p.titre)}"></label><textarea name="texte" rows="14">${esc(p.texte)}</textarea><button class="btn ghost sm">Enregistrer</button></form></details>`).join('')}</section>
-      ${session.role === 'manager' ? `<section class="box"><h2>Reprendre le catalogue du brouillon</h2><p class="muted sm">Remplace les prestations, rubriques et lieux par ceux du brouillon (data/brouillon.json). Les demandes, devis, factures et clients ne sont pas touchés. À n’utiliser qu’avant l’ouverture.</p><button class="btn ghost" data-reimp>Réimporter le brouillon</button></section>` : ''}`);
+    const [mods, pages] = peut('outils') ? await Promise.all([api(A + '/modeles'), api(A + '/pages')]) : [[], []];
+    return page('Outils', '', `${peut('fichiers') ? `<section class="box"><h2>Excel</h2><p class="muted sm">Les fichiers s’ouvrent directement dans Excel. Pour changer beaucoup de prix d’un coup : exportez le catalogue, modifiez les colonnes prix, minimum, coût, TVA, statut ou maison, enregistrez en CSV, puis renvoyez le fichier. Rien n’est créé ni supprimé, et un prix sous le coût est refusé.</p>
+      <div class="row">${[['catalogue', 'Catalogue'], ['demandes', 'Demandes'], ['clients', 'Clients'], ['devis', 'Devis'], ['factures', 'Factures'], ['reglements', 'Règlements']].filter(([k]) => peut('factures') || !['factures', 'reglements'].includes(k)).map(([k, l]) => `<a class="btn ghost sm" href="${A}/actions/export/${k}">⬇ ${l}</a>`).join('')}${peut('prix') ? '<label class="btn sm up">⬆ Mettre à jour le catalogue<input type="file" accept=".csv,text/csv" hidden data-importcat></label>' : ''}</div><div id="impres"></div></section>` : ''}
+      ${peut('outils') ? `<section class="box"><h2>Modèles de relance</h2><p class="muted sm">Variables : {prenom} {nom} {numero} {evenement} {date} {lien} {montant}</p>${mods.map(m => `<form class="mod" data-id="${m.id}"><div class="g3"><label>Nom<input name="nom" value="${esc(m.nom)}"></label><label>Canal<select name="canal"><option value="email">E-mail</option><option value="sms"${m.canal === 'sms' ? ' selected' : ''}>SMS</option></select></label><label>Sujet<input name="sujet" value="${esc(m.sujet || '')}"></label></div><textarea name="texte" rows="5">${esc(m.texte)}</textarea><button class="btn ghost sm">Enregistrer</button></form>`).join('')}<button class="btn ghost" data-newm>+ Nouveau modèle</button></section>
+      <section class="box"><h2>Pages administratives</h2><p class="muted sm">CGV, mentions légales, confidentialité, allergènes… Une ligne courte devient un intertitre.</p>${pages.map(p => `<details><summary>${esc(p.titre)} <small class="muted">${esc(p.url)}</small></summary><form class="pg" data-id="${p.id}"><label>Titre<input name="titre" value="${esc(p.titre)}"></label><textarea name="texte" rows="14">${esc(p.texte)}</textarea><button class="btn ghost sm">Enregistrer</button></form></details>`).join('')}</section>` : ''}
+      ${peut('admin') ? `<section class="box"><h2>Reprendre le catalogue du brouillon</h2><p class="muted sm">Remplace les prestations, rubriques et lieux par ceux du brouillon (data/brouillon.json). Les demandes, devis, factures et clients ne sont pas touchés. À n’utiliser qu’avant l’ouverture.</p><button class="btn ghost" data-reimp>Réimporter le brouillon</button></section>` : ''}`);
   }
   /* lecture d'un CSV « ; » ou « , » (Excel) avec guillemets */
   function lireCsv(txt) {
@@ -2360,7 +2442,7 @@
     });
     $$('form.mod').forEach(f => f.addEventListener('submit', async e => { e.preventDefault(); await api(`${A}/modeles/${f.dataset.id}`, { method: 'PUT', body: Object.fromEntries(new FormData(f)) }); toast('Modèle enregistré.'); }));
     $$('form.pg').forEach(f => f.addEventListener('submit', async e => { e.preventDefault(); const p = await api(`${A}/pages/${f.dataset.id}`); await api(`${A}/pages/${f.dataset.id}`, { method: 'PUT', body: { ...p, ...Object.fromEntries(new FormData(f)) } }); toast('Page enregistrée.'); }));
-    $('[data-newm]').addEventListener('click', async () => { await api(A + '/modeles', { method: 'POST', body: { nom: 'Nouveau modèle', canal: 'email', sujet: '', texte: 'Bonjour {prenom},\n\n' } }); render(); });
+    $('[data-newm]')?.addEventListener('click', async () => { await api(A + '/modeles', { method: 'POST', body: { nom: 'Nouveau modèle', canal: 'email', sujet: '', texte: 'Bonjour {prenom},\n\n' } }); render(); });
     $('[data-reimp]')?.addEventListener('click', async () => { if (!confirm('Remplacer tout le catalogue par celui du brouillon ?')) return; const r = await api(A + '/actions/reimporter', { method: 'POST' }); toast(`Réimporté : ${r.produits} prestations.`); });
   };
 

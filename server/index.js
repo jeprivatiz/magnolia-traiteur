@@ -23,6 +23,7 @@ const TXT = require('./textes');
 const DIF = require('./diffusion');
 const FAC = require('./factures');
 const { creerEntreprises } = require('./entreprises');
+const DR = require('./droits');
 
 const ROOT = path.join(__dirname, '..');
 const PUBLIC = path.join(ROOT, 'public');
@@ -80,13 +81,14 @@ async function createApp(opts = {}) {
     const idx = await store.get('_useremail/' + sha(String(email).trim().toLowerCase()));
     return idx ? { id: idx.id, ...(await store.get('_users/' + idx.id)) } : null;
   }
-  async function createUser({ email, name, role, password }) {
+  async function createUser({ email, name, role, password, droits }) {
     email = String(email || '').trim().toLowerCase();
     if (!isEmail(email)) throw Object.assign(new Error('E-mail invalide.'), { status: 400 });
     if (await findUserByEmail(email)) throw Object.assign(new Error('Ce compte existe déjà.'), { status: 409 });
     if (String(password || '').length < 10) throw Object.assign(new Error('Mot de passe : 10 caractères minimum.'), { status: 400 });
     const id = 'u_' + rid(9);
-    await store.set('_users/' + id, { email, name: String(name || '').trim(), role: role === 'manager' ? 'manager' : 'collab', passHash: await bcrypt.hash(password, 11), createdAt: new Date().toISOString(), disabled: false });
+    const d = droits ? DR.nettoyer(droits) : null;
+    await store.set('_users/' + id, { email, name: String(name || '').trim(), role: d ? DR.roleDe(d) : role === 'manager' ? 'manager' : 'collab', ...(d ? { droits: d } : {}), passHash: await bcrypt.hash(password, 11), createdAt: new Date().toISOString(), disabled: false });
     await store.set('_useremail/' + sha(email), { id });
     return id;
   }
@@ -291,7 +293,7 @@ async function createApp(opts = {}) {
         const s = await store.get('_sessions/' + sha(tok));
         if (s && s.expires > Date.now()) {
           const u = await store.get('_users/' + s.userId);
-          if (u && !u.disabled) req.ctx = { uid: s.userId, role: u.role, email: u.email, name: u.name, session: sha(tok) };
+          if (u && !u.disabled) req.ctx = { uid: s.userId, role: u.role, email: u.email, name: u.name, session: sha(tok), droits: DR.droitsDe(u) };
         }
       }
       const ct = req.cookies.mg_c;
@@ -304,7 +306,10 @@ async function createApp(opts = {}) {
   const sameSite = (req, res, next) => (req.get('x-mg') === '1' ? next() : res.status(403).json({ error: 'Requête refusée.' }));
   const isTeam = req => req.ctx.role === 'manager' || req.ctx.role === 'collab';
   const team = (req, res, next) => (isTeam(req) ? next() : res.status(401).json({ error: 'Connexion requise.' }));
-  const manager = (req, res, next) => (req.ctx.role === 'manager' ? next() : res.status(403).json({ error: 'Réservé au Manager.' }));
+  /* droits détaillés (server/droits.js) : peut('prix'), peut('fichiers')… ; « Administrateur » a tout */
+  const nomDroit = k => (DR.DROITS.find(d => d.k === k) || {}).nom || k;
+  const refus = (res, k) => res.status(403).json({ error: `Vous n’avez pas le droit « ${nomDroit(k)} ». Demandez-le à un administrateur (Équipe & activité).` });
+  const peut = (...ks) => (req, res, next) => { const k = ks.find(x => !req.ctx.droits?.[x]); return k ? refus(res, k) : next(); };
   const wrap = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
   const publicWrites = limiter(+(env.PUBLIC_WRITE_LIMIT || 20), 10 * 60e3);
   const loginTries = limiter(10, 15 * 60e3);
@@ -637,7 +642,7 @@ async function createApp(opts = {}) {
     audit({ uid: r.userId, name: u.name }, 'mot de passe réinitialisé', '');
     res.json({ ok: true });
   }));
-  app.get('/api/session', (req, res) => res.set('Cache-Control', 'no-store').json({ connecte: isTeam(req), role: req.ctx.role, nom: req.ctx.name || '', email: req.ctx.email || '' }));
+  app.get('/api/session', (req, res) => res.set('Cache-Control', 'no-store').json({ connecte: isTeam(req), role: req.ctx.role, nom: req.ctx.name || '', email: req.ctx.email || '', droits: req.ctx.droits || {} }));
   app.post('/api/auth/password', sameSite, json, team, wrap(async (req, res) => {
     const u = await store.get('_users/' + req.ctx.uid);
     if (!u || !(await bcrypt.compare(String(req.body?.current || ''), u.passHash))) return res.status(401).json({ error: 'Mot de passe actuel incorrect.' });
@@ -650,6 +655,50 @@ async function createApp(opts = {}) {
   /* ---------- back-office : API ---------- */
   const A = express.Router();
   A.use(team);
+  /* ---------- « voir seulement ses opportunités » : demandes, devis et factures dont on est le commercial,
+     plus celles sans commercial (nouvelles demandes du site pas encore prises en charge) ---------- */
+  const nomCle = x => String((typeof x === 'string' ? x : x?.nom) || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+  async function visibles(req) {
+    if (req.ctx.droits?.toutes) return null;
+    if (req._vis) return req._vis;
+    const [dem, dv, fa, R] = await Promise.all([store.list('demandes'), store.list('devis'), store.list('factures'), store.get('site/reglages')]);
+    const D = dem.map(x => ({ ...x.data, id: x.data?.id || x.id })), V = dv.map(x => ({ ...x.data, id: x.data?.id || x.id })), F = fa.map(x => ({ ...x.data, id: x.data?.id || x.id }));
+    const moi = new Set([nomCle(req.ctx.name)]);
+    for (const p of (R || {}).alertes?.personnes || []) if (p?.nom && p.email && String(p.email).trim().toLowerCase() === String(req.ctx.email || '').toLowerCase()) moi.add(nomCle(p.nom));
+    moi.delete('');
+    const demById = new Map(D.map(d => [d.id, d])), devById = new Map(V.map(v => [v.id, v]));
+    const devisDe = id => V.filter(v => v.demandeId === id).sort((x, y) => String(y.createdAt).localeCompare(String(x.createdAt)));
+    const comDem = d => { const l = devisDe(d.id); const m = l.find(x => x.statut === 'accepte') || l.find(x => x.statut === 'envoye') || l[0]; return nomCle(d.commercial) || nomCle(m?.commercial); };
+    const comDevis = v => nomCle(v.commercial) || (v.demandeId && demById.has(v.demandeId) ? nomCle(demById.get(v.demandeId).commercial) : '');
+    const comFac = f => nomCle(f.commercial) || (f.devisId && devById.has(f.devisId) ? comDevis(devById.get(f.devisId)) : '');
+    const ok = n => !n || moi.has(n);
+    req._vis = { moi, demandes: new Set(D.filter(d => ok(comDem(d))).map(d => d.id)), devis: new Set(V.filter(v => ok(comDevis(v))).map(v => v.id)), factures: new Set(F.filter(f => ok(comFac(f))).map(f => f.id)) };
+    return req._vis;
+  }
+  const OPP = ['demandes', 'devis', 'factures'];
+  const voitDoc = async (req, coll, id) => { const v = OPP.includes(coll) ? await visibles(req) : null; return !v || v[coll].has(id); };
+  /* droits par écran, et opportunités des autres commerciaux introuvables par leur adresse */
+  const ROUTES_DOC = [
+    [/^\/actions\/(?:envoyer-devis|relancer|dupliquer-devis|facture-depuis-devis|reglement-devis)\/([^/]+)/, 'devis'],
+    [/^\/devis\/([^/]+)\/apercu/, 'devis'],
+    [/^\/factures\/([^/]+)\/apercu/, 'factures'],
+    [/^\/actions\/(?:facture|facture-reglement|facture-reglement-retirer|facture-payee|envoyer-facture|relancer-facture|archiver-facture|avoir-facture)\/([^/]+)/, 'factures'],
+    [/^\/actions\/devis-depuis-demande\/([^/]+)/, 'demandes'],
+  ];
+  A.use(wrap(async (req, res, next) => {
+    const p = req.path, dr = req.ctx.droits || {};
+    if (/^\/(?:factures(?:\/|$)|actions\/(?:factures$|facture\/|facture-|envoyer-facture|relancer-facture|archiver-facture|avoir-facture|reglement-devis))/.test(p) && !dr.factures) return refus(res, 'factures');
+    if (/^\/(?:diffusion\/|ia\/diffusion-)/.test(p) && !dr.diffusion) return refus(res, 'diffusion');
+    if (/^\/ia\/(?:seo|texte-produit)$/.test(p) && !dr.produits) return refus(res, 'produits');
+    if (/^\/actions\/(?:journal|envois)$/.test(p) && !dr.equipe) return refus(res, 'equipe');
+    if (req.method !== 'GET') {
+      const coll = p.split('/')[1];
+      const besoin = { produits: 'produits', rubriques: 'produits', lieux: 'produits', avis: 'site', modeles: 'outils', pages: 'outils' }[coll];
+      if (besoin && !dr[besoin]) return refus(res, besoin);
+    }
+    for (const [re, coll] of ROUTES_DOC) { const m = p.match(re); if (m && !(await voitDoc(req, coll, decodeURIComponent(m[1])))) return res.status(404).json({ error: 'Introuvable : ce dossier est suivi par un autre commercial.' }); }
+    next();
+  }));
   /* tableau de bord : ?com=Nom filtre tout sur un commercial (« — » = sans commercial), comme le sélecteur du Suivi client */
   A.get('/stats', wrap(async (req, res) => {
     const [dem, dv, fa, us, rdv0, reg] = await Promise.all([store.list('demandes'), store.list('devis'), store.list('factures'), store.list('_users'), store.list('rdv'), store.get('site/reglages')]);
@@ -663,9 +712,10 @@ async function createApp(opts = {}) {
     const comDevis = v => nomDe(v.commercial) || (v.demandeId && demById.has(v.demandeId) ? nomDe(demById.get(v.demandeId).commercial) : '');
     const devById = new Map(devisTous.map(v => [v.id, v]));
     const comFac = f => nomDe(f.commercial) || (f.devisId && devById.has(f.devisId) ? comDevis(devById.get(f.devisId)) : '');
-    const com = String(req.query.com || '').trim();
+    const vis = await visibles(req); /* « seulement ses opportunités » : le tableau de bord ne montre que les siennes */
+    const com = vis ? '' : String(req.query.com || '').trim();
     const ok = n => !com || (com === '—' ? !n : n === com);
-    const demandes = demandesTous.filter(d => ok(comDem(d))), devis = devisTous.filter(v => ok(comDevis(v))), factures = facturesTous.filter(f => ok(comFac(f)));
+    const demandes = demandesTous.filter(d => ok(comDem(d)) && (!vis || vis.demandes.has(d.id))), devis = devisTous.filter(v => ok(comDevis(v)) && (!vis || vis.devis.has(v.id))), factures = req.ctx.droits.factures ? facturesTous.filter(f => ok(comFac(f)) && (!vis || vis.factures.has(f.id))) : [];
     const ici = d => d.toLocaleDateString('sv-SE', { timeZone: 'Europe/Paris' });
     const aujourdHui = ici(new Date()), mois = aujourdHui.slice(0, 7);
     const parStatut = Object.fromEntries(PIPELINE.map(k => [k, demandes.filter(d => d.statut === k && d.type !== 'contact').length]));
@@ -677,11 +727,11 @@ async function createApp(opts = {}) {
     const tranches = devis.filter(d => ['accepte', 'refuse'].includes(d.statut));
     const enAttente = devis.filter(d => d.statut === 'envoye');
     const persos = ((reg || {}).alertes?.personnes || []).map(x => nomDe(x));
-    const commerciaux = [...new Set([...us.map(u => u.data).filter(u => u && !u.disabled).map(u => nomDe(u.name)), ...persos, ...demandesTous.map(comDem), ...devisTous.map(comDevis)].filter(Boolean))].sort((x, y) => x.localeCompare(y, 'fr'));
-    const rdvDuJour = rdv0.map(d => d.data).filter(r => r && r.clientId && r.type && !r.fait && r.date === aujourdHui && (!com || !(r.commerciaux || []).length || (com !== '—' && r.commerciaux.includes(com))));
+    const commerciaux = vis ? [req.ctx.name].filter(Boolean) : [...new Set([...us.map(u => u.data).filter(u => u && !u.disabled).map(u => nomDe(u.name)), ...persos, ...demandesTous.map(comDem), ...devisTous.map(comDevis)].filter(Boolean))].sort((x, y) => x.localeCompare(y, 'fr'));
+    const rdvDuJour = rdv0.map(d => d.data).filter(r => r && r.clientId && r.type && !r.fait && r.date === aujourdHui && (!vis || !(r.commerciaux || []).length || r.commerciaux.some(n => vis.moi.has(nomCle(n)))) && (!com || !(r.commerciaux || []).length || (com !== '—' && r.commerciaux.includes(com))));
     res.set('Cache-Control', 'no-store').json({
-      com, commerciaux,
-      nouvellesTous: demandesTous.filter(aTraiterSrv).length,
+      com, commerciaux, siennes: !!vis,
+      nouvellesTous: demandesTous.filter(d => aTraiterSrv(d) && (!vis || vis.demandes.has(d.id))).length,
       nouvelles: demandes.filter(aTraiterSrv).length,
       parStatut,
       caSigneMoisCents: signes.filter(d => moisSigne(d) === mois).reduce((t, d) => t + totaux(d).ttcCents, 0),
@@ -702,9 +752,17 @@ async function createApp(opts = {}) {
   }));
 
   A.get('/site', wrap(async (req, res) => res.json((await store.get('site/reglages')) || {})));
+  /* chaque partie des réglages a son droit : tarifs = « Modifier les prix », coordonnées et banque = « Mon entreprise », alertes = « Gérer l'équipe » */
+  const GARDE_SITE = { tarifs: 'prix', alertes: 'equipe', entreprise: 'entreprise', paiement: 'entreprise', adresse: 'entreprise', telephone: 'entreprise', email: 'entreprise' };
+  const stable = v => JSON.stringify(v, (k, x) => x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => a.localeCompare(b))) : x);
   A.put('/site', sameSite, json, wrap(async (req, res) => {
     const before = (await store.get('site/reglages')) || {};
-    await store.set('site/reglages', { ...before, ...req.body, updatedAt: new Date().toISOString() });
+    const body = { ...(req.body || {}) }; delete body.updatedAt;
+    const changes = Object.keys(body).filter(k => stable(body[k]) !== stable(before[k]));
+    const refuses = changes.filter(k => !req.ctx.droits[GARDE_SITE[k] || 'site']);
+    if (refuses.length && refuses.length === changes.length) return refus(res, GARDE_SITE[refuses[0]] || 'site');
+    for (const k of refuses) { if (k in before) body[k] = before[k]; else delete body[k]; } /* le reste de l'écran est enregistré, la partie interdite reste telle quelle */
+    await store.set('site/reglages', { ...before, ...body, updatedAt: new Date().toISOString() });
     cat.invalidate(); audit(req.ctx, 'réglages du site modifiés', 'site/reglages');
     res.json({ ok: true });
   }));
@@ -717,7 +775,7 @@ async function createApp(opts = {}) {
   }
   /* ---------- import du fichier clients (Excel / CSV) ---------- */
   const importClients = creerImportClients({ store, log });
-  importClients.routes(A, { sameSite, manager, wrap, audit });
+  importClients.routes(A, { sameSite, manager: peut('fichiers'), wrap, audit });
 
   /* ---------- entreprises : plusieurs contacts reliés à une même fiche entreprise (server/entreprises.js) ---------- */
   const ENT = creerEntreprises({ store, log, totaux });
@@ -769,23 +827,28 @@ async function createApp(opts = {}) {
 
   A.get('/:coll', wrap(async (req, res, next) => {
     if (!COLLECTIONS.includes(req.params.coll)) return next();
-    const docs = (await store.list(req.params.coll)).map(d => ({ id: d.id, ...d.data, _maj: d.updatedAt }));
+    const vis = OPP.includes(req.params.coll) ? await visibles(req) : null;
+    const docs = (await store.list(req.params.coll)).map(d => ({ id: d.id, ...d.data, _maj: d.updatedAt })).filter(d => !vis || vis[req.params.coll].has(d.id));
     res.set('Cache-Control', 'no-store').json(docs);
   }));
   A.get('/:coll/:id', wrap(async (req, res, next) => {
     if (!COLLECTIONS.includes(req.params.coll)) return next();
     const d = await store.get(req.params.coll + '/' + req.params.id);
-    if (!d) return res.status(404).json({ error: 'Introuvable.' });
+    if (!d || !(await voitDoc(req, req.params.coll, req.params.id))) return res.status(404).json({ error: 'Introuvable.' });
     res.set('Cache-Control', 'no-store').json({ id: req.params.id, ...d });
   }));
+  /* tous les montants « prix… » et « cout… » d'une fiche (variantes comprises) : sans le droit « Modifier les prix », ils ne doivent pas bouger */
+  const empreintePrix = o => { const out = []; const walk = (x, ch) => { if (Array.isArray(x)) x.forEach((y, i) => walk(y, ch + '.' + i)); else if (x && typeof x === 'object') for (const [k, v] of Object.entries(x)) { if (/prix|cout/i.test(k) && (v == null || typeof v !== 'object')) { if (v != null && v !== '') out.push(ch + '.' + k + '=' + v); } else walk(v, ch + '.' + k); } }; walk(o, ''); return out.sort().join('|'); };
   A.put('/:coll/:id', sameSite, json, wrap(async (req, res, next) => {
     const { coll, id } = req.params;
     if (!COLLECTIONS.includes(coll) || !/^[A-Za-z0-9_-]{1,120}$/.test(id)) return next();
     const before = await store.get(coll + '/' + id);
+    if (before && !(await voitDoc(req, coll, id))) return res.status(404).json({ error: 'Introuvable : ce dossier est suivi par un autre commercial.' });
     let data = { ...(req.body || {}) };
     delete data._maj;
+    if (coll === 'produits' && before && !req.ctx.droits.prix && empreintePrix(data) !== empreintePrix(before)) return refus(res, 'prix');
     if (coll === 'devis') {
-      if (before && before.statut === 'accepte' && req.ctx.role !== 'manager') return res.status(403).json({ error: 'Un devis signé ne peut être modifié que par le Manager.' });
+      if (before && before.statut === 'accepte' && !req.ctx.droits.devisSignes) return res.status(403).json({ error: 'Ce devis est signé : il faut le droit « Modifier un devis signé » pour le changer.' });
       const err = controleMarge(data);
       if (err.length) return res.status(400).json({ error: 'Marge négative bloquée : ' + err.join(' ') });
       data.token = before?.token || data.token;
@@ -834,6 +897,7 @@ async function createApp(opts = {}) {
     let id = coll === 'produits' || coll === 'lieux' ? slugify(req.body?.titre || req.body?.nom) : coll === 'rubriques' ? slugify(req.body?.nom) : coll.slice(0, 1) + '_' + rid(7);
     if (await store.get(coll + '/' + id)) id = id + '-' + rid(3).toLowerCase().replace(/[^a-z0-9]/g, 'x');
     const data = { ...(req.body || {}), createdAt: new Date().toISOString() };
+    if (coll === 'produits' && !req.ctx.droits.prix) for (const k of Object.keys(data)) if (/prix|cout/i.test(k)) delete data[k]; /* nouvelle fiche sans prix : « Sur devis » */
     if (coll === 'clients' && typeof data.nom === 'string') data.nom = nomPropre(data.nom); if (coll === 'clients') data.id = id;
     if (coll === 'clients' && 'naissance' in data) data.naissance = dateNaissance(data.naissance);
     if (coll === 'clients') ficheClientNette(data, null);
@@ -852,7 +916,8 @@ async function createApp(opts = {}) {
     const { coll, id } = req.params;
     if (!COLLECTIONS.includes(coll)) return next();
     if (['produits', 'lieux', 'rubriques'].includes(coll)) return res.status(400).json({ error: 'Pour le catalogue, on masque au lieu de supprimer.' });
-    if (['devis', 'factures'].includes(coll) && req.ctx.role !== 'manager') return res.status(403).json({ error: 'Réservé au Manager.' });
+    if (coll === 'devis' && !req.ctx.droits.effacerDevis) return refus(res, 'effacerDevis');
+    if (!(await voitDoc(req, coll, id))) return res.status(404).json({ error: 'Introuvable.' });
     if (coll === 'factures') return res.status(400).json({ error: 'Une facture ne se supprime pas : créez un avoir.' });
     const before = await store.get(coll + '/' + id);
     if (coll === 'devis' && before) {
@@ -1073,7 +1138,7 @@ async function createApp(opts = {}) {
     const liste = [];
     for (const id of ids) {
       const d = await store.get('devis/' + id);
-      if (!d) return res.status(404).json({ error: 'Devis introuvable.' });
+      if (!d || !(await voitDoc(req, 'devis', id))) return res.status(404).json({ error: 'Devis introuvable.' });
       if (!(d.lignes || []).length) return res.status(400).json({ error: `Le devis ${d.numero} est vide.` });
       const err = controleMarge(d); if (err.length) return res.status(400).json({ error: `Devis ${d.numero} : marge négative bloquée. ` + err.join(' ') });
       liste.push(d);
@@ -1162,7 +1227,8 @@ async function createApp(opts = {}) {
   /* liste enrichie : reste à payer, échéance, statut (à envoyer, non réglée, en retard, réglée, archivée…) */
   A.get('/actions/factures', wrap(async (req, res) => {
     const T = await tarifs();
-    const l = (await store.list('factures')).map(x => x.data).filter(Boolean).map(f => { const e = FAC.etat(f); return { ...f, lignes: undefined, etat: { dueCents: e.dueCents, regleCents: e.regleCents, resteCents: e.resteCents, ttcCents: e.ttcCents, nb: e.reglements.length }, statutF: FAC.statut(f, T), echeance: FAC.echeance(f, T), reglements: e.reglements }; });
+    const vis = await visibles(req);
+    const l = (await store.list('factures')).map(x => x.data).filter(Boolean).filter(f => !vis || vis.factures.has(f.id)).map(f => { const e = FAC.etat(f); return { ...f, lignes: undefined, etat: { dueCents: e.dueCents, regleCents: e.regleCents, resteCents: e.resteCents, ttcCents: e.ttcCents, nb: e.reglements.length }, statutF: FAC.statut(f, T), echeance: FAC.echeance(f, T), reglements: e.reglements }; });
     res.json(l.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))));
   }));
   A.get('/actions/facture/:id', wrap(async (req, res) => {
@@ -1282,7 +1348,7 @@ async function createApp(opts = {}) {
   }));
   /* une facture émise ne s'efface pas : l'avoir l'annule (numérotation continue A-année-n°) */
   A.post('/actions/avoir-facture/:id', sameSite, json, wrap(async (req, res) => {
-    if (req.ctx.role !== 'manager') return res.status(403).json({ error: 'Réservé au Manager.' });
+    if (!req.ctx.droits.factures) return refus(res, 'factures');
     const f = await store.get('factures/' + req.params.id);
     if (!f) return res.status(404).json({ error: 'Facture introuvable.' });
     if (f.type === 'avoir' || f.annuleeParAvoir) return res.status(400).json({ error: 'Cette facture est déjà annulée.' });
@@ -1423,9 +1489,10 @@ async function createApp(opts = {}) {
     const c0 = await store.get('clients/' + req.params.id), c = c0 && { ...c0, id: req.params.id }; /* une fiche créée dans le back-office n'a pas toujours son id dans le document */
     if (!c) return res.status(404).json({ error: 'Client introuvable.' });
     const [dem, dv, fac, out, rdv, camps] = await Promise.all(['demandes', 'devis', 'factures', '_outbox', 'rdv', '_campagnes'].map(k => store.list(k).then(l => l.map(x => x.data))));
-    const demandes = dem.filter(d => d.clientId === c.id);
-    const devisL = dv.filter(d => d.clientId === c.id || (d.demandeId && demandes.some(x => x.id === d.demandeId)));
-    const facts = fac.filter(f => f.clientId === c.id || devisL.some(d => d.id === f.devisId));
+    const vis = await visibles(req); /* « seulement ses opportunités » : les dossiers des autres commerciaux n'apparaissent pas */
+    const demandes = dem.filter(d => d.clientId === c.id && (!vis || vis.demandes.has(d.id)));
+    const devisL = dv.filter(d => (d.clientId === c.id || (d.demandeId && demandes.some(x => x.id === d.demandeId))) && (!vis || vis.devis.has(d.id)));
+    const facts = req.ctx.droits.factures ? fac.filter(f => (f.clientId === c.id || devisL.some(d => d.id === f.devisId)) && (!vis || vis.factures.has(f.id))) : [];
     const mails = [c.email, ...demandes.map(d => d.contact?.email)].filter(Boolean).map(x => String(x).trim().toLowerCase());
     const tels = [c.tel, ...demandes.map(d => d.contact?.tel)].map(telCourt).filter(x => x.length >= 8);
     const ev = [];
@@ -1668,31 +1735,60 @@ async function createApp(opts = {}) {
   }));
 
   A.get('/actions/agenda', wrap(async (req, res) => {
-    const [dem, rdv] = await Promise.all([store.list('demandes'), store.list('rdv')]);
+    const [dem, rdv, vis] = await Promise.all([store.list('demandes'), store.list('rdv'), visibles(req)]);
     const items = [
-      ...dem.map(d => d.data).filter(d => d.evenement?.date && d.type !== 'contact' && d.statut !== 'refuse').map(d => ({ id: d.id, type: 'evenement', date: d.evenement.date, titre: `${d.contact?.nom || ''} · ${d.evenement.type || ''}`, detail: `${d.evenement.invites || ''} pers. · ${d.evenement.ville || ''} · ${d.evenement.horaire || ''}`, statut: d.statut, commercial: d.commercial || '', lien: '#/demandes/' + d.id })),
-      ...rdv.map(r => ({ id: r.id, type: 'rdv', ...r.data, visio: r.data.lien || '', lien: r.data.clientId ? '#/clients/' + r.data.clientId : '#/agenda' })),
+      ...dem.map(d => d.data).filter(d => !vis || vis.demandes.has(d.id)).filter(d => d.evenement?.date && d.type !== 'contact' && d.statut !== 'refuse').map(d => ({ id: d.id, type: 'evenement', date: d.evenement.date, titre: `${d.contact?.nom || ''} · ${d.evenement.type || ''}`, detail: `${d.evenement.invites || ''} pers. · ${d.evenement.ville || ''} · ${d.evenement.horaire || ''}`, statut: d.statut, commercial: d.commercial || '', lien: '#/demandes/' + d.id })),
+      ...rdv.filter(r => !vis || !(r.data.commerciaux || []).length || r.data.commerciaux.some(n => vis.moi.has(nomCle(n)))).map(r => ({ id: r.id, type: 'rdv', ...r.data, visio: r.data.lien || '', lien: r.data.clientId ? '#/clients/' + r.data.clientId : '#/agenda' })),
       ...(await anniversaires(400)).map(a => ({ id: 'anniv-' + a.id, type: 'anniversaire', date: a.date, titre: '🎂 ' + a.nom, detail: `Anniversaire (${a.age} ans)`, statut: 'anniv', lien: '#/clients/' + a.id })),
     ];
     res.json(items.sort((a, b) => String(a.date).localeCompare(String(b.date))));
   }));
 
   /* équipe */
-  A.get('/actions/equipe', wrap(async (req, res) => res.json((await store.list('_users')).map(d => ({ id: d.id, email: d.data.email, nom: d.data.name, role: d.data.role, desactive: !!d.data.disabled, creeLe: d.data.createdAt })))));
-  A.post('/actions/equipe', sameSite, json, manager, wrap(async (req, res) => {
-    try { const id = await createUser({ email: req.body?.email, name: req.body?.nom, role: req.body?.role, password: req.body?.password }); audit(req.ctx, 'compte créé', '_users/' + id, req.body?.email); res.json({ ok: true, id }); }
-    catch (e) { res.status(e.status || 500).json({ error: e.message }); }
+  A.get('/actions/equipe', wrap(async (req, res) => res.json((await store.list('_users')).map(d => ({ id: d.id, email: d.data.email, nom: d.data.name, role: d.data.role, droits: DR.droitsDe(d.data), desactive: !!d.data.disabled, creeLe: d.data.createdAt })))));
+  A.get('/actions/droits', (req, res) => res.json({ droits: DR.DROITS, modeles: DR.MODELES }));
+  /* on ne donne jamais un droit qu'on n'a pas soi-même (sinon : se créer un compte Administrateur) */
+  const droitsInterdits = (req, d) => DR.CLES.filter(k => d[k] && !req.ctx.droits[k]);
+  const adminsActifs = async sauf => (await store.list('_users')).filter(x => x.id !== sauf && !x.data.disabled && DR.droitsDe(x.data).admin).length;
+  async function mailAcces({ email, nom, password }, par) {
+    const R = (await cat.get()).reglages || {};
+    const lien = SITE + '/admin';
+    const prenom = esc(String(nom || '').split(' ')[0]);
+    return brevo.sendEmail({ to: email, name: nom, subject: 'Vos accès au back-office Magnolia Traiteur',
+      html: `<p>Bonjour ${prenom},</p><p>${esc(par || 'L’équipe')} vous a créé un accès au back-office de Magnolia Traiteur.</p><p><b>Adresse :</b> <a href="${esc(lien)}">${esc(lien)}</a><br><b>E-mail :</b> ${esc(email)}<br><b>Mot de passe provisoire :</b> ${esc(password)}</p><p>Après votre première connexion, changez ce mot de passe dans « Équipe &amp; activité › Mon mot de passe ».</p><p>L’équipe Magnolia Traiteur<br>${esc(R.telephone || '')}</p>`,
+      text: `Bonjour, vos accès au back-office Magnolia Traiteur : ${lien} — e-mail ${email} — mot de passe provisoire ${password}. Changez-le après votre première connexion.` });
+  }
+  A.post('/actions/equipe', sameSite, json, peut('equipe'), wrap(async (req, res) => {
+    const b = req.body || {};
+    const droits = b.droits ? DR.nettoyer(b.droits) : DR.nettoyer(b.role === 'manager' ? { admin: true } : DR.COLLAB_AVANT);
+    const trop = droitsInterdits(req, droits); if (trop.length) return refus(res, trop[0]);
+    if (String(b.nom || '').trim().length < 2) return res.status(400).json({ error: 'Écrivez le prénom et le nom.' });
+    try {
+      const id = await createUser({ email: b.email, name: nomPropre(String(b.nom).trim()).slice(0, 80), password: b.password, droits });
+      audit(req.ctx, 'compte créé', '_users/' + id, b.email);
+      let mail = null;
+      if (b.envoyerAcces) { const r = await mailAcces({ email: String(b.email).trim().toLowerCase(), nom: nomPropre(String(b.nom).trim()), password: String(b.password) }, req.ctx.name); mail = { ok: !r?.error, live: brevo.live, erreur: r?.error || '' }; }
+      res.json({ ok: true, id, mail });
+    } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
   }));
-  A.patch('/actions/equipe/:id', sameSite, json, manager, wrap(async (req, res) => {
+  A.patch('/actions/equipe/:id', sameSite, json, peut('equipe'), wrap(async (req, res) => {
     const u = await store.get('_users/' + req.params.id); if (!u) return res.status(404).json({ error: 'Compte introuvable.' });
-    if (req.params.id === req.ctx.uid && (req.body.desactive || req.body.role === 'collab')) return res.status(400).json({ error: 'Vous ne pouvez pas retirer vos propres droits.' });
+    const b = req.body || {}, moi = req.params.id === req.ctx.uid;
+    const avant = DR.droitsDe(u);
+    if (avant.admin && !req.ctx.droits.admin) return res.status(403).json({ error: 'Seul un Administrateur peut modifier le compte d’un Administrateur.' });
+    let droits = b.droits ? DR.nettoyer(b.droits) : ['manager', 'collab'].includes(b.role) ? DR.nettoyer(b.role === 'manager' ? { admin: true } : DR.COLLAB_AVANT) : null;
+    if (droits && JSON.stringify(droits) === JSON.stringify(avant)) droits = null;
+    if (moi && (b.desactive || droits)) return res.status(400).json({ error: 'Vous ne pouvez pas changer vos propres droits ni désactiver votre compte : demandez-le à un autre administrateur.' });
+    if (droits) { const trop = droitsInterdits(req, droits); if (trop.length) return refus(res, trop[0]); }
+    if (avant.admin && !u.disabled && (b.desactive || (droits && !droits.admin)) && !(await adminsActifs(req.params.id))) return res.status(400).json({ error: 'Il doit toujours rester au moins un Administrateur actif.' });
     const next = { ...u };
-    if (typeof req.body.desactive === 'boolean') next.disabled = req.body.desactive;
-    if (['manager', 'collab'].includes(req.body.role)) next.role = req.body.role;
-    if (typeof req.body.nom === 'string') { const n = req.body.nom.trim().slice(0, 80); if (n.length < 2) return res.status(400).json({ error: 'Écrivez le prénom et le nom.' }); next.name = n; }
-    if (req.body.password) { if (String(req.body.password).length < 10) return res.status(400).json({ error: 'Mot de passe : 10 caractères minimum.' }); next.passHash = await bcrypt.hash(String(req.body.password), 11); }
+    if (typeof b.desactive === 'boolean') next.disabled = b.desactive;
+    if (droits) { next.droits = droits; next.role = DR.roleDe(droits); }
+    if (typeof b.nom === 'string') { const n = b.nom.trim().slice(0, 80); if (n.length < 2) return res.status(400).json({ error: 'Écrivez le prénom et le nom.' }); next.name = n; }
+    if (b.password) { if (String(b.password).length < 10) return res.status(400).json({ error: 'Mot de passe : 10 caractères minimum.' }); next.passHash = await bcrypt.hash(String(b.password), 11); }
     await store.set('_users/' + req.params.id, next);
-    audit(req.ctx, 'compte modifié', '_users/' + req.params.id, u.email);
+    audit(req.ctx, droits ? 'droits modifiés' : 'compte modifié', '_users/' + req.params.id, u.email + (droits ? ' : ' + (droits.admin ? 'Administrateur' : DR.DROITS.filter(d => droits[d.k]).map(d => d.nom).join(', ') || 'aucun droit') : ''));
+    if (b.desactive) for (const d of await store.list('_sessions')) if (d.data?.userId === req.params.id) await store.delete('_sessions/' + d.id); /* compte désactivé : déconnecté tout de suite */
     res.json({ ok: true });
   }));
   /* essai d'envoi : un e-mail à la personne connectée, et un SMS si un numéro est donné */
@@ -1714,30 +1810,32 @@ async function createApp(opts = {}) {
   /* ---------- Excel : export (CSV « ; » lisible par Excel en français) et mise à jour des prix ---------- */
   const csv = (rows) => '\ufeff' + rows.map(r => r.map(v => { const x = v == null ? '' : String(v); return /[;"\n\r]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; }).join(';')).join('\r\n');
   const eurCsv = c => c == null ? '' : (c / 100).toFixed(2).replace('.', ',');
-  A.get('/actions/export/:quoi', wrap(async (req, res) => {
+  A.get('/actions/export/:quoi', peut('fichiers'), wrap(async (req, res) => {
     const q = req.params.quoi; let rows;
+    if (['factures', 'reglements'].includes(q) && !req.ctx.droits.factures) return refus(res, 'factures');
+    const vis = await visibles(req), voit = (coll, d) => !vis || vis[coll].has(d.id);
     if (q === 'catalogue') {
       const c = await cat.get(); const rubs = new Map(c.rubriques.map(r => [r.slug, r.nom]));
       rows = [['Code (ne pas modifier)', 'Prestation', 'Rubrique', 'Prix TTC (€)', 'Par', 'Minimum', 'Coût de revient TTC (€)', 'TVA %', 'Statut (visible / masque)', 'Maison (oui / non)'],
         ...c.produits.map(p => [p.slug, p.titre, rubs.get(p.rubrique) || p.rubrique, eurCsv(p.prixCents), p.unite || '', p.min || '', eurCsv(p.coutCents), p.tva ?? '', p.statut || 'visible', p.maison ? 'oui' : 'non'])];
     } else if (q === 'demandes') {
       rows = [['Réf.', 'Reçue le', 'Type', 'Nom', 'Société', 'E-mail', 'Téléphone', 'Événement', 'Date', 'Invités', 'Code postal', 'Ville', 'Estimé TTC (€)', 'Étape'],
-        ...(await store.list('demandes')).map(d => d.data).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).map(d => [d.ref, String(d.createdAt || '').slice(0, 10), d.type, d.contact?.nom, d.contact?.societe, d.contact?.email, d.contact?.tel, d.evenement?.type || d.sujet, d.evenement?.date, d.evenement?.invites, d.evenement?.cp, d.evenement?.ville, eurCsv(d.totalEstimeCents), d.statut])];
+        ...(await store.list('demandes')).map(d => d.data).filter(d => voit('demandes', d)).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).map(d => [d.ref, String(d.createdAt || '').slice(0, 10), d.type, d.contact?.nom, d.contact?.societe, d.contact?.email, d.contact?.tel, d.evenement?.type || d.sujet, d.evenement?.date, d.evenement?.invites, d.evenement?.cp, d.evenement?.ville, eurCsv(d.totalEstimeCents), d.statut])];
     } else if (q === 'clients') {
       rows = [['Nom', 'Société', 'E-mail', 'Téléphone', 'Autre téléphone', 'Adresse', 'Code postal', 'Ville', 'Département', 'Créé le', 'Dernière activité', 'Source', 'Accepte les e-mails', 'Accepte les SMS'],
         ...(await store.list('clients')).map(d => d.data).map(c => [c.nom, c.societe, c.email, c.tel, c.telAutre, c.adresse, c.cp, c.ville, c.departement, String(c.creeLe || '').slice(0, 10), String(c.derniereActivite || '').slice(0, 10), c.source,
           c.desinscrit?.email ? 'non (désinscrit)' : c.consentement?.email ? 'oui' : '', c.desinscrit?.sms ? 'non (STOP)' : c.consentement?.sms ? 'oui' : ''])];
     } else if (q === 'factures') {
       const T = (await cat.get()).reglages.tarifs || {};
-      const docs = (await store.list('factures')).map(d => d.data).sort((a, b) => String(a.numero).localeCompare(String(b.numero)));
+      const docs = (await store.list('factures')).map(d => d.data).filter(d => voit('factures', d)).sort((a, b) => String(a.numero).localeCompare(String(b.numero)));
       rows = [['N° facture', 'Type', 'Date', 'Client', 'Société', 'E-mail', 'N° devis', 'Objet', 'Total TTC (€)', 'Total HT (€)', 'Déjà réglé (€)', 'Reste dû (€)', 'Échéance', 'Nombre de règlements', 'Détail des règlements', 'Statut', 'Envoyée le', 'Relances'],
         ...docs.map(f => { const e = FAC.etat(f), t = totaux(f), sg = f.type === 'avoir' ? -1 : 1; return [f.numero, { acompte: 'Acompte', solde: 'Solde', totale: 'Facture', avoir: 'Avoir' }[f.type] || '', f.date, f.client?.nom, f.client?.societe, f.client?.email, f.devisNumero, f.objet, eurCsv(sg * e.dueCents), eurCsv(sg * t.htCents), eurCsv(e.regleCents), eurCsv(f.type === 'avoir' ? 0 : e.resteCents), FAC.echeance(f, T), e.reglements.length, e.reglements.map(r => `${r.date} ${r.moyen} ${eurCsv(r.montantCents)}`).join(' | '), FAC.STATUTS[FAC.statut(f, T)], String(f.envoyeeLe || '').slice(0, 10), (f.relances || []).length]; })];
     } else if (q === 'reglements') {
-      const docs = (await store.list('factures')).map(d => d.data);
+      const docs = (await store.list('factures')).map(d => d.data).filter(d => voit('factures', d));
       rows = [['Date', 'Montant (€)', 'Moyen de paiement', 'N° facture', 'Client', 'N° devis', 'Note', 'Saisi par'],
         ...docs.flatMap(f => FAC.libelles(f).map(r => [r.date, eurCsv(r.montantCents), r.moyen, f.numero, f.client?.nom, f.devisNumero, [r.libelle, r.note].filter(Boolean).join(' · '), r.par])).sort((a, b) => String(a[0]).localeCompare(String(b[0])))];
     } else if (q === 'devis') {
-      const docs = (await store.list(q)).map(d => d.data);
+      const docs = (await store.list(q)).map(d => d.data).filter(d => voit('devis', d));
       rows = [[q === 'devis' ? 'N° devis' : 'N° facture', 'Client', 'Date', 'Total TTC (€)', 'Total HT (€)', 'Marge (€)', 'Statut'],
         ...docs.map(d => { const t = totaux(d); return [d.numero, d.clientNom || d.client?.nom, String(d.envoyeLe || d.date || d.createdAt || '').slice(0, 10), eurCsv(q === 'factures' ? d.totalCents ?? t.ttcCents : t.ttcCents), eurCsv(t.htCents), eurCsv(t.margeCents), q === 'factures' ? (d.payee ? 'payée' : 'à encaisser') : d.statut]; })];
     } else return res.status(404).json({ error: 'Export inconnu.' });
@@ -1745,7 +1843,7 @@ async function createApp(opts = {}) {
     res.set('Content-Disposition', `attachment; filename="magnolia-${q}-${new Date().toISOString().slice(0, 10)}.csv"`).type('text/csv; charset=utf-8').send(csv(rows));
   }));
   /* mise à jour par fichier : seules les colonnes prix, minimum, coût, TVA, statut et maison sont reprises ; jamais de création ni de suppression */
-  A.post('/actions/import-catalogue', sameSite, express.json({ limit: '2mb' }), manager, wrap(async (req, res) => {
+  A.post('/actions/import-catalogue', sameSite, express.json({ limit: '2mb' }), peut('fichiers', 'prix'), wrap(async (req, res) => {
     const lignes = Array.isArray(req.body?.lignes) ? req.body.lignes.slice(0, 2000) : [];
     const cents = v => { const x = String(v ?? '').replace(/\s|€/g, '').replace(',', '.'); if (x === '') return null; const n = Math.round(parseFloat(x) * 100); return Number.isFinite(n) && n >= 0 ? n : undefined; };
     let maj = 0; const erreurs = [];
@@ -1795,7 +1893,7 @@ async function createApp(opts = {}) {
     walk(path.join(PUBLIC, 'site'), '/site');
     res.json({ envoyes: envoyes.sort((a, b) => b.at.localeCompare(a.at)), site });
   }));
-  A.post('/actions/reimporter', sameSite, manager, wrap(async (req, res) => {
+  A.post('/actions/reimporter', sameSite, peut('admin'), wrap(async (req, res) => {
     const r = await seed(store, { force: true, log }); await importerAvisAncienSite(store, { log }); await initSousRubriques(store, { log });
     cat.invalidate(); audit(req.ctx, 'catalogue réimporté depuis le brouillon', '');
     res.json({ ok: true, ...r });
