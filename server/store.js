@@ -13,41 +13,76 @@ const splitPath = p => {
   return { segs, parent: segs.slice(0, -1).join('/'), id: segs[segs.length - 1] || '' };
 };
 
+/* Les grosses collections (fichier clients importé : ~60 000 fiches) sont rangées dans leur propre fichier,
+   pour qu'une petite modification ailleurs (une photo, un devis) ne réécrive pas tout le fichier clients.
+   Un index par dossier évite de parcourir toute la base à chaque liste. */
+const SHARDS = ['clients', '_clientemail', '_imports'];
+const shardOf = k => { const top = k.slice(0, k.indexOf('/') >>> 0); return SHARDS.includes(top) ? top : ''; };
+
 class FileStore {
   constructor(file) {
     this.file = file;
     this.docs = new Map();
-    this.timer = null;
-    try {
-      const raw = JSON.parse(fs.readFileSync(file, 'utf8'));
-      for (const [k, v] of Object.entries(raw)) this.docs.set(k, v);
-    } catch { /* base vide */ }
+    this.parents = new Map(); /* dossier -> Set des chemins */
+    this.timers = new Map();
+    this.dirty = new Set();
+    const lire = f => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return null; } };
+    const main = lire(file) || {};
+    const shards = new Map(SHARDS.map(sh => [sh, lire(this._shardFile(sh))]));
+    for (const [k, v] of Object.entries(main)) {
+      const sh = shardOf(k);
+      if (sh && shards.get(sh)) continue; /* le fichier séparé fait foi */
+      this._put(k, v);
+      if (sh) this.dirty.add(sh); /* ancienne base d'un seul fichier : on la range au prochain enregistrement */
+    }
+    for (const [sh, data] of shards) if (data) for (const [k, v] of Object.entries(data)) this._put(k, v);
+    if (this.dirty.size) this.dirty.add('');
   }
-  async init() {}
-  _save() {
-    clearTimeout(this.timer);
-    this.timer = setTimeout(() => {
-      fs.mkdirSync(path.dirname(this.file), { recursive: true });
-      const tmp = this.file + '.tmp';
-      fs.writeFileSync(tmp, JSON.stringify(Object.fromEntries(this.docs)));
-      fs.renameSync(tmp, this.file);
-    }, 200);
+  _shardFile(sh) { return sh ? this.file.replace(/\.json$/, '') + '.' + sh.replace(/^_/, 'x-') + '.json' : this.file; }
+  _put(k, v) {
+    if (!this.docs.has(k)) { const par = splitPath(k).parent; let set = this.parents.get(par); if (!set) this.parents.set(par, set = new Set()); set.add(k); }
+    this.docs.set(k, v);
   }
-  async flush() { if (this.timer) { clearTimeout(this.timer); this.timer = null; fs.mkdirSync(path.dirname(this.file), { recursive: true }); fs.writeFileSync(this.file, JSON.stringify(Object.fromEntries(this.docs))); } }
+  _del(k) {
+    if (!this.docs.delete(k)) return;
+    const par = splitPath(k).parent, set = this.parents.get(par);
+    if (set) { set.delete(k); if (!set.size) this.parents.delete(par); }
+  }
+  async init() { if (this.dirty.size) await this.flush(); }
+  _write(sh) {
+    const out = {};
+    for (const [k, v] of this.docs) if (shardOf(k) === sh) out[k] = v;
+    const f = this._shardFile(sh);
+    fs.mkdirSync(path.dirname(f), { recursive: true });
+    const tmp = f + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify(out));
+    fs.renameSync(tmp, f);
+  }
+  _save(k) {
+    const sh = shardOf(k);
+    this.dirty.add(sh);
+    clearTimeout(this.timers.get(sh));
+    this.timers.set(sh, setTimeout(() => { this.timers.delete(sh); this.dirty.delete(sh); this._write(sh); }, sh ? 800 : 200));
+  }
+  async flush() {
+    /* fichiers séparés d'abord : si l'écriture est coupée, ils font foi au redémarrage */
+    for (const sh of [...SHARDS, '']) {
+      if (!this.dirty.has(sh)) continue;
+      clearTimeout(this.timers.get(sh)); this.timers.delete(sh); this.dirty.delete(sh);
+      this._write(sh);
+    }
+  }
   async get(p) { const d = this.docs.get(p); return d ? structuredClone(d.data) : null; }
-  async set(p, data) { this.docs.set(p, { data: structuredClone(data), updatedAt: Date.now() }); this._save(); }
-  async delete(p) { this.docs.delete(p); this._save(); }
+  async set(p, data) { this._put(p, { data: structuredClone(data), updatedAt: Date.now() }); this._save(p); }
+  async delete(p) { if (this.docs.has(p)) { this._del(p); this._save(p); } }
   async list(parent) {
     const out = [];
-    for (const [k, v] of this.docs) {
-      const s = splitPath(k);
-      if (s.parent === parent) out.push({ id: s.id, data: structuredClone(v.data), updatedAt: v.updatedAt });
-    }
+    for (const k of this.parents.get(parent) || []) { const v = this.docs.get(k); out.push({ id: splitPath(k).id, data: structuredClone(v.data), updatedAt: v.updatedAt }); }
     return out;
   }
   async version(parent) {
     let n = 0, max = 0;
-    for (const [k, v] of this.docs) if (splitPath(k).parent === parent) { n++; if (v.updatedAt > max) max = v.updatedAt; }
+    for (const k of this.parents.get(parent) || []) { n++; const u = this.docs.get(k).updatedAt; if (u > max) max = u; }
     return n + ':' + max;
   }
   async close() { await this.flush(); }
