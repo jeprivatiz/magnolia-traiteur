@@ -815,16 +815,243 @@
 
   /* ---------- clients ---------- */
   async function clients(id) {
+    if (id === 'email' || id === 'sms') return diffusion(id);
     if (id) return client(id);
     const [list, dem] = await Promise.all([api(A + '/clients'), api(A + '/demandes')]);
-    return page('Clients', '<a class="btn" href="#/clients/nouveau">+ Nouveau client</a><input type="search" placeholder="Rechercher…" data-q>', `<div class="table"><table><thead><tr><th>Nom</th><th>Société</th><th>Contact</th><th class="n">Demandes</th><th>Dernière activité</th></tr></thead><tbody>
+    return page('Clients', '<a class="btn" href="#/clients/nouveau">+ Nouveau client</a><input type="search" placeholder="Rechercher…" data-q>', `${ongletsClients('')}<div class="table"><table><thead><tr><th>Nom</th><th>Société</th><th>Contact</th><th class="n">Demandes</th><th>Dernière activité</th></tr></thead><tbody>
       ${list.sort((a, b) => String(b.derniereActivite).localeCompare(String(a.derniereActivite))).map(c => `<tr data-href="#/clients/${c.id}"><td><b>${esc(c.nom)}</b></td><td>${esc(c.societe || '')}</td><td>${esc(c.email)}<small>${esc(c.tel || '')}</small></td><td class="n">${dem.filter(d => d.clientId === c.id).length}</td><td>${dateFr(c.derniereActivite)}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">Aucun client pour le moment.</td></tr>'}</tbody></table></div>`);
   }
   clients.after = id => {
+    if (id === 'email' || id === 'sms') return diffusion.after(id);
     if (id) return client.after(id);
     $$('tr[data-href]').forEach(tr => tr.addEventListener('click', () => { location.hash = tr.dataset.href; }));
     $('[data-q]')?.addEventListener('input', e => { const q = e.target.value.toLowerCase(); $$('tr[data-href]').forEach(tr => { tr.hidden = !tr.textContent.toLowerCase().includes(q); }); });
   };
+  /* ---------- Clients › « Envoyer un e-mail » / « Envoyer un SMS » : sélection multicritère, rédaction par l'IA, aperçu, essai, envoi ---------- */
+  const ongletsClients = cur => `<nav class="df-tabs" aria-label="Clients">${[['', '👥 Liste des clients'], ['email', '✉️ Envoyer un e-mail'], ['sms', '💬 Envoyer un SMS']].map(([k, l]) => `<a href="#/clients${k ? '/' + k : ''}" class="df-tab${cur === k ? ' on' : ''}"${cur === k ? ' aria-current="page"' : ''}>${l}</a>`).join('')}</nav>`;
+  const DFK = canal => 'mg_dif_' + canal;
+  const MONTANTS = [[0, 'Peu importe'], [10000, 'Plus de 100 €'], [30000, 'Plus de 300 €'], [50000, 'Plus de 500 €'], [100000, 'Plus de 1 000 €'], [200000, 'Plus de 2 000 €'], [500000, 'Plus de 5 000 €'], ['autre', 'Autre montant…']];
+  const IDF = ['75', '77', '78', '91', '92', '93', '94', '95'];
+  function etatDif(canal) {
+    let s = null; try { s = JSON.parse(mem.get(DFK(canal)) || 'null'); } catch { /* */ }
+    return { criteres: { statut: '', montantMin: 0, deps: [], types: [], pro: '', accord: false, ...(s?.criteres || {}) }, mode: s?.mode === 'manuel' ? 'manuel' : 'criteres', exclus: [], inclus: [], q: '', page: 0, seulementCoches: false,
+      infos: s?.infos || '', nbSms: s?.nbSms || 1, ton: s?.ton || '', message: s?.message || (canal === 'sms' ? { texte: '' } : { objet: '', titre: '', corps: '', photo: '', bouton: { texte: '', lien: '' } }), essai: s?.essai || '' };
+  }
+  const garderDif = (canal, st) => mem.set(DFK(canal), JSON.stringify({ criteres: st.criteres, mode: st.mode, infos: st.infos, nbSms: st.nbSms, ton: st.ton, message: st.message, essai: st.essai }));
+  async function diffusion(canal) {
+    const conf = await api(A + '/diffusion/criteres'); cache.dif = { canal, conf, st: etatDif(canal) };
+    const st = cache.dif.st, sms = canal === 'sms', k = st.criteres;
+    if (!st.essai) st.essai = sms ? conf.moi.tel : conf.moi.email;
+    const autre = k.montantMin && !MONTANTS.some(([v]) => v === k.montantMin);
+    const deps = [...conf.deps].sort((a, b) => (IDF.includes(b[0]) - IDF.includes(a[0])) || a[0].localeCompare(b[0], 'fr', { numeric: true }));
+    const chip = (attr, v, l, on) => `<button type="button" class="qs-own-b df-chip${on ? ' on' : ''}" data-${attr}="${esc(v)}" aria-pressed="${on}">${l}</button>`;
+    const joignables = sms ? conf.sms : conf.email;
+    return page('Clients', '<a class="btn ghost" href="#/clients/nouveau">+ Nouveau client</a>', `${ongletsClients(canal)}
+      <p class="df-intro">${sms ? 'Un SMS d’information (nouveautés, offres, fêtes…) envoyé aux clients choisis. Le SMS part au nom de <b>Magnolia</b> avec la mention obligatoire « STOP au 36173 » pour se désabonner.' : 'Un e-mail d’information aux couleurs de Magnolia, envoyé aux clients choisis depuis infos@magnoliatraiteur.fr. Un lien « Se désinscrire » est ajouté en bas, comme la loi l’exige.'} ${joignables} client${joignables > 1 ? 's' : ''} sur ${conf.total} ${sms ? 'ont un numéro de portable' : 'ont une adresse e-mail'}${(sms ? conf.stopSms : conf.stopEmail) ? ` (${sms ? conf.stopSms : conf.stopEmail} désinscrit${(sms ? conf.stopSms : conf.stopEmail) > 1 ? 's' : ''} jamais contacté${(sms ? conf.stopSms : conf.stopEmail) > 1 ? 's' : ''})` : ''}.</p>
+      ${conf.brevo ? '' : '<p class="aq-warn">Brevo n’est pas branché sur ce site : rien ne partira vraiment (mode essai). La clé BREVO_API_KEY doit être dans les variables Railway.</p>'}
+      <div class="df-cols">
+        <section class="box df-qui"><h2><span class="df-n">1</span> À qui ?</h2>
+          <div class="df-mode" role="radiogroup">${chip('mode', 'criteres', 'Selon les critères', st.mode === 'criteres')}${chip('mode', 'manuel', 'Choisir un par un', st.mode === 'manuel')}</div>
+          <div class="df-crit"${st.mode === 'manuel' ? ' hidden' : ''}>
+            <div class="g2"><label>Clients<select data-k="statut"><option value="">Tous les clients</option><option value="commandes"${k.statut === 'commandes' ? ' selected' : ''}>Ceux qui ont déjà commandé</option><option value="prospects"${k.statut === 'prospects' ? ' selected' : ''}>Ceux qui n’ont pas encore commandé</option></select></label>
+            <label>Montant total des commandes<select data-k="montant">${MONTANTS.map(([v, l]) => `<option value="${v}"${(autre ? v === 'autre' : v === (k.montantMin || 0)) ? ' selected' : ''}>${l}</option>`).join('')}</select></label></div>
+            <label class="df-autre"${autre ? '' : ' hidden'}>Plus de (€ TTC)<input type="number" min="0" step="50" inputmode="numeric" data-k="montantLibre" value="${autre ? Math.round(k.montantMin / 100) : ''}" placeholder="ex. 750"></label>
+            <div class="g2"><label>Particuliers ou entreprises<select data-k="pro"><option value="">Les deux</option><option value="part"${k.pro === 'part' ? ' selected' : ''}>Particuliers</option><option value="pro"${k.pro === 'pro' ? ' selected' : ''}>Entreprises</option></select></label>
+            <label class="check df-accord"><input type="checkbox" data-k="accord"${k.accord ? ' checked' : ''}> Seulement ceux qui ont coché « J’accepte les offres »</label></div>
+            <div class="df-lab">Département <small>(aucun choisi = tous)</small></div>
+            <div class="df-chips" data-deps>${deps.length ? deps.map(([d, n]) => chip('dep', d, `${esc(d)} <small>${n}</small>`, k.deps.includes(d))).join('') : '<span class="muted sm">Aucun département connu pour le moment.</span>'}</div>
+            ${conf.types.length ? `<div class="df-lab">Type d’événement <small>(aucun choisi = tous)</small></div><div class="df-chips" data-types>${conf.types.slice(0, 24).map(([t, n]) => chip('type', t, `${esc(t)} <small>${n}</small>`, k.types.includes(t))).join('')}</div>` : ''}
+          </div>
+          <div class="df-compte" aria-live="polite"><b data-nb>…</b><span data-nbl>destinataires</span></div>
+          <div class="df-lh"><input type="search" placeholder="Rechercher un client (nom, société…)" data-dq><label class="check sm"><input type="checkbox" data-coches> Voir seulement les cochés</label></div>
+          <div class="df-acts row"><button type="button" class="btn ghost sm" data-tout="1">Tout cocher</button><button type="button" class="btn ghost sm" data-tout="0">Tout décocher</button></div>
+          <ul class="df-list" data-dlist><li class="muted">Chargement…</li></ul>
+          <div class="df-pages row" data-dpages></div>
+        </section>
+        <section class="box df-msg"><h2><span class="df-n">2</span> Le message</h2>
+          <div class="df-ia"><p class="aq-eye">✨ Rédaction avec l’IA</p><p class="muted sm">Mettez les informations en vrac (offre, dates, prix, ce que vous voulez dire) : l’IA rédige ${sms ? 'le SMS' : 'l’e-mail complet, objet compris'}. Vous pouvez ensuite tout corriger.</p>
+            <div class="aq-nrow"><textarea rows="4" data-infos placeholder="${sms ? 'ex. fête des mères dimanche 30 mai, -10 % sur tous les buffets commandés avant le 20 mai, livraison offerte dès 700 €' : 'ex. nouveau buffet libanais, 15 mezzés, à partir de 24,90 € par personne, livraison 7 j/7 en Île-de-France, réservez pour les fêtes de fin d’année, offre -10 % jusqu’au 15 décembre avec le code NOEL10'}">${esc(st.infos)}</textarea><button type="button" class="aq-mic" data-dmic title="Dicter" aria-label="Dicter">🎤</button></div>
+            <div class="row df-iarow">${sms ? `<label>Longueur<select data-nbsms>${[1, 2, 3].map(n => `<option value="${n}"${+st.nbSms === n ? ' selected' : ''}>${n} SMS (${n === 1 ? 160 : n * 153} caractères)</option>`).join('')}</select></label>` : `<label>Ton<select data-ton>${['', 'Chaleureux', 'Festif', 'Élégant', 'Professionnel (entreprises)', 'Offre promotionnelle'].map(t => `<option value="${esc(t)}"${st.ton === t ? ' selected' : ''}>${t || 'Au choix de l’IA'}</option>`).join('')}</select></label>`}
+              <button type="button" class="btn aq-btn" data-redige${conf.ia ? '' : ' disabled'}>✨ Rédiger avec l’IA</button></div>
+            <p class="df-iamsg" data-iamsg>${conf.ia ? '' : '<span class="err">L’IA n’est pas activée (clé ANTHROPIC_API_KEY absente de Railway).</span>'}</p></div>
+          <div data-champs>${champsMessage(canal, st.message)}</div>
+          <div class="row df-voir"><button type="button" class="btn voir-site" data-voir>👁 ${sms ? 'Voir le SMS' : 'Voir le mail'}</button></div>
+        </section>
+      </div>
+      <section class="box df-env"><h2><span class="df-n">3</span> Envoyer</h2>
+        <div class="df-essai"><label>${sms ? 'Faire un essai sur mon portable' : 'Faire un essai sur mon e-mail'}<input data-essai value="${esc(st.essai)}" ${sms ? 'type="tel" inputmode="tel" placeholder="06 12 34 56 78"' : 'type="email" placeholder="vous@exemple.fr"'}></label><button type="button" class="btn ghost" data-essaib>Envoyer l’essai</button></div>
+        ${sms && !conf.creneauSms.ok ? `<p class="aq-warn">⏰ ${esc(conf.creneauSms.raison)}</p>` : ''}
+        <div class="df-go"><button type="button" class="btn df-big" data-envoyer>Envoyer</button><p class="muted sm" data-cout></p></div>
+        <div data-suivi></div>
+        <h3 class="df-h3">Derniers envois</h3><ul class="list df-hist" data-hist><li class="muted">Chargement…</li></ul>
+      </section>`);
+  }
+  function champsMessage(canal, m) {
+    if (canal === 'sms') return `<label>Texte du SMS<textarea rows="5" data-m="texte" placeholder="Magnolia Traiteur : Bonjour {prenom}, …">${esc(m.texte || '')}</textarea></label>
+      <p class="df-cpt" data-cpt></p><p class="muted sm">{prenom} est remplacé par le prénom de chaque client. La mention « STOP au 36173 » est ajoutée automatiquement à la fin (elle compte dans la longueur). Les accents ê, â, î, ô, û et ç sont remplacés (fete, garcon) pour rester au format SMS standard, 3 fois moins cher.</p>`;
+    const b = m.bouton || {};
+    return `<label>Objet de l’e-mail<input data-m="objet" value="${esc(m.objet || '')}" maxlength="150" placeholder="ex. Nouveau : notre buffet libanais 🌿"></label>
+      <label>Grand titre <small>(en haut de l’e-mail, facultatif)</small><input data-m="titre" value="${esc(m.titre || '')}" maxlength="150"></label>
+      <label>Texte<textarea rows="10" data-m="corps" placeholder="Bonjour {prenom},&#10;&#10;…">${esc(m.corps || '')}</textarea></label>
+      <p class="muted sm">{prenom} = prénom du client. **mot** = en gras. Une ligne vide = nouveau paragraphe. Une ligne commençant par « - » = liste. La signature Magnolia et le lien « Se désinscrire » sont ajoutés tout seuls.</p>
+      <div class="df-photo"><div class="df-ph" data-ph>${m.photo ? `<img src="${esc(m.photo)}" alt="">` : '<span>Pas de photo</span>'}</div><div class="row"><button type="button" class="btn ghost sm" data-photo>🖼 ${m.photo ? 'Changer la photo' : 'Ajouter une photo'}</button>${m.photo ? '<button type="button" class="lnk" data-sansphoto>Retirer</button>' : ''}</div></div>
+      <div class="g2"><label>Bouton <small>(texte, facultatif)</small><input data-m="bouton.texte" value="${esc(b.texte || '')}" maxlength="40" placeholder="ex. Demander un devis"></label><label>Lien du bouton<input data-m="bouton.lien" value="${esc(b.lien || '')}" placeholder="ex. /saveurs-du-monde ou https://…"></label></div>`;
+  }
+  diffusion.after = canal => {
+    const { conf, st } = cache.dif, sms = canal === 'sms', k = st.criteres;
+    let nb = 0, seq = 0;
+    const sel = () => ({ canal, criteres: k, mode: st.mode, exclus: st.exclus, inclus: st.inclus });
+    const garder = () => garderDif(canal, st);
+    const charger = async () => {
+      const my = ++seq;
+      const r = await api(A + '/diffusion/selection', { method: 'POST', body: { ...sel(), q: st.q, page: st.page, seulementCoches: st.seulementCoches } }).catch(e => { toast(e.message, true); return null; });
+      if (!r || my !== seq) return;
+      nb = r.nb;
+      $('[data-nb]').textContent = r.nb.toLocaleString('fr-FR');
+      $('[data-nbl]').textContent = (r.nb > 1 ? 'destinataires' : 'destinataire') + (st.mode === 'criteres' && r.correspondent !== r.nb ? ` (${r.correspondent - r.nb} décoché${r.correspondent - r.nb > 1 ? 's' : ''} à la main)` : '');
+      $('[data-dlist]').innerHTML = r.lignes.length ? r.lignes.map(p => `<li><label class="df-cl${p.coche ? ' on' : ''}"><input type="checkbox" data-cid="${esc(p.id)}"${p.coche ? ' checked' : ''}><span class="qs-av">${esc(initiales(p.nom))}</span><span class="df-t"><b>${esc(p.nom || '—')}</b><small>${esc([p.societe, p.contact].filter(Boolean).join(' · '))}</small></span><span class="df-m">${p.totalCents ? euros(p.totalCents) : '<span class="muted">pas de commande</span>'}<small>${esc(p.deps.join(', '))}${p.derniere ? (p.deps.length ? ' · ' : '') + dateFr(p.derniere) : ''}</small></span></label></li>`).join('')
+        : `<li class="muted df-vide">${st.q ? 'Aucun client trouvé.' : st.mode === 'manuel' && st.seulementCoches ? 'Aucun client coché.' : 'Aucun client ne correspond à ces critères.'}</li>`;
+      $('[data-dpages]').innerHTML = r.pages > 1 ? `<button type="button" class="btn ghost sm" data-pg="-1"${st.page ? '' : ' disabled'}>‹ Précédents</button><span class="muted sm">Page ${st.page + 1} / ${r.pages} · ${r.vue.toLocaleString('fr-FR')} clients</span><button type="button" class="btn ghost sm" data-pg="1"${st.page + 1 < r.pages ? '' : ' disabled'}>Suivants ›</button>` : '';
+      const go = $('[data-envoyer]');
+      go.textContent = r.nb ? `${sms ? '💬' : '✉️'} Envoyer à ${r.nb.toLocaleString('fr-FR')} client${r.nb > 1 ? 's' : ''}` : 'Choisissez des destinataires';
+      go.disabled = !r.nb || (sms && !conf.creneauSms.ok);
+      majCout();
+    };
+    const recharger = () => { st.page = 0; garder(); charger(); };
+    /* critères */
+    $$('[data-mode]').forEach(b => b.addEventListener('click', () => { st.mode = b.dataset.mode; $$('[data-mode]').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', x === b); }); $('.df-crit').hidden = st.mode === 'manuel'; recharger(); }));
+    $('[data-k=statut]').addEventListener('change', e => { k.statut = e.target.value; recharger(); });
+    $('[data-k=pro]').addEventListener('change', e => { k.pro = e.target.value; recharger(); });
+    $('[data-k=accord]').addEventListener('change', e => { k.accord = e.target.checked; recharger(); });
+    $('[data-k=montant]').addEventListener('change', e => { const v = e.target.value; $('.df-autre').hidden = v !== 'autre'; if (v === 'autre') { $('[data-k=montantLibre]').focus(); return; } k.montantMin = +v; recharger(); });
+    $('[data-k=montantLibre]').addEventListener('input', e => { k.montantMin = Math.max(0, Math.round(+e.target.value || 0)) * 100; clearTimeout(e.target._t); e.target._t = setTimeout(recharger, 350); });
+    const bascule = (attr, liste) => $$(`[data-${attr}]`).forEach(b => b.addEventListener('click', () => { const v = b.dataset[attr], i = liste.indexOf(v); if (i < 0) liste.push(v); else liste.splice(i, 1); b.classList.toggle('on', i < 0); b.setAttribute('aria-pressed', i < 0); recharger(); }));
+    bascule('dep', k.deps); bascule('type', k.types);
+    $('[data-dq]').addEventListener('input', e => { st.q = e.target.value; clearTimeout(e.target._t); e.target._t = setTimeout(() => { st.page = 0; charger(); }, 250); });
+    $('[data-coches]').addEventListener('change', e => { st.seulementCoches = e.target.checked; st.page = 0; charger(); });
+    $('[data-dlist]').addEventListener('change', e => {
+      const id = e.target.dataset.cid; if (!id) return;
+      const on = e.target.checked; e.target.closest('.df-cl').classList.toggle('on', on);
+      const l = st.mode === 'manuel' ? st.inclus : st.exclus, garderDans = st.mode === 'manuel' ? on : !on, i = l.indexOf(id);
+      if (garderDans && i < 0) l.push(id); if (!garderDans && i >= 0) l.splice(i, 1);
+      charger();
+    });
+    $('[data-dpages]').addEventListener('click', e => { const b = e.target.closest('[data-pg]'); if (!b) return; st.page = Math.max(0, st.page + +b.dataset.pg); charger(); $('.df-lh').scrollIntoView({ block: 'nearest' }); });
+    $$('[data-tout]').forEach(b => b.addEventListener('click', async () => {
+      const tout = b.dataset.tout === '1';
+      if (st.mode === 'criteres') { if (tout) st.exclus = []; else { const r = await api(A + '/diffusion/selection', { method: 'POST', body: { ...sel(), exclus: [], q: st.q, page: 0 } }); if (r.vue > 50 || !st.q) { st.mode = 'manuel'; st.inclus = []; $$('[data-mode]').forEach(x => x.classList.toggle('on', x.dataset.mode === 'manuel')); $('.df-crit').hidden = true; toast('Plus personne n’est coché : cochez les clients un par un.'); } else st.exclus = [...new Set([...st.exclus, ...$$('[data-cid]').map(x => x.dataset.cid)])]; } }
+      else if (tout) { const ids = $$('[data-cid]').map(x => x.dataset.cid); st.inclus = [...new Set([...st.inclus, ...ids])]; toast('Clients de cette page cochés.'); }
+      else st.inclus = [];
+      charger();
+    }));
+    /* message */
+    const lireChamps = () => { $$('[data-m]').forEach(x => { const [a, b] = x.dataset.m.split('.'); if (b) { st.message[a] = st.message[a] || {}; st.message[a][b] = x.value; } else st.message[a] = x.value; }); garder(); };
+    const majCpt = () => {
+      if (!sms) return;
+      const t = (st.message.texte || '').trim(), c = smsCompte(t);
+      const p = $('[data-cpt]'); if (!p) return;
+      p.innerHTML = t ? `<b>${c.car}</b> / ${c.sms <= 1 ? (c.unicode ? 70 : 160) : c.sms * (c.unicode ? 67 : 153)} caractères · <b class="${c.sms > +st.nbSms ? 'err' : ''}">${c.sms} SMS</b> par client${c.sms > 3 ? ' · <span class="err">trop long (3 SMS au maximum)</span>' : c.sms > +st.nbSms ? ` · <span class="err">plus long que les ${st.nbSms} SMS choisis</span>` : ''}${c.unicode ? ' · <span class="err">caractère spécial (emoji…) : 70 caractères par SMS</span>' : ''}` : '';
+      majCout();
+    };
+    function majCout() { const p = $('[data-cout]'); if (!p) return; if (!sms) { p.textContent = nb ? 'Chaque client reçoit son propre e-mail, avec son prénom.' : ''; return; } const c = smsCompte((st.message.texte || '').trim()); p.textContent = nb && c.sms ? `${(nb * c.sms).toLocaleString('fr-FR')} crédit${nb * c.sms > 1 ? 's' : ''} SMS Brevo utilisé${nb * c.sms > 1 ? 's' : ''} (${c.sms} par client).` : ''; }
+    const lier = () => {
+      $$('[data-m]').forEach(x => x.addEventListener('input', () => { lireChamps(); majCpt(); }));
+      $('[data-photo]')?.addEventListener('click', async () => { const u = await pickMedia(); if (u) { lireChamps(); st.message.photo = u; garder(); redessiner(); } });
+      $('[data-sansphoto]')?.addEventListener('click', () => { lireChamps(); st.message.photo = ''; garder(); redessiner(); });
+      majCpt();
+    };
+    const redessiner = () => { $('[data-champs]').innerHTML = champsMessage(canal, st.message); lier(); };
+    lier();
+    const ta = $('[data-infos]'); ta.addEventListener('input', () => { st.infos = ta.value; garder(); });
+    micPour($('[data-dmic]'), ta, $('[data-iamsg]'), () => { st.infos = ta.value; garder(); });
+    $('[data-nbsms]')?.addEventListener('change', e => { st.nbSms = +e.target.value; garder(); majCpt(); });
+    $('[data-ton]')?.addEventListener('change', e => { st.ton = e.target.value; garder(); });
+    $('[data-redige]').addEventListener('click', async e => {
+      const b = e.currentTarget, msg = $('[data-iamsg]'); st.infos = ta.value.trim();
+      if (st.infos.length < 5) { msg.innerHTML = '<span class="err">Écrivez d’abord les informations à faire passer.</span>'; ta.focus(); return; }
+      const deja = sms ? st.message.texte : st.message.corps;
+      if (deja && deja.trim() && !(await confirmer(`<h2>Remplacer ${sms ? 'le SMS' : 'l’e-mail'} déjà écrit ?</h2><p>La proposition de l’IA va remplacer le texte actuel.</p>`, 'Oui, remplacer'))) return;
+      b.disabled = true; msg.innerHTML = '<span class="muted">✨ L’IA rédige… (10 à 30 secondes)</span>';
+      try {
+        const r = await api(A + '/ia/diffusion-' + (sms ? 'sms' : 'email'), { method: 'POST', body: { infos: st.infos, nbSms: st.nbSms, ton: st.ton } });
+        if (sms) st.message.texte = r.texte; else st.message = { ...st.message, objet: r.objet, titre: r.titre, corps: r.corps, bouton: r.bouton };
+        garder(); redessiner(); msg.innerHTML = '<span class="ok">✓ Proposition prête : relisez et corrigez si besoin.</span>';
+        $('[data-champs]').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      } catch (err) { msg.innerHTML = `<span class="err">${esc(err.message)}</span>`; }
+      b.disabled = false;
+    });
+    $('[data-voir]').addEventListener('click', async () => { lireChamps(); await apercuDiffusion(canal, st.message, sms ? '' : 'Alexandra'); });
+    /* essai et envoi */
+    $('[data-essai]').addEventListener('input', e => { st.essai = e.target.value.trim(); garder(); });
+    $('[data-essaib]').addEventListener('click', async e => {
+      lireChamps(); const b = e.currentTarget; b.disabled = true;
+      try { const r = await api(A + '/diffusion/essai', { method: 'POST', body: { canal, message: st.message, a: st.essai } }); toast(r.test ? 'Mode essai : rien n’est parti (Brevo non branché).' : sms ? 'SMS d’essai envoyé : regardez votre téléphone.' : 'E-mail d’essai envoyé : regardez votre boîte de réception.'); }
+      catch (err) { toast(err.message, true); }
+      b.disabled = false;
+    });
+    $('[data-envoyer]').addEventListener('click', async () => {
+      lireChamps();
+      const err = sms ? (!st.message.texte?.trim() ? 'Écrivez d’abord le SMS.' : smsCompte(st.message.texte).sms > 3 ? 'Le SMS est trop long (3 SMS au maximum).' : '') : (!st.message.objet?.trim() ? 'Écrivez d’abord l’objet de l’e-mail.' : !st.message.corps?.trim() ? 'Écrivez d’abord le texte de l’e-mail.' : '');
+      if (err) { toast(err, true); return; }
+      const c = sms ? smsCompte(st.message.texte) : null;
+      const ok = await confirmer(`<h2>Envoyer ${sms ? 'ce SMS' : 'cet e-mail'} à <b>${nb.toLocaleString('fr-FR')}</b> client${nb > 1 ? 's' : ''} ?</h2>
+        <p>${sms ? `Texte : « ${esc(st.message.texte.slice(0, 120))}${st.message.texte.length > 120 ? '…' : ''} »<br>${c.sms} SMS par client, soit <b>${(nb * c.sms).toLocaleString('fr-FR')} crédits SMS</b>.` : `Objet : <b>${esc(st.message.objet)}</b>`}</p>
+        <p class="muted sm">L’envoi ne peut pas être annulé une fois parti. Avez-vous fait un essai sur ${sms ? 'votre portable' : 'votre e-mail'} ?</p>`, `Oui, envoyer à ${nb.toLocaleString('fr-FR')} client${nb > 1 ? 's' : ''}`);
+      if (!ok) return;
+      const go = $('[data-envoyer]'); go.disabled = true;
+      try {
+        const r = await api(A + '/diffusion/envoyer', { method: 'POST', body: { ...sel(), message: st.message, confirme: nb } });
+        toast('Envoi lancé.'); suivre(r.id);
+      } catch (e2) { toast(e2.message, true); go.disabled = false; charger(); }
+    });
+    const ligneHist = c => `<li><span><b>${esc(c.canal === 'sms' ? (c.texte || '').slice(0, 70) + ((c.texte || '').length > 70 ? '…' : '') : c.objet)}</b><small class="muted"> ${dateH(c.at)}${c.par ? ' · ' + esc(c.par) : ''}</small></span><span class="pill ${c.statut === 'termine' ? (c.nbEchecs ? 'd-envoye' : 'd-accepte') : 'd-brouillon'}">${c.statut === 'termine' ? `${(c.nb - c.nbEchecs).toLocaleString('fr-FR')} / ${c.nb.toLocaleString('fr-FR')} envoyés${c.live ? '' : ' (essai)'}` : `en cours ${c.envoyes} / ${c.nb}`}</span></li>`;
+    const hist = async () => { const l = await api(A + '/diffusion/campagnes?canal=' + canal).catch(() => []); const box = $('[data-hist]'); if (box) box.innerHTML = l.length ? l.map(ligneHist).join('') : '<li class="muted">Aucun envoi pour le moment.</li>'; };
+    const suivre = async id => {
+      const box = $('[data-suivi]'); if (!box) return;
+      const c = await api(A + '/diffusion/campagnes/' + id).catch(() => null); if (!c) return;
+      const pc = c.nb ? Math.round(100 * c.envoyes / c.nb) : 100;
+      box.innerHTML = `<div class="df-prog${c.statut === 'termine' ? ' fini' : ''}"><div class="df-bar"><i style="width:${pc}%"></i></div><p>${c.statut === 'termine' ? `✓ Terminé : <b>${(c.nb - c.nbEchecs).toLocaleString('fr-FR')}</b> ${sms ? 'SMS' : 'e-mails'} envoyés${c.live ? '' : ' (mode essai, rien n’est vraiment parti)'}${c.nbEchecs ? `, ${c.nbEchecs} échec${c.nbEchecs > 1 ? 's' : ''} : ${c.echecs.slice(0, 5).map(x => esc(x.nom + ' (' + x.raison + ')')).join(', ')}` : ''}. Chaque envoi est noté dans l’historique du client.` : `Envoi en cours… ${c.envoyes.toLocaleString('fr-FR')} / ${c.nb.toLocaleString('fr-FR')}. Vous pouvez quitter cette page, l’envoi continue.`}</p></div>`;
+      hist();
+      if (c.statut !== 'termine' && location.hash.startsWith('#/clients/' + canal)) setTimeout(() => suivre(id), 2000);
+      else { const go = $('[data-envoyer]'); if (go) go.disabled = false; }
+    };
+    hist(); charger();
+  };
+  /* comptage SMS identique au serveur (server/diffusion.js) */
+  const GSM7 = '@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !"#¤%&\'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà', GSM7X = '^{}\\[~]|€';
+  const versGsm = t => String(t || '').replace(/[’‘]/g, "'").replace(/[“”«»]/g, '"').replace(/[–—]/g, '-').replace(/…/g, '...').replace(/ | /g, ' ').replace(/ç/g, 'c').replace(/[êë]/g, 'e').replace(/[îï]/g, 'i').replace(/[ôö]/g, 'o').replace(/[û]/g, 'u').replace(/[â]/g, 'a').replace(/[ÊË]/g, 'E').replace(/[ÎÏ]/g, 'I').replace(/[Ô]/g, 'O').replace(/[ÛÙ]/g, 'U').replace(/[ÂÀ]/g, 'A').replace(/[È]/g, 'E');
+  function smsCompte(texte) {
+    const t = versGsm(texte).replace(/\{prenom\}/gi, 'Alexandra').trim() + '\nSTOP au 36173';
+    const uni = [...t].some(ch => !GSM7.includes(ch) && !GSM7X.includes(ch));
+    const car = uni ? [...t].length : [...t].reduce((n, ch) => n + (GSM7X.includes(ch) ? 2 : 1), 0);
+    return { car, unicode: uni, sms: car <= (uni ? 70 : 160) ? 1 : Math.ceil(car / (uni ? 67 : 153)) };
+  }
+  function confirmer(html, oui) {
+    return new Promise(res => {
+      const m = document.createElement('div'); m.className = 'modal df-modal'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-modal', 'true');
+      m.innerHTML = `<div class="modal-in df-conf">${html}<div class="row df-cf"><button type="button" class="btn ghost" data-non>Annuler</button><button type="button" class="btn" data-oui>${esc(oui)}</button></div></div>`;
+      const fin = v => { m.remove(); res(v); };
+      m.addEventListener('click', e => { if (e.target === m || e.target.closest('[data-non]')) fin(false); if (e.target.closest('[data-oui]')) fin(true); });
+      document.body.append(m); m.querySelector('[data-oui]').focus();
+    });
+  }
+  async function apercuDiffusion(canal, message, prenom) {
+    const sms = canal === 'sms';
+    let r; try { r = await api(A + '/diffusion/apercu', { method: 'POST', body: { canal, message, prenom } }); } catch (e) { toast(e.message, true); return; }
+    const m = document.createElement('div'); m.className = 'modal df-modal'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-modal', 'true');
+    const heure = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    m.innerHTML = sms
+      ? `<div class="df-tel-wrap"><button type="button" class="x df-x" data-x aria-label="Fermer">×</button><div class="df-tel" aria-label="Aperçu du SMS sur un téléphone"><div class="df-ile"></div><div class="df-st"><b>${heure}</b><span>▂▄▆ 5G ▭</span></div>
+          <div class="df-hd"><span class="df-av">M</span><b>Magnolia</b><small>SMS</small></div>
+          <div class="df-fil"><p class="df-date">Aujourd’hui ${heure}</p><div class="df-bulle">${esc(r.texte).replace(/\n/g, '<br>')}</div></div>
+          <div class="df-saisie"><span>SMS</span></div></div>
+          <p class="df-tel-info">${r.car} caractères · ${r.sms} SMS par client${r.unicode ? ' · contient un caractère spécial' : ''}<br>Exemple avec le prénom « Alexandra ».</p></div>`
+      : `<div class="modal-in df-mail"><div class="df-mh"><div><p class="aq-eye">Aperçu de l’e-mail</p><p class="sm"><b>De :</b> Magnolia Traiteur &lt;infos@magnoliatraiteur.fr&gt;<br><b>Objet :</b> ${esc(message.objet || '(sans objet)')}</p></div><button type="button" class="x" data-x aria-label="Fermer">×</button></div>
+          <div class="df-mt"><button type="button" class="qs-own-b on" data-lg="100%">💻 Ordinateur</button><button type="button" class="qs-own-b" data-lg="390px">📱 iPhone</button></div><div class="df-mf"><iframe title="Aperçu de l’e-mail" sandbox="allow-same-origin"></iframe></div><p class="muted sm">Exemple avec le prénom « ${esc(prenom || 'Alexandra')} ».</p></div>`;
+    document.body.append(m);
+    if (!sms) { const f = m.querySelector('iframe'); f.srcdoc = r.html; m.querySelectorAll('[data-lg]').forEach(b => b.addEventListener('click', () => { f.style.width = b.dataset.lg; m.querySelectorAll('[data-lg]').forEach(x => x.classList.toggle('on', x === b)); })); }
+    m.addEventListener('click', e => { if (e.target === m || e.target.closest('[data-x]')) m.remove(); });
+  }
   /* ---------- fiche client : coordonnées + tout l'historique en frise (comme un CRM) ---------- */
   const HTYPES = {
     demande: ['📥', 'Demande', 'dem'], statut: ['➜', 'Étape', 'st'], devis: ['📄', 'Devis', 'dv'], envoi: ['📨', 'Envoi', 'dv'], vu: ['👁', 'Vu', 'dv'], relance: ['🔔', 'Relance', 'msg'],
@@ -872,10 +1099,14 @@
           <details class="box hc-form"><summary><h2>Coordonnées du client</h2><span class="lnk">Modifier</span></summary><form id="cf">${formClient(c)}<button class="btn">Enregistrer</button></form></details>
         </div></div>`);
   }
-  const formClient = c => `<label>Prénom et NOM<input name="nom" value="${esc(c.nom)}" required data-nomclient placeholder="ex. Jean-Luc BERNARD"></label><label>Société<input name="societe" value="${esc(c.societe || '')}"></label><div class="g2"><label>E-mail<input type="email" name="email" value="${esc(c.email)}" required></label><label>Téléphone<input name="tel" value="${esc(c.tel || '')}"></label></div><label>Adresse de facturation<textarea name="adresse" rows="2">${esc(c.adresse || '')}</textarea></label><label>Notes internes (fixes)<textarea name="notes" rows="3">${esc(c.notes || '')}</textarea></label>`;
+  const formClient = c => `<label>Prénom et NOM<input name="nom" value="${esc(c.nom)}" required data-nomclient placeholder="ex. Jean-Luc BERNARD"></label><label>Société<input name="societe" value="${esc(c.societe || '')}"></label><div class="g2"><label>E-mail<input type="email" name="email" value="${esc(c.email)}" required></label><label>Téléphone<input name="tel" value="${esc(c.tel || '')}"></label></div><label>Adresse de facturation<textarea name="adresse" rows="2">${esc(c.adresse || '')}</textarea></label><label>Notes internes (fixes)<textarea name="notes" rows="3">${esc(c.notes || '')}</textarea></label><fieldset class="df-fs"><legend>E-mails et SMS d’information</legend><label class="check"><input type="checkbox" name="_accord"${c.consentement?.email ? ' checked' : ''}> A accepté de recevoir nos offres</label><label class="check"><input type="checkbox" name="_stopEmail"${c.desinscrit?.email ? ' checked' : ''}> Ne plus lui envoyer d’e-mails d’information</label><label class="check"><input type="checkbox" name="_stopSms"${c.desinscrit?.sms ? ' checked' : ''}> Ne plus lui envoyer de SMS d’information</label></fieldset>`;
   client.after = id => {
     $('#cf').addEventListener('submit', async e => {
       e.preventDefault(); const f = Object.fromEntries(new FormData(e.target));
+      const now = new Date().toISOString(), c0 = cache.client || {}, ds = c0.desinscrit || {}, cs = c0.consentement || {};
+      const stopE = !!f._stopEmail, stopS = !!f._stopSms, acc = !!f._accord; delete f._stopEmail; delete f._stopSms; delete f._accord;
+      if (stopE !== !!ds.email || stopS !== !!ds.sms) f.desinscrit = { ...ds, email: stopE, sms: stopS, le: ds.le || now, ...(stopE && !ds.email ? { leEmail: now } : {}), ...(stopS && !ds.sms ? { leSms: now } : {}) };
+      if (acc !== !!cs.email) f.consentement = acc ? { ...cs, email: true, sms: true, le: now, source: 'back-office' } : { ...cs, email: false, sms: false, le: now, source: 'back-office' };
       try {
         if (id === 'nouveau') { const r = await api(A + '/clients', { method: 'POST', body: { ...f, source: 'back-office', creeLe: new Date().toISOString(), derniereActivite: new Date().toISOString() } }); location.hash = '#/clients/' + r.id; }
         else { const cur = await api(A + '/clients/' + id); await api(`${A}/clients/${id}`, { method: 'PUT', body: { ...cur, ...f } }); toast('Client enregistré.'); render(); }

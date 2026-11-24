@@ -42,30 +42,35 @@ function createBrevo({ env = process.env, store, log = console } = {}) {
     return data;
   }
 
-  async function sendEmail({ to, name = '', subject, html, text, replyTo, bcc, attachment }) {
+  async function sendEmail({ to, name = '', subject, html, text, replyTo, bcc, attachment, headers, tags, journal = true }) {
     if (!isEmail(to)) return { skipped: 'adresse invalide' };
     const body = { sender: from, to: [{ email: String(to).trim(), name: name || undefined }], subject, htmlContent: html, textContent: text };
+    if (headers && typeof headers === 'object') body.headers = headers;
+    if (Array.isArray(tags) && tags.length) body.tags = tags.map(String).slice(0, 5);
     if (replyTo && isEmail(replyTo)) body.replyTo = { email: replyTo };
     if (Array.isArray(attachment) && attachment.length) body.attachment = attachment.slice(0, 3).map(x => ({ name: String(x.name || 'piece-jointe').slice(0, 80), content: String(x.content || '') }));
     if (bcc && isEmail(bcc) && String(bcc).trim().toLowerCase() !== String(to).trim().toLowerCase()) body.bcc = [{ email: String(bcc).trim() }];
-    if (!live) { await record('email', body, 'test'); return { test: true }; }
-    try { const res = await call('/smtp/email', body); await record('email', body, res); return res; }
-    catch (e) { log.error?.('[brevo] e-mail', e.message); await record('email', body, { error: e.message }); return { error: e.message }; }
+    const rec = journal ? record : async () => {};
+    if (!live) { await rec('email', body, 'test'); return { test: true }; }
+    try { const res = await call('/smtp/email', body); await rec('email', body, res); return res; }
+    catch (e) { log.error?.('[brevo] e-mail', e.message); await rec('email', body, { error: e.message }); return { error: e.message }; }
   }
 
-  async function sendSms({ to, content }) {
+  async function sendSms({ to, content, type = 'transactional', tag, unicode, journal = true }) {
     const recipient = normPhone(to);
     if (!recipient) return { skipped: 'numéro invalide' };
-    const body = { sender: smsSender, recipient, content: String(content).slice(0, 459), type: 'transactional', unicodeEnabled: /[^\x00-\x7F€éèêàâùûôîïçÉÈÀ]/.test(content) };
-    if (!live) { await record('sms', body, 'test'); return { test: true }; }
+    const body = { sender: smsSender, recipient, content: String(content).slice(0, 612), type: type === 'marketing' ? 'marketing' : 'transactional', unicodeEnabled: unicode ?? /[^\x00-\x7F€éèêàâùûôîïçÉÈÀ]/.test(content) };
+    if (tag) body.tag = String(tag).slice(0, 60);
+    const rec = journal ? record : async () => {};
+    if (!live) { await rec('sms', body, 'test'); return { test: true }; }
     try {
       let res;
       /* adresse de l'API SMS de Brevo : /transactionalSMS/sms ; repli sur /transactionalSMS/send si elle n'existe pas */
       try { res = await call('/transactionalSMS/sms', body); }
       catch (e) { if (e.status !== 404) throw e; res = await call('/transactionalSMS/send', body); }
-      await record('sms', body, res); return res;
+      await rec('sms', body, res); return res;
     }
-    catch (e) { log.error?.('[brevo] sms', e.message); await record('sms', body, { error: e.message }); return { error: e.message }; }
+    catch (e) { log.error?.('[brevo] sms', e.message); await rec('sms', body, { error: e.message }); return { error: e.message }; }
   }
 
   return { sendEmail, sendSms, live };

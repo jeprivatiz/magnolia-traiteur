@@ -198,4 +198,41 @@ function appliquerModif(rep, { lignes, evenement, remiseCents }, c, visibles, ta
   return { lignes: out.slice(0, 300), invites: inv, remiseCents: remise, changements: changes, explication: str(rep?.explication, 400) };
 }
 
-module.exports = { createIa, json, promptFiche, catalogueCompact, promptProduits, nettoyerFiche, nettoyerArticles, promptModif, appliquerModif };
+/* ---------- envois groupés : e-mail et SMS d'information rédigés par l'IA ---------- */
+const MAISON = `Magnolia Traiteur : traiteur événementiel (Villebon-sur-Yvette, 91), livraison 7 j/7 à Paris et dans toute l'Île-de-France. Dix cuisines du monde (antillaise, libanaise, indienne, chinoise, japonaise, italienne, africaine…), la carte du chef, cocktails, buffets, plateaux, animations, personnel de service, vaisselle, lieux de réception. Ton : chaleureux, élégant, simple, vouvoiement.`;
+function promptEmail(infos, { ton = '', site = '' } = {}) {
+  return `${MAISON}
+Rédige un e-mail d'information envoyé à nos clients à partir des informations ci-dessous (données en vrac par l'équipe).
+Règles :
+- En français, vouvoiement, phrases courtes et claires, sans fautes. N'invente AUCUN prix, date, pourcentage ou offre qui n'est pas dans les informations.
+- Commence le corps par « Bonjour {prenom}, » ({prenom} sera remplacé par le prénom du client).
+- Corps : 3 à 6 courts paragraphes séparés par une ligne vide. Tu peux mettre en gras avec **…** les 2 ou 3 informations clés, et une liste avec des lignes commençant par « - » si utile. Pas de signature (elle est ajoutée automatiquement), pas de lien de désinscription (ajouté automatiquement).
+- objet : accrocheur, 60 caractères maximum, sans majuscules partout, un emoji au plus.
+- titre : grand titre affiché en haut de l'e-mail, 8 mots maximum.
+- bouton : texte d'un bouton d'action (4 mots maximum, ex. « Demander un devis ») et lien : une adresse donnée dans les informations, sinon "${site}/contact".
+${ton ? '- Ton souhaité : ' + ton + '.\n' : ''}Réponds UNIQUEMENT avec un objet JSON, sans texte autour : {"objet":"","titre":"","corps":"","bouton":{"texte":"","lien":""}}
+
+Informations :
+"""${String(infos).slice(0, 6000)}"""`;
+}
+function promptSms(infos, { nbSms = 1, max = 160 } = {}) {
+  return `${MAISON}
+Rédige un SMS d'information envoyé à nos clients à partir des informations ci-dessous (données en vrac par l'équipe).
+Règles impératives :
+- ${max} caractères MAXIMUM au total (espaces compris) — c'est ${nbSms} SMS. Compte bien.
+- Commence par « Magnolia Traiteur : » puis « Bonjour {prenom}, » ou directement le message si la place manque ({prenom} sera remplacé par le prénom).
+- Écris sans accents circonflexes ni ç (ex. « fete », « garcon ») et sans guillemets typographiques, pour que le SMS reste au format standard. Les é è à ù sont permis.
+- N'invente AUCUN prix, date ou offre absente des informations. Mets le numéro 07 63 66 98 92 ou l'adresse du site si la place le permet.
+- N'ajoute PAS la mention STOP (ajoutée automatiquement), ni emoji.
+Réponds UNIQUEMENT avec un objet JSON : {"texte":""}
+
+Informations :
+"""${String(infos).slice(0, 4000)}"""`;
+}
+function nettoyerEmail(j, site = '') {
+  const b = j?.bouton || {};
+  const lien = str(b.lien, 300);
+  return { objet: str(j?.objet, 120), titre: str(j?.titre, 120), corps: str(j?.corps, 6000).replace(/\r/g, ''), bouton: { texte: str(b.texte, 40), lien: /^https?:\/\//.test(lien) || lien.startsWith('/') ? lien : site + '/contact' } };
+}
+
+module.exports = { promptEmail, promptSms, nettoyerEmail, createIa, json, promptFiche, catalogueCompact, promptProduits, nettoyerFiche, nettoyerArticles, promptModif, appliquerModif };
