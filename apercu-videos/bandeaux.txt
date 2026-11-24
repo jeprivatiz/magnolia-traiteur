@@ -1,4 +1,0 @@
-# nom url debut duree cx cy zoom
-couscous-party https://videos.pexels.com/video-files/3015488/3015488-hd_1920_1080_24fps.mp4 2 14 0.5 0.5 1
-buffet-indien https://videos.pexels.com/video-files/8811071/8811071-hd_1920_1080_25fps.mp4 0 15 0.5 0.9 1.35
-carte-magnolia https://videos.pexels.com/video-files/39877475/17005418_1920_1080_50fps.mp4 0 10.6 0.5 0.6 1.1

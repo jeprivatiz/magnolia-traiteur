@@ -28,3 +28,11 @@ Recadrées en 4:3 (800 × 600), muettes, en boucle avec un fondu, dans `public/s
 
 Non trouvé en vidéo libre correcte : meule de parmesan flambée (Pexels, Pixabay, Mixkit vérifiés) ; sorbet coco (photo gardée) à l'ancienne
 (animation sorbet coco à l'antillaise, stand avec hôtesse, stand sans hôtesse).
+
+## Vidéos des grands bandeaux (2026-11-24)
+
+| Page | Vidéo | Source |
+|---|---|---|
+| Couscous party | Tajine de légumes fumant sur une table marocaine (aucune vidéo libre de couscous trouvée sur Pexels, Pixabay, Mixkit) | https://www.pexels.com/video/3015488/ |
+| Buffet indien | Grande table de plats indiens, cuivres et naans | https://www.pexels.com/video/8811071/ |
+| La carte Magnolia | Chef qui dépose des framboises une à une sur une assiette (gros plan) | https://www.pexels.com/video/39877475/ |

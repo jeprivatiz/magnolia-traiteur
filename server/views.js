@@ -306,7 +306,7 @@ function bandeauHtml(c, B, fil) {
   const tel = (R.telephone || '').replace(/\s/g, '');
   const G = R.avisGoogle || {};
   const media = B.video
-    ? `<video src="${esc(B.video)}" poster="${esc(B.photo || '')}" autoplay muted loop playsinline preload="metadata" aria-hidden="true" data-autoplay></video>`
+    ? `<video src="${esc(B.video)}" poster="${esc(B.poster || B.photo || '')}"${B.position ? ` style="object-position:${esc(B.position)}"` : ''} autoplay muted loop playsinline preload="metadata" aria-hidden="true" data-autoplay></video>`
     : img(B.photo, '', '', 'fetchpriority="high"').replace(' loading="lazy"', '');
   return `<section class="phero land${kb(c, B.video ? '' : B.photo, B.titre)}">${media}<div class="phero-c wrap">${crumbs(fil || [[B.titre]])}<h1>${esc(B.titre)}</h1>${B.chapo ? `<p class="lead">${esc(B.chapo)}</p>` : ''}
   <div class="row land-cta"><a class="btn btn-or" href="${esc(B.ancre || '/boutique')}">${esc(B.bouton || 'Découvrir')}</a><a class="btn btn-ghost-light" href="tel:${esc(tel)}">${icon.phone}<span>${esc(R.telephone || '')}</span></a></div>
@@ -415,7 +415,7 @@ function pageSpecialites(c, r) {
     if (carte) return `<a class="tile spe carte-v" href="/${esc(r.slug)}/${esc(x.slug)}">${carte}<span class="tile-t">${x.pays ? `<i class="pays">${esc(x.pays)}</i>` : ''}<b>${esc(x.nom)}</b><small>${n} prestation${n > 1 ? 's' : ''}</small><span class="voir">Voir nos propositions ${icon.arrow}</span></span></a>`;
     return `<a class="tile spe" href="/${esc(r.slug)}/${esc(x.slug)}">${img(x.photo, x.nom)}${x.video ? `<video src="${esc(x.video)}" muted loop playsinline preload="none" aria-hidden="true" data-survol></video>` : ''}<span class="tile-t">${x.pays ? `<i class="pays">${esc(x.pays)}</i>` : ''}<b>${esc(x.nom)}</b><small>${n} prestation${n > 1 ? 's' : ''}</small><span class="voir">Voir nos propositions ${icon.arrow}</span></span></a>`;
   };
-  const body = `${bandeauHtml(c, { photo: r.bandeauPhoto || r.photoAccueil || r.photo, video: r.bandeauVideo || '', titre: r.titrePage || r.nom, chapo: r.chapo || r.accroche || 'Choisissez votre spécialité : chaque cuisine a ses buffets, ses plats et ses douceurs.', bouton: 'Choisir ma spécialité', ancre: '#specialites' }, [['La boutique', '/boutique'], [r.nom]])}
+  const body = `${bandeauHtml(c, { photo: r.bandeauPhoto || r.photoAccueil || r.photo, video: r.bandeauVideo || '', poster: r.bandeauPoster || '', position: r.bandeauPosition || '', titre: r.titrePage || r.nom, chapo: r.chapo || r.accroche || 'Choisissez votre spécialité : chaque cuisine a ses buffets, ses plats et ses douceurs.', bouton: 'Choisir ma spécialité', ancre: '#specialites' }, [['La boutique', '/boutique'], [r.nom]])}
   <section class="wrap apres-bandeau" id="specialites">${introHtml(r.introTitre, r.introTexte)}<p class="eyebrow">Un voyage à votre table</p><h2>Choisissez votre spécialité</h2>
   <div class="tiles specialites">${S.map(tuile).join('')}${autres.length ? `<a class="tile spe autres" href="/${esc(r.slug)}/tout"><span class="tile-t"><b>Autres saveurs</b><small>${autres.length} prestation${autres.length > 1 ? 's' : ''}</small><span class="voir">Voir ${icon.arrow}</span></span></a>` : ''}</div>
   <p class="center tout-voir"><a class="lnk" href="/${esc(r.slug)}/tout">Voir les ${tous.length} prestations ${esc(r.nom.toLowerCase())} ensemble</a></p></section>`;
@@ -426,7 +426,7 @@ function specialite(c, r, x) {
   const liste = x ? prodsDeSous(c, r, x.slug) : (c.byRub.get(r.slug) || []);
   const chips = `<div class="chips scroll-x spe-chips">${S.map(y => `<a class="chip${x && y.slug === x.slug ? ' on' : ''}" href="/${esc(r.slug)}/${esc(y.slug)}">${esc(y.nom)}</a>`).join('')}${(() => { const m = r.slug === 'saveurs-du-monde' && c.rubriques.find(z => z.slug === 'grand-large' && z.statut !== 'masque'); return m ? `<a class="chip" href="/${esc(m.slug)}">${esc(m.nom)}</a>` : ''; })()}<a class="chip${!x ? ' on' : ''}" href="/${esc(r.slug)}/tout">Tout</a></div>`;
   const fil = [['La boutique', '/boutique'], [r.nom, '/' + r.slug], [x ? x.nom : 'Tout']];
-  const hero = x ? bandeauHtml(c, { photo: x.bandeauPhoto || x.photo, video: x.bandeauVideo ?? x.video ?? '', titre: speTitre(x), chapo: speChapo(x), bouton: x.bouton || 'Voir les propositions', ancre: '#prestations' }, fil) : '';
+  const hero = x ? bandeauHtml(c, { photo: x.bandeauPhoto || x.photo, video: x.bandeauVideo ?? x.video ?? '', poster: x.bandeauPoster || '', position: x.bandeauPosition || '', titre: speTitre(x), chapo: speChapo(x), bouton: x.bouton || 'Voir les propositions', ancre: '#prestations' }, fil) : '';
   if (x && x.parSections) return pageSections(c, r, x, chips, hero);
   return boutique(c, { intro: x ? { titre: x.introTitre, texte: x.introTexte } : { titre: r.introTitre, texte: r.introTexte }, rub: r.slug, titre: x ? speTitre(x) : r.nom, chapo: x ? speChapo(x) : r.chapo, photo: x ? (x.bandeauPhoto || x.photo) : (r.photoAccueil || r.photo), path: `/${r.slug}/${x ? x.slug : 'tout'}`, liste, fil, chips, hero, seo: x ? { title: x.seoTitre || speTitre(x), description: x.seoDescription || speChapo(x) } : null });
 }
@@ -462,7 +462,7 @@ function boutique(c, { q = '', rub = '', titre, chapo, photo, path = '/boutique'
   const prods = liste || (q ? c.search(c, q, 400) : c.produits.filter(p => p.statut !== 'masque'));
   const r = rubs.find(x => x.slug === rub);
   const body = `
-${hero || (path === '/boutique' && !q ? bandeau(c, 'boutique') : photo ? bandeauHtml(c, { photo: r?.bandeauPhoto || photo, video: r?.bandeauVideo || '', titre: r?.titrePage || titre, chapo, bouton: 'Voir les prestations', ancre: '#prestations' }, fil || (r ? [['La boutique', '/boutique'], [r.nom]] : [[titre]]))
+${hero || (path === '/boutique' && !q ? bandeau(c, 'boutique') : photo ? bandeauHtml(c, { photo: r?.bandeauPhoto || photo, video: r?.bandeauVideo || '', poster: r?.bandeauPoster || '', position: r?.bandeauPosition || '', titre: r?.titrePage || titre, chapo, bouton: 'Voir les prestations', ancre: '#prestations' }, fil || (r ? [['La boutique', '/boutique'], [r.nom]] : [[titre]]))
     : `<section class="wrap page-h">${crumbs([[titre]])}<h1>${esc(titre)}</h1><p class="lead">${esc(chapo || 'Toute la brochure, avec ses prix. Ajoutez vos choix à votre sélection, puis demandez votre devis.')}</p></section>`)}
 ${avant}<section class="wrap shop" id="prestations" data-shop>
   ${intro && !avant ? introHtml(intro.titre, intro.texte) : ''}${avant ? '<h2 class="p3-titre-liste">Tous nos produits en détail</h2>' : ''}

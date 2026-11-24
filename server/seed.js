@@ -1450,6 +1450,19 @@ async function initSousRubriques(store, { log = console } = {}) {
     }
     await store.set('site/reglages', { ...(await store.get('site/reglages')), lieuxCriteres: true });
   }
+  /* Vraies vidéos en haut de 3 pages (Jean-Luc, 2026-11-24), sans la photo dessous (l'image d'attente est la 1re image
+     de la vidéo) : Couscous party (tajine de légumes fumant, Pexels 3015488 ; aucune vidéo libre de couscous n'existe),
+     Buffet indien (grande table de plats indiens, Pexels 8811071), La carte Magnolia (chef qui dresse une assiette
+     au gros plan, Pexels 39877475). Une fois ; sources dans data/credits-videos-animations.md. */
+  const RBv = await store.get('site/reglages');
+  if (RBv && !RBv.bandeauxVideos1) {
+    const vid = n => ({ bandeauVideo: `/site/v/bandeaux/${n}.mp4`, bandeauPoster: `/site/v/bandeaux/${n}.jpg` });
+    const sm = await store.get('rubriques/saveurs-du-monde');
+    if (sm) await store.set('rubriques/saveurs-du-monde', { ...sm, sous: (sm.sous || []).map(x => ['couscous-party', 'buffet-indien'].includes(x.slug) ? { ...x, ...vid(x.slug) } : x) });
+    const cm = await store.get('rubriques/carte-magnolia');
+    if (cm) await store.set('rubriques/carte-magnolia', { ...cm, ...vid('carte-magnolia'), bandeauPosition: '50% 100%' /* l'assiette est en bas de l'image */ });
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), bandeauxVideos1: true });
+  }
 }
 
 /* [fiche gardée, doublons…] : mêmes produit, prix et minimum */
