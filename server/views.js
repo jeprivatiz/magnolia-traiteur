@@ -616,6 +616,7 @@ function selection(c) {
       <div class="f2"><label>E-mail<input type="email" name="email" autocomplete="email" required></label><label>Téléphone<input type="tel" name="tel" autocomplete="tel" required></label></div>
       <label>Votre message <small>(allergies, déroulé, accès…)</small><textarea name="message" rows="3"></textarea></label>
       <label class="check"><input type="checkbox" name="rgpd" required> J’accepte que Magnolia Traiteur utilise ces informations pour répondre à ma demande (<a href="/confidentialite">confidentialité</a>).</label>
+      <label class="check"><input type="checkbox" name="offres" value="1"> J’accepte de recevoir les nouveautés et offres de Magnolia par e-mail et SMS (désinscription en un clic).</label>
       <div class="sel-tot"><div><span>Sélection</span><b data-sel-sub>0 €</b></div><div><span>Livraison estimée</span><b data-sel-livr>—</b></div><div class="tot"><span>Total estimé TTC</span><b data-sel-total>0 €</b></div></div><p class="small sel-offerte" data-sel-offerte></p>
       <button class="btn btn-vert wide" data-send>Envoyer ma demande de devis</button>
       <p class="small center">Votre envoi est une demande à étudier, pas une commande. Réponse rapide, du lundi au samedi.</p>
@@ -789,7 +790,7 @@ function contact(c) {
   const html = `<div class="cols2"><div><h2>Parlons de votre événement</h2><p><a class="big-tel" href="tel:${esc((R.telephone || '').replace(/\s/g, ''))}">${esc(R.telephone)}</a></p><p><a href="mailto:${esc(R.email)}">${esc(R.email)}</a></p><p>${esc(R.adresse)}</p><p class="small">${esc(R.horaires)}</p></div>
   <form class="card-form" data-contact novalidate><label>Prénom et nom<input name="nom" required autocomplete="name"></label><div class="f2"><label>E-mail<input type="email" name="email" required autocomplete="email"></label><label>Téléphone<input type="tel" name="tel" autocomplete="tel"></label></div>
   <label>Sujet<select name="sujet"><option>Demande d’information</option><option>Devis sur mesure</option><option>Un devis en cours</option><option>Partenariat / lieu</option><option>Autre</option></select></label>
-  <label>Message<textarea name="message" rows="5" required></textarea></label><button class="btn btn-vert">Envoyer</button></form></div>`;
+  <label>Message<textarea name="message" rows="5" required></textarea></label><label class="check"><input type="checkbox" name="offres" value="1"> J’accepte de recevoir les nouveautés et offres de Magnolia par e-mail et SMS (désinscription en un clic).</label><button class="btn btn-vert">Envoyer</button></form></div>`;
   return texte(c, { titre: 'Contact', chapo: 'Une question, un devis sur mesure ? Nous vous répondons vite.', html, path: '/contact' });
 }
 

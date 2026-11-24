@@ -17,6 +17,7 @@ const { preparerAlerte } = require('./relances');
 const { regleAcompte, totaux, controleMarge, prochainNumero, lignesDepuisDemande, estimerLigne } = require('./devis');
 const { rid, sha, esc, euros, limiter, dateFr, slugify, nomPropre } = require('./util');
 const IA = require('./ia');
+const DIF = require('./diffusion');
 
 const ROOT = path.join(__dirname, '..');
 const PUBLIC = path.join(ROOT, 'public');
@@ -267,6 +268,7 @@ async function createApp(opts = {}) {
     const seuil = T.livraisonOfferteCents ?? 70000; /* livraison offerte dès ce montant TTC (0 = jamais) */
     const offerte = !!(km && seuil > 0 && sousTotal >= seuil);
     const { id: clientId, nouveau } = await upsertClient(contact);
+    if (b.offres === true || b.offres === '1' || b.offres === 'on') { const cl = await store.get('clients/' + clientId); if (cl && !cl.consentement?.email) await store.set('clients/' + clientId, { ...cl, consentement: { email: true, sms: true, le: new Date().toISOString(), source: 'case cochée sur le site', base: 'consentement' } }); }
     const id = 'd_' + rid(8);
     const ref = await prochainNumero(store, 'demande');
     const demande = {
@@ -287,6 +289,22 @@ async function createApp(opts = {}) {
     alerterEquipe(`Nouvelle ${demande.type === 'contact' ? 'question' : 'demande de devis'} ${ref} : ${contact.nom}`, `<p><b>${esc(contact.nom)}</b> ${esc(contact.societe)} · ${esc(contact.email)} · ${esc(contact.tel)}</p><p>${esc(demande.evenement.type)} · ${esc(dateFr(demande.evenement.date))} · ${demande.evenement.invites} invités · ${esc(demande.evenement.ville)}</p><ul>${recap}</ul><p>${esc(demande.message)}</p><p><a href="${SITE}/admin#/demandes/${id}">Ouvrir dans le back-office</a></p>`, `Magnolia : nouvelle demande ${ref} de ${contact.nom}, ${demande.evenement.invites} pers. le ${demande.evenement.date}`).catch(() => {});
     /* le lien direct vers l'espace n'est rendu qu'à un nouveau client ; un client connu le reçoit par e-mail */
     res.json({ ok: true, ref, totalEstimeCents: demande.totalEstimeCents, espace: nouveau ? lien.replace(SITE, '') : '/espace-client' });
+  }));
+
+  /* ---------- désinscription des e-mails d'information (lien en bas de chaque e-mail groupé, et bouton « Se désinscrire » de Gmail / Apple Mail) ---------- */
+  async function desinscrire(id, t) {
+    const c = id && await store.get('clients/' + id);
+    if (!c || !DIF.jetonOk(await secretDesinscription(), id, t)) return null;
+    if (!c.desinscrit?.email) { const now = new Date().toISOString(); await store.set('clients/' + id, { ...c, desinscrit: { ...(c.desinscrit || {}), email: true, le: c.desinscrit?.le || now, leEmail: now } }); profilsCache = null; }
+    return c;
+  }
+  app.get('/desinscription', wrap(async (req, res) => {
+    const id = s(req.query.c, 40), t = s(req.query.t, 40), ok = id && (await store.get('clients/' + id)) && DIF.jetonOk(await secretDesinscription(), id, t);
+    res.set('Cache-Control', 'no-store').set('X-Robots-Tag', 'noindex').type('html').send(DIF.pageDesinscription({ etat: ok ? 'demander' : 'invalide', action: '/desinscription?c=' + encodeURIComponent(id) + '&t=' + encodeURIComponent(t), R: (await cat.get()).reglages }));
+  }));
+  app.post('/desinscription', express.urlencoded({ extended: false }), wrap(async (req, res) => {
+    const c = await desinscrire(s(req.query.c, 40), s(req.query.t, 40));
+    res.set('Cache-Control', 'no-store').set('X-Robots-Tag', 'noindex').type('html').send(DIF.pageDesinscription({ etat: c ? 'fait' : 'invalide', R: (await cat.get()).reglages }));
   }));
 
   /* ---------- espace client (lien magique par e-mail) ---------- */
@@ -773,7 +791,7 @@ async function createApp(opts = {}) {
   A.get('/actions/historique-client/:id', wrap(async (req, res) => {
     const c = await store.get('clients/' + req.params.id);
     if (!c) return res.status(404).json({ error: 'Client introuvable.' });
-    const [dem, dv, fac, out, rdv] = await Promise.all(['demandes', 'devis', 'factures', '_outbox', 'rdv'].map(k => store.list(k).then(l => l.map(x => x.data))));
+    const [dem, dv, fac, out, rdv, camps] = await Promise.all(['demandes', 'devis', 'factures', '_outbox', 'rdv', '_campagnes'].map(k => store.list(k).then(l => l.map(x => x.data))));
     const demandes = dem.filter(d => d.clientId === c.id);
     const devisL = dv.filter(d => d.clientId === c.id || (d.demandeId && demandes.some(x => x.id === d.demandeId)));
     const facts = fac.filter(f => f.clientId === c.id || devisL.some(d => d.id === f.devisId));
@@ -811,6 +829,12 @@ async function createApp(opts = {}) {
       if (o.kind === 'email' && (p.to || []).some(t => mails.includes(String(t.email || '').toLowerCase())) && !proche(o.at, p.subject)) add(o.at, 'email', 'E-mail envoyé : ' + (p.subject || ''), { detail: ko.trim() });
       if (o.kind === 'sms' && tels.length && tels.includes(telCourt(p.recipient)) && !proche(o.at, p.content)) add(o.at, 'sms', 'SMS envoyé', { detail: String(p.content || '').slice(0, 300) + ko });
     }
+    for (const cp of camps) if ((cp.ids || []).includes(c.id)) {
+      const ko = (cp.echecs || []).find(x => x.id === c.id);
+      add(cp.at, cp.canal === 'sms' ? 'sms' : 'email', cp.canal === 'sms' ? 'SMS d’information envoyé' : 'E-mail d’information envoyé : ' + (cp.message?.objet || ''), { par: cp.par, detail: (cp.canal === 'sms' ? String(cp.message?.texte || '').slice(0, 300) : '') + (ko ? ' (échec : ' + ko.raison + ')' : cp.live ? '' : ' (mode essai, non parti)') });
+    }
+    if (c.desinscrit?.email) add(c.desinscrit.leEmail || c.desinscrit.le, 'note', 'Désinscrit des e-mails d’information');
+    if (c.desinscrit?.sms) add(c.desinscrit.leSms || c.desinscrit.le, 'note', 'Ne veut plus de SMS d’information');
     for (const r of rdv) if (r.clientId === c.id) add(r.date + 'T' + (/^\d\d:\d\d/.test(r.titre) ? r.titre.slice(0, 5) : '09:00'), 'rdv', 'Rendez-vous : ' + r.titre, { detail: r.detail || '' });
     for (const j of c.journal || []) add(j.at, j.type === 'appel' ? 'appel' : 'note', j.type === 'appel' ? 'Appel téléphonique' : 'Note', { detail: j.texte, par: j.par, jid: j.id });
     if (c.creeLe) add(c.creeLe, 'client', 'Fiche client créée', { par: c.source || '' });
@@ -835,6 +859,167 @@ async function createApp(opts = {}) {
     await store.set('clients/' + c.id, { ...c, derniereActivite: now, journal: [...(c.journal || []), { id: rid(6), at: now, type, texte, par: req.ctx.name || req.ctx.email || '' }] });
     audit(req.ctx, type === 'appel' ? 'appel noté' : 'note client', 'clients/' + c.id, texte.slice(0, 80));
     res.json({ ok: true });
+  }));
+
+  /* ---------- envois groupés : Clients › « Envoyer un e-mail » / « Envoyer un SMS » ----------
+     sélection multicritère faite ici (le fichier clients peut compter des dizaines de milliers de fiches),
+     rédaction par l'IA, aperçu, envoi d'essai, envoi réel en arrière-plan, une trace par envoi (_campagnes) relue par l'historique client */
+  let profilsCache = null;
+  async function lesProfils() {
+    if (profilsCache && Date.now() - profilsCache.at < 30e3) return profilsCache.l;
+    const [cl, dem, dv, fa] = await Promise.all(['clients', 'demandes', 'devis', 'factures'].map(k => store.list(k)));
+    const l = DIF.profils({ clients: cl.filter(x => x.data).map(x => ({ ...x.data, id: x.data.id || x.id })), demandes: dem.map(x => x.data), devis: dv.map(x => x.data), factures: fa.map(x => x.data), totaux });
+    profilsCache = { at: Date.now(), l };
+    return l;
+  }
+  let secretP = null; /* une seule lecture / création, même si plusieurs envois partent en même temps */
+  function secretDesinscription() {
+    if (env.UNSUBSCRIBE_SECRET) return Promise.resolve(env.UNSUBSCRIBE_SECRET);
+    return (secretP ||= (async () => {
+      let x = await store.get('_secret/desinscription');
+      if (!x) { x = { v: rid(32) }; await store.set('_secret/desinscription', x); }
+      return x.v;
+    })().catch(e => { secretP = null; throw e; }));
+  }
+  const lienDesinscription = async id => SITE + '/desinscription?c=' + encodeURIComponent(id) + '&t=' + DIF.jeton(await secretDesinscription(), id);
+  const canalDe = v => (v === 'sms' ? 'sms' : 'email');
+  const critDe = b => ({ statut: ['commandes', 'prospects'].includes(b?.statut) ? b.statut : '', montantMin: Math.max(0, Math.round(+b?.montantMin || 0)), deps: (Array.isArray(b?.deps) ? b.deps : []).map(x => s(x, 3)).slice(0, 120), types: (Array.isArray(b?.types) ? b.types : []).map(x => s(x, 60)).slice(0, 40), pro: ['pro', 'part'].includes(b?.pro) ? b.pro : '', accord: !!b?.accord });
+  /* destinataires : mode « critères » (tous ceux qui correspondent, moins ceux décochés) ou « un par un » (seulement ceux cochés) */
+  function destinataires(l, canal, b) {
+    const base = DIF.filtrer(l, canal, critDe(b?.criteres));
+    if (b?.mode === 'manuel') { const ins = new Set((b.inclus || []).map(String)); return DIF.filtrer(l, canal, {}).filter(p => ins.has(p.id)); }
+    const ex = new Set((b?.exclus || []).map(String));
+    return base.filter(p => !ex.has(p.id));
+  }
+  A.get('/diffusion/criteres', wrap(async (req, res) => {
+    profilsCache = null; /* chaque ouverture de l'écran repart de données fraîches */
+    const l = await lesProfils(), deps = new Map(), types = new Map();
+    for (const p of l) { for (const d of p.deps) deps.set(d, (deps.get(d) || 0) + 1); for (const t of p.types) types.set(t, (types.get(t) || 0) + 1); }
+    const R = (await cat.get()).reglages;
+    res.json({
+      total: l.length, email: DIF.filtrer(l, 'email').length, sms: DIF.filtrer(l, 'sms').length,
+      stopEmail: l.filter(p => p.stopEmail).length, stopSms: l.filter(p => p.stopSms).length,
+      deps: [...deps].sort((a, b) => a[0].localeCompare(b[0], 'fr', { numeric: true })), types: [...types].sort((a, b) => b[1] - a[1]),
+      ia: ia.actif, brevo: brevo.live, moi: { email: req.ctx.email || '', tel: String(R.alertes?.sms || '').split(/[,;]/)[0].trim() }, creneauSms: DIF.creneauSms(),
+    });
+  }));
+  A.post('/diffusion/selection', sameSite, json, wrap(async (req, res) => {
+    const l = await lesProfils(), canal = canalDe(req.body?.canal), b = req.body || {};
+    const choisis = destinataires(l, canal, b), ids = new Set(choisis.map(p => p.id));
+    /* liste affichée : en mode critères, ceux qui correspondent ; en mode un par un, tout le fichier joignable */
+    const k = critDe(b.criteres);
+    let vue = b.mode === 'manuel' ? DIF.filtrer(l, canal, { q: b.q }) : DIF.filtrer(l, canal, { ...k, q: b.q });
+    if (b.seulementCoches) vue = vue.filter(p => ids.has(p.id));
+    vue.sort((a, c) => (c.totalCents - a.totalCents) || String(c.derniere).localeCompare(String(a.derniere)));
+    const page = Math.max(0, +b.page | 0), N = 50;
+    res.json({
+      nb: choisis.length, correspondent: b.mode === 'manuel' ? null : DIF.filtrer(l, canal, k).length, vue: vue.length, page, pages: Math.ceil(vue.length / N),
+      lignes: vue.slice(page * N, page * N + N).map(p => ({ id: p.id, nom: p.nom, societe: p.societe, contact: canal === 'email' ? p.email : p.tel, deps: p.deps, totalCents: p.totalCents, nbCommandes: p.nbCommandes, derniere: p.derniere, coche: ids.has(p.id) })),
+    });
+  }));
+  /* rédaction par l'IA */
+  A.post('/ia/diffusion-email', sameSite, json, wrap(async (req, res) => {
+    if (!iaLimit(req.ctx.uid)) return res.status(429).json({ error: 'Trop de demandes : réessayez dans une minute.' });
+    const infos = s(req.body?.infos, 6000);
+    if (infos.length < 5) return res.status(400).json({ error: 'Écrivez d’abord les informations à faire passer.' });
+    try { res.json(IA.nettoyerEmail(IA.json(await ia.demander(IA.promptEmail(infos, { ton: s(req.body?.ton, 60), site: SITE }), { effort: 'medium' })), SITE)); }
+    catch (e) { iaErreur(res, e); }
+  }));
+  A.post('/ia/diffusion-sms', sameSite, json, wrap(async (req, res) => {
+    if (!iaLimit(req.ctx.uid)) return res.status(429).json({ error: 'Trop de demandes : réessayez dans une minute.' });
+    const infos = s(req.body?.infos, 4000), nbSms = Math.min(3, Math.max(1, +req.body?.nbSms | 0 || 1));
+    if (infos.length < 5) return res.status(400).json({ error: 'Écrivez d’abord les informations à faire passer.' });
+    /* place restante une fois la mention STOP ajoutée (format standard : 160 puis 153 caractères par SMS) */
+    const max = (nbSms === 1 ? 160 : nbSms * 153) - (DIF.STOP_AFFICHE.length + 1);
+    try {
+      let texte = '';
+      for (let essai = 0; essai < 2; essai++) {
+        texte = DIF.versGsm(s(IA.json(await ia.demander(IA.promptSms(infos, { nbSms, max: max - 8 - essai * 15 }))).texte, 700));
+        if (DIF.comptage(DIF.smsFinal(texte, { prenom: 'Alexandra' })).sms <= nbSms) break;
+      }
+      res.json({ texte });
+    } catch (e) { iaErreur(res, e); }
+  }));
+  /* message propre, tel qu'il partira */
+  function messageDe(b, canal) {
+    const m = b?.message || {};
+    if (canal === 'sms') return { texte: s(m.texte, 700) };
+    const bouton = m.bouton && s(m.bouton.texte, 40) ? { texte: s(m.bouton.texte, 40), lien: s(m.bouton.lien, 300) } : null;
+    return { objet: s(m.objet, 150), titre: s(m.titre, 150), corps: s(m.corps, 8000), photo: /^(\/|https:\/\/)/.test(s(m.photo, 400)) ? s(m.photo, 400) : '', bouton };
+  }
+  const verifier = (m, canal) => canal === 'sms' ? (!m.texte ? 'Écrivez le SMS.' : DIF.comptage(DIF.smsFinal(m.texte, { prenom: 'Alexandra' })).sms > 3 ? 'Le SMS est trop long : 3 SMS au maximum.' : '') : (!m.objet ? 'Écrivez l’objet de l’e-mail.' : !m.corps ? 'Écrivez le texte de l’e-mail.' : '');
+  A.post('/diffusion/apercu', sameSite, json, wrap(async (req, res) => {
+    const canal = canalDe(req.body?.canal), m = messageDe(req.body, canal), R = (await cat.get()).reglages;
+    const prenom = DIF.prenomDe(req.body?.prenom) || 'Alexandra';
+    if (canal === 'sms') { const t = DIF.smsFinal(m.texte, { prenom }); return res.json({ texte: t.replace(DIF.STOP, DIF.STOP_AFFICHE), ...DIF.comptage(t) }); }
+    res.json({ html: DIF.emailHtml({ ...m, prenom, R, site: SITE, lienDesinscription: SITE + '/desinscription', apercu: true }) });
+  }));
+  async function envoyerUn(canal, m, p, R, extra = {}) {
+    const prenom = DIF.prenomDe(p.nom);
+    if (canal === 'sms') {
+      const t = DIF.smsFinal(m.texte, { prenom }), k = DIF.comptage(t);
+      return brevo.sendSms({ to: p.mobile || p.tel, content: t, type: 'marketing', tag: extra.tag || 'information', unicode: k.unicode, journal: extra.journal });
+    }
+    const lien = p.id ? await lienDesinscription(p.id) : SITE + '/desinscription';
+    return brevo.sendEmail({ to: p.email, name: p.nom, subject: m.objet, replyTo: R.email, tags: [extra.tag || 'information'], journal: extra.journal,
+      headers: p.id ? { 'List-Unsubscribe': `<${lien}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' } : undefined,
+      html: DIF.emailHtml({ ...m, prenom, R, site: SITE, lienDesinscription: lien }), text: DIF.emailTexte({ ...m, prenom, R, site: SITE, lienDesinscription: lien }) });
+  }
+  A.post('/diffusion/essai', sameSite, json, wrap(async (req, res) => {
+    const canal = canalDe(req.body?.canal), m = messageDe(req.body, canal), R = (await cat.get()).reglages;
+    const err = verifier(m, canal); if (err) return res.status(400).json({ error: err });
+    const a = s(req.body?.a, 160);
+    if (canal === 'sms') {
+      if (!DIF.mobile(a)) return res.status(400).json({ error: 'Indiquez votre numéro de portable (06 ou 07).' });
+      const cr = DIF.creneauSms(); if (!cr.ok) return res.status(400).json({ error: cr.raison });
+    } else if (!isEmail(a)) return res.status(400).json({ error: 'Indiquez votre adresse e-mail.' });
+    const r = await envoyerUn(canal, { ...m, objet: m.objet ? '[ESSAI] ' + m.objet : '' }, { id: '', nom: req.ctx.name || '', email: a, tel: a, mobile: DIF.mobile(a) }, R, { tag: 'essai' });
+    if (r?.error || r?.skipped) return res.status(502).json({ error: 'L’envoi d’essai a échoué : ' + (r.error || r.skipped) });
+    res.json({ ok: true, test: !!r?.test });
+  }));
+  const campagnesEnCours = new Map();
+  A.post('/diffusion/envoyer', sameSite, json, wrap(async (req, res) => {
+    const canal = canalDe(req.body?.canal), m = messageDe(req.body, canal), R = (await cat.get()).reglages;
+    const err = verifier(m, canal); if (err) return res.status(400).json({ error: err });
+    if (canal === 'sms') { const cr = DIF.creneauSms(); if (!cr.ok) return res.status(400).json({ error: cr.raison }); }
+    profilsCache = null;
+    const liste = destinataires(await lesProfils(), canal, req.body);
+    if (!liste.length) return res.status(400).json({ error: 'Aucun destinataire sélectionné.' });
+    if (+req.body?.confirme !== liste.length) return res.status(409).json({ error: `Le nombre de destinataires a changé (${liste.length}). Vérifiez puis confirmez à nouveau.`, nb: liste.length });
+    const id = 'cp_' + rid(8), now = new Date().toISOString();
+    const nbSms = canal === 'sms' ? DIF.comptage(DIF.smsFinal(m.texte, { prenom: 'Alexandra' })).sms : 0;
+    const camp = { id, canal, message: m, criteres: critDe(req.body?.criteres), mode: req.body?.mode === 'manuel' ? 'manuel' : 'criteres', nb: liste.length, nbSms, ids: liste.map(p => p.id), envoyes: 0, echecs: [], statut: 'en_cours', live: brevo.live, at: now, par: req.ctx.name || req.ctx.email || '' };
+    await store.set('_campagnes/' + id, camp);
+    audit(req.ctx, canal === 'sms' ? 'SMS groupé envoyé' : 'e-mail groupé envoyé', '_campagnes/' + id, `${liste.length} destinataires · ${m.objet || m.texte.slice(0, 60)}`);
+    res.json({ ok: true, id, nb: liste.length });
+    /* envoi en arrière-plan, 5 à la fois pour l'e-mail, un par un pour le SMS ; avancement enregistré régulièrement */
+    campagnesEnCours.set(id, camp);
+    (async () => {
+      const file = [...liste], par = canal === 'sms' ? 1 : 5;
+      let n = 0;
+      const travail = async () => {
+        for (let p = file.shift(); p; p = file.shift()) {
+          try { const r = await envoyerUn(canal, m, p, R, { tag: 'campagne-' + id, journal: false }); if (r?.error || r?.skipped) camp.echecs.push({ id: p.id, nom: p.nom, raison: String(r.error || r.skipped).slice(0, 160) }); }
+          catch (e) { camp.echecs.push({ id: p.id, nom: p.nom, raison: e.message.slice(0, 160) }); }
+          camp.envoyes++;
+          if (++n % 25 === 0) await store.set('_campagnes/' + id, camp).catch(() => {});
+        }
+      };
+      await Promise.all(Array.from({ length: par }, travail));
+      camp.statut = 'termine'; camp.fini = new Date().toISOString(); camp.echecs = camp.echecs.slice(0, 500);
+      await store.set('_campagnes/' + id, camp);
+      campagnesEnCours.delete(id);
+    })().catch(e => log.error?.('[diffusion]', e.message));
+  }));
+  const resumeCampagne = c => ({ id: c.id, canal: c.canal, objet: c.message?.objet || '', texte: c.canal === 'sms' ? c.message?.texte || '' : '', nb: c.nb, nbSms: c.nbSms || 0, envoyes: c.envoyes, nbEchecs: (c.echecs || []).length, echecs: (c.echecs || []).slice(0, 20), statut: c.statut, live: c.live, at: c.at, fini: c.fini || '', par: c.par });
+  A.get('/diffusion/campagnes', wrap(async (req, res) => {
+    const l = (await store.list('_campagnes')).map(x => campagnesEnCours.get(x.id) || x.data).filter(c => !req.query.canal || c.canal === req.query.canal);
+    res.json(l.sort((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, 30).map(resumeCampagne));
+  }));
+  A.get('/diffusion/campagnes/:id', wrap(async (req, res) => {
+    const c = campagnesEnCours.get(req.params.id) || await store.get('_campagnes/' + req.params.id);
+    if (!c) return res.status(404).json({ error: 'Envoi introuvable.' });
+    res.json(resumeCampagne(c));
   }));
 
   A.get('/actions/agenda', wrap(async (req, res) => {
