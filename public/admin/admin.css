@@ -1333,3 +1333,10 @@ input.verrou { background: var(--doux); color: var(--gris); cursor: not-allowed;
 .pli.ferme .pli-fl { transform: rotate(-90deg); }
 .pli.ferme .pli-corps { display: none; }
 .pli.ferme h2 { border-bottom: 0 !important; padding-bottom: 0 !important; margin-bottom: 0 !important; }
+/* flèche bien visible (Jean-Luc ne voyait pas la petite) + bouton texte « Replier / Afficher » à droite */
+.pli-fl { width: 38px; height: 38px; background: var(--or); border-color: var(--or); color: #fff; font-size: 15px; line-height: 1; box-shadow: 0 2px 8px rgba(176, 138, 79, .35); flex: none; }
+.pli-btn:hover .pli-fl { background: #9d7a43; border-color: #9d7a43; }
+.pli-nb { margin-left: auto; }
+.pli-btn::after { content: 'Replier ▲'; font-size: .82rem; font-weight: 600; color: var(--vert); border: 1px solid var(--vert); border-radius: 999px; padding: 5px 12px; white-space: nowrap; }
+.pli-btn:hover::after { background: var(--vert); color: #fff; }
+.pli.ferme .pli-btn::after { content: 'Afficher ▼'; background: var(--vert); color: #fff; }
