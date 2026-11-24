@@ -67,4 +67,11 @@ function nomPropre(a, b) {
   return [majPrenom(w.slice(0, i).join(' ')), majNom(w.slice(i).join(' '))].join(' ');
 }
 
-module.exports = { nomPropre, rid, sha, esc, euros, parseEuros, slugify, norm, limiter, dateFr, haversine };
+/* date de naissance : « 1980-03-12 » ou « 12/03/1980 » → « 1980-03-12 », sinon vide */
+function dateNaissance(v) {
+  const t = String(v ?? '').trim(); let m = t.match(/^(\d{4})-(\d{2})-(\d{2})$/); if (!m) { const f = t.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/); if (f) m = [0, f[3], f[2].padStart(2, '0'), f[1].padStart(2, '0')]; }
+  if (!m) return ''; const d = new Date(+m[1], +m[2] - 1, +m[3]); const ok = d.getMonth() === +m[2] - 1 && d.getDate() === +m[3] && +m[1] > 1900 && d <= new Date();
+  return ok ? `${m[1]}-${m[2]}-${m[3]}` : '';
+}
+
+module.exports = { dateNaissance, nomPropre, rid, sha, esc, euros, parseEuros, slugify, norm, limiter, dateFr, haversine };
