@@ -823,6 +823,13 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('produits/' + id, { ...x, titre: x.titre.replace(/\s&\s/g, ' + ') });
   }
 
+  /* Buffet indien : « Samossa Chicken : 2 triangles… » → 1 portion = 1 samoussa comme les autres (Jean-Luc, 2026-11-24). Libellés des choix et listes. */
+  for (const { id, data: x } of (await store.list('produits')) || []) {
+    const j = JSON.stringify(x || {});
+    if (!j.includes('Samossa Chicken : 2 triangles')) continue;
+    await store.set('produits/' + id, JSON.parse(j.replace(/Samossa Chicken : 2 triangles au poulet/g, 'Samossa Chicken : samoussa au poulet')));
+  }
+
   for (const [slug, src, alt] of PHOTOS_BUFFETS_EN_TETE) {
     const x = await store.get('produits/' + slug);
     if (!x || (x.photoBuffet || '') === src) continue;
