@@ -1481,6 +1481,15 @@ async function initSousRubriques(store, { log = console } = {}) {
     if (cm) await store.set('rubriques/carte-magnolia', { ...cm, ...vid('carte-magnolia'), bandeauPosition: '50% 100%' /* l'assiette est en bas de l'image */ });
     await store.set('site/reglages', { ...(await store.get('site/reglages')), bandeauxVideos1: true });
   }
+  /* Buffet antillais (Jean-Luc, 2026-11-24) : vraie vidéo à la place de la photo des îles : accras qui dorent dans
+     l'huile (Pexels 37670884) puis grand repas de famille (Pexels 4298650), en fondu. Aucune vraie vidéo libre de
+     buffet antillais n'existe. La vidéo de la vignette (antillais-boucle) ne change pas. Une fois. */
+  const RBa = await store.get('site/reglages');
+  if (RBa && !RBa.bandeauxVideos2) {
+    const sm = await store.get('rubriques/saveurs-du-monde');
+    if (sm) await store.set('rubriques/saveurs-du-monde', { ...sm, sous: (sm.sous || []).map(x => x.slug === 'buffet-antillais' ? { ...x, bandeauVideo: '/site/v/bandeaux/buffet-antillais.mp4', bandeauPoster: '/site/v/bandeaux/buffet-antillais.jpg' } : x) });
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), bandeauxVideos2: true });
+  }
 }
 
 /* [fiche gardée, doublons…] : mêmes produit, prix et minimum */

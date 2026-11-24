@@ -36,3 +36,4 @@ Non trouvé en vidéo libre correcte : meule de parmesan flambée (Pexels, Pixab
 | Couscous party | Tajine de légumes fumant sur une table marocaine (aucune vidéo libre de couscous trouvée sur Pexels, Pixabay, Mixkit) | https://www.pexels.com/video/3015488/ |
 | Buffet indien | Grande table de plats indiens, cuivres et naans | https://www.pexels.com/video/8811071/ |
 | La carte Magnolia | Chef qui dépose des framboises une à une sur une assiette (gros plan) | https://www.pexels.com/video/39877475/ |
+| Buffet antillais | Accras qui dorent dans l'huile, puis grand repas de famille (montage en fondu ; aucune vraie vidéo libre de buffet antillais trouvée) | https://www.pexels.com/video/37670884/ + https://www.pexels.com/video/4298650/ |
