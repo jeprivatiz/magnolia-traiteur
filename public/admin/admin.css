@@ -1233,3 +1233,46 @@ h1 .formule { font-size: .55em; margin-top: .3em; }
 .dv-coms li { background: #faf6ec; border: 1px solid #eadfc6; border-radius: 10px; padding: 10px 12px; }
 .dv-coms li p { margin: 0 0 4px; }
 .dv-coms small { color: #7a6a4a; }
+
+/* ---------- Clients : bandeau « Contacts / Entreprises » et fiches entreprises (2026-11-24) ---------- */
+.cl-vue { display: flex; align-items: center; gap: 12px; margin: 0 0 14px; padding: 10px 14px 10px 20px; border-radius: 16px; background: linear-gradient(120deg, #1F3D36, #2c5a4e); box-shadow: 0 10px 26px -16px #1f3d36cc; }
+.cl-vue-lab { flex: none; font-size: 11.5px; letter-spacing: .14em; text-transform: uppercase; color: #c9a56b; font-weight: 600; }
+.cl-vue-rail { display: flex; gap: 8px; overflow-x: auto; scroll-behavior: smooth; scrollbar-width: none; -webkit-overflow-scrolling: touch; padding: 2px; min-width: 0; }
+.cl-vue-rail::-webkit-scrollbar { display: none; }
+.cl-vue-c { flex: none; display: inline-flex; align-items: center; gap: 8px; padding: 6px 16px 6px 6px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, .22); background: rgba(255, 255, 255, .08); color: #fff; font: 500 14.5px var(--sans, inherit); text-decoration: none; white-space: nowrap; transition: background .15s, border-color .15s, transform .1s; }
+.cl-vue-c:hover { background: rgba(255, 255, 255, .16); border-color: rgba(255, 255, 255, .4); }
+.cl-vue-c:active { transform: scale(.97); }
+.cl-vue-c small { font-size: 12px; opacity: .75; font-weight: 600; }
+.cl-vue-i { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: rgba(255, 255, 255, .14); font-size: 15px; }
+.cl-vue-c.on { background: linear-gradient(135deg, #e0c088, #b89050); border-color: transparent; color: #1a2a22; font-weight: 600; box-shadow: 0 4px 14px -4px rgba(201, 165, 107, .9); }
+.cl-vue-c.on .cl-vue-i { background: #1F3D36; }
+.en-nm { display: inline-flex; align-items: center; gap: 8px; }
+.en-av { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; background: var(--bo-tint, #eef2ef); font-size: 13px; flex: none; }
+.en-ap { color: var(--bo-soft, #6f7a73); font-size: .88rem; max-width: 260px; }
+.en-avg { border-radius: 14px; background: #1F3D36; color: #e0c088; }
+.en-cts { list-style: none; margin: 0 0 12px; padding: 0; }
+.en-ct { grid-template-columns: 40px minmax(0, 1fr) auto auto; }
+.en-ct .cf-t { text-decoration: none; color: inherit; display: flex; flex-direction: column; min-width: 0; }
+.en-ct .cf-t small { color: var(--bo-soft, #6f7a73); }
+.en-acts { display: flex; gap: 6px; }
+.en-lier { position: relative; border-top: 1px dashed var(--bo-line, #e2dccf); padding-top: 12px; }
+.en-lier input { background: var(--carte, #fbf8f1); }
+.hc-ent { color: var(--bo-green, #1F3D36); font-weight: 600; text-decoration: none; border-bottom: 1px dashed #c9a56b; }
+.hc-ent:hover { color: #a8813f; }
+.hc-rq { margin-top: 8px; padding: 8px 12px; border-radius: 10px; background: #fbf3e2; color: #6b5427; font-size: .9rem; white-space: pre-line; }
+.hc-rqbox { background: #fdf8ec; border: 1px solid #ecdcb8; }
+.hc-rqbox textarea { width: 100%; background: #fff; border: 1px solid #e3d2ac; }
+.hc-rqbox .row { align-items: center; gap: 10px; }
+@media (max-width: 700px) {
+  .cl-vue { flex-direction: column; align-items: stretch; gap: 8px; padding: 10px 0 10px 14px; }
+  .en-ct { grid-template-columns: 40px minmax(0, 1fr); }
+  .en-ct .cf-m { display: none; }
+  .en-acts { grid-column: 2; }
+}
+@media (prefers-color-scheme: dark) {
+  .hc-rqbox { background: #2a261c; border-color: #4a4130; }
+  .hc-rqbox textarea { background: #1f1c15; color: inherit; border-color: #4a4130; }
+  .hc-rq { background: #2a261c; color: #e6d3a8; }
+}
+.en-lier label { display: flex; flex-direction: column; align-items: stretch; gap: 6px; font-weight: 600; }
+.en-lier input { width: 100%; max-width: none; }

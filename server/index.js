@@ -22,6 +22,7 @@ const SEO = require('./seo');
 const TXT = require('./textes');
 const DIF = require('./diffusion');
 const FAC = require('./factures');
+const { creerEntreprises } = require('./entreprises');
 
 const ROOT = path.join(__dirname, '..');
 const PUBLIC = path.join(ROOT, 'public');
@@ -718,6 +719,10 @@ async function createApp(opts = {}) {
   const importClients = creerImportClients({ store, log });
   importClients.routes(A, { sameSite, manager, wrap, audit });
 
+  /* ---------- entreprises : plusieurs contacts reliés à une même fiche entreprise (server/entreprises.js) ---------- */
+  const ENT = creerEntreprises({ store, log, totaux });
+  ENT.routes(A, { sameSite, json, wrap, audit });
+  ENT.synchro().catch(e => log.warn?.('Entreprises : reprise impossible', e.message));
   /* ---------- clients : recherche et pages côté serveur (le fichier importé compte ~60 000 fiches) ---------- */
   const sansAcc = t => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   const telK = t => { const d = String(t || '').replace(/\D/g, ''); return d.length >= 9 ? d.slice(-9) : ''; };
@@ -759,7 +764,7 @@ async function createApp(opts = {}) {
     let l = filtrerClients(items, String(q.q || '').slice(0, 80));
     if (q.filtre === 'importes') l = l.filter(a => a.importe); else if (q.filtre === 'autres') l = l.filter(a => !a.importe);
     const par = Math.min(200, Math.max(10, parseInt(q.par, 10) || 50)), page = Math.max(1, parseInt(q.page, 10) || 1);
-    res.json({ total: l.length, tous: items.length, importes: items.filter(a => a.importe).length, page, par, items: l.slice((page - 1) * par, page * par).map(a => ({ ...a.c, nbDemandes: a.nb })) });
+    res.json({ total: l.length, tous: items.length, importes: items.filter(a => a.importe).length, entreprises: await ENT.nombre(), page, par, items: l.slice((page - 1) * par, page * par).map(a => ({ ...a.c, nbDemandes: a.nb })) });
   }));
 
   A.get('/:coll', wrap(async (req, res, next) => {
@@ -805,6 +810,7 @@ async function createApp(opts = {}) {
     if (coll === 'clients' && typeof data.nom === 'string') data.nom = nomPropre(data.nom);
     if (coll === 'clients' && 'naissance' in data) data.naissance = dateNaissance(data.naissance);
     if (coll === 'clients') ficheClientNette(data, before);
+    if (coll === 'clients') await ENT.avantClient(data, before);
     if (coll === 'demandes' && typeof data.contact?.nom === 'string') data.contact = { ...data.contact, nom: nomPropre(data.contact.nom) };
     if (coll === 'clients') { if (before?.journal) data.journal = before.journal; else delete data.journal; } /* notes et appels de l'historique jamais effacés par une fiche ouverte avant */
     data.updatedAt = new Date().toISOString();
@@ -831,6 +837,7 @@ async function createApp(opts = {}) {
     if (coll === 'clients' && typeof data.nom === 'string') data.nom = nomPropre(data.nom); if (coll === 'clients') data.id = id;
     if (coll === 'clients' && 'naissance' in data) data.naissance = dateNaissance(data.naissance);
     if (coll === 'clients') ficheClientNette(data, null);
+    if (coll === 'clients') await ENT.avantClient(data, null);
     if (coll === 'produits') Object.assign(data, { id, slug: id, statut: data.statut || 'masque', maison: true, photos: data.photos || [], description: data.description || [], sections: data.sections || [], groupes: [], variantes: [], details: [], regles: data.regles || { packs: true, personnel: 'service' }, ordre: -1 });
     if (coll === 'lieux') Object.assign(data, { slug: id, statut: data.statut || 'masque', photos: data.photos || [], equipements: data.equipements || [] });
     if (coll === 'rubriques') Object.assign(data, { slug: id, statut: data.statut || 'visible', ordre: data.ordre ?? 99, tva: data.tva || 10 });
@@ -1315,6 +1322,10 @@ async function createApp(opts = {}) {
   A.post('/actions/rdv-client/:id', sameSite, json, wrap(async (req, res) => {
     const c0 = await store.get('clients/' + req.params.id), c = c0 && { ...c0, id: req.params.id }; /* une fiche créée dans le back-office n'a pas toujours son id dans le document */
     if (!c) return res.status(404).json({ error: 'Client introuvable.' });
+    if (String(c.societe || '').trim() && !c.entrepriseId) { /* Société pas encore reliée à sa fiche entreprise (site, import) : on la relie tout de suite */
+      const d = { ...c0 }; await ENT.avantClient(d, { ...c0, societe: '' });
+      if (d.entrepriseId) { await store.set('clients/' + req.params.id, d); c.entrepriseId = d.entrepriseId; }
+    }
     const b = req.body || {}, type = b.type === 'visio' ? 'visio' : 'appel';
     if (!/^\d{4}-\d{2}-\d{2}$/.test(b.date || '') || !/^\d{2}:\d{2}$/.test(b.heure || '')) return res.status(400).json({ error: 'Choisissez la date et l’heure.' });
     if (parisMs(b.date, b.heure) < Date.now() - 36e5) return res.status(400).json({ error: 'Cette date est déjà passée.' });
