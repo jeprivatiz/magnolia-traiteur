@@ -602,6 +602,12 @@ async function createApp(opts = {}) {
 
   function remplir(modele, vars) { return String(modele || '').replace(/\{(\w+)\}/g, (m, k) => vars[k] ?? ''); }
 
+  A.get('/devis/:id/apercu', wrap(async (req, res) => {
+    const d = await store.get('devis/' + req.params.id);
+    if (!d) return res.status(404).send('Devis introuvable.');
+    const c = await cat.get();
+    res.set('Cache-Control', 'no-store').send(views.devisPage(c, d, totaux(d), { apercu: true, client: await store.get('clients/' + d.clientId), demande: d.demandeId ? await store.get('demandes/' + d.demandeId) : null }));
+  }));
   A.post('/actions/envoyer-devis/:id', sameSite, json, wrap(async (req, res) => {
     const d = await store.get('devis/' + req.params.id);
     if (!d) return res.status(404).json({ error: 'Devis introuvable.' });
