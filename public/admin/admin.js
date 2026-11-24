@@ -155,20 +155,100 @@
   }
 
   /* ---------- tableau de bord ---------- */
+  /* refait le 2026-11-24 (Jean-Luc : « plus moderne, plus sexy ») : bandeau photo, choix du commercial en haut
+     (même mémoire que le Suivi client et l'Agenda), chiffres en cartes, frise du suivi, journée et événements */
+  const ICO = {
+    inbox: '<path d="M3 13h5l1.5 3h5L16 13h5"/><path d="M5 5h14l2 8v6H3v-6z"/>',
+    euro: '<path d="M17 6.5A7 7 0 1 0 17 17.5"/><path d="M4 10.5h9M4 13.5h9"/>',
+    pen: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
+    card: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h4"/>',
+    cal: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+    phone: '<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/>',
+    bell: '<path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 21h4"/>',
+    gift: '<rect x="3" y="9" width="18" height="12" rx="1"/><path d="M3 13h18M12 9v12"/><path d="M12 9c-2-4-6-4-6-1s6 1 6 1 6 2 6-1-4-3-6 1"/>',
+    team: '<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.5 2.7-6 6-6s6 2.5 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14c3 0 5 2 5 5"/>',
+    arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+  };
+  const ico = (k, cls = '') => `<svg class="db-ico ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICO[k]}</svg>`;
+  const MOIS_C = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+  const eurosRond = c => c == null ? '—' : Math.round(c / 100).toLocaleString('fr-FR').replace(/\s/g, ' ') + ' €';
   async function dashboard() {
-    const s = await api(A + '/stats');
-    cache.nouvelles = s.nouvelles;
-    const kpi = (v, l, href) => `<a class="kpi" href="${href || '#/'}"><b>${v}</b><span>${l}</span></a>`;
-    return page(`Bonjour ${esc((session.nom || '').split(' ')[0])}`, `<button type="button" class="btn ghost aq-btn" data-aiq>✨ Devis avec l’IA</button><a class="btn" href="#/devis/nouveau">+ Nouveau devis</a>`, `
-      <div class="kpis">${kpi(s.nouvelles, 'nouvelles demandes', '#/demandes')}${kpi(euros(s.caSigneMoisCents), 'signé ce mois-ci', '#/devis')}${kpi(euros(s.devisEnAttenteCents), 'devis en attente de signature', '#/suivi')}${kpi(euros(s.facturesImpayeesCents), 'factures à encaisser', '#/factures')}${kpi(s.tauxSignature == null ? '—' : s.tauxSignature + ' %', 'taux de signature', '#/suivi')}</div>
-      <div class="cols">
-        <section class="box"><h2>Suivi client</h2><div class="pipe">${Object.entries(STATUTS).filter(([k]) => k !== 'termine').map(([k, l]) => `<a href="#/suivi" class="pipe-i st-${k}"><b>${s.parStatut[k] || 0}</b><span>${l}</span></a>`).join('')}</div></section>
-        <section class="box"><h2>Prochains événements</h2>${s.prochains.length ? `<ul class="list">${s.prochains.map(p => `<li><a href="#/demandes/${p.id}"><b>${dateFr(p.date, { weekday: 'short', day: 'numeric', month: 'short' })}</b> ${esc(p.nom)} · ${p.invites} pers.</a><span class="pill st-${p.statut}">${STATUTS[p.statut]}</span></li>`).join('')}</ul>` : '<p class="muted">Aucun événement confirmé à venir.</p>'}</section>
-        ${(s.rdvJour || []).length ? `<section class="box db-rdv"><h2>📞 Appels et visios aujourd’hui</h2><ul class="list">${s.rdvJour.map(r => `<li><a href="#/clients/${esc(r.clientId)}"><b>${esc(r.heure.replace(':', ' h '))}</b> ${r.type === 'visio' ? '🎥' : '📞'} ${esc(r.clientNom)} <small class="muted">${esc([r.motif, r.commerciaux?.length ? r.commerciaux.join(', ') : 'toute l’équipe'].filter(Boolean).join(' · '))}</small></a>${r.lien ? `<a class="qs-pill dark" href="${esc(r.lien)}" target="_blank" rel="noopener">Rejoindre</a>` : ''}</li>`).join('')}</ul></section>` : ''}
-        ${(s.anniversaires || []).length ? `<section class="box db-anniv"><h2>🎂 Anniversaires des clients</h2><ul class="list">${s.anniversaires.map(a => `<li><a href="#/clients/${esc(a.id)}"><b>${a.dans === 0 ? 'Aujourd’hui' : a.dans === 1 ? 'Demain' : dateFr(a.date, { weekday: 'short', day: 'numeric', month: 'short' })}</b> ${esc(a.nom)} <small class="muted">${a.age} ans</small></a><span class="db-ab">${a.souhaite ? '<span class="pill d-accepte">✓ Souhaité</span>' : `${a.email && !a.stopEmail ? `<button type="button" class="qs-pill" data-anniv="${esc(a.id)}" data-canal="email" title="Envoyer un e-mail">✉</button>` : ''}${a.tel && !a.stopSms ? `<button type="button" class="qs-pill" data-anniv="${esc(a.id)}" data-canal="sms" title="Envoyer un SMS">💬</button>` : ''}`}</span></li>`).join('')}</ul></section>` : ''}
-        <section class="box"><h2>Devis à relancer</h2>${s.aRelancer.length ? `<ul class="list">${s.aRelancer.map(d => `<li><a href="#/devis/${d.id}"><b>${esc(d.numero)}</b> ${esc(d.client)}</a><span class="muted">envoyé le ${dateFr(d.envoyeLe)}</span></li>`).join('')}</ul>` : '<p class="muted">Rien à relancer : bravo.</p>'}</section>
-      </div>`);
+    if (SV.o == null) { const m = mem.get('mg_commercial'); SV.o = m != null ? m : ''; }
+    const s = await api(A + '/stats' + (SV.o ? '?com=' + encodeURIComponent(SV.o) : ''));
+    cache.nouvelles = s.nouvellesTous;
+    const noms = s.commerciaux || [];
+    if (SV.o && SV.o !== '—' && !noms.includes(SV.o)) noms.push(SV.o);
+    const prenom = esc((session.nom || '').split(' ')[0] || '');
+    const auj = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+    const h = new Date().getHours(), salut = h >= 18 || h < 5 ? 'Bonsoir' : 'Bonjour';
+    const qui = !SV.o ? 'de <b>toute l’équipe</b>' : SV.o === '—' ? 'des fiches <b>sans commercial</b>' : `de <b>${esc(SV.o)}</b>`;
+    const pl = (n, a, b) => n + ' ' + (n > 1 ? b : a);
+    const faits = [s.nouvelles ? pl(s.nouvelles, 'demande à traiter', 'demandes à traiter') : '', (s.rdvJour || []).length ? pl(s.rdvJour.length, 'appel ou visio aujourd’hui', 'appels ou visios aujourd’hui') : '', s.aRelancer.length ? pl(s.aRelancer.length, 'devis à relancer', 'devis à relancer') : ''].filter(Boolean);
+    const resume = `Activité ${qui}${faits.length ? ' : ' + faits.join(', ').replace(/, ([^,]*)$/, ' et $1') + '.' : ' : tout est à jour, belle journée.'}`;
+    const chip = (v, label, av) => `<button type="button" class="db-who-c${SV.o === v ? ' on' : ''}" data-dbcom="${esc(v)}" aria-pressed="${SV.o === v}"><span class="db-av">${av}</span>${esc(label)}</button>`;
+    const rail = chip('', 'Toute l’équipe', ico('team')) + noms.map(n => chip(n, n, esc(initiales(n)))).join('') + (SV.o === '—' ? chip('—', 'Sans commercial', '?') : '');
+    /* chiffre d'affaires signé : 6 derniers mois */
+    const serie = s.serieCa || [], max = Math.max(1, ...serie.map(x => x.cents));
+    const barres = serie.map((x, i) => `<span class="db-bar${i === serie.length - 1 ? ' cur' : ''}" title="${MOIS_C[+x.mois.slice(5) - 1]} : ${eurosRond(x.cents)}"><i style="height:${Math.max(4, Math.round(x.cents / max * 100))}%"></i><em>${MOIS_C[+x.mois.slice(5) - 1].replace('.', '')}</em></span>`).join('');
+    const taux = s.tauxSignature, R = 26, C = 2 * Math.PI * R;
+    const anneau = `<svg class="db-ring" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="${R}"/><circle class="v" cx="32" cy="32" r="${R}" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${(C * (1 - (taux || 0) / 100)).toFixed(1)}"/></svg>`;
+    const kpi = (href, k, v, l, sub, cls = '') => `<a class="db-k ${cls}" href="${href}"><span class="db-k-i">${ico(k)}</span><b>${v}</b><span class="db-k-l">${l}</span>${sub ? `<small>${sub}</small>` : ''}</a>`;
+    /* frise du suivi client */
+    const ETAPES = [['demande', 'Demandes'], ['devis_envoye', 'Devis envoyés'], ['relance', 'Relances'], ['accord', 'Accords'], ['reserve', 'Réservés'], ['refuse', 'Refusés']];
+    const tot = ETAPES.reduce((t, [k]) => t + (s.parStatut[k] || 0), 0);
+    const frise = `<div class="db-pipe-bar">${tot ? ETAPES.filter(([k]) => s.parStatut[k]).map(([k]) => `<i class="p-${k}" style="flex:${s.parStatut[k]}"></i>`).join('') : '<i class="p-vide" style="flex:1"></i>'}</div>
+      <div class="db-pipe-l">${ETAPES.map(([k, l]) => `<a href="#/suivi" class="p-${k}"><span></span><b>${s.parStatut[k] || 0}</b>${l}</a>`).join('')}</div>`;
+    const vide = (k, t, lien) => `<div class="db-vide">${ico(k)}<p>${t}</p>${lien || ''}</div>`;
+    const jour = d => { const x = new Date(d + 'T12:00'); return `<span class="db-date-t"><small>${x.toLocaleDateString('fr-FR', { weekday: 'short' }).replace('.', '')}</small><b>${x.getDate()}</b><small>${MOIS_C[x.getMonth()].replace('.', '')}</small></span>`; };
+    const rdv = (s.rdvJour || []).map(r => `<li><a class="db-row" href="#/clients/${esc(r.clientId)}"><span class="db-heure">${esc(r.heure.replace(':', ' h '))}</span><span class="db-t"><b>${r.type === 'visio' ? '🎥' : '📞'} ${esc(r.clientNom)}</b><small>${esc([r.motif, r.commerciaux?.length ? r.commerciaux.join(', ') : 'toute l’équipe'].filter(Boolean).join(' · '))}</small></span></a>${r.lien ? `<a class="db-pill" href="${esc(r.lien)}" target="_blank" rel="noopener">Rejoindre</a>` : ''}</li>`).join('');
+    const anniv = (s.anniversaires || []).map(a => `<li><a class="db-row" href="#/clients/${esc(a.id)}"><span class="db-heure gift">${a.dans === 0 ? 'Auj.' : a.dans === 1 ? 'Demain' : dateFr(a.date, { day: 'numeric', month: 'short' })}</span><span class="db-t"><b>${esc(a.nom)}</b><small>${a.age} ans</small></span></a><span class="db-ab">${a.souhaite ? '<span class="pill d-accepte">✓ Souhaité</span>' : `${a.email && !a.stopEmail ? `<button type="button" class="db-pill ghost" data-anniv="${esc(a.id)}" data-canal="email" title="Envoyer un e-mail">✉</button>` : ''}${a.tel && !a.stopSms ? `<button type="button" class="db-pill ghost" data-anniv="${esc(a.id)}" data-canal="sms" title="Envoyer un SMS">💬</button>` : ''}`}</span></li>`).join('');
+    const evts = s.prochains.map(p => `<li><a class="db-row" href="#/demandes/${p.id}">${jour(p.date)}<span class="db-t"><b>${esc(p.nom)}</b><small>${esc([p.type, p.ville, p.invites ? p.invites + ' pers.' : ''].filter(Boolean).join(' · '))}</small></span><span class="db-r">${p.montantCents ? `<b>${eurosRond(p.montantCents)}</b>` : ''}<span class="pill st-${p.statut}">${STATUTS[p.statut]}</span></span></a></li>`).join('');
+    const relances = s.aRelancer.sort((a, b) => b.jours - a.jours).map(d => `<li><a class="db-row" href="#/devis/${d.id}"><span class="db-jours${d.jours >= 7 ? ' chaud' : ''}"><b>${d.jours}</b>j</span><span class="db-t"><b>${esc(d.client || '—')}</b><small>${esc(d.numero)} · envoyé le ${dateFr(d.envoyeLe, { day: 'numeric', month: 'short' })}${!SV.o && d.commercial ? ' · ' + esc(d.commercial) : ''}</small></span><span class="db-r"><b>${eurosRond(d.montantCents)}</b><span class="db-go">Relancer ${ico('arrow')}</span></span></a></li>`).join('');
+    return `<div class="db">
+      <section class="db-hero">
+        <div class="db-hero-in">
+          <p class="db-jour">${esc(auj)}</p>
+          <h1>${salut} ${prenom}</h1>
+          <p class="db-resume">${resume}</p>
+          <div class="db-cta"><button type="button" class="btn db-or" data-aiq>✨ Devis avec l’IA</button><a class="btn db-blanc" href="#/devis/nouveau">+ Nouveau devis</a></div>
+        </div>
+        <div class="db-who"><span class="db-who-lab">Tableau de bord de</span><div class="db-who-rail">${rail}</div></div>
+      </section>
+      <div class="db-kpis">
+        <a class="db-k db-ca" href="#/devis"><span class="db-k-i">${ico('euro')}</span><span class="db-k-l">Signé ce mois-ci</span><b>${eurosRond(s.caSigneMoisCents)}</b><small>${eurosRond(s.caSigneAnneeCents)} depuis janvier</small><span class="db-bars">${barres}</span></a>
+        ${kpi('#/demandes', 'inbox', s.nouvelles, s.nouvelles > 1 ? 'nouvelles demandes' : 'nouvelle demande', s.nouvelles ? 'à traiter maintenant' : 'rien en attente', s.nouvelles ? 'hot' : '')}
+        ${kpi('#/suivi', 'pen', eurosRond(s.devisEnAttenteCents), 'devis en attente de signature', pl(s.devisEnAttente || 0, 'devis envoyé', 'devis envoyés'))}
+        ${kpi('#/factures', 'card', eurosRond(s.facturesImpayeesCents), 'factures à encaisser', pl(s.facturesImpayees || 0, 'facture ouverte', 'factures ouvertes'))}
+        <a class="db-k db-taux" href="#/suivi">${anneau}<b>${taux == null ? '—' : taux + ' %'}</b><span class="db-k-l">taux de signature</span><small>${s.tranches ? `${s.signes} signé${s.signes > 1 ? 's' : ''} sur ${s.tranches}` : 'pas encore de réponse'}</small></a>
+      </div>
+      <section class="db-card db-pipe"><div class="db-h"><h2>Suivi client</h2><a class="db-lien" href="#/suivi">Ouvrir ${ico('arrow')}</a></div>${frise}</section>
+      <div class="db-grid">
+        <div class="db-col">
+        <section class="db-card"><div class="db-h"><h2>${ico('phone')} Aujourd’hui</h2><a class="db-lien" href="#/clients/appels">Programmer ${ico('arrow')}</a></div>${rdv ? `<ul class="db-list">${rdv}</ul>` : vide('phone', 'Aucun appel ni visio prévu aujourd’hui.')}</section>
+        ${anniv ? `<section class="db-card"><div class="db-h"><h2>${ico('gift')} Anniversaires des clients</h2></div><ul class="db-list">${anniv}</ul></section>` : ''}
+        </div>
+        <div class="db-col">
+        <section class="db-card"><div class="db-h"><h2>${ico('bell')} Devis à relancer</h2>${relances ? `<span class="db-nb">${s.aRelancer.length}</span>` : ''}</div>${relances ? `<ul class="db-list">${relances}</ul>` : vide('bell', 'Rien à relancer : bravo.')}</section>
+        </div>
+        <div class="db-col">
+        <section class="db-card"><div class="db-h"><h2>${ico('cal')} Prochains événements</h2><a class="db-lien" href="#/agenda">Agenda ${ico('arrow')}</a></div>${evts ? `<ul class="db-list">${evts}</ul>` : vide('cal', 'Aucun événement confirmé à venir.')}</section>
+        </div>
+      </div>
+    </div>`;
   }
+  dashboard.after = () => {
+    $$('[data-anniv]').forEach(b => b.addEventListener('click', () => souhaiter(b.dataset.anniv, b.dataset.canal, () => render())));
+    const rail = $('.db-who-rail'), on = rail?.querySelector('.on');
+    if (on && rail.scrollWidth > rail.clientWidth) rail.scrollLeft = on.offsetLeft - rail.clientWidth / 2 + on.offsetWidth / 2;
+    $$('[data-dbcom]').forEach(b => b.addEventListener('click', async () => {
+      if (SV.o === b.dataset.dbcom) return;
+      SV.o = b.dataset.dbcom; mem.set('mg_commercial', SV.o);
+      $$('[data-dbcom]').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', x === b); });
+      $('.db')?.classList.add('db-charge');
+      try { const html = await dashboard(); const c = $('.content'); if (c && location.hash.replace(/^#\/?/, '') === '') { c.innerHTML = html; dashboard.after(); } }
+      catch (e) { toast(e.message, true); $('.db')?.classList.remove('db-charge'); }
+    }));
+  };
 
   /* ---------- demandes ---------- */
   /* une demande dont le devis est parti passe dans « Suivi client » : ici, seulement celles qui attendent encore leur devis */
@@ -209,7 +289,6 @@
     $$('[data-mk]').forEach(b => b.addEventListener('click', async () => { const r = await api(`${A}/actions/devis-depuis-demande/${b.dataset.mk}`, { method: 'POST' }); location.hash = '#/devis/' + r.id; }));
     $$('[data-classer]').forEach(b => b.addEventListener('click', async () => { const d = await api(`${A}/demandes/${b.dataset.classer}`); await api(`${A}/demandes/${d.id}`, { method: 'PUT', body: { ...d, classee: true } }); toast('Demande classée : elle reste visible dans « Déjà traitées ».'); render(); }));
   };
-  dashboard.after = () => { $$('[data-anniv]').forEach(b => b.addEventListener('click', () => souhaiter(b.dataset.anniv, b.dataset.canal, () => render()))); };
   async function demande(id) {
     const d = await api(A + '/demandes/' + id);
     const dv = (await api(A + '/devis')).filter(x => x.demandeId === id);
