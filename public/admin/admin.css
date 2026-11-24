@@ -866,3 +866,10 @@ td.ck input, th.ck input { width: 20px; height: 20px; accent-color: #1f3d34; cur
 .iam-ch li { display: flex; gap: 8px; padding: 4px 0; }
 .iam-ch li span { width: 18px; font-weight: 700; text-align: center; }
 .iam-ch .c-ajoute span { color: #2f7a4b; } .iam-ch .c-retire span { color: #a3352b; } .iam-ch .c-retire { text-decoration: line-through; color: #8a6d68; } .iam-ch .c-modifie span { color: #9a6c12; }
+
+/* envoi groupé de devis */
+.grp { margin: 10px 0; padding: 10px 12px; border-radius: 10px; background: #f7f2e7; border: 1px solid #e6dcc6; }
+.grp-l { display: flex; align-items: flex-start; gap: 8px; padding: 4px 0; }
+.grp-l input { width: 20px; height: 20px; flex: none; margin-top: 2px; accent-color: #1f3d34; }
+.apm { width: min(720px, 100%); }
+.apm-f { width: 100%; height: min(60vh, 520px); border: 1px solid #e6dcc6; border-radius: 10px; background: #fff; }

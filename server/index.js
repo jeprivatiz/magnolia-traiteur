@@ -656,7 +656,7 @@ async function createApp(opts = {}) {
     const numero = await prochainNumero(store, 'devis');
     const copie = { id, numero, token, clientId: src.clientId || null, clientNom: src.clientNom || '', demandeId: src.demandeId || null, statut: 'brouillon',
       evenement: { ...(src.evenement || {}) }, lignes: (src.lignes || []).map(l => ({ ...l })), remiseCents: src.remiseCents || 0, acomptePct: src.acomptePct ?? null,
-      commercial: src.commercial, intro: src.intro || '', conditions: src.conditions || '', lienPaiement: src.lienPaiement || '', copieDe: src.numero,
+      commercial: src.commercial, titre: src.titre || '', intro: src.intro || '', conditions: src.conditions || '', lienPaiement: src.lienPaiement || '', copieDe: src.numero,
       validiteJusquau: new Date(Date.now() + (T.validiteDevisJours || 15) * 86400e3).toISOString().slice(0, 10), createdAt: new Date().toISOString(), creePar: req.ctx.name };
     await store.set('devis/' + id, copie);
     await store.set('_devistoken/' + sha(token), { id });
@@ -682,6 +682,50 @@ async function createApp(opts = {}) {
     if (!d) return res.status(404).send('Devis introuvable.');
     const c = await cat.get();
     res.set('Cache-Control', 'no-store').send(views.devisPage(c, d, totaux(d), { apercu: true, client: await store.get('clients/' + d.clientId), demande: d.demandeId ? await store.get('demandes/' + d.demandeId) : null }));
+  }));
+  /* envoi groupé (comme Team Leader) : plusieurs devis du même client dans UN e-mail / SMS,
+     chaque devis gardant son propre lien et sa propre signature. « apercu » = rien n'est envoyé. */
+  const LETTRES = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  function messageDevis(cl, liste, msg, R) {
+    const prenom = esc((cl.nom || '').split(' ')[0]);
+    const plusieurs = liste.length > 1, ev = liste[0].evenement || {};
+    const intro = msg ? `<p>${esc(msg).replace(/\n/g, '<br>')}</p>` : `<p>${plusieurs ? `Voici nos ${liste.length} propositions` : 'Voici votre devis'} pour votre ${esc(String(ev.type || 'événement').toLowerCase())}${ev.date ? ' du ' + esc(dateFr(ev.date)) : ''}${plusieurs ? ' : choisissez celle qui vous convient et signez-la en ligne.' : '.'}</p>`;
+    const bloc = (d, i) => { const lien = `${SITE}/devis/${d.token}`, nom = d.titre || (plusieurs ? 'Proposition ' + LETTRES[i] : 'Votre devis');
+      return `<div style="border:1px solid #e3d9c4;border-radius:10px;padding:14px 16px;margin:12px 0"><p style="margin:0 0 4px"><b>${esc(nom)}</b> · devis ${esc(d.numero)}</p><p style="margin:0 0 10px">${euros(totaux(d).ttcCents)} TTC${d.validiteJusquau ? ` · valable jusqu’au ${esc(dateFr(d.validiteJusquau))}` : ''}</p><a href="${lien}" style="background:#1d3b2f;color:#fff;padding:10px 18px;text-decoration:none;border-radius:4px;display:inline-block">Consulter et signer ${plusieurs ? 'cette proposition' : 'mon devis'}</a></div>`; };
+    const html = `<p>Bonjour ${prenom},</p>${intro}${liste.map(bloc).join('')}<p>L’équipe Magnolia Traiteur<br>${esc(R.telephone || '')}</p>`;
+    const sujet = plusieurs ? `Vos ${liste.length} devis Magnolia Traiteur` : `Votre devis Magnolia Traiteur ${liste[0].numero}`;
+    const text = liste.map((d, i) => `${d.titre || (plusieurs ? 'Proposition ' + LETTRES[i] : 'Devis')} ${d.numero} (${euros(totaux(d).ttcCents)} TTC) : ${SITE}/devis/${d.token}`).join('\n');
+    const sms = plusieurs ? `Magnolia Traiteur : vos ${liste.length} devis sont prêts. ${liste.map((d, i) => `${d.titre || 'Proposition ' + LETTRES[i]} (${euros(totaux(d).ttcCents)}) : ${SITE}/devis/${d.token}`).join(' · ')}`
+      : `Magnolia Traiteur : votre devis ${liste[0].numero} (${euros(totaux(liste[0]).ttcCents)} TTC) est prêt. Consultez-le et signez en ligne : ${SITE}/devis/${liste[0].token}`;
+    return { sujet, html, text, sms };
+  }
+  A.post('/actions/envoyer-devis-groupe', sameSite, json, wrap(async (req, res) => {
+    const ids = [...new Set((Array.isArray(req.body?.ids) ? req.body.ids : []).map(x => s(x, 40)))].slice(0, 20);
+    if (!ids.length) return res.status(400).json({ error: 'Cochez au moins un devis.' });
+    const liste = [];
+    for (const id of ids) {
+      const d = await store.get('devis/' + id);
+      if (!d) return res.status(404).json({ error: 'Devis introuvable.' });
+      if (!(d.lignes || []).length) return res.status(400).json({ error: `Le devis ${d.numero} est vide.` });
+      const err = controleMarge(d); if (err.length) return res.status(400).json({ error: `Devis ${d.numero} : marge négative bloquée. ` + err.join(' ') });
+      liste.push(d);
+    }
+    if (new Set(liste.map(d => d.clientId)).size > 1) return res.status(400).json({ error: 'Les devis cochés ne sont pas pour le même client.' });
+    const cl = await store.get('clients/' + liste[0].clientId);
+    if (!cl?.email) return res.status(400).json({ error: 'Ce client n’a pas d’e-mail.' });
+    liste.sort((a, b) => String(a.numero).localeCompare(String(b.numero)));
+    const R = (await cat.get()).reglages, msg = s(req.body?.message, 2000), canaux = (req.body?.canaux || ['email']).filter(x => ['email', 'sms'].includes(x));
+    const m = messageDevis(cl, liste, msg, R);
+    if (req.body?.apercu) return res.json({ apercu: true, a: cl.email, tel: cl.tel || '', ...m });
+    if (canaux.includes('email')) await brevo.sendEmail({ to: cl.email, name: cl.nom, replyTo: R.email, subject: m.sujet, html: m.html, text: m.text });
+    if (canaux.includes('sms') && cl.tel) await brevo.sendSms({ to: cl.tel, content: m.sms });
+    const now = new Date().toISOString();
+    for (const d of liste) {
+      await store.set('devis/' + d.id, { ...d, statut: d.statut === 'accepte' ? 'accepte' : 'envoye', envoyeLe: d.envoyeLe || now, envois: [...(d.envois || []), { at: now, canaux, par: req.ctx.name, groupe: liste.length > 1 ? liste.map(x => x.numero) : undefined }] });
+      if (d.demandeId) await changerStatut(d.demandeId, 'devis_envoye', req.ctx.name);
+      audit(req.ctx, 'devis envoyé', 'devis/' + d.id, liste.length > 1 ? `${d.numero} (envoi groupé de ${liste.length})` : d.numero);
+    }
+    res.json({ ok: true, nb: liste.length, test: !brevo.live });
   }));
   A.post('/actions/envoyer-devis/:id', sameSite, json, wrap(async (req, res) => {
     const d = await store.get('devis/' + req.params.id);
