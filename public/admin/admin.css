@@ -1011,3 +1011,17 @@ td .cl-imp { display: block; margin: 2px 0 0; }
   .cl-pages { gap: 8px; font-size: .82rem; }
 }
 .df-bulle .df-lien { color: #0a63d1; text-decoration: underline; }
+
+/* Fiche client : modifier la fiche, anniversaire */
+.btn.hc-editbtn{background:var(--bo-gold);border-color:var(--bo-gold);color:#fff}
+.btn.hc-editbtn:hover{background:#a5824a}
+.hc-pen{border:1px solid var(--bo-line);background:var(--bo-card);border-radius:99px;width:32px;height:32px;cursor:pointer;font-size:14px;vertical-align:middle;margin-left:6px}
+.hc-pen:hover{border-color:var(--bo-gold)}
+.hc-edit{border-top:3px solid var(--bo-gold)}
+.hc-edit form{max-width:760px}
+.hc-edit .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+.hc-anniv{font-size:13px;color:var(--bo-ink);margin:2px 0 4px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.hc-anniv.bientot{background:light-dark(#fbf3e4,#2c2418);border-radius:10px;padding:6px 10px}
+.cl-edit{white-space:nowrap;font-size:12.5px}
+.db-ab{display:inline-flex;gap:6px}
+.cal-e.st-anniv{--c:#d07a9b;background:light-dark(#fbe9f0,#2d1d24)}

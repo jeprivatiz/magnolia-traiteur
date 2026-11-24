@@ -15,7 +15,7 @@ const { seed, importerAvisAncienSite, initSousRubriques } = require('./seed');
 const views = require('./views');
 const { preparerAlerte } = require('./relances');
 const { regleAcompte, totaux, controleMarge, prochainNumero, lignesDepuisDemande, estimerLigne } = require('./devis');
-const { rid, sha, esc, euros, limiter, dateFr, slugify, nomPropre } = require('./util');
+const { rid, sha, esc, euros, limiter, dateFr, slugify, nomPropre, dateNaissance } = require('./util');
 const { creerImportClients, normTel, departementDe } = require('./import-clients');
 const IA = require('./ia');
 const DIF = require('./diffusion');
@@ -487,6 +487,7 @@ async function createApp(opts = {}) {
       facturesImpayeesCents: factures.filter(f => !f.payee).reduce((t, f) => t + totaux(f).ttcCents - (f.dejaRegleCents || 0), 0),
       tauxSignature: devis.filter(d => ['accepte', 'refuse'].includes(d.statut)).length ? Math.round(100 * signes.length / devis.filter(d => ['accepte', 'refuse'].includes(d.statut)).length) : null,
       prochains: demandes.filter(d => d.evenement?.date >= aujourdHui && ['accord', 'reserve'].includes(d.statut)).sort((a, b) => a.evenement.date.localeCompare(b.evenement.date)).slice(0, 6).map(d => ({ id: d.id, date: d.evenement.date, nom: d.contact?.nom, invites: d.evenement.invites, statut: d.statut })),
+      anniversaires: await anniversaires(14),
       aRelancer: devis.filter(d => d.statut === 'envoye' && d.envoyeLe && Date.now() - Date.parse(d.derniereRelance || d.envoyeLe) > 3 * 86400e3).map(d => ({ id: d.id, numero: d.numero, client: d.clientNom, envoyeLe: d.envoyeLe })),
     });
   }));
@@ -579,6 +580,7 @@ async function createApp(opts = {}) {
     if (coll === 'demandes' && before && data.statut && data.statut !== before.statut) data.historique = [...(before.historique || []), { at: new Date().toISOString(), statut: data.statut, par: req.ctx.name || req.ctx.email }];
     if (coll === 'produits' && !data.slug) data.slug = id;
     if (coll === 'clients' && typeof data.nom === 'string') data.nom = nomPropre(data.nom);
+    if (coll === 'clients' && 'naissance' in data) data.naissance = dateNaissance(data.naissance);
     if (coll === 'clients') ficheClientNette(data, before);
     if (coll === 'demandes' && typeof data.contact?.nom === 'string') data.contact = { ...data.contact, nom: nomPropre(data.contact.nom) };
     if (coll === 'clients') { if (before?.journal) data.journal = before.journal; else delete data.journal; } /* notes et appels de l'historique jamais effacés par une fiche ouverte avant */
@@ -603,6 +605,7 @@ async function createApp(opts = {}) {
     if (await store.get(coll + '/' + id)) id = id + '-' + rid(3).toLowerCase().replace(/[^a-z0-9]/g, 'x');
     const data = { ...(req.body || {}), createdAt: new Date().toISOString() };
     if (coll === 'clients' && typeof data.nom === 'string') data.nom = nomPropre(data.nom);
+    if (coll === 'clients' && 'naissance' in data) data.naissance = dateNaissance(data.naissance);
     if (coll === 'clients') ficheClientNette(data, null);
     if (coll === 'produits') Object.assign(data, { id, slug: id, statut: data.statut || 'masque', maison: true, photos: data.photos || [], description: data.description || [], sections: data.sections || [], groupes: [], variantes: [], details: [], regles: data.regles || { packs: true, personnel: 'service' }, ordre: -1 });
     if (coll === 'lieux') Object.assign(data, { slug: id, statut: data.statut || 'masque', photos: data.photos || [], equipements: data.equipements || [] });
@@ -894,6 +897,37 @@ async function createApp(opts = {}) {
     res.json({ ok: true, lien });
   }));
 
+  /* ---------- anniversaires des clients : rappel sur le tableau de bord et dans l'agenda, message de vœux par e-mail ou SMS ---------- */
+  function prochainAnniv(naissance, ref = new Date()) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(naissance || '')) return null;
+    const [y, m, d] = naissance.split('-').map(Number), j0 = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate());
+    let a = new Date(j0.getFullYear(), m - 1, d); if (a < j0) a = new Date(j0.getFullYear() + 1, m - 1, d);
+    const iso = `${a.getFullYear()}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    return { date: iso, dans: Math.round((a - j0) / 864e5), age: a.getFullYear() - y };
+  }
+  async function anniversaires(jours = 14) {
+    const out = [];
+    for (const { id, data: c } of await store.list('clients')) {
+      const a = prochainAnniv(c.naissance); if (!a || a.dans > jours) continue;
+      out.push({ id, nom: c.nom, tel: c.tel || '', email: c.email || '', ...a, souhaite: (c.anniversaires || []).includes(a.date.slice(0, 4)), stopEmail: !!c.desinscrit?.email, stopSms: !!c.desinscrit?.sms });
+    }
+    return out.sort((x, y) => x.dans - y.dans);
+  }
+  A.get('/actions/anniversaires', wrap(async (req, res) => res.json(await anniversaires(Math.min(366, +req.query.jours || 14)))));
+  A.post('/actions/anniversaire/:id', sameSite, json, wrap(async (req, res) => {
+    const c = await store.get('clients/' + req.params.id);
+    if (!c) return res.status(404).json({ error: 'Client introuvable.' });
+    const canal = req.body?.canal === 'sms' ? 'sms' : 'email', R = (await cat.get()).reglages;
+    const prenom = c.prenom || String(c.nom || '').split(' ').filter(w => w !== w.toLocaleUpperCase('fr-FR') || w.length < 2)[0] || String(c.nom || '').split(' ')[0] || '';
+    const texte = s(req.body?.texte, 600) || `Joyeux anniversaire ${prenom} ! Toute l’équipe Magnolia Traiteur vous souhaite une très belle journée.`;
+    if (canal === 'sms') { if (!c.tel) return res.status(400).json({ error: 'Pas de téléphone sur la fiche.' }); const r = await brevo.sendSms({ to: c.tel, content: texte }); if (r?.error || r?.skipped) return res.status(400).json({ error: 'SMS non parti : ' + (r.error || r.skipped) }); }
+    else { if (!c.email) return res.status(400).json({ error: 'Pas d’e-mail sur la fiche.' }); const r = await brevo.sendEmail({ to: c.email, name: c.nom, replyTo: R.email, subject: `Joyeux anniversaire ${prenom} !`, html: `<p>${esc(texte)}</p><p>L’équipe Magnolia Traiteur<br>${esc(R.telephone || '')}</p>`, text: texte }); if (r?.error || r?.skipped) return res.status(400).json({ error: 'E-mail non parti : ' + (r.error || r.skipped) }); }
+    const now = new Date().toISOString(), an = prochainAnniv(c.naissance, new Date(Date.now() - 3 * 864e5))?.date.slice(0, 4) || now.slice(0, 4);
+    await store.set('clients/' + c.id, { ...c, anniversaires: [...new Set([...(c.anniversaires || []), an])], journal: [...(c.journal || []), { id: rid(6), at: now, type: 'note', texte: `🎂 Message d’anniversaire envoyé par ${canal === 'sms' ? 'SMS' : 'e-mail'} : « ${texte} »`, par: req.ctx.name || '' }] });
+    audit(req.ctx, 'anniversaire souhaité', 'clients/' + c.id, canal);
+    res.json({ ok: true });
+  }));
+
   /* ---------- historique complet d'un client (fiche CRM) : demandes, devis, signatures, factures, règlements, e-mails et SMS, appels, notes ---------- */
   const telCourt = t => { let d = String(t || '').replace(/\D/g, ''); if (d.startsWith('0033')) d = d.slice(4); else if (d.startsWith('33') && d.length === 11) d = d.slice(2); return d.replace(/^0/, ''); };
   A.get('/actions/historique-client/:id', wrap(async (req, res) => {
@@ -1136,6 +1170,7 @@ async function createApp(opts = {}) {
     const items = [
       ...dem.map(d => d.data).filter(d => d.evenement?.date && d.type !== 'contact' && d.statut !== 'refuse').map(d => ({ id: d.id, type: 'evenement', date: d.evenement.date, titre: `${d.contact?.nom || ''} · ${d.evenement.type || ''}`, detail: `${d.evenement.invites || ''} pers. · ${d.evenement.ville || ''} · ${d.evenement.horaire || ''}`, statut: d.statut, lien: '#/demandes/' + d.id })),
       ...rdv.map(r => ({ id: r.id, type: 'rdv', ...r.data, lien: '#/agenda' })),
+      ...(await anniversaires(400)).map(a => ({ id: 'anniv-' + a.id, type: 'anniversaire', date: a.date, titre: '🎂 ' + a.nom, detail: `Anniversaire (${a.age} ans)`, statut: 'anniv', lien: '#/clients/' + a.id })),
     ];
     res.json(items.sort((a, b) => String(a.date).localeCompare(String(b.date))));
   }));
