@@ -1500,6 +1500,18 @@ async function initSousRubriques(store, { log = console } = {}) {
     if (sm) await store.set('rubriques/saveurs-du-monde', { ...sm, sous: (sm.sous || []).map(x => x.slug === 'buffet-antillais' ? { ...x, bandeauVideo: '/site/v/bandeaux/buffet-antillais.mp4', bandeauPoster: '/site/v/bandeaux/buffet-antillais.jpg' } : x) });
     await store.set('site/reglages', { ...(await store.get('site/reglages')), bandeauxVideos2: true });
   }
+  /* Jean-Luc (2026-11-24) : vraies vidéos en haut de 2 autres pages, sans photo dessous. Spécialités japonaises :
+     un chef pose le saumon sur le maki puis le tranche (Pexels 8901982 + 8901980). Cocktails & buffets : petits fours
+     pris sur le buffet, invités en tenue avec un verre, cocktail du soir en smoking (Pexels 6760602, 6761146, 12350362). Une fois. */
+  const RBj = await store.get('site/reglages');
+  if (RBj && !RBj.bandeauxVideos3) {
+    const vid = n => ({ bandeauVideo: `/site/v/bandeaux/${n}.mp4`, bandeauPoster: `/site/v/bandeaux/${n}.jpg` });
+    const sm = await store.get('rubriques/saveurs-du-monde');
+    if (sm) await store.set('rubriques/saveurs-du-monde', { ...sm, sous: (sm.sous || []).map(x => x.slug === 'specialites-japonaises' ? { ...x, ...vid(x.slug) } : x) });
+    const cb = await store.get('rubriques/cocktails-buffets');
+    if (cb) await store.set('rubriques/cocktails-buffets', { ...cb, ...vid('cocktails-buffets') });
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), bandeauxVideos3: true });
+  }
 }
 
 /* [fiche gardée, doublons…] : mêmes produit, prix et minimum */
