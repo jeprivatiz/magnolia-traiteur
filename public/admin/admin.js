@@ -987,6 +987,7 @@
   async function clients(id) {
     if (id === 'email' || id === 'sms') return diffusion(id);
     if (id === 'importer') return importerClients();
+    if (id === 'appels') return appelsClients();
     if (id) return client(id);
     const r = await api(`${A}/clients?par=50&page=${CL.page}&filtre=${CL.filtre}&q=${encodeURIComponent(CL.q)}`);
     return page('Clients', `${session.role === 'manager' ? '<a class="btn ghost" href="#/clients/importer">⬆ Importer des clients</a>' : ''}<a class="btn" href="#/clients/nouveau">+ Nouveau client</a>`, `
@@ -1003,6 +1004,7 @@
   clients.after = id => {
     if (id === 'email' || id === 'sms') return diffusion.after(id);
     if (id === 'importer') return importerClients.after();
+    if (id === 'appels') return appelsClients.after();
     if (id) return client.after(id);
     const recharger = async () => { try { const r = await api(`${A}/clients?par=50&page=${CL.page}&filtre=${CL.filtre}&q=${encodeURIComponent(CL.q)}`); $('#clTable').innerHTML = tableClients(r); brancher(); } catch (e) { toast(e.message, true); } };
     const brancher = () => {
@@ -1112,7 +1114,7 @@
     brancherAnnul();
   };
   /* ---------- Clients › « Envoyer un e-mail » / « Envoyer un SMS » : sélection multicritère, rédaction par l'IA, aperçu, essai, envoi ---------- */
-  const ongletsClients = cur => `<nav class="df-tabs" aria-label="Clients">${[['', '👥 Liste des clients'], ['email', '✉️ Envoyer un e-mail'], ['sms', '💬 Envoyer un SMS']].map(([k, l]) => `<a href="#/clients${k ? '/' + k : ''}" class="df-tab${cur === k ? ' on' : ''}"${cur === k ? ' aria-current="page"' : ''}>${l}</a>`).join('')}</nav>`;
+  const ongletsClients = cur => `<nav class="df-tabs" aria-label="Clients">${[['', '👥 Liste des clients'], ['email', '✉️ Envoyer un e-mail'], ['sms', '💬 Envoyer un SMS'], ['appels', '📞 Programmer un appel']].map(([k, l]) => `<a href="#/clients${k ? '/' + k : ''}" class="df-tab${cur === k ? ' on' : ''}"${cur === k ? ' aria-current="page"' : ''}>${l}</a>`).join('')}</nav>`;
   const DFK = canal => 'mg_dif_' + canal;
   const MONTANTS = [[0, 'Peu importe'], [10000, 'Plus de 100 €'], [30000, 'Plus de 300 €'], [50000, 'Plus de 500 €'], [100000, 'Plus de 1 000 €'], [200000, 'Plus de 2 000 €'], [500000, 'Plus de 5 000 €'], ['autre', 'Autre montant…']];
   const IDF = ['75', '77', '78', '91', '92', '93', '94', '95'];
@@ -1388,6 +1390,50 @@
       <fieldset class="df-fs"><legend>Prévenir le client</legend><label class="check"><input type="checkbox" name="envoyerEmail"${c.email ? ' checked' : ' disabled'}> Lui envoyer l’invitation par e-mail${c.email ? ` (${esc(c.email)}), avec le rendez-vous à ajouter à son agenda` : ' (pas d’e-mail sur la fiche)'}</label><label class="check"><input type="checkbox" name="envoyerSms"${c.tel ? '' : ' disabled'}> Lui envoyer aussi un SMS${c.tel ? ` (${esc(c.tel)})` : ' (pas de téléphone sur la fiche)'}</label></fieldset>
       <div class="row"><button class="btn">Programmer</button><button type="button" class="btn ghost" data-rclose>Annuler</button></div></form></section>`;
   }
+  function brancherFormRdv(rf, id, fin) {
+    rf.addEventListener('change', e => {
+      if (e.target.name === 'type') $('.hr-visio', rf).hidden = rf.type.value !== 'visio';
+      if (e.target.matches('[data-rtous]')) $$('input[name=com]', rf).forEach(x => { x.checked = false; x.disabled = e.target.checked; });
+    });
+    rf.addEventListener('submit', async e => {
+      e.preventDefault(); const f = new FormData(rf), tous = $('[data-rtous]', rf).checked;
+      const body = { type: f.get('type'), date: f.get('date'), heure: f.get('heure'), duree: +f.get('duree'), motif: f.get('motif'), lienVisio: f.get('lienVisio') || '', commerciaux: tous ? [] : f.getAll('com'), envoyerEmail: !!f.get('envoyerEmail'), envoyerSms: !!f.get('envoyerSms') };
+      if (!tous && !body.commerciaux.length) return toast('Cochez au moins un commercial (ou « Tous »).', true);
+      try { const r = await api(`${A}/actions/rdv-client/${id}`, { method: 'POST', body }); toast((body.type === 'visio' ? 'Visio programmée' : 'Appel programmé') + (r.envoye?.email || r.envoye?.sms ? ' : invitation envoyée au client.' : '.')); fin && fin(); } catch (err) { toast(err.message, true); }
+    });
+  }
+  /* onglet Clients › Programmer un appel : choisir le client, puis le même formulaire que sur la fiche */
+  async function appelsClients() {
+    const [ag, eq, R0] = await Promise.all([api(A + '/actions/agenda'), cache.equipe ? Promise.resolve(null) : api(A + '/actions/equipe').catch(() => []), cache.R ? Promise.resolve(null) : api(A + '/site').catch(() => ({}))]);
+    if (eq) cache.equipe = eq.filter(u => !u.desactive); if (R0) cache.R = R0;
+    const maintenant = new Date().toLocaleString('sv-SE').slice(0, 16).replace(' ', 'T');
+    const l = ag.filter(x => x.clientId && ['appel', 'visio'].includes(x.type) && !x.fait && (x.date + 'T' + x.heure) >= maintenant);
+    return page('Clients', '<a class="btn ghost" href="#/clients/nouveau">+ Nouveau client</a>', `${ongletsClients('appels')}
+      <section class="box ap-box"><h2>📞 Programmer un appel ou une visio</h2><p class="muted sm">1. Cherchez le client. 2. Choisissez la date, l’heure, le motif et le commercial. Le rendez-vous va dans l’agenda et le commercial reçoit ses rappels par SMS (24 h, 4 h et 1 h avant).</p>
+        <div class="cf-in"><input type="search" id="apQ" autocomplete="off" placeholder="🔍 Nom, prénom, téléphone, e-mail ou société du client…" aria-label="Rechercher le client"><div class="cf-res" id="apRes" hidden></div></div>
+        <div id="apForm"></div></section>
+      <section class="box"><h2>Appels et visios à venir <small class="muted">(${l.length})</small></h2>${l.length ? `<ul class="hr-l">${l.map(r => `<li class="hr-i"><div><a href="#/clients/${esc(r.clientId)}"><b>${r.type === 'visio' ? '🎥 Visio' : '📞 Appel'} · ${dateFr(r.date, { weekday: 'short', day: 'numeric', month: 'short' })} à ${esc(r.heure.replace(':', ' h '))} · ${esc(r.clientNom)}</b></a><small>${esc([r.motif, r.commerciaux?.length ? 'avec ' + r.commerciaux.join(', ') : 'toute l’équipe'].filter(Boolean).join(' · '))}</small></div>${r.visio ? `<div class="hr-a"><a class="qs-pill dark" href="${esc(r.visio)}" target="_blank" rel="noopener">Rejoindre la visio ↗</a></div>` : ''}</li>`).join('')}</ul>` : '<p class="muted">Aucun appel prévu pour l’instant.</p>'}</section>`);
+  }
+  appelsClients.after = () => {
+    const q = $('#apQ'), res = $('#apRes');
+    const choisir = async cid => {
+      res.hidden = true;
+      const c = { ...(await api(A + '/clients/' + cid)), id: cid };
+      q.value = c.nom || '';
+      $('#apForm').innerHTML = formRdv(c).replace(' id="hcRdv" hidden', ' id="hcRdv"').replace('class="box hc-edit hc-rdvf"', 'class="hc-rdvf ap-form"');
+      $$('#apForm [data-rclose]').forEach(b => b.addEventListener('click', () => { $('#apForm').innerHTML = ''; q.value = ''; q.focus(); }));
+      brancherFormRdv($('#rdvf'), cid, () => render());
+      $('#apForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+    q.addEventListener('input', () => { clearTimeout(q._t); q._t = setTimeout(async () => {
+      const v = q.value.trim(); if (!v) { res.hidden = true; return; }
+      try { const r = await api(`${A}/clients?par=8&page=1&q=${encodeURIComponent(v)}`); res.hidden = false;
+        res.innerHTML = r.items.length ? r.items.map((c, i) => `<a class="cf-r${i ? '' : ' on'}" href="#" data-apc="${esc(c.id)}"><span class="qs-av">${esc(initiales(c.nom))}</span><span class="cf-t"><b>${esc(c.nom || '—')}</b><small>${esc([c.societe, c.tel, c.email].filter(Boolean).join(' · '))}</small></span><span class="cf-go">Choisir ›</span></a>`).join('') : `<p class="cf-none">Aucun client ne correspond. <a href="#/clients/nouveau">+ Créer la fiche</a></p>`;
+      } catch (e) { toast(e.message, true); } }, 200); });
+    q.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); const a = $('#apRes .cf-r.on'); if (a) choisir(a.dataset.apc); } });
+    res.addEventListener('click', e => { const a = e.target.closest('[data-apc]'); if (!a) return; e.preventDefault(); choisir(a.dataset.apc); });
+    q.focus();
+  };
   async function client(id) {
     if (id === 'nouveau') {
       cache.client = { nom: '', email: '', tel: '', societe: '', adresse: '', notes: '' };
@@ -1442,16 +1488,7 @@
     $$('[data-hrdv]').forEach(b => b.addEventListener('click', () => { rp.hidden = false; rp.scrollIntoView({ behavior: 'smooth', block: 'start' }); }));
     $$('[data-rclose]').forEach(b => b.addEventListener('click', () => { rp.hidden = true; }));
     if (/[?&]rdv=1/.test(location.hash)) rp.hidden = false;
-    rf.addEventListener('change', e => {
-      if (e.target.name === 'type') $('.hr-visio', rf).hidden = rf.type.value !== 'visio';
-      if (e.target.matches('[data-rtous]')) $$('input[name=com]', rf).forEach(x => { x.checked = false; x.disabled = e.target.checked; });
-    });
-    rf.addEventListener('submit', async e => {
-      e.preventDefault(); const f = new FormData(rf), tous = $('[data-rtous]', rf).checked;
-      const body = { type: f.get('type'), date: f.get('date'), heure: f.get('heure'), duree: +f.get('duree'), motif: f.get('motif'), lienVisio: f.get('lienVisio') || '', commerciaux: tous ? [] : f.getAll('com'), envoyerEmail: !!f.get('envoyerEmail'), envoyerSms: !!f.get('envoyerSms') };
-      if (!tous && !body.commerciaux.length) return toast('Cochez au moins un commercial (ou « Tous »).', true);
-      try { const r = await api(`${A}/actions/rdv-client/${id}`, { method: 'POST', body }); toast((body.type === 'visio' ? 'Visio programmée' : 'Appel programmé') + (r.envoye?.email || r.envoye?.sms ? ' : invitation envoyée au client.' : '.')); render(); } catch (err) { toast(err.message, true); }
-    });
+    brancherFormRdv(rf, id, () => render());
     $('.hc-rdvs').addEventListener('click', async e => {
       const t = e.target.closest('button'); if (!t) return;
       if (t.dataset.rcopy) { try { await navigator.clipboard.writeText(t.dataset.rcopy); toast('Lien copié.'); } catch { prompt('Lien de la visio :', t.dataset.rcopy); } return; }

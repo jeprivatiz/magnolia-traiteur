@@ -1069,3 +1069,10 @@ td .cl-imp { display: block; margin: 2px 0 0; }
 .fa-tete .kpis.fa-k b { font-size: 21px; white-space: nowrap; }
 .btn[hidden] { display: none !important; }
 @media (max-width: 560px) { .fa-tete .kpis.fa-k b { font-size: 18px; } }
+
+/* Clients › Programmer un appel */
+.ap-box .cf-in{margin:8px 0 4px}
+.ap-box .cf-in input{width:100%;max-width:none;font-size:17px;min-height:50px;padding:10px 14px;border:2px solid var(--bo-line);border-radius:12px;background:var(--bo-tint)}
+.ap-form{margin-top:16px;padding-top:14px;border-top:1px solid var(--bo-line)}
+.hr-t{position:relative}
+.hr-t input{width:1px;height:1px;left:0;top:0}
