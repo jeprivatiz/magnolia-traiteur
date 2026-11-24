@@ -1,0 +1,50 @@
+name: Aperçu temporaire de photos (boissons)
+on:
+  push:
+    branches: [claude/project-thread-tz9pmv]
+    paths: [.github/workflows/apercu-photos.yml]
+permissions:
+  contents: write
+jobs:
+  apercu:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Télécharger les candidates
+        run: |
+          mkdir -p apercu-photos && cd apercu-photos
+          for g in "rouge:3171158 312080 391213 11881469 2954929 18687127 18981467 8473211 14798305 3730914" \
+                   "rose:12534070 4906328 11150532 9009956 8680687 9009955 27519879 30121094 13072623 1835743 3933167" \
+                   "blanc:30279443 2584451 10012572 25450066 7283407 3171735 7608005 5732809" \
+                   "shots:6530970 858466 17383864 9474743 6530942 3410323" \
+                   "cocktails:10331388 16807989 3771819 10375843 1189257 15750727" \
+                   "champ:5834736 3171837 4877867 6952740 3171742 6960140" \
+                   "forts:28180061 28180058 4667081 25584058 15922959" \
+                   "glace:11931271 434259 7630009 3675620 1301390 896819 5858064 15138585 14823758 4996689"; do
+            n=${g%%:*}; mkdir -p $n
+            for id in ${g#*:}; do curl -fsSL -A "Mozilla/5.0" -o "$n/$id.jpg" "https://images.pexels.com/photos/$id/pexels-photo-$id.jpeg?auto=compress&cs=tinysrgb&w=700" || echo "échec $id"; done
+          done
+          pip install --quiet pillow
+          python3 - <<'PY'
+          import os
+          from PIL import Image, ImageDraw
+          for d in sorted(os.listdir('.')):
+              if not os.path.isdir(d): continue
+              fs = sorted(f for f in os.listdir(d) if f.endswith('.jpg'))
+              W, H, cols = 420, 320, 4
+              rows = (len(fs) + cols - 1) // cols
+              sheet = Image.new('RGB', (W*cols, (H+30)*rows), 'white'); dr = ImageDraw.Draw(sheet)
+              for i, f in enumerate(fs):
+                  try:
+                      im = Image.open(os.path.join(d, f)).convert('RGB'); w0, h0 = im.size; im.thumbnail((W-10, H-10))
+                      x, y = (i % cols)*W, (i//cols)*(H+30)
+                      sheet.paste(im, (x+5, y+5)); dr.text((x+8, y+H+5), f"{f[:-4]}  {w0}x{h0}", fill='black')
+                  except Exception as e: print(f, e)
+              sheet.save(f'planche-{d}.jpg', quality=85)
+          PY
+          ls -la
+      - name: Enregistrer
+        run: |
+          git config user.name "magnolia-bot"; git config user.email "magnolia-bot@users.noreply.github.com"
+          git add apercu-photos; git commit -m "Temporaire : aperçus des photos de boissons" && git push
