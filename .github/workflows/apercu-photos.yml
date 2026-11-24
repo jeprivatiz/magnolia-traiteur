@@ -20,7 +20,7 @@ jobs:
       - name: Téléchargement
         run: |
           mkdir -p apercu-photos
-          for id in 37402010 16561736; do
+          for id in 14387795 14062144 566344 725992; do
             curl -sfL -o apercu-photos/p$id.jpg "https://images.pexels.com/photos/$id/pexels-photo-$id.jpeg?auto=compress&cs=tinysrgb&w=2000" || echo "echec $id"
           done
           ls -la apercu-photos
