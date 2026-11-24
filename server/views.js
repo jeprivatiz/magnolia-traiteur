@@ -839,14 +839,16 @@ function totauxHtml(t) {
   <div class="sm"><dt>Total HT</dt><dd>${euros(t.htCents)}</dd></div><div class="tot"><dt>Total TTC</dt><dd>${euros(t.ttcCents)}</dd></div></dl>`;
 }
 
-function devisPage(c, d, t, { client, demande }) {
+function devisPage(c, d0, t, { client, demande, apercu = false }) {
   const R = c.reglages;
+  /* aperçu équipe : le devis tel que le client le recevra, sans rien envoyer ni signer */
+  const d = apercu && d0.statut === 'brouillon' ? { ...d0, statut: 'envoye', envoyeLe: d0.envoyeLe || new Date().toISOString() } : d0;
   const signe = d.statut === 'accepte';
   const expire = d.validiteJusquau && d.validiteJusquau < new Date().toISOString().slice(0, 10) && !signe;
   const acompte = Math.round(t.ttcCents * (d.acomptePct ?? R.tarifs?.acomptePct ?? 30) / 100);
   const https = u => /^https:\/\/[^\s"'<>]+$/.test(String(u || '')) ? String(u) : '';
   const payer = https(d.lienPaiement) || https(R.paiement?.lien);
-  const body = `<section class="wrap doc">
+  const body = `${apercu ? `<div class="apercu-bar noprint"><p><b>👁 Aperçu du devis</b> · exactement ce que le client recevra.${d0.statut === 'brouillon' ? ' Rien n’a été envoyé.' : ''}</p><button class="btn btn-line" type="button" onclick="window.close()">Fermer l’aperçu</button></div>` : ''}<section class="wrap doc">
   <header class="doc-h"><div>${MONO}<p class="brand-txt">Magnolia<small>${esc(R.sousNom || '')}</small></p><p class="small">${esc(R.adresse)}<br>${esc(R.telephone)} · ${esc(R.email)}</p></div>
   <div class="doc-ref"><h1>Devis ${esc(d.numero)}</h1><p>Émis le ${esc(dateFr(d.envoyeLe || d.createdAt))}${d.validiteJusquau ? `<br>Valable jusqu’au ${esc(dateFr(d.validiteJusquau))}` : ''}</p><span class="pill p-${esc(d.statut)}">${esc({ envoye: 'À signer', accepte: 'Signé', refuse: 'Refusé', brouillon: 'Brouillon' }[d.statut] || '')}</span></div></header>
   <div class="doc-parties"><div><p class="eyebrow">Client</p><p><b>${esc(client?.nom || '')}</b>${client?.societe ? '<br>' + esc(client.societe) : ''}<br>${esc(client?.email || '')}<br>${esc(client?.tel || '')}</p></div>
@@ -855,7 +857,7 @@ function devisPage(c, d, t, { client, demande }) {
   ${devisLignesHtml(d)}
   ${totauxHtml(t)}
   ${d.conditions ? `<p class="small">${esc(d.conditions)}</p>` : ''}
-  <div class="sign" data-sign="${esc(d.token)}">
+  <div class="sign"${apercu ? ' data-apercu' : ` data-sign="${esc(d.token)}"`}>
   ${signe ? `<p class="ok">✓ Devis signé en ligne par <b>${esc(d.signature?.nom || '')}</b> le ${esc(dateFr(d.signature?.at, { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }))}.</p>
      ${payer ? `<p>Acompte de <b>${euros(acompte)}</b> (${d.acomptePct ?? R.tarifs?.acomptePct ?? 30} %) pour réserver votre date :</p><p><a class="btn btn-or" href="${esc(payer)}" rel="noopener">Régler l’acompte par carte</a></p>` : ''}
      ${R.paiement?.iban ? `<div class="virement"><p class="eyebrow">${payer ? 'Ou par virement' : `Acompte de ${euros(acompte)} par virement`}</p><p>Titulaire : <b>${esc(R.paiement.titulaire || 'Magnolia Traiteur')}</b><br>IBAN : <b class="mono">${esc(R.paiement.iban)}</b>${R.paiement.bic ? `<br>BIC : <b class="mono">${esc(R.paiement.bic)}</b>` : ''}<br>Référence à indiquer : <b>${esc(d.numero)}</b></p></div>` : ''}
@@ -863,7 +865,7 @@ function devisPage(c, d, t, { client, demande }) {
     : d.statut === 'refuse' ? '<p>Ce devis a été clôturé. Appelez-nous pour en établir un nouveau.</p>'
     : expire ? `<p>Ce devis a expiré. Appelez-nous au ${esc(R.telephone)} : nous le mettons à jour.</p>`
     : `<h2>Bon pour accord</h2><p>Acompte de ${euros(acompte)} (${d.acomptePct ?? R.tarifs?.acomptePct ?? 30} %) à la signature, solde avant l’événement. En signant, vous acceptez les <a href="/cgv" target="_blank">conditions générales de vente</a>.</p>
-     <form class="card-form" data-accept novalidate><label>Votre nom et prénom<input name="nom" required autocomplete="name"></label><label class="check"><input type="checkbox" name="ok" required> Je déclare accepter ce devis « bon pour accord ».</label><div class="row"><button class="btn btn-vert">Signer le devis</button><button class="btn btn-line" type="button" data-refuse>Je ne donne pas suite</button></div><p class="small" data-accept-msg></p></form>`}
+     <form class="card-form"${apercu ? ' onsubmit="return false"' : ' data-accept'} novalidate><label>Votre nom et prénom<input name="nom" required autocomplete="name"></label><label class="check"><input type="checkbox" name="ok" required> Je déclare accepter ce devis « bon pour accord ».</label><div class="row"><button class="btn btn-vert"${apercu ? ' disabled' : ''}>Signer le devis</button><button class="btn btn-line" type="button"${apercu ? ' disabled' : ' data-refuse'}>Je ne donne pas suite</button></div><p class="small" data-accept-msg>${apercu ? 'Aperçu : la signature est désactivée ici.' : ''}</p></form>`}
   </div>
   <p class="row noprint"><button class="btn btn-line" type="button" onclick="print()">Imprimer / PDF</button><a class="lnk" href="tel:${esc((R.telephone || '').replace(/\s/g, ''))}">Une question ? ${esc(R.telephone)}</a></p>
   </section>`;

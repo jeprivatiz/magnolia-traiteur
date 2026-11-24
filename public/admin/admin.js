@@ -535,10 +535,10 @@
         <div class="table"><table class="lines"><thead><tr><th></th><th>Désignation</th><th class="n">Qté</th><th>Unité</th><th class="n">PU TTC</th><th class="n">Coût TTC</th><th>TVA</th><th class="n">Total TTC</th><th></th></tr></thead><tbody id="lines"></tbody></table></div>
         <div class="totbox"><div class="g2"><label>Remise TTC (€)<input name="remise" value="${fromCents(d.remiseCents || 0)}" inputmode="decimal"></label></div><dl id="totaux"></dl></div></section>
       <section class="box"><label>Conditions particulières<textarea name="conditions" rows="2">${esc(d.conditions || '')}</textarea></label></section>
-      <div class="actions sticky"><button class="btn" type="submit">Enregistrer</button><span class="muted" id="dirty"></span></div>
+      <div class="actions sticky"><button class="btn" type="submit">Enregistrer</button><button class="btn ghost" type="button" data-voir>👁 Voir le devis</button><span class="muted" id="dirty"></span></div>
       </form>
       <div class="cols">
-        <section class="box"><h2>Envoyer au client</h2><label>Message (facultatif)<textarea rows="3" id="msg" placeholder="Bonjour, voici votre devis…"></textarea></label><div class="row"><label class="chk"><input type="checkbox" id="c-mail" checked> E-mail</label><label class="chk"><input type="checkbox" id="c-sms"> SMS</label></div><button class="btn" data-send>${d.statut === 'brouillon' ? 'Envoyer le devis' : 'Renvoyer le devis'}</button>
+        <section class="box"><h2>Envoyer au client</h2><label>Message (facultatif)<textarea rows="3" id="msg" placeholder="Bonjour, voici votre devis…"></textarea></label><div class="row"><label class="chk"><input type="checkbox" id="c-mail" checked> E-mail</label><label class="chk"><input type="checkbox" id="c-sms"> SMS</label></div><div class="row"><button class="btn" data-send>${d.statut === 'brouillon' ? 'Envoyer le devis' : 'Renvoyer le devis'}</button><button class="btn ghost" type="button" data-voir>👁 Voir le devis</button></div>
           ${(d.envois || []).length ? `<ul class="histo">${d.envois.map(e => `<li>${dateH(e.at)} · ${e.canaux.join(' + ')} <small>${esc(e.par)}</small></li>`).join('')}</ul>` : ''}</section>
         <section class="box"><h2>Relancer</h2><select id="mod">${modeles.map(m => `<option value="${m.id}">${esc(m.nom)}</option>`).join('')}</select><button class="btn ghost" data-relance ${d.statut !== 'envoye' ? 'disabled' : ''}>Envoyer la relance</button>${(d.relances || []).length ? `<ul class="histo">${d.relances.map(r => `<li>${dateH(r.at)} · ${esc(r.modele)}</li>`).join('')}</ul>` : ''}</section>
         <section class="box"><h2>Facturer</h2>${signe ? `<div class="row"><button class="btn ghost" data-fac="acompte">Facture d’acompte</button><button class="btn ghost" data-fac="solde">Facture de solde</button><button class="btn ghost" data-fac="totale">Facture totale</button></div>` : '<p class="muted">Possible dès que le client a signé.</p>'}</section>
@@ -591,14 +591,25 @@
       e.target.value = ''; draw(); dirty();
     });
     form.addEventListener('input', e => { if (!e.target.closest('#lines')) dirty(); });
-    form.addEventListener('submit', async e => {
-      e.preventDefault();
+    const enregistrer = async () => {
       const f = Object.fromEntries(new FormData(form));
       const cl = cache.clients.find(c => c.id === f.clientId);
       const next = { ...d, clientId: f.clientId || null, clientNom: cl?.nom || '', evenement: { type: f.ev_type, date: f.ev_date, invites: +f.ev_invites || null, lieu: f.ev_lieu }, validiteJusquau: f.validiteJusquau, acomptePct: +f.acomptePct, lienPaiement: f.lienPaiement, intro: f.intro, conditions: f.conditions, remiseCents: toCents(f.remise) || 0, lignes };
-      try { await api(`${A}/devis/${id}`, { method: 'PUT', body: next }); cache.devis = next; $('#dirty').textContent = ''; toast('Devis enregistré.'); }
-      catch (err) { toast(err.message, true); }
+      await api(`${A}/devis/${id}`, { method: 'PUT', body: next }); cache.devis = next; $('#dirty').textContent = '';
+    };
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+      try { await enregistrer(); toast('Devis enregistré.'); } catch (err) { toast(err.message, true); }
     });
+    /* « Voir le devis » : enregistre si besoin, puis ouvre le devis tel que le client le recevra (rien n'est envoyé) */
+    $$('[data-voir]').forEach(b => b.addEventListener('click', async () => {
+      const w = window.open('about:blank', '_blank'); // ouvert tout de suite, sinon Safari bloque la fenêtre
+      try {
+        if ($('#dirty').textContent && !form.classList.contains('lock')) { await enregistrer(); toast('Devis enregistré.'); }
+        const url = `${A}/devis/${id}/apercu?t=${Date.now()}`;
+        if (w) w.location.href = url; else location.href = url;
+      } catch (err) { if (w) w.close(); toast(err.message, true); }
+    }));
     $('[data-send]')?.addEventListener('click', async () => {
       if ($('#dirty').textContent) { toast('Enregistrez d’abord vos modifications.', true); return; }
       const canaux = [$('#c-mail').checked && 'email', $('#c-sms').checked && 'sms'].filter(Boolean);
