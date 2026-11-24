@@ -1113,3 +1113,10 @@ body.noscroll .partage { display: none; }
 .totaux.regl dt { padding-right: 12px; }
 .totaux.regl dt small { color: var(--gris); }
 .doc .ok { color: #2f6b47; font-weight: 600; }
+/* accueil : vignette Saveurs du monde avec un globe qui tourne, sur fond de verdure */
+.tile.vg img { filter: saturate(1.1) brightness(.62); }
+.tile.vg::before { content: ''; position: absolute; inset: 0; z-index: -1; background: radial-gradient(circle at 50% 40%, rgba(16, 38, 28, .15), rgba(16, 38, 28, .55) 70%); }
+.tile.vg canvas { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; opacity: 0; transition: opacity .8s; }
+.tile.vg.vg-pret canvas { opacity: 1; }
+.tile.vg .tile-t { z-index: 1; }
+.tile.vg:hover img { transform: scale(1.04); }
