@@ -1624,15 +1624,18 @@
 
   /* ---------- catalogue ---------- */
   async function catalogue() {
-    const [rubs, prods] = await Promise.all([api(A + '/rubriques'), api(A + '/produits')]);
+    const [rubs, prods, lieuxL] = await Promise.all([api(A + '/rubriques'), api(A + '/produits'), api(A + '/lieux').catch(() => [])]);
+    /* la rubrique « Lieux de réception » ne contient pas de produits : ses fiches sont dans le menu Lieux (compteur = lieux visibles, comme sur le site) */
+    const nbLieux = lieuxL.filter(l => l.statut !== 'masque').length;
+    const nbRub = slug => slug === 'lieux' ? nbLieux : prods.filter(p => p.rubrique === slug).length;
     cache.rubriques = rubs.sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0)); cache.produits = prods;
     const r = new URLSearchParams(location.hash.split('?')[1] || '').get('r') || cache.catR || rubs[0]?.slug;
     cache.catR = r;
     const liste = prods.filter(p => p.rubrique === r).sort((a, b) => (b.maison ? 1 : 0) - (a.maison ? 1 : 0) || (a.ordre ?? 0) - (b.ordre ?? 0));
     const rub = rubs.find(x => x.slug === r) || {};
     return page('Catalogue', `<input type="search" placeholder="Rechercher dans tout le catalogue…" data-q>`, `
-      <div class="catg"><nav class="rubs">${rubs.map(x => `<a href="#/catalogue?r=${x.slug}" class="${x.slug === r ? 'on' : ''}${x.statut === 'masque' ? ' hid' : ''}">${esc(x.nom)}<small>${prods.filter(p => p.rubrique === x.slug).length}</small></a>`).join('')}<button class="lnk" data-newrub>+ Nouvelle rubrique</button></nav>
-      <div><section class="box rubbox"><div class="bh"><h2>${esc(rub.nom || '')}</h2><a class="btn voir-site" href="/${esc(r)}?apercu=1" target="_blank">👁 Voir la présentation sur le site</a><button class="btn" data-new="${esc(r)}">+ Créer dans « ${esc(rub.nom || '')} »</button></div>
+      <div class="catg"><nav class="rubs">${rubs.map(x => `<a href="#/catalogue?r=${x.slug}" class="${x.slug === r ? 'on' : ''}${x.statut === 'masque' ? ' hid' : ''}">${esc(x.nom)}<small>${nbRub(x.slug)}</small></a>`).join('')}<button class="lnk" data-newrub>+ Nouvelle rubrique</button></nav>
+      <div><section class="box rubbox"><div class="bh"><h2>${esc(rub.nom || '')}</h2><a class="btn voir-site" href="/${esc(r)}?apercu=1" target="_blank">👁 Voir la présentation sur le site</a>${r === 'lieux' ? `<a class="btn" href="#/lieux">Gérer les ${nbLieux} lieux</a>` : `<button class="btn" data-new="${esc(r)}">+ Créer dans « ${esc(rub.nom || '')} »</button>`}</div>
         <form id="rf" class="g3"><label>Nom<input name="nom" value="${esc(rub.nom || '')}"></label><label>Accroche (sur la vignette)<input name="accroche" value="${esc(rub.accroche || '')}" placeholder="ex. Le monde entier à votre table"></label><label>Statut<select name="statut"><option value="visible">Visible</option><option value="masque"${rub.statut === 'masque' ? ' selected' : ''}>Masquée</option></select></label>
         <label class="span3">Texte d’introduction<textarea name="chapo" rows="2">${esc(rub.chapo || '')}</textarea></label>
         <label>Titre du paragraphe de présentation<input name="introTitre" value="${esc(rub.introTitre || '')}" placeholder="ex. Cocktails et buffets à la française"></label>
@@ -1643,7 +1646,8 @@
           <p class="muted sm">Sans spécialité, la rubrique affiche directement toutes ses prestations. Chaque prestation se range dans une spécialité depuis sa fiche (liste « Spécialité »).</p>
           <label class="stylev">Style des vignettes<select name="styleVignettes"><option value="carte"${(rub.styleVignettes || (rub.slug === 'saveurs-du-monde' ? 'carte' : 'photo')) === 'carte' ? ' selected' : ''}>Carte du monde (pays en doré)</option><option value="photo"${(rub.styleVignettes || (rub.slug === 'saveurs-du-monde' ? 'carte' : 'photo')) === 'photo' ? ' selected' : ''}>Photo de chaque spécialité</option></select></label>
           <div id="sous"></div><button type="button" class="btn ghost sm" data-addsous>+ Ajouter une spécialité</button></div></div></form></section>
-      <section class="box pliable prodbox" data-pli="prods"><div class="plihead"><h2>Produits à l’unité <small class="muted">(${liste.length})</small></h2><button type="button" class="btn ghost sm plibtn" data-plibtn></button></div><div class="plibody">
+      ${r === 'lieux' ? `<section class="box"><h2>Les lieux de réception <small class="muted">(${nbLieux} visibles sur le site${lieuxL.length > nbLieux ? `, ${lieuxL.length - nbLieux} masqué${lieuxL.length - nbLieux > 1 ? 's' : ''}` : ''})</small></h2><p class="muted">Les lieux ne sont pas des produits : chaque lieu a sa propre fiche (photos, capacité, type de lieu, événements…) dans le menu <b>Lieux</b>.</p><p><a class="btn" href="#/lieux">Gérer les lieux</a></p></section>` : ''}
+      <section class="box pliable prodbox" data-pli="prods"${r === 'lieux' ? ' hidden' : ''}><div class="plihead"><h2>Produits à l’unité <small class="muted">(${liste.length})</small></h2><button type="button" class="btn ghost sm plibtn" data-plibtn></button></div><div class="plibody">
       <div class="row sousfiltre"><label class="pq">Rechercher une prestation<input type="search" data-pq placeholder="Tapez un nom : nems, mafé, paëlla…" autocomplete="off"></label>${(rub.sous || []).length ? `<label>Afficher<select data-sousf><option value="*">Toutes les prestations (${liste.length})</option>${[...rub.sous].sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0)).map(x => `<option value="${esc(x.slug)}">${esc(x.nom)} (${liste.filter(p => p.sous === x.slug).length})</option>`).join('')}<option value="">Sans spécialité (${liste.filter(p => !(rub.sous || []).some(x => x.slug === p.sous)).length})</option></select></label>` : ''}<label>Classement<select data-tri><option value="">Ordre du site</option><option value="az">Ordre alphabétique (A → Z)</option><option value="za">Ordre alphabétique (Z → A)</option><option value="p+">Prix croissant</option><option value="p-">Prix décroissant</option></select></label><label>Visibilité<select data-vis><option value="">Tous les produits (${liste.length})</option><option value="visible">Produits visibles (${liste.filter(p => p.statut !== 'masque').length})</option><option value="masque">Produits masqués (${liste.filter(p => p.statut === 'masque').length})</option></select></label><span class="muted sm" data-pqn></span></div>
       <div class="plist" id="plist">${liste.map(prow).join('') || '<p class="muted">Aucune prestation dans cette rubrique.</p>'}</div></div></section></div></div>`);
   }
@@ -1651,10 +1655,10 @@
   const prow = p => `<a class="prow${p.statut === 'masque' ? ' hid' : ''}" href="#/catalogue/${p.id || p.slug}">${p.photos?.[0]?.src ? `<img src="${esc(p.photos[0].src)}" alt="" loading="lazy">` : '<span class="ph0"></span>'}<span><b>${esc(p.titre)}</b><small>${p.prixCents == null ? 'Sur devis' : euros(p.prixCents) + (p.unite ? ' / ' + esc(p.unite) : '')}${p.min > 1 ? ' · min. ' + p.min : ''}</small></span><span class="pill ${p.statut === 'masque' ? 'd-refuse' : 'd-accepte'}">${p.statut === 'masque' ? 'Masqué' : 'Visible'}</span>${p.maison ? '<span class="pill">Maison</span>' : ''}${p.sous ? `<span class="pill">${esc(((cache.rubriques || []).find(r => r.slug === p.rubrique)?.sous || []).find(x => x.slug === p.sous)?.nom || '')}</span>` : ''}</a>`;
   catalogue.after = () => {
     $('[data-q]').addEventListener('input', e => {
-      const q = e.target.value.toLowerCase().trim();
+      const q = e.target.value.toLowerCase().trim(); if (cache.catR === 'lieux') $('.prodbox').hidden = !q;
       $('#plist').innerHTML = (q ? cache.produits.filter(p => (p.titre + ' ' + (p.extrait || '')).toLowerCase().includes(q)) : cache.produits.filter(p => p.rubrique === cache.catR)).map(prow).join('') || '<p class="muted">Aucun résultat.</p>';
     });
-    $('[data-new]').addEventListener('click', async e => {
+    $('[data-new]')?.addEventListener('click', async e => {
       const titre = prompt('Nom de la nouvelle prestation ?'); if (!titre) return;
       const r = await api(A + '/produits', { method: 'POST', body: { titre, rubrique: e.target.dataset.new, prixCents: null, unite: 'personne', min: 1, statut: 'masque', tva: (cache.rubriques.find(x => x.slug === e.target.dataset.new) || {}).tva || 10 } });
       toast('Créée (masquée tant que vous ne la rendez pas visible).'); location.hash = '#/catalogue/' + r.id;
