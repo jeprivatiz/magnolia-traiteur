@@ -622,3 +622,10 @@ document.querySelector('.lsearch')?.addEventListener('submit', e => {
   document.fonts?.ready.then(ajuste);
   if (window.ResizeObserver && info) new ResizeObserver(ajuste).observe(info);
 })();
+
+/* Accueil : le menu animé de la vignette « La carte Magnolia » ne tourne que lorsqu'il est à l'écran (économie de batterie sur iPhone) */
+(function () {
+  const t = document.querySelector('.tile .cm-scene')?.closest('.tile');
+  if (!t || !('IntersectionObserver' in window)) return;
+  new IntersectionObserver(([e]) => t.classList.toggle('cm-pause', !e.isIntersecting), { threshold: 0 }).observe(t);
+})();

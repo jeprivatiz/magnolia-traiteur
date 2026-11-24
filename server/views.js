@@ -159,6 +159,14 @@ function universListe(c) {
     : [{ slug: r.slug, nom: r.nom, href: rubHref(r), photo: r.photoAccueil || r.photo, prods: c.byRub.get(r.slug) || [] }]);
   return l.some(u => u.slug === 'lieux') ? l : [...l, lieux];
 }
+/* Vignette « La carte Magnolia » : sur une table ronde de mariage, un menu en carton se relève, s'ouvre sur
+   « Entrée · Plat · Dessert », se referme et se repose, en boucle (Jean-Luc, 2026-11-24). Dessiné en HTML/CSS (pas d'image),
+   animé en CSS (public/css/site.css, bloc « cm- »), mis en pause hors de l'écran (public/js/site.js), fixe et ouvert si animations réduites. */
+const FLEUR_MENU = '<svg viewBox="0 0 40 40" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"><path d="M20 30c-3-5-3-12 0-19 3 7 3 14 0 19z"/><path d="M20 30c-6-2-10-7-11-14 6 2 10 7 11 14z"/><path d="M20 30c6-2 10-7 11-14-6 2-10 7-11 14z"/><path d="M20 30c-5 1-10-1-13-5 5-1 10 1 13 5z"/><path d="M20 30c5 1 10-1 13-5-5-1-10 1-13 5z"/><path d="M20 30v5"/></g></svg>';
+const MENU_TABLE = `<span class="cm-scene" aria-hidden="true"><span class="cm-ombre"></span><span class="cm-livre">
+<span class="cm-page cm-dedans"><span class="cm-cadre"><i class="cm-l">Entrée</i><i class="cm-sep"></i><i class="cm-l">Plat</i><i class="cm-sep"></i><i class="cm-l">Dessert</i></span></span>
+<span class="cm-couv"><span class="cm-page cm-avant"><span class="cm-cadre">${FLEUR_MENU}<b>Menu</b><small>Magnolia</small></span></span><span class="cm-page cm-arriere"><span class="cm-cadre"><small>Le repas</small><b>servi à table</b>${FLEUR_MENU}</span></span></span>
+</span></span>`;
 function univers(c) {
   /* la vignette Lieux prend la place de la rubrique « lieux » (ordre du back-office) */
   const lieux = `<a class="tile" href="/lieux">${img(c.lieux[0]?.photos?.[0], '')}<span class="tile-t"><b>Lieux de réception</b><small>${c.lieux.filter(l => l.statut !== 'masque').length} lieux à privatiser</small></span></a>`;
@@ -167,7 +175,7 @@ function univers(c) {
   const globe = r => { const ids = [...new Set(sousVisibles(r).flatMap(x => lieuDe(x)?.[2] || []).concat(['250']))];
     return `<a class="tile vg" href="${rubHref(r)}" data-vg='${esc(JSON.stringify(ids))}'>${img('/site/c/paysages/antilles.webp', '')}<canvas aria-hidden="true"></canvas><span class="tile-t"><b>${esc(r.nom)}</b><small>${esc(r.accroche || 'Dix traiteurs, une seule maison')}</small></span></a>`; };
   return rubs.map(r => r.slug === 'lieux' ? lieux : r.slug === 'saveurs-du-monde' ? globe(r) : `<a class="tile" href="${rubHref(r)}">
-    ${img(r.photoAccueil || r.photo, '')}<span class="tile-t"><b>${esc(r.nom)}</b>${r.accroche ? `<small>${esc(r.accroche)}</small>` : `<small>${c.byRub.get(r.slug)?.length || 0} prestations</small>`}</span></a>`).join('')
+    ${img(r.photoAccueil || r.photo, '')}${r.slug === 'carte-magnolia' ? MENU_TABLE : ''}<span class="tile-t"><b>${esc(r.nom)}</b>${r.accroche ? `<small>${esc(r.accroche)}</small>` : `<small>${c.byRub.get(r.slug)?.length || 0} prestations</small>`}</span></a>`).join('')
     + (rubs.some(r => r.slug === 'lieux') ? '' : lieux);
 }
 

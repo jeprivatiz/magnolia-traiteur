@@ -267,3 +267,9 @@ public/site/c/douceurs/ à sa demande ; le nom du partenaire n'apparaît jamais 
 ## Corbeilles du partenaire Corbeilles Paris (2026-11-24)
 
 Photos et textes repris de corbeillesparis.fr (partenaire de Magnolia, à la demande de Jean-Luc), copiés dans public/site/c/corbeilles/. Prix = prix du partenaire + 30 %. La photo « Corbeille de Noël » (texte écrit) n’ pas été reprise.
+
+## Vignette « La carte Magnolia » de l'accueil (2026-11-24)
+
+| Photo | Source | Date |
+|---|---|---|
+| Table ronde dressée pour un mariage (public/site/c/accueil/table-ronde-mariage.webp), recadrée en portrait ; carton imprimé remplacé par un bouquet d'hortensias, logos des tasses et numéro de table effacés | https://www.pexels.com/photo/round-dining-table-2306282/ (licence Pexels) | 24/11/2026 |
