@@ -616,7 +616,7 @@
           ${(() => { const P = (R0.alertes?.personnes || []).filter(x => x.nom); const cur = d.commercial?.nom || (P.find(x => x.email && x.email === session.email) || P[0] || {}).nom || ''; const L = [...P]; if (d.commercial?.nom && !P.some(x => x.nom === d.commercial.nom)) L.unshift(d.commercial); return `<label>Commercial (nom et téléphone sur le devis)<select name="commercial"><option value="">— Aucun —</option>${L.map(x => `<option value="${esc(x.nom)}"${x.nom === cur ? ' selected' : ''}>${esc(x.nom)}${x.tel ? ' · ' + esc(x.tel) : ''}</option>`).join('')}</select></label><p class="muted sm">La liste vient de <a href="#/equipe">Équipe &amp; activité</a> › Alertes de l’équipe (nom, portable, e-mail).</p>`; })()}
           <label>Lien de paiement de l’acompte <small>(SumUp, Stripe, banque…)</small><input name="lienPaiement" value="${esc(d.lienPaiement || '')}" placeholder="https://"></label></section>
       </div>
-      <section class="box"><label>Texte d’introduction<textarea name="intro" rows="2">${esc(d.intro || '')}</textarea></label></section>
+      <section class="box"><label>Nom de la proposition <small>(facultatif, ex. « Formule buffet antillais » : affiché dans l’e-mail quand vous envoyez plusieurs devis)</small><input name="titre" value="${esc(d.titre || '')}" maxlength="120"></label><label>Texte d’introduction<textarea name="intro" rows="2">${esc(d.intro || '')}</textarea></label></section>
       ${lock ? '' : `<section class="box ia-modif"><h2>✨ Demander à l’IA de modifier ce devis</h2><p class="muted sm">Écrivez ou dictez ce qu’il faut changer, par exemple : « Supprime le DJ et mets une contorsionniste à la place », « passe à 80 invités », « ajoute 2 serveurs pendant 5 h ». L’IA vous montre les changements avant de les appliquer. Vous pouvez toujours modifier les lignes vous-même.</p>
         <textarea id="iam-t" rows="2" placeholder="Ex. : supprime le DJ et mets une contorsionniste à la place"></textarea><div class="row"><button type="button" class="btn aq-btn" data-iam>✨ Proposer la modification</button><button type="button" class="btn ghost sm" data-iam-mic>🎤 Dicter</button><span id="iam-msg" class="muted sm"></span></div><div id="iam-res"></div></section>`}
       <section class="box"><div class="bh"><h2>Lignes du devis</h2><div class="row"><select data-addprod class="wide"><option value="">+ Ajouter une prestation du catalogue…</option>${cat.filter(p => p.statut !== 'masque').sort((a, b) => a.titre.localeCompare(b.titre)).map(p => `<option value="${esc(p.slug)}">${esc(p.titre)} · ${p.prixCents == null ? 'sur devis' : euros(p.prixCents)}</option>`).join('')}</select><button type="button" class="btn ghost sm" data-addline>+ Ligne libre</button><button type="button" class="btn ghost sm" data-addtitle>+ Titre</button></div></div>
@@ -626,7 +626,11 @@
       <div class="actions sticky"><button class="btn" type="submit">Enregistrer</button><button class="btn ghost" type="button" data-voir>👁 Voir le devis</button><span class="muted" id="dirty"></span></div>
       </form>
       <div class="cols">
-        <section class="box"><h2>Envoyer au client</h2><label>Message (facultatif)<textarea rows="3" id="msg" placeholder="Bonjour, voici votre devis…"></textarea></label><div class="row"><label class="chk"><input type="checkbox" id="c-mail" checked> E-mail</label><label class="chk"><input type="checkbox" id="c-sms"> SMS</label></div><div class="row"><button class="btn" data-send>${d.statut === 'brouillon' ? 'Envoyer le devis' : 'Renvoyer le devis'}</button><button class="btn ghost" type="button" data-voir>👁 Voir le devis</button></div>
+        <section class="box"><h2>Envoyer au client</h2><label>Message (facultatif)<textarea rows="3" id="msg" placeholder="Bonjour, voici votre devis…"></textarea></label><div class="row"><label class="chk"><input type="checkbox" id="c-mail" checked> E-mail</label><label class="chk"><input type="checkbox" id="c-sms"> SMS</label></div>${(() => { const autres = (cache.tousDevis || []).filter(x => x.clientId && x.clientId === d.clientId && x.id !== d.id && x.statut !== 'refuse');
+            if (!autres.length) return '';
+            const L = [d, ...autres].sort((a, b) => String(a.numero).localeCompare(String(b.numero)));
+            return `<div class="grp"><p class="sm"><b>Devis de ce client à envoyer ensemble</b> <small class="muted">(un seul e-mail, chaque devis se signe séparément)</small></p>${L.map(x => `<label class="chk grp-l"><input type="checkbox" data-grp="${esc(x.id)}" ${x.id === d.id || x.statut === 'brouillon' ? 'checked' : ''}> <span><b>${esc(x.numero)}</b>${x.titre ? ' · ' + esc(x.titre) : ''} · ${euros(tot(x).ttc)} <span class="pill d-${x.statut}">${DSTAT[x.statut]}</span>${x.id === d.id ? ' <small class="muted">(celui-ci)</small>' : ''}</span></label>`).join('')}</div>`; })()}
+          <div class="row"><button class="btn" type="button" data-sendgrp hidden></button><button class="btn" data-send>${d.statut === 'brouillon' ? 'Envoyer le devis' : 'Renvoyer le devis'}</button><button class="btn ghost" type="button" data-apmail>✉️ Aperçu de l’e-mail</button><button class="btn ghost" type="button" data-voir>👁 Voir le devis</button></div>
           ${(d.envois || []).length ? `<ul class="histo">${d.envois.map(e => `<li>${dateH(e.at)} · ${e.canaux.join(' + ')} <small>${esc(e.par)}</small></li>`).join('')}</ul>` : ''}</section>
         <section class="box"><h2>Relancer</h2><select id="mod">${modeles.map(m => `<option value="${m.id}">${esc(m.nom)}</option>`).join('')}</select><button class="btn ghost" data-relance ${d.statut !== 'envoye' ? 'disabled' : ''}>Envoyer la relance</button>${(d.relances || []).length ? `<ul class="histo">${d.relances.map(r => `<li>${dateH(r.at)} · ${esc(r.modele)}</li>`).join('')}</ul>` : ''}</section>
         <section class="box"><h2>Facturer</h2>${signe ? `<div class="row"><button class="btn ghost" data-fac="acompte">Facture d’acompte</button><button class="btn ghost" data-fac="solde">Facture de solde</button><button class="btn ghost" data-fac="totale">Facture totale</button></div>` : '<p class="muted">Possible dès que le client a signé.</p>'}</section>
@@ -709,7 +713,7 @@
     const enregistrer = async () => {
       const f = Object.fromEntries(new FormData(form));
       const cl = cache.clients.find(c => c.id === f.clientId);
-      const next = { ...d, clientId: f.clientId || null, clientNom: cl?.nom || '', evenement: { type: f.ev_type, date: f.ev_date, invites: +f.ev_invites || null, lieu: f.ev_lieu }, validiteJusquau: f.validiteJusquau, acomptePct: f.acomptePct === '' ? null : +f.acomptePct, commercial: (() => { const x = [...(cache.R?.alertes?.personnes || []), d.commercial || {}].find(p => p.nom && p.nom === f.commercial); return x ? { nom: x.nom, tel: x.tel || '', email: x.email || '' } : null; })(), lienPaiement: f.lienPaiement, intro: f.intro, conditions: f.conditions, remiseCents: toCents(f.remise) || 0, lignes };
+      const next = { ...d, clientId: f.clientId || null, clientNom: cl?.nom || '', evenement: { type: f.ev_type, date: f.ev_date, invites: +f.ev_invites || null, lieu: f.ev_lieu }, validiteJusquau: f.validiteJusquau, titre: String(f.titre || '').trim(), acomptePct: f.acomptePct === '' ? null : +f.acomptePct, commercial: (() => { const x = [...(cache.R?.alertes?.personnes || []), d.commercial || {}].find(p => p.nom && p.nom === f.commercial); return x ? { nom: x.nom, tel: x.tel || '', email: x.email || '' } : null; })(), lienPaiement: f.lienPaiement, intro: f.intro, conditions: f.conditions, remiseCents: toCents(f.remise) || 0, lignes };
       await api(`${A}/devis/${id}`, { method: 'PUT', body: next }); cache.devis = next; $('#dirty').textContent = '';
     };
     form.addEventListener('submit', async e => {
@@ -725,6 +729,34 @@
         if (w) w.location.href = url; else location.href = url;
       } catch (err) { if (w) w.close(); toast(err.message, true); }
     }));
+    /* envoi groupé */
+    const grpIds = () => $$('[data-grp]').filter(x => x.checked).map(x => x.dataset.grp);
+    const majGrp = () => {
+      const b = $('[data-sendgrp]'), n = grpIds().length, seul = $('[data-send]'); if (!b || !$$('[data-grp]').length) return;
+      b.hidden = n < 2; b.textContent = `📨 Envoyer les ${n} devis`;
+      if (seul) { seul.textContent = n >= 2 ? 'Envoyer ce devis uniquement' : (d.statut === 'brouillon' ? 'Envoyer le devis' : 'Renvoyer le devis'); seul.classList.toggle('ghost', n >= 2); }
+    };
+    $$('[data-grp]').forEach(x => x.addEventListener('change', majGrp)); majGrp();
+    const canauxChoisis = () => [$('#c-mail').checked && 'email', $('#c-sms').checked && 'sms'].filter(Boolean);
+    $('[data-sendgrp]')?.addEventListener('click', async () => {
+      if ($('#dirty').textContent) { toast('Enregistrez d’abord vos modifications.', true); return; }
+      const ids = grpIds(), canaux = canauxChoisis(); if (!canaux.length) return toast('Choisissez e-mail et/ou SMS.', true);
+      const noms = $$('[data-grp]').filter(x => x.checked).map(x => x.closest('label').querySelector('b').textContent);
+      if (!confirm(`Envoyer ces ${ids.length} devis au client en un seul message ?\n\n${noms.join(', ')}`)) return;
+      try { const r = await api(A + '/actions/envoyer-devis-groupe', { method: 'POST', body: { ids, canaux, message: $('#msg').value } }); toast(r.test ? `${r.nb} devis prêts (mode test : aucun e-mail réel tant que Brevo n’est pas branché).` : `${r.nb} devis envoyés en un seul message.`); render(); }
+      catch (err) { toast(err.message, true); }
+    });
+    $('[data-apmail]')?.addEventListener('click', async () => {
+      if ($('#dirty').textContent) { toast('Enregistrez d’abord vos modifications.', true); return; }
+      const ids = $$('[data-grp]').length ? grpIds() : [id]; if (!ids.length) return toast('Cochez au moins un devis.', true);
+      try {
+        const r = await api(A + '/actions/envoyer-devis-groupe', { method: 'POST', body: { ids, apercu: true, message: $('#msg').value } });
+        const m = document.createElement('div'); m.className = 'modal';
+        m.innerHTML = `<div class="modal-in apm"><div class="bh"><h2>Aperçu de l’e-mail</h2><button class="x" data-close aria-label="Fermer">×</button></div><p class="sm"><b>À :</b> ${esc(r.a)}<br><b>Objet :</b> ${esc(r.sujet)}</p><iframe class="apm-f" sandbox title="Aperçu de l’e-mail"></iframe>${$('#c-sms').checked && r.tel ? `<p class="sm"><b>SMS au ${esc(r.tel)} :</b> ${esc(r.sms)}</p>` : ''}<p class="muted sm">Rien n’a été envoyé.</p></div>`;
+        document.body.append(m); m.querySelector('iframe').srcdoc = `<meta charset="utf-8"><body style="font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;color:#222;padding:8px 14px">${r.html}</body>`;
+        const fermer = () => m.remove(); m.addEventListener('click', e => { if (e.target === m || e.target.closest('[data-close]')) fermer(); });
+      } catch (err) { toast(err.message, true); }
+    });
     $('[data-send]')?.addEventListener('click', async () => {
       if ($('#dirty').textContent) { toast('Enregistrez d’abord vos modifications.', true); return; }
       const canaux = [$('#c-mail').checked && 'email', $('#c-sms').checked && 'sms'].filter(Boolean);
