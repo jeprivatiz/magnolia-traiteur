@@ -468,6 +468,7 @@ async function createApp(opts = {}) {
     }
     if (coll === 'demandes' && before && data.statut && data.statut !== before.statut) data.historique = [...(before.historique || []), { at: new Date().toISOString(), statut: data.statut, par: req.ctx.name || req.ctx.email }];
     if (coll === 'produits' && !data.slug) data.slug = id;
+    if (coll === 'clients') { if (before?.journal) data.journal = before.journal; else delete data.journal; } /* notes et appels de l'historique jamais effacés par une fiche ouverte avant */
     data.updatedAt = new Date().toISOString();
     await store.set(coll + '/' + id, data);
     if (['produits', 'rubriques', 'lieux', 'avis', 'pages'].includes(coll)) cat.invalidate();
@@ -716,6 +717,75 @@ async function createApp(opts = {}) {
     await store.set('factures/' + f.id, { ...f, envoyeeLe: new Date().toISOString() });
     audit(req.ctx, 'facture envoyée', 'factures/' + f.id, f.numero);
     res.json({ ok: true, lien });
+  }));
+
+  /* ---------- historique complet d'un client (fiche CRM) : demandes, devis, signatures, factures, règlements, e-mails et SMS, appels, notes ---------- */
+  const telCourt = t => { let d = String(t || '').replace(/\D/g, ''); if (d.startsWith('0033')) d = d.slice(4); else if (d.startsWith('33') && d.length === 11) d = d.slice(2); return d.replace(/^0/, ''); };
+  A.get('/actions/historique-client/:id', wrap(async (req, res) => {
+    const c = await store.get('clients/' + req.params.id);
+    if (!c) return res.status(404).json({ error: 'Client introuvable.' });
+    const [dem, dv, fac, out, rdv] = await Promise.all(['demandes', 'devis', 'factures', '_outbox', 'rdv'].map(k => store.list(k).then(l => l.map(x => x.data))));
+    const demandes = dem.filter(d => d.clientId === c.id);
+    const devisL = dv.filter(d => d.clientId === c.id || (d.demandeId && demandes.some(x => x.id === d.demandeId)));
+    const facts = fac.filter(f => f.clientId === c.id || devisL.some(d => d.id === f.devisId));
+    const mails = [c.email, ...demandes.map(d => d.contact?.email)].filter(Boolean).map(x => String(x).trim().toLowerCase());
+    const tels = [c.tel, ...demandes.map(d => d.contact?.tel)].map(telCourt).filter(x => x.length >= 8);
+    const ev = [];
+    const add = (at, type, titre, o = {}) => { if (at) ev.push({ at, type, titre, ...o }); };
+    const lbl = { demande: 'Demande', devis_envoye: 'Devis envoyé', relance: 'Relance', accord: 'Accord du client', reserve: 'Réservé (acompte reçu)', refuse: 'Refusé', termine: 'Terminé' };
+    for (const d of demandes) {
+      const e = d.evenement || {};
+      add(d.createdAt, 'demande', d.type === 'contact' ? `Message reçu : ${d.sujet || 'question'}` : `Demande de devis ${d.ref || ''}`.trim(), { detail: [e.type, e.date ? dateFr(e.date) : '', e.invites ? e.invites + ' pers.' : '', e.ville].filter(Boolean).join(' · ') + (d.message ? '\n« ' + String(d.message).slice(0, 400) + ' »' : ''), montantCents: d.totalEstimeCents || null, montantLib: 'estimé', par: d.source || (d.lignes?.length ? 'site' : ''), lien: '#/demandes/' + d.id });
+      for (const h of (d.historique || []).slice(1)) if (!['devis_envoye', 'relance'].includes(h.statut)) add(h.at, 'statut', 'Étape : ' + (lbl[h.statut] || h.statut), { par: h.par, ref: d.ref, lien: '#/demandes/' + d.id });
+      for (const r of d.relancesNotees || []) add(r.at, r.how === 'appel' ? 'appel' : 'note', r.how === 'appel' ? 'Appel téléphonique' : 'Relance faite (notée)', { par: r.par, ref: d.ref });
+      if (d.notes) add(d.updatedAt || d.createdAt, 'note', 'Note sur la demande ' + (d.ref || ''), { detail: d.notes, fixe: true });
+    }
+    const lies = []; /* envois déjà montrés : on ne répète pas l'e-mail correspondant */
+    for (const d of devisL) {
+      const t = totaux(d), num = d.numero || '';
+      add(d.createdAt, 'devis', `Devis ${num} préparé`, { montantCents: t.ttcCents, par: d.commercial?.nom || '', lien: '#/devis/' + d.id, statutDevis: d.statut });
+      for (const x of d.envois || []) { add(x.at, 'envoi', `Devis ${num} envoyé`, { detail: 'par ' + (x.canaux || ['email']).map(k => k === 'sms' ? 'SMS' : 'e-mail').join(' et '), montantCents: t.ttcCents, par: x.par, lien: d.token ? '/devis/' + d.token : '' }); lies.push([x.at, num]); }
+      if (d.vuLe) add(d.vuLe, 'vu', `Le client a ouvert le devis ${num}`);
+      for (const r of d.relances || []) { add(r.at, 'relance', `Relance : ${r.modele || ''}`.trim(), { detail: 'Devis ' + num, par: r.par }); lies.push([r.at, num, true]); }
+      if (d.signature) add(d.signature.at, 'signe', `Devis ${num} signé en ligne`, { detail: 'Signé par ' + (d.signature.nom || ''), montantCents: t.ttcCents, lien: d.token ? '/devis/' + d.token : '' });
+      if (d.refuseLe) add(d.refuseLe, 'refus', `Devis ${num} refusé par le client`);
+    }
+    const typeF = { acompte: 'd’acompte', solde: 'de solde', totale: '' };
+    for (const f of facts) {
+      add(f.createdAt, 'facture', `Facture ${typeF[f.type] || ''} ${f.numero} créée`.replace(/\s+/g, ' '), { montantCents: f.totalCents, detail: f.devisNumero ? 'Devis ' + f.devisNumero : '', lien: '#/factures/' + f.id });
+      if (f.envoyeeLe) { add(f.envoyeeLe, 'envoi', `Facture ${f.numero} envoyée par e-mail`, { lien: f.token ? '/facture/' + f.token : '' }); lies.push([f.envoyeeLe, f.numero]); }
+      if (f.payee && f.payeeLe) add(f.payeeLe, 'paiement', `Règlement reçu : facture ${f.numero}`, { montantCents: f.totalCents, detail: f.moyen || '' });
+    }
+    const proche = (at, txt) => lies.some(([x, num, rel]) => Math.abs(Date.parse(x) - Date.parse(at)) < 120000 && (rel || (num && String(txt).includes(num))));
+    for (const o of out) {
+      const p = o.payload || {}, ko = o.result?.error ? ' (échec : ' + o.result.error + ')' : o.result === 'test' ? ' (mode essai, non parti)' : '';
+      if (o.kind === 'email' && (p.to || []).some(t => mails.includes(String(t.email || '').toLowerCase())) && !proche(o.at, p.subject)) add(o.at, 'email', 'E-mail envoyé : ' + (p.subject || ''), { detail: ko.trim() });
+      if (o.kind === 'sms' && tels.length && tels.includes(telCourt(p.recipient)) && !proche(o.at, p.content)) add(o.at, 'sms', 'SMS envoyé', { detail: String(p.content || '').slice(0, 300) + ko });
+    }
+    for (const r of rdv) if (r.clientId === c.id) add(r.date + 'T' + (/^\d\d:\d\d/.test(r.titre) ? r.titre.slice(0, 5) : '09:00'), 'rdv', 'Rendez-vous : ' + r.titre, { detail: r.detail || '' });
+    for (const j of c.journal || []) add(j.at, j.type === 'appel' ? 'appel' : 'note', j.type === 'appel' ? 'Appel téléphonique' : 'Note', { detail: j.texte, par: j.par, jid: j.id });
+    if (c.creeLe) add(c.creeLe, 'client', 'Fiche client créée', { par: c.source || '' });
+    ev.sort((a, b) => String(b.at).localeCompare(String(a.at)));
+    const signes = devisL.filter(d => d.statut === 'accepte');
+    res.json({
+      client: c, events: ev,
+      demandes: demandes.map(d => ({ id: d.id, ref: d.ref, statut: d.statut, type: d.type, evenement: d.evenement, createdAt: d.createdAt, commercial: d.commercial || '' })),
+      devis: devisL.map(d => ({ id: d.id, numero: d.numero, statut: d.statut, ttcCents: totaux(d).ttcCents, token: d.statut !== 'brouillon' ? d.token : '', evenement: d.evenement, createdAt: d.createdAt, commercial: d.commercial?.nom || '' })),
+      factures: facts.map(f => ({ id: f.id, numero: f.numero, type: f.type, totalCents: f.totalCents, payee: !!f.payee, payeeLe: f.payeeLe, moyen: f.moyen })),
+      resume: { signeCents: signes.reduce((s2, d) => s2 + totaux(d).ttcCents, 0), regleCents: facts.filter(f => f.payee).reduce((s2, f) => s2 + (f.totalCents || 0), 0), aEncaisserCents: facts.filter(f => !f.payee).reduce((s2, f) => s2 + (f.totalCents || 0), 0), nbDevis: devisL.length, nbSignes: signes.length, nbDemandes: demandes.filter(d => d.type !== 'contact').length },
+    });
+  }));
+  /* note ou appel ajouté depuis la fiche client */
+  A.post('/actions/client-journal/:id', sameSite, json, wrap(async (req, res) => {
+    const c = await store.get('clients/' + req.params.id);
+    if (!c) return res.status(404).json({ error: 'Client introuvable.' });
+    const texte = s(req.body?.texte, 2000), type = req.body?.type === 'appel' ? 'appel' : 'note';
+    if (req.body?.supprimer) { await store.set('clients/' + c.id, { ...c, journal: (c.journal || []).filter(j => j.id !== req.body.supprimer) }); return res.json({ ok: true }); }
+    if (type === 'note' && !texte) return res.status(400).json({ error: 'Écrivez la note.' });
+    const now = new Date().toISOString();
+    await store.set('clients/' + c.id, { ...c, derniereActivite: now, journal: [...(c.journal || []), { id: rid(6), at: now, type, texte, par: req.ctx.name || req.ctx.email || '' }] });
+    audit(req.ctx, type === 'appel' ? 'appel noté' : 'note client', 'clients/' + c.id, texte.slice(0, 80));
+    res.json({ ok: true });
   }));
 
   A.get('/actions/agenda', wrap(async (req, res) => {

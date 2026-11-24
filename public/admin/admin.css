@@ -773,3 +773,78 @@ a.qs-back { display: inline-flex; align-items: center; text-decoration: none; }
 .gal-err[hidden] { display: none; }
 
 .maj-bandeau { position: fixed; left: 50%; top: 12px; transform: translateX(-50%); z-index: 1000; display: flex; align-items: center; gap: 12px; padding: 10px 12px 10px 18px; border-radius: 999px; background: #fff8ea; border: 1px solid #d8b76a; color: #5c4214; box-shadow: 0 8px 24px -8px rgba(0, 0, 0, .35); font-size: .9rem; max-width: calc(100vw - 24px); }
+
+/* Suivi client : grande case « Retrouver un client » */
+.cf-box{background:var(--bo-card);border-radius:var(--bo-r);box-shadow:var(--bo-shadow);padding:14px 16px 16px;margin:0 0 14px;border-top:3px solid var(--bo-gold)}
+.cf-lab{display:block;font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--bo-gold);margin:0 0 8px}
+.cf-in{position:relative}
+.cf-in input{width:100%;max-width:none;font-size:18px;min-height:54px;padding:12px 16px;border:2px solid var(--bo-line);border-radius:12px;background:var(--bo-tint);color:var(--bo-ink)}
+.cf-in input:focus{background:var(--bo-card);border-color:var(--bo-gold);outline:none}
+.cf-res{position:absolute;z-index:50;left:0;right:0;top:calc(100% + 6px);background:var(--bo-card);border-radius:14px;box-shadow:0 18px 50px #0f1c1540,0 0 0 1px var(--bo-line);padding:6px;max-height:min(70vh,560px);overflow:auto}
+.cf-r{display:grid;grid-template-columns:40px minmax(0,1fr) auto auto;gap:12px;align-items:center;padding:10px 12px;border-radius:10px;text-decoration:none;color:var(--bo-ink)}
+.cf-r+.cf-r{border-top:1px solid var(--bo-line)}
+.cf-r:hover,.cf-r.on{background:var(--bo-tint)}
+.cf-r .qs-av{width:40px;height:40px}
+.cf-t b{display:block;font-size:15px}
+.cf-t small,.cf-m small{display:block;color:var(--bo-soft);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cf-m{font-size:13px;text-align:right}
+.cf-go{font-weight:600;font-size:13px;color:var(--bo-gold);white-space:nowrap}
+.cf-none{margin:0;padding:14px;color:var(--bo-soft)}
+@media(max-width:700px){.cf-r{grid-template-columns:36px minmax(0,1fr);gap:4px 10px}.cf-r .qs-av{width:36px;height:36px;grid-row:span 2}.cf-m{text-align:left;grid-column:2}.cf-go{display:none}}
+/* Suivi client : choix du commercial */
+.qs-csel{display:inline-flex;align-items:center;gap:6px;margin:0;border:2px solid var(--bo-green);border-radius:99px;padding:0 4px 0 12px;background:var(--bo-card)}
+.qs-csel select{border:0;min-height:38px;padding:6px 8px;font-weight:700;font-size:15px;background:transparent;color:var(--bo-ink);width:auto;max-width:62vw}
+.qs-csel select:focus{outline:none}
+.qs-cname{flex:1 1 100%;font-size:15px;color:var(--bo-ink);padding:8px 12px;border-radius:10px;background:var(--bo-tint)}
+.qs-cname b{color:var(--bo-green)}
+.qs-cname.perso{background:light-dark(#fbf3e4,#2c2418);box-shadow:inset 3px 0 0 var(--bo-gold)}
+/* Fiche client : historique complet */
+.hc-head{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:16px;align-items:center}
+.hc-who{display:flex;gap:14px;align-items:flex-start}
+.hc-av{width:56px;height:56px;font-size:20px;flex:0 0 56px}
+.hc-nm{font:600 22px/1.2 Georgia,serif;color:var(--bo-ink)}
+.hc-co{color:var(--bo-soft);font-weight:500}
+.hc-ct{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 4px}
+.hc-ct .qs-pill{text-decoration:none;word-break:break-all}
+.hc-since{font-size:12.5px;color:var(--bo-soft)}
+.hc-k.kpis.qk{margin:0;grid-template-columns:repeat(2,minmax(0,1fr))}
+.hc-k.kpis.qk>div{background:var(--bo-tint);box-shadow:none;padding:12px 14px}
+.hc-k.kpis.qk b{font-size:20px}
+.hc-cols{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(280px,1fr);gap:16px;align-items:start}
+.hc-side>.box{margin-bottom:16px}
+.hc-th{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.hc-add{background:var(--bo-tint);border-radius:12px;padding:10px;margin:6px 0 12px}
+.hc-add textarea{background:var(--bo-card);border:1px solid var(--bo-line)}
+.hc-add .row{margin-top:8px;gap:8px;display:flex;flex-wrap:wrap}
+.hc-f{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px}
+.hc-list{list-style:none;margin:0;padding:0;position:relative}
+.hc-mois{font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--bo-gold);padding:14px 0 6px 52px}
+.hc-e{position:relative;display:grid;grid-template-columns:38px minmax(0,1fr);gap:14px;padding:0 0 14px}
+.hc-e:before{content:"";position:absolute;left:18px;top:38px;bottom:0;width:2px;background:var(--bo-line)}
+.hc-dot{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;font-size:16px;background:var(--bo-tint);border:2px solid var(--bo-line);position:relative;z-index:1}
+.hc-b{background:var(--bo-card);border:1px solid var(--bo-line);border-radius:12px;padding:10px 12px;min-width:0}
+.hc-l1{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap}
+.hc-l1 b{font-size:14.5px}
+.hc-amt{font-weight:700;color:var(--bo-green);white-space:nowrap}
+.hc-amt small{font-weight:500;color:var(--bo-soft)}
+.hc-l2{font-size:12.5px;color:var(--bo-soft);margin-top:2px}
+.hc-d{white-space:pre-line;font-size:13.5px;margin-top:6px;color:var(--bo-ink)}
+.hc-a{display:flex;gap:14px;margin-top:6px;font-size:13px}
+.hc-del{color:var(--bo-soft)}
+.k-ok .hc-dot{background:#e2f2e7;border-color:#5cb874}
+.k-ko .hc-dot{background:#f8e4e2;border-color:#d98b80}
+.k-pay .hc-dot{background:#fdf1e2;border-color:#e6b06a}
+.k-dv .hc-dot{background:#e8eef7;border-color:#9db4d6}
+.k-msg .hc-dot{background:#efe8f6;border-color:#b9a0d3}
+.k-note .hc-dot{background:#fbf3e4;border-color:var(--bo-gold)}
+.k-ok .hc-b{border-color:#bfe1c9}
+.t-paiement .hc-amt{color:#23704a}
+.hc-vide{padding:10px 0}
+.hc-form summary{display:flex;justify-content:space-between;align-items:center;cursor:pointer;list-style:none}
+.hc-form summary::-webkit-details-marker{display:none}
+.hc-form summary h2{margin:0}
+.hc-form[open] summary{margin-bottom:12px}
+.hc-form[open] summary .lnk{visibility:hidden}
+@media(prefers-color-scheme:dark){.k-ok .hc-dot,.k-ko .hc-dot,.k-pay .hc-dot,.k-dv .hc-dot,.k-msg .hc-dot,.k-note .hc-dot{background:var(--bo-tint)}.k-ok .hc-b{border-color:var(--bo-line)}}
+@media(max-width:900px){.hc-head,.hc-cols{grid-template-columns:1fr}}
+@media(max-width:560px){.hc-e{grid-template-columns:30px minmax(0,1fr);gap:10px}.hc-dot{width:30px;height:30px;font-size:13px}.hc-e:before{left:14px;top:30px}.hc-mois{padding-left:40px}.hc-nm{font-size:19px}.hc-av{width:46px;height:46px;flex-basis:46px;font-size:16px}}
