@@ -274,6 +274,17 @@ section { margin: clamp(56px, 8vw, 110px) auto; }
 .card-img .card-v { display: block; width: 100%; height: 100%; object-fit: cover; transition: transform .6s; pointer-events: none; background: var(--creme-2); }
 .card:hover .card-img .card-v { transform: scale(1.05); }
 .card-img .tag { z-index: 1; }
+/* « Nos buffets » des spécialités (Jean-Luc, 2026-11-24) : les photos ne restent pas fixes, zoom lent et léger déplacement en boucle
+   (effet Ken Burns), chaque vignette avec son propre mouvement et son propre rythme. */
+.cards.kb-anim .card-img img { animation: kb-a 16s ease-in-out infinite alternate; transform-origin: 50% 50%; will-change: transform; }
+.cards.kb-anim .card:nth-child(4n+2) .card-img img { animation-name: kb-b; animation-duration: 18s; animation-delay: -5s; }
+.cards.kb-anim .card:nth-child(4n+3) .card-img img { animation-name: kb-c; animation-duration: 17s; animation-delay: -9s; }
+.cards.kb-anim .card:nth-child(4n+4) .card-img img { animation-name: kb-d; animation-duration: 19s; animation-delay: -3s; }
+@keyframes kb-a { from { transform: scale(1.02) translate(0, 0); } to { transform: scale(1.18) translate(-3%, -2%); } }
+@keyframes kb-b { from { transform: scale(1.16) translate(3%, 1%); } to { transform: scale(1.03) translate(-1%, -1%); } }
+@keyframes kb-c { from { transform: scale(1.03) translate(-2%, 2%); } to { transform: scale(1.17) translate(2%, -2%); } }
+@keyframes kb-d { from { transform: scale(1.15) translate(-3%, -1%); } to { transform: scale(1.02) translate(2%, 1%); } }
+@media (prefers-reduced-motion: reduce) { .cards.kb-anim .card-img img { animation: none; } }
 .tag { position: absolute; top: 10px; left: 10px; background: rgba(255, 255, 255, .94); color: #1b211e; font-size: .64rem; letter-spacing: .14em; text-transform: uppercase; padding: 5px 9px; border-radius: 6px; font-weight: 500; }
 .card-b { padding: 16px 18px 18px; display: flex; flex-direction: column; flex: 1; }
 .card-b h3 { font-size: 1.3rem; margin-bottom: .3em; }

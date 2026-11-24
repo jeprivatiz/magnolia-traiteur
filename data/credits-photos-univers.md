@@ -274,3 +274,8 @@ Photos et textes repris de corbeillesparis.fr (partenaire de Magnolia, à la dem
 |---|---|---|
 | Table ronde dressée pour un mariage (public/site/c/accueil/table-ronde-mariage.webp), recadrée en portrait ; carton imprimé remplacé par un bouquet d'hortensias, logos des tasses et numéro de table effacés | https://www.pexels.com/photo/round-dining-table-2306282/ (licence Pexels) | 24/11/2026 |
 | Fiche « regisseur » v2 (homme en smoking aux côtés d’invités élégants, Ron Lach, recadrée) | https://www.pexels.com/photo/five-people-in-the-restaurant-8921562/ | 24/11/2026 (demande directe : la v1 faisait visite d’appartement) |
+
+## Buffet antillais — formules et boudin à la crevette (2026-11-24)
+- Entrée + plat ou plat + dessert : bas de sa photo buffet-equipe-colombo (colombo, haricots rouges, gratins), recadrée en public/site/c/antilles-menus/buffet-colombo-chafing.webp.
+- Entrées seules, formule complète et galeries : photos de Jean-Luc déjà dans le site (public/site/c/antilles-unit, antilles-menus, antilles-site).
+- Boudin à la crevette : photo de son site magnoliatraiteur.fr (wp-content/uploads/2026/04/boudin-a-la-crevette.jpg), copie public/site/c/antilles-unit/boudin-a-la-crevette.webp.
