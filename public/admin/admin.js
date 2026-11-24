@@ -618,8 +618,9 @@
     const [d, clientsL, cat] = await Promise.all([api(A + '/devis/' + id), api(A + '/clients?vue=actifs'), cache.produits ? cache.produits : api(A + '/produits')]);
     if (d.clientId && !clientsL.some(c => c.id === d.clientId)) clientsL.push(...await api(A + '/clients?ids=' + encodeURIComponent(d.clientId)).catch(() => []));
     cache.produits = cat; cache.devis = d; cache.clients = clientsL;
-    const [modeles, R0, tous] = await Promise.all([api(A + '/modeles'), cache.R ? cache.R : api(A + '/site'), api(A + '/devis')]);
+    const [modeles, R0, tous, facsL] = await Promise.all([api(A + '/modeles'), cache.R ? cache.R : api(A + '/site'), api(A + '/devis'), api(A + '/actions/factures').catch(() => [])]);
     cache.R = R0; cache.tousDevis = tous;
+    const facsDv = facsL.filter(x => x.devisId === d.id);
     const signe = d.statut === 'accepte';
     const lock = signe && session.role !== 'manager';
     return page(`Devis ${esc(d.numero)} <span class="pill d-${d.statut}">${DSTAT[d.statut]}</span>`, `<a class="btn ghost" href="#/devis">← Devis</a><button class="btn ghost" type="button" data-dup>⧉ Dupliquer ce devis</button>${d.clientId ? `<button class="btn ghost" type="button" data-newcl>+ Nouveau devis pour ce client</button>` : ''}${d.statut !== 'brouillon' ? `<a class="btn ghost" href="/devis/${d.token}" target="_blank">Voir comme le client ↗</a>` : ''}`, `
@@ -650,7 +651,15 @@
           <div class="row"><button class="btn" type="button" data-sendgrp hidden></button><button class="btn" data-send>${d.statut === 'brouillon' ? 'Envoyer le devis' : 'Renvoyer le devis'}</button><button class="btn ghost" type="button" data-apmail>✉️ Aperçu de l’e-mail</button><button class="btn ghost" type="button" data-voir>👁 Voir le devis</button></div>
           ${(d.envois || []).length ? `<ul class="histo">${d.envois.map(e => `<li>${dateH(e.at)} · ${e.canaux.join(' + ')} <small>${esc(e.par)}</small></li>`).join('')}</ul>` : ''}</section>
         <section class="box"><h2>Relancer</h2><select id="mod">${modeles.map(m => `<option value="${m.id}">${esc(m.nom)}</option>`).join('')}</select><button class="btn ghost" data-relance ${d.statut !== 'envoye' ? 'disabled' : ''}>Envoyer la relance</button>${(d.relances || []).length ? `<ul class="histo">${d.relances.map(r => `<li>${dateH(r.at)} · ${esc(r.modele)}</li>`).join('')}</ul>` : ''}</section>
-        <section class="box"><h2>Facturer</h2>${signe ? `<div class="row"><button class="btn ghost" data-fac="acompte">Facture d’acompte</button><button class="btn ghost" data-fac="solde">Facture de solde</button><button class="btn ghost" data-fac="totale">Facture totale</button></div>` : '<p class="muted">Possible dès que le client a signé.</p>'}</section>
+        <section class="box"><h2>💶 Règlements du client</h2>${signe ? (() => {
+            const fx = facsDv.find(x => x.type === 'totale' && !x.annuleeParAvoir);
+            const ttc = tot(d).ttc, reste = fx ? fx.etat.resteCents : ttc;
+            const ac = regleAcompte(ttc, d, cache.R?.tarifs);
+            const prop = fx ? reste : ac.cents;
+            const today = new Date().toISOString().slice(0, 10);
+            return `${fx ? `<p class="sm"><a href="#/factures/${fx.id}"><b>Facture ${esc(fx.numero)}</b></a> ${pillF(fx)} · réglé ${euros(fx.etat.regleCents)} · <b>reste ${euros(reste)}</b></p>${(fx.reglements || []).length ? `<ul class="histo">${fx.reglements.map(r => `<li>${dateFr(r.date)} · ${euros(r.montantCents)} · ${esc(r.moyen)}</li>`).join('')}</ul>` : ''}` : `<p class="muted sm">Le premier règlement crée la facture dans <a href="#/factures">Factures</a> (à envoyer au client). ${ac.total ? 'Totalité attendue' : 'Acompte de ' + ac.pct + ' % attendu'} : <b>${euros(ac.cents)}</b>.</p>`}
+            ${fx && !reste ? '<p class="ok sm">✓ Devis entièrement réglé.</p>' : `<div class="g2 dv-rg"><label>Montant reçu (€)<input id="rg-m" inputmode="decimal" value="${fromCents(prop)}"></label><label>Date<input type="date" id="rg-d" value="${today}" max="${today}"></label><label>Moyen<select id="rg-mo">${['Virement', 'Carte bancaire', 'Lien de paiement', 'Chèque', 'Espèces', 'Chèques vacances / CESU', 'Autre'].map(m => `<option>${m}</option>`).join('')}</select></label><label>Note<input id="rg-n" placeholder="facultatif"></label></div><button class="btn" type="button" data-rgdv>+ Enregistrer le règlement</button>`}
+            <details class="fa-avoir"><summary>Autres factures (acompte seul, solde)</summary><div class="row"><button class="btn ghost sm" data-fac="acompte">Facture d’acompte</button><button class="btn ghost sm" data-fac="solde">Facture de solde</button><button class="btn ghost sm" data-fac="totale">Facture totale</button></div>${facsDv.filter(x => x !== fx).map(x => `<p class="sm"><a href="#/factures/${x.id}">${esc(x.numero)}</a> ${pillF(x)}</p>`).join('')}</details>`; })() : '<p class="muted">Possible dès que le client a signé.</p>'}</section>
       </div>`);
   }
   devisEdit.after = id => {
@@ -803,22 +812,145 @@
     });
     $('[data-newcl]')?.addEventListener('click', async () => { try { const r = await api(A + '/actions/devis-vierge', { method: 'POST', body: { clientId: d.clientId } }); location.hash = '#/devis/' + r.id; } catch (err) { toast(err.message, true); } });
     $('[data-relance]')?.addEventListener('click', async () => { try { await api(`${A}/actions/relancer/${id}`, { method: 'POST', body: { modele: $('#mod').value } }); toast('Relance envoyée.'); render(); } catch (err) { toast(err.message, true); } });
+    $('[data-rgdv]')?.addEventListener('click', async ev => {
+      const montantCents = toCents($('#rg-m').value);
+      if (!montantCents || montantCents <= 0) return toast('Indiquez le montant reçu.', true);
+      const btn = ev.currentTarget; btn.disabled = true;
+      try { const r = await api(`${A}/actions/reglement-devis/${id}`, { method: 'POST', body: { montantCents, date: $('#rg-d').value, moyen: $('#rg-mo').value, note: $('#rg-n').value } }); toast(`Règlement enregistré${r.cree ? ` : facture ${r.numero} créée, à envoyer au client` : ` sur la facture ${r.numero}`}.`); location.hash = '#/factures/' + r.id; }
+      catch (err) { btn.disabled = false; toast(err.message, true); }
+    });
     $$('[data-fac]').forEach(b => b.addEventListener('click', async () => { try { const r = await api(`${A}/actions/facture-depuis-devis/${id}`, { method: 'POST', body: { type: b.dataset.fac } }); toast('Facture créée.'); location.hash = '#/factures/' + r.id; } catch (err) { toast(err.message, true); } }));
   };
 
-  /* ---------- factures ---------- */
-  async function factures(id) {
-    const list = (await api(A + '/factures')).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-    const f = id && list.find(x => x.id === id);
-    const totalF = x => x.totalCents ?? 0;
-    return page('Factures', '', `${f ? `<section class="box hl"><h2>Facture ${esc(f.numero)} <span class="pill ${f.payee ? 'd-accepte' : 'd-envoye'}">${f.payee ? 'Payée' : 'À encaisser'}</span></h2><p>${esc(f.client?.nom)} · ${esc(f.objet)} · <b>${euros(totalF(f))}</b></p><div class="row"><a class="btn ghost" href="/facture/${f.token}" target="_blank">Voir / imprimer ↗</a><button class="btn ghost" data-sendf="${f.id}">Envoyer par e-mail</button>${f.payee ? `<button class="btn ghost" data-pay="${f.id}" data-v="0">Marquer non payée</button>` : `<select id="moyen"><option>Virement</option><option>Carte bancaire</option><option>Lien de paiement</option><option>Chèque</option><option>Espèces</option></select><button class="btn" data-pay="${f.id}" data-v="1">Marquer payée</button>`}</div></section>` : ''}
-      ${list.length ? `<div class="table"><table><thead><tr><th>N°</th><th>Date</th><th>Client</th><th>Type</th><th class="n">Montant TTC</th><th>Statut</th></tr></thead><tbody>${list.map(x => `<tr data-href="#/factures/${x.id}"><td><b>${esc(x.numero)}</b></td><td>${dateFr(x.date)}</td><td>${esc(x.client?.nom)}</td><td>${{ acompte: 'Acompte', solde: 'Solde', totale: 'Totale' }[x.type] || ''}</td><td class="n">${euros(totalF(x))}</td><td><span class="pill ${x.payee ? 'd-accepte' : 'd-envoye'}">${x.payee ? 'Payée' : 'À encaisser'}</span></td></tr>`).join('')}</tbody></table></div>` : '<div class="vide"><p>Aucune facture.</p><p class="muted">Les factures se créent depuis un devis signé (acompte, solde ou totale), avec une numérotation continue.</p></div>'}`);
+  /* ---------- factures (CRM) : recherche, onglets, plusieurs acomptes, envoi avec aperçu, relances, archives, avoirs ---------- */
+  const FA = { q: '', onglet: 'ouvertes' };
+  const FSTAT = { a_envoyer: ['À envoyer', 'd-brouillon'], non_reglee: ['Non réglée', 'd-envoye'], retard: ['En retard', 'd-refuse'], reglee: ['Réglée', 'd-accepte'], archivee: ['Archivée', 'd-brouillon'], annulee: ['Annulée (avoir)', 'd-refuse'], avoir: ['Avoir', 'd-expire'] };
+  const FONGLETS = [['ouvertes', 'Non réglées', x => ['a_envoyer', 'non_reglee', 'retard'].includes(x.statutF)], ['reglees', 'Réglées', x => x.statutF === 'reglee'], ['archivees', 'Archivées', x => x.statutF === 'archivee'], ['avoirs', 'Avoirs et annulées', x => ['avoir', 'annulee'].includes(x.statutF)], ['toutes', 'Toutes', () => true]];
+  const sansAcc = v => String(v || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  /* même recherche que le serveur (server/factures.js) : client, société, e-mail, n° facture/devis, montant */
+  function factureCorrespond(f, q) {
+    const brut = String(q || '').trim(); if (!brut) return true;
+    const x = brut.replace(/[\s €]/g, '').replace(',', '.');
+    if (/^\d+(\.\d{1,2})?$/.test(x)) { const c = Math.round(parseFloat(x) * 100); if ([f.etat.ttcCents, f.etat.dueCents, f.etat.resteCents, f.totalCents, ...(f.reglements || []).map(r => r.montantCents)].some(v => v != null && (v === c || Math.floor(v / 100) === c / 100))) return true; }
+    const hay = sansAcc([f.numero, f.devisNumero, f.client?.nom, f.client?.societe, f.client?.email, f.objet, f.factureNumero].join(' '));
+    return sansAcc(brut).split(/\s+/).every(m => hay.includes(m));
   }
-  factures.after = () => {
-    $$('tr[data-href]').forEach(tr => tr.addEventListener('click', () => { location.hash = tr.dataset.href; }));
-    $$('[data-pay]').forEach(b => b.addEventListener('click', async () => { await api(`${A}/actions/facture-payee/${b.dataset.pay}`, { method: 'POST', body: { payee: b.dataset.v === '1', moyen: $('#moyen')?.value } }); toast('Facture mise à jour.'); render(); }));
-    $$('[data-sendf]').forEach(b => b.addEventListener('click', async () => { try { await api(`${A}/actions/envoyer-facture/${b.dataset.sendf}`, { method: 'POST' }); toast('Facture envoyée.'); } catch (e) { toast(e.message, true); } }));
+  const pillF = x => { const s = FSTAT[x.statutF] || ['', '']; return `<span class="pill ${s[1]}">${s[0]}</span>`; };
+  function tableFactures(list) {
+    if (!list.length) return `<div class="vide"><p>${FA.q ? 'Aucune facture ne correspond à « ' + esc(FA.q) + ' ».' : 'Aucune facture dans cet onglet.'}</p><p class="muted">Une facture se crée toute seule dès qu’un règlement du client est enregistré sur un devis signé (encadré « Règlements du client » du devis).</p></div>`;
+    return `<div class="table jp fa-table"><table><thead><tr><th>N°</th><th>Client</th><th>Objet</th><th class="n">Total TTC</th><th class="n">Réglé</th><th class="n">Reste dû</th><th>Échéance</th><th>Statut</th></tr></thead><tbody>${list.map(x => `<tr data-href="#/factures/${x.id}"><td><b>${esc(x.numero)}</b><small>${dateFr(x.date)}</small></td><td><b>${esc(x.client?.nom || '')}</b>${x.client?.societe ? `<small>${esc(x.client.societe)}</small>` : ''}</td><td>${esc(x.objet || '')}${x.devisNumero ? `<small>Devis ${esc(x.devisNumero)}</small>` : ''}</td><td class="n">${x.type === 'avoir' ? '− ' : ''}${euros(x.etat.dueCents)}</td><td class="n">${x.type === 'avoir' ? '' : euros(x.etat.regleCents)}${x.etat.nb > 1 ? `<small>${x.etat.nb} règlements</small>` : ''}</td><td class="n"><b>${x.type === 'avoir' || x.annuleeParAvoir ? '—' : euros(x.etat.resteCents)}</b></td><td>${x.echeance && x.etat.resteCents && x.type !== 'avoir' ? dateFr(x.echeance) : '—'}</td><td>${pillF(x)}${x.envoyeeLe ? `<small>envoyée le ${dateFr(x.envoyeeLe)}</small>` : ''}${(x.relances || []).length ? `<small>${x.relances.length} relance${x.relances.length > 1 ? 's' : ''}</small>` : ''}</td></tr>`).join('')}</tbody></table></div>`;
+  }
+  async function factures(id) {
+    if (id) return factureFiche(id);
+    const list = await api(A + '/actions/factures');
+    cache.facturesL = list;
+    const ouv = list.filter(x => ['a_envoyer', 'non_reglee', 'retard'].includes(x.statutF));
+    const mois = new Date().toISOString().slice(0, 7);
+    const encMois = list.filter(x => x.type !== 'avoir').reduce((t, x) => t + (x.reglements || []).filter(r => String(r.date).startsWith(mois)).reduce((u, r) => u + r.montantCents, 0), 0);
+    const retard = ouv.filter(x => x.statutF === 'retard');
+    return page('🧾 Factures', `<a class="btn ghost" href="${A}/actions/export/factures">⬇ Factures (Excel)</a><a class="btn ghost" href="${A}/actions/export/reglements">⬇ Règlements (Excel)</a>`, `
+      <div class="kpis qk"><div><b>${euros(ouv.reduce((t, x) => t + x.etat.resteCents, 0))}</b><span>reste à encaisser (${ouv.length} facture${ouv.length > 1 ? 's' : ''})</span></div><div><b>${ouv.filter(x => x.statutF === 'a_envoyer').length}</b><span>factures à envoyer au client</span></div><div class="${retard.length ? 'fa-alerte' : ''}"><b>${euros(retard.reduce((t, x) => t + x.etat.resteCents, 0))}</b><span>en retard (${retard.length}) : à relancer</span></div><div><b>${euros(encMois)}</b><span>encaissé ce mois-ci</span></div></div>
+      <div class="cl-bar"><input type="search" placeholder="🔍 Rechercher un client, un n° de facture ou de devis, un montant…" data-faq value="${esc(FA.q)}" aria-label="Rechercher une facture"></div>
+      <nav class="df-tabs" data-fatabs>${FONGLETS.map(([k, l, fn]) => `<a href="#/factures" class="df-tab${FA.onglet === k ? ' on' : ''}" data-fo="${k}">${l} <small>${list.filter(fn).length}</small></a>`).join('')}</nav>
+      <p class="muted sm" data-faqinfo></p>
+      <div id="faTable"></div>`);
+  }
+  factures.after = id => {
+    if (id) return factureFiche.after(id);
+    const montrer = () => {
+      const all = cache.facturesL || [];
+      const fn = (FONGLETS.find(o => o[0] === FA.onglet) || FONGLETS[0])[2];
+      /* une recherche regarde dans toutes les factures du client, réglées et archivées comprises */
+      const l = FA.q.trim() ? all.filter(x => factureCorrespond(x, FA.q)) : all.filter(fn);
+      $('[data-faqinfo]').textContent = FA.q.trim() ? `${l.length} facture${l.length > 1 ? 's' : ''} trouvée${l.length > 1 ? 's' : ''} dans tous les onglets.` : '';
+      $('[data-fatabs]').style.opacity = FA.q.trim() ? '.55' : '';
+      $('#faTable').innerHTML = tableFactures(l);
+      $$('#faTable tr[data-href]').forEach(tr => tr.addEventListener('click', () => { location.hash = tr.dataset.href; }));
+    };
+    $('[data-faq]').addEventListener('input', e => { FA.q = e.target.value; montrer(); });
+    $$('[data-fo]').forEach(a => a.addEventListener('click', e => { e.preventDefault(); FA.onglet = a.dataset.fo; FA.q = ''; $('[data-faq]').value = ''; $$('[data-fo]').forEach(b => b.classList.toggle('on', b === a)); montrer(); }));
+    montrer();
   };
+
+  async function factureFiche(id) {
+    const f = await api(A + '/actions/facture/' + id);
+    cache.facture = f;
+    const e = f.etat, avoir = f.type === 'avoir', fermee = avoir || f.annuleeParAvoir;
+    const today = new Date().toISOString().slice(0, 10);
+    const histo = [
+      ...(f.reglements || []).map(r => [r.at || r.date, `💶 ${esc(r.libelle)} de <b>${euros(r.montantCents)}</b> reçu le ${dateFr(r.date)} (${esc(r.moyen)})${r.par ? ' · saisi par ' + esc(r.par) : ''}`]),
+      ...(f.envois || []).map(x => [x.at, `✉ Facture envoyée au client par ${x.canaux.map(k => k === 'sms' ? 'SMS' : 'e-mail').join(' + ')}${x.regleCents ? ` · acomptes ${euros(x.regleCents)}, solde ${euros(x.resteCents)}` : ''} <small>${esc(x.par || '')}</small>`]),
+      ...(!(f.envois || []).length && f.envoyeeLe ? [[f.envoyeeLe, '✉ Facture envoyée au client par e-mail']] : []),
+      ...(f.relances || []).map(x => [x.at, `🔔 Relance du solde (${euros(x.resteCents)}) par ${x.canaux.map(k => k === 'sms' ? 'SMS' : 'e-mail').join(' + ')} <small>${esc(x.par || '')}</small>`]),
+      ...(f.reglementsRetires || []).map(r => [r.retireLe, `Règlement de ${euros(r.montantCents)} du ${dateFr(r.date)} retiré (erreur de saisie) <small>${esc(r.retirePar || '')}</small>`]),
+      ...(f.archivee && f.archiveeLe ? [[f.archiveeLe, '🗄 Facture archivée']] : []),
+      ...(f.annuleeParAvoir ? [[f.annuleeParAvoir.le, `Annulée par l’avoir <a href="#/factures/${f.annuleeParAvoir.id}">${esc(f.annuleeParAvoir.numero)}</a>`]] : []),
+      [f.createdAt, `${avoir ? 'Avoir' : 'Facture'} créé${avoir ? '' : 'e'}${f.creePar ? ' par ' + esc(f.creePar) : ''}`], /* en dernier : à la même minute, la création reste sous le 1er règlement */
+    ].filter(h => h[0]).sort((a, b) => String(b[0]).localeCompare(String(a[0])));
+    const moyens = f.moyens || ['Virement', 'Carte bancaire', 'Chèque', 'Espèces'];
+    return page(`${avoir ? 'Avoir' : 'Facture'} ${esc(f.numero)} ${pillF(f)}`, `<a class="btn ghost" href="#/factures">← Factures</a><a class="btn ghost" href="${A}/factures/${f.id}/apercu" target="_blank" rel="noopener">👁 Voir la facture</a>`, `
+      <section class="box hl fa-tete"><div class="fa-qui"><p><b><a href="#/clients/${esc(f.clientId || '')}">${esc(f.client?.nom || '')}</a></b>${f.client?.societe ? ' · ' + esc(f.client.societe) : ''}</p><p class="muted sm">${esc(f.objet || '')}${f.devis ? ` · <a href="#/devis/${f.devis.id}">Devis ${esc(f.devis.numero)}</a>` : ''}${avoir && f.factureId ? ` · <a href="#/factures/${f.factureId}">Facture ${esc(f.factureNumero)}</a>` : ''}${f.commercial ? ' · ' + esc(f.commercial) : ''}</p></div>
+        <div class="kpis qk fa-k"><div><b>${avoir ? '− ' : ''}${euros(e.dueCents)}</b><span>${avoir ? 'montant de l’avoir' : 'total de la facture (TTC)'}</span></div>${avoir ? '' : `<div><b>${euros(e.regleCents)}</b><span>déjà réglé${(f.reglements || []).length > 1 ? ` (${f.reglements.length} règlements)` : ''}</span></div><div class="${e.resteCents && f.echeance && f.echeance < today && !fermee ? 'fa-alerte' : ''}"><b>${fermee ? '—' : euros(e.resteCents)}</b><span>solde restant dû</span></div><div><b>${f.echeance && e.resteCents && !fermee ? dateFr(f.echeance) : '—'}</b><span>échéance du solde</span></div>`}</div>
+        ${e.tropPercuCents ? `<p class="err">Attention : ${euros(e.tropPercuCents)} reçus en trop.</p>` : ''}</section>
+      ${avoir ? '' : `<section class="box"><h2>💶 Règlements du client <small class="muted">(acomptes, solde)</small></h2>
+        ${(f.reglements || []).length ? `<div class="table"><table><thead><tr><th></th><th>Date</th><th>Moyen</th><th class="n">Montant</th><th>Note</th><th></th></tr></thead><tbody>${f.reglements.map(r => `<tr><td><b>${esc(r.libelle)}</b></td><td>${dateFr(r.date)}</td><td>${esc(r.moyen)}</td><td class="n"><b>${euros(r.montantCents)}</b></td><td>${esc(r.note || '')}<small class="muted">${esc(r.par || '')}</small></td><td class="n">${fermee ? '' : `<button class="lnk" type="button" data-rret="${esc(r.id)}" title="Retirer ce règlement (erreur de saisie)">Retirer</button>`}</td></tr>`).join('')}<tr class="fa-solde"><td colspan="3"><b>Solde restant dû</b></td><td class="n"><b>${euros(e.resteCents)}</b></td><td colspan="2"></td></tr></tbody></table></div>` : (f.payee ? '<p class="muted">Facture marquée payée (sans détail des règlements).</p>' : '<p class="muted">Aucun règlement reçu pour l’instant.</p>')}
+        ${fermee || (e.payee && !e.resteCents) ? '' : `<form id="frg" class="fa-rg"><h3>${(f.reglements || []).length ? 'Ajouter un acompte ou le solde' : 'Enregistrer un règlement'}</h3><div class="g4"><label>Montant reçu (€ TTC)<input name="montant" inputmode="decimal" required value="${fromCents(f.propose || e.resteCents)}"></label><label>Date du règlement<input type="date" name="date" required value="${today}" max="${today}"></label><label>Moyen de paiement<select name="moyen">${moyens.map(m => `<option>${esc(m)}</option>`).join('')}</select></label><label>Note <small class="muted">(facultatif)</small><input name="note" placeholder="ex. chèque n° 1234"></label></div><div class="row"><button class="btn" type="submit">+ Enregistrer ce règlement</button>${e.resteCents ? `<button class="btn ghost" type="button" data-solde="${e.resteCents}">Mettre le solde (${euros(e.resteCents)})</button>` : ''}</div></form>`}</section>`}
+      ${f.annuleeParAvoir ? '' : `<section class="box"><h2>✉ Envoyer au client</h2><p class="muted sm">${avoir ? 'L’avoir' : 'La facture'} part par e-mail avec ${avoir ? 'son montant' : 'chaque acompte versé, sa date et le solde restant dû'}, et un lien pour la voir et l’imprimer.${f.client?.email ? ` Adresse : <b>${esc(f.client.email)}</b>` : ' <b class="err">Pas d’e-mail sur la fiche client.</b>'}</p>
+        <label>Message personnel <small class="muted">(facultatif, remplace la phrase d’introduction)</small><textarea id="fmsg" rows="3" placeholder="Bonjour, suite à votre acompte, voici votre facture…"></textarea></label>
+        <div class="row"><label class="chk"><input type="checkbox" id="fc-mail" checked> E-mail</label><label class="chk"><input type="checkbox" id="fc-sms"${f.client?.tel ? '' : ' disabled'}> SMS${f.client?.tel ? '' : ' <small class="muted">(pas de portable)</small>'}</label></div>
+        <div class="row"><button class="btn" type="button" data-fenv="0">✉ Envoyer la facture au client</button>${!avoir && e.resteCents && (f.envois || []).length ? '<button class="btn ghost" type="button" data-fenv="1">🔔 Relancer le client (solde dû)</button>' : ''}</div>
+        <div id="fApercu"></div></section>`}
+      <div class="cols">
+        <section class="box"><h2>Historique de la facture</h2>${histo.length ? `<ul class="histo">${histo.map(h => `<li>${dateH(h[0])} · ${h[1]}</li>`).join('')}</ul>` : ''}</section>
+        <section class="box"><h2>Classement</h2>
+          ${f.archivee ? '<p class="muted sm">Facture réglée et archivée.</p><button class="btn ghost" type="button" data-farch="0">Remettre dans « Réglées »</button>'
+            : fermee ? '<p class="muted sm">' + (avoir ? 'Un avoir est définitif.' : 'Facture annulée : elle reste dans l’onglet « Avoirs et annulées ».') + '</p>'
+            : e.payee ? '<p class="muted sm">Facture entièrement réglée : vous pouvez l’archiver.</p><button class="btn" type="button" data-farch="1">🗄 Archiver la facture</button>'
+            : '<p class="muted sm">Elle reste dans « Non réglées » tant qu’il reste un solde. Une fois payée, elle pourra être archivée.</p>'}
+          ${!fermee && session.role === 'manager' ? `<details class="fa-avoir"><summary>Annuler cette facture (avoir)</summary><p class="muted sm">Une facture émise ne se supprime jamais (numérotation légale). L’avoir l’annule et porte son propre numéro.</p><label>Motif<input id="amotif" placeholder="ex. événement annulé, erreur de facturation"></label><button class="btn ghost danger" type="button" data-avoir>Créer l’avoir</button></details>` : ''}</section>
+      </div>`);
+  }
+  factureFiche.after = id => {
+    const f = cache.facture;
+    const recharger = () => render();
+    const frg = $('#frg');
+    frg?.addEventListener('submit', async ev => {
+      ev.preventDefault();
+      const montantCents = toCents(frg.montant.value);
+      if (!montantCents || montantCents <= 0) return toast('Indiquez le montant reçu.', true);
+      if (f.etat.resteCents && montantCents > f.etat.resteCents && !confirm(`Le montant dépasse le solde dû (${euros(f.etat.resteCents)}). Enregistrer quand même ?`)) return;
+      try { const r = await api(`${A}/actions/facture-reglement/${id}`, { method: 'POST', body: { montantCents, date: frg.date.value, moyen: frg.moyen.value, note: frg.note.value } }); toast(r.payee ? 'Règlement enregistré : la facture est réglée.' : `Règlement enregistré. Reste dû : ${euros(r.resteCents)}. Pensez à envoyer la facture.`); recharger(); } catch (err) { toast(err.message, true); }
+    });
+    $('[data-solde]')?.addEventListener('click', b => { frg.montant.value = fromCents(+b.currentTarget.dataset.solde); frg.montant.focus(); });
+    $$('[data-rret]').forEach(b => b.addEventListener('click', async () => {
+      if (!confirm('Retirer ce règlement ? (à faire seulement en cas d’erreur de saisie : il restera noté dans l’historique)')) return;
+      try { await api(`${A}/actions/facture-reglement-retirer/${id}`, { method: 'POST', body: { rid: b.dataset.rret } }); toast('Règlement retiré.'); recharger(); } catch (err) { toast(err.message, true); }
+    }));
+    $$('[data-fenv]').forEach(b => b.addEventListener('click', async () => {
+      const relance = b.dataset.fenv === '1';
+      const canaux = [$('#fc-mail').checked && 'email', $('#fc-sms').checked && 'sms'].filter(Boolean);
+      if (!canaux.length) return toast('Choisissez e-mail et/ou SMS.', true);
+      const url = `${A}/actions/${relance ? 'relancer' : 'envoyer'}-facture/${id}`, message = $('#fmsg').value;
+      try {
+        const ap = await api(url, { method: 'POST', body: { apercu: true, message } });
+        const box = $('#fApercu');
+        box.innerHTML = `<div class="fa-ap"><p class="sm"><b>Aperçu ${relance ? 'de la relance' : 'de l’e-mail'}</b> · rien n’est encore parti.</p><p class="sm">À : <b>${esc(ap.to || '(pas d’e-mail)')}</b><br>Objet : <b>${esc(ap.sujet)}</b></p>${canaux.includes('email') ? '<iframe class="fa-frame" sandbox title="Aperçu de l’e-mail"></iframe>' : ''}${canaux.includes('sms') ? `<p class="sm"><b>SMS :</b> ${esc(ap.sms)}</p>` : ''}<div class="row"><button class="btn" type="button" data-fok>${relance ? '🔔 Confirmer la relance' : '✉ Confirmer l’envoi au client'}</button><button class="btn ghost" type="button" data-fko>Annuler</button><a class="btn ghost" href="${A}/factures/${id}/apercu" target="_blank" rel="noopener">👁 Voir la facture</a></div></div>`;
+        const fr = box.querySelector('iframe'); if (fr) fr.srcdoc = ap.html;
+        box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        box.querySelector('[data-fko]').addEventListener('click', () => { box.innerHTML = ''; });
+        box.querySelector('[data-fok]').addEventListener('click', async ev => {
+          ev.currentTarget.disabled = true;
+          try { const r = await api(url, { method: 'POST', body: { canaux, message } }); toast(r.test ? 'Prêt (mode essai : rien n’est parti tant que Brevo n’est pas branché).' : relance ? 'Relance envoyée au client.' : 'Facture envoyée au client.'); recharger(); } catch (err) { ev.currentTarget.disabled = false; toast(err.message, true); }
+        });
+      } catch (err) { toast(err.message, true); }
+    }));
+    $$('[data-farch]').forEach(b => b.addEventListener('click', async () => { try { await api(`${A}/actions/archiver-facture/${id}`, { method: 'POST', body: { archivee: b.dataset.farch === '1' } }); toast(b.dataset.farch === '1' ? 'Facture archivée.' : 'Facture remise dans « Réglées ».'); recharger(); } catch (err) { toast(err.message, true); } }));
+    $('[data-avoir]')?.addEventListener('click', async () => {
+      if (!confirm(`Créer un avoir qui annule la facture ${f.numero} ? C’est définitif.`)) return;
+      try { const r = await api(`${A}/actions/avoir-facture/${id}`, { method: 'POST', body: { motif: $('#amotif').value } }); toast(`Avoir ${r.numero} créé.`); location.hash = '#/factures/' + r.id; } catch (err) { toast(err.message, true); }
+    });
+  };
+
 
   /* ---------- agenda ---------- */
   async function agenda(id) {
@@ -1282,7 +1414,7 @@
         <div class="hc-side">
           <section class="box hc-rdvs"><div class="hc-th"><h2>Appels et visios</h2><button type="button" class="lnk" data-hrdv>+ Programmer</button></div>${listeRdv(h.rdv || [])}</section>
           <section class="box"><h2>Devis</h2>${h.devis.length ? `<ul class="list">${[...h.devis].sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).map(x => `<li><a href="#/devis/${x.id}"><b>${esc(x.numero)}</b> · ${euros(x.ttcCents)}<small class="muted"> ${esc([x.evenement?.type, x.evenement?.date ? dateFr(x.evenement.date) : ''].filter(Boolean).join(' · '))}</small></a><span class="pill d-${x.statut}">${DSTAT[x.statut]}</span></li>`).join('')}</ul>` : '<p class="muted">Aucun devis.</p>'}</section>
-          <section class="box"><h2>Factures et règlements</h2>${h.factures.length ? `<ul class="list">${h.factures.map(x => `<li><a href="#/factures/${x.id}"><b>${esc(x.numero)}</b> · ${euros(x.totalCents)}<small class="muted"> ${{ acompte: 'acompte', solde: 'solde', totale: 'totale' }[x.type] || ''}</small></a><span class="pill ${x.payee ? 'd-accepte' : 'd-envoye'}">${x.payee ? 'Payée' + (x.moyen ? ' · ' + esc(x.moyen) : '') : 'À encaisser'}</span></li>`).join('')}</ul>` : '<p class="muted">Aucune facture.</p>'}</section>
+          <section class="box"><h2>Factures et règlements</h2>${h.factures.length ? `<ul class="list">${h.factures.map(x => `<li><a href="#/factures/${x.id}"><b>${esc(x.numero)}</b> · ${x.type === 'avoir' ? '− ' : ''}${euros(x.totalCents)}<small class="muted"> ${{ acompte: 'acompte', solde: 'solde', totale: '', avoir: 'avoir' }[x.type] || ''}${x.type !== 'avoir' && !x.annulee && x.regleCents && x.resteCents ? ` · réglé ${euros(x.regleCents)}, reste ${euros(x.resteCents)}` : ''}</small></a><span class="pill ${x.annulee ? 'd-refuse' : x.type === 'avoir' ? 'd-expire' : x.payee ? 'd-accepte' : 'd-envoye'}">${x.annulee ? 'Annulée' : x.type === 'avoir' ? 'Avoir' : x.payee ? (x.archivee ? 'Archivée' : 'Réglée') + (x.moyen ? ' · ' + esc(x.moyen) : '') : x.regleCents ? 'Acompte reçu' : 'À encaisser'}</span></li>`).join('')}</ul>` : '<p class="muted">Aucune facture.</p>'}</section>
           <section class="box"><h2>Demandes</h2>${h.demandes.length ? `<ul class="list">${h.demandes.map(d => `<li><a href="#/demandes/${d.id}"><b>${esc(d.ref || '')}</b> · ${esc(d.evenement?.type || (d.type === 'contact' ? 'message' : ''))} ${d.evenement?.date ? dateFr(d.evenement.date) : ''}</a><span class="pill st-${d.statut}">${STATUTS[d.statut] || ''}</span></li>`).join('')}</ul>` : '<p class="muted">Aucune demande.</p>'}</section>
         </div></div>`);
   }
@@ -1937,7 +2069,7 @@
   async function outils() {
     const [mods, pages] = await Promise.all([api(A + '/modeles'), api(A + '/pages')]);
     return page('Outils', '', `<section class="box"><h2>Excel</h2><p class="muted sm">Les fichiers s’ouvrent directement dans Excel. Pour changer beaucoup de prix d’un coup : exportez le catalogue, modifiez les colonnes prix, minimum, coût, TVA, statut ou maison, enregistrez en CSV, puis renvoyez le fichier. Rien n’est créé ni supprimé, et un prix sous le coût est refusé.</p>
-      <div class="row">${[['catalogue', 'Catalogue'], ['demandes', 'Demandes'], ['clients', 'Clients'], ['devis', 'Devis'], ['factures', 'Factures']].map(([k, l]) => `<a class="btn ghost sm" href="${A}/actions/export/${k}">⬇ ${l}</a>`).join('')}${session.role === 'manager' ? '<label class="btn sm up">⬆ Mettre à jour le catalogue<input type="file" accept=".csv,text/csv" hidden data-importcat></label>' : ''}</div><div id="impres"></div></section>
+      <div class="row">${[['catalogue', 'Catalogue'], ['demandes', 'Demandes'], ['clients', 'Clients'], ['devis', 'Devis'], ['factures', 'Factures'], ['reglements', 'Règlements']].map(([k, l]) => `<a class="btn ghost sm" href="${A}/actions/export/${k}">⬇ ${l}</a>`).join('')}${session.role === 'manager' ? '<label class="btn sm up">⬆ Mettre à jour le catalogue<input type="file" accept=".csv,text/csv" hidden data-importcat></label>' : ''}</div><div id="impres"></div></section>
       <section class="box"><h2>Modèles de relance</h2><p class="muted sm">Variables : {prenom} {nom} {numero} {evenement} {date} {lien} {montant}</p>${mods.map(m => `<form class="mod" data-id="${m.id}"><div class="g3"><label>Nom<input name="nom" value="${esc(m.nom)}"></label><label>Canal<select name="canal"><option value="email">E-mail</option><option value="sms"${m.canal === 'sms' ? ' selected' : ''}>SMS</option></select></label><label>Sujet<input name="sujet" value="${esc(m.sujet || '')}"></label></div><textarea name="texte" rows="5">${esc(m.texte)}</textarea><button class="btn ghost sm">Enregistrer</button></form>`).join('')}<button class="btn ghost" data-newm>+ Nouveau modèle</button></section>
       <section class="box"><h2>Pages administratives</h2><p class="muted sm">CGV, mentions légales, confidentialité, allergènes… Une ligne courte devient un intertitre.</p>${pages.map(p => `<details><summary>${esc(p.titre)} <small class="muted">${esc(p.url)}</small></summary><form class="pg" data-id="${p.id}"><label>Titre<input name="titre" value="${esc(p.titre)}"></label><textarea name="texte" rows="14">${esc(p.texte)}</textarea><button class="btn ghost sm">Enregistrer</button></form></details>`).join('')}</section>
       ${session.role === 'manager' ? `<section class="box"><h2>Reprendre le catalogue du brouillon</h2><p class="muted sm">Remplace les prestations, rubriques et lieux par ceux du brouillon (data/brouillon.json). Les demandes, devis, factures et clients ne sont pas touchés. À n’utiliser qu’avant l’ouverture.</p><button class="btn ghost" data-reimp>Réimporter le brouillon</button></section>` : ''}`);

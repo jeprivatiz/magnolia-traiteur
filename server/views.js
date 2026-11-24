@@ -7,6 +7,7 @@ const { esc, euros, dateFr } = require('./util');
 const _euros = euros;
 const { prixCourt } = require('./catalogue');
 const { regleAcompte } = require('./devis');
+const FAC = require('./factures');
 
 const V = (process.env.RAILWAY_GIT_COMMIT_SHA || '').slice(0, 8) || Date.now().toString(36); /* change à chaque mise en ligne : force le rechargement du CSS et du JS */
 const MONO = '<img class="mono" src="/brand/monogramme.svg" alt="" width="40" height="34">';
@@ -823,7 +824,7 @@ function espace(c, { client, demandes, devis, factures }) {
     <p class="small">Référence ${esc(d.ref)} · envoyée le ${esc(dateFr(d.createdAt))}</p>
     <ul class="lignes">${(d.lignes || []).map(l => `<li><span>${esc(l.titre)}${l.resume ? `<small>${esc(l.resume)}</small>` : ''}</span><b>${esc(l.qte)} ${esc(l.unite || '')}</b></li>`).join('')}</ul>
     ${dv.map(x => `<p class="row"><a class="btn btn-vert" href="/devis/${esc(x.token)}">Voir le devis ${esc(x.numero)}</a> <span class="pill p-${esc(x.statut)}">${esc({ envoye: 'À signer', accepte: 'Signé', refuse: 'Refusé', brouillon: 'En préparation' }[x.statut] || '')}</span></p>`).join('')}
-    ${factures.filter(f => dv.some(x => x.id === f.devisId)).map(f => `<p><a class="lnk" href="/facture/${esc(f.token)}">Facture ${esc(f.numero)} · ${esc(euros(f.totalCents))}</a></p>`).join('')}
+    ${factures.filter(f => dv.some(x => x.id === f.devisId)).map(f => `<p><a class="lnk" href="/facture/${esc(f.token)}">${f.type === 'avoir' ? 'Avoir' : 'Facture'} ${esc(f.numero)} · ${esc(euros(f.totalCents))}${f.type !== 'avoir' && FAC.etat(f).resteCents && FAC.etat(f).regleCents ? ' · solde ' + esc(euros(FAC.etat(f).resteCents)) : ''}</a></p>`).join('')}
     </article>`;
   }).join('') : '<p>Aucune demande pour le moment.</p>'}
   </section>`;
@@ -896,19 +897,31 @@ function devisPage(c, d0, t, { client, demande, apercu = false }) {
   return layout(c, { title: 'Devis ' + d.numero, body, bodyClass: 'p-doc' }).replace('<head>', '<head><meta name="robots" content="noindex">');
 }
 
-function facturePage(c, f, t) {
-  const R = c.reglages;
-  const body = `<section class="wrap doc">
-  <header class="doc-h"><div>${entrepriseInfos(R).logo}<p class="small">${esc(R.adresse)}<br>${esc(R.telephone)} · ${esc(R.email)}</p></div>
-  <div class="doc-ref"><h1>Facture ${esc(f.numero)}</h1><p>Émise le ${esc(dateFr(f.date))}${f.devisNumero ? `<br>Devis ${esc(f.devisNumero)}` : ''}</p><span class="pill p-${f.payee ? 'accepte' : 'envoye'}">${f.payee ? 'Payée' : 'À régler'}</span></div></header>
-  <div class="doc-parties"><div><p class="eyebrow">Client</p><p><b>${esc(f.client?.nom || '')}</b>${f.client?.societe ? '<br>' + esc(f.client.societe) : ''}<br>${esc(f.client?.adresse || '')}<br>${esc(f.client?.email || '')}</p></div><div><p class="eyebrow">Objet</p><p>${esc(f.objet || '')}</p></div></div>
+function facturePage(c, f, t, { apercu = false } = {}) {
+  const R = c.reglages, I = entrepriseInfos(R);
+  const e = FAC.etat(f), regs = FAC.libelles(f), avoir = f.type === 'avoir';
+  const ech = FAC.echeance(f, R.tarifs || {});
+  const P = R.paiement || {};
+  const etiquette = avoir ? ['accepte', 'Avoir'] : f.annuleeParAvoir ? ['refuse', 'Annulée par avoir'] : e.payee ? ['accepte', 'Acquittée'] : e.regleCents ? ['envoye', 'Acompte reçu'] : ['envoye', 'À régler'];
+  const reglementsHtml = avoir ? '' : (regs.length || (f.dejaRegleCents || 0)) ? `<dl class="totaux regl">
+    ${(f.dejaRegleCents || 0) ? `<div><dt>Déjà réglé (facture d’acompte)</dt><dd>− ${euros(f.dejaRegleCents)}</dd></div>` : ''}
+    ${regs.map(r => `<div><dt>${esc(r.libelle)} versé le ${esc(dateFr(r.date))} <small>(${esc(r.moyen)})</small></dt><dd>− ${euros(r.montantCents)}</dd></div>`).join('')}
+    <div class="tot"><dt>${e.resteCents ? 'Solde restant dû' : 'Solde'}</dt><dd>${e.resteCents ? euros(e.resteCents) : '0,00 €'}</dd></div></dl>
+    ${e.resteCents ? '' : `<p class="ok">✓ Facture entièrement réglée${regs.length ? ' le ' + esc(dateFr(regs[regs.length - 1].date)) : ''}. Merci !</p>`}` : '';
+  const payer = !avoir && !f.annuleeParAvoir && e.resteCents ? `<div class="virement"><p class="eyebrow">Règlement du solde${ech ? ' · au plus tard le ' + esc(dateFr(ech)) : ''}</p>${/^https:\/\//.test(P.lien || '') ? `<p><a class="btn btn-or" href="${esc(P.lien)}" rel="noopener">Régler par carte</a></p>` : ''}${P.iban ? `<p>Par virement · Titulaire : <b>${esc(P.titulaire || 'Magnolia Traiteur')}</b><br>IBAN : <b class="mono">${esc(P.iban)}</b>${P.bic ? `<br>BIC : <b class="mono">${esc(P.bic)}</b>` : ''}<br>Référence à indiquer : <b>${esc(f.numero)}</b></p>` : ''}${!/^https:\/\//.test(P.lien || '') && !P.iban ? `<p>Pour régler le solde de <b>${euros(e.resteCents)}</b>, appelez-nous au ${esc(R.telephone || '')} : nous vous envoyons le lien de paiement.</p>` : ''}</div>` : '';
+  const body = `${apercu ? `<div class="apercu-bar noprint"><p><b>👁 Aperçu de la facture</b> · exactement ce que le client verra.</p><button class="btn btn-line" type="button" onclick="window.close()">Fermer l’aperçu</button></div>` : ''}<section class="wrap doc">
+  <header class="doc-h"><div>${I.logo}<p class="small">${esc(R.adresse)}<br>${esc(R.telephone)} · ${esc(R.email)}</p></div>
+  <div class="doc-ref"><h1>${avoir ? 'Avoir' : 'Facture'} ${esc(f.numero)}</h1><p>Émis${avoir ? '' : 'e'} le ${esc(dateFr(f.date))}${f.devisNumero ? `<br>Devis ${esc(f.devisNumero)}` : ''}${avoir ? `<br>Annule la facture ${esc(f.factureNumero || '')}` : ''}${!avoir && ech && e.resteCents ? `<br>Échéance du solde : ${esc(dateFr(ech))}` : ''}</p><span class="pill p-${etiquette[0]}">${etiquette[1]}</span></div></header>
+  <div class="doc-parties"><div><p class="eyebrow">Client</p><p><b>${esc(f.client?.nom || '')}</b>${f.client?.societe ? '<br>' + esc(f.client.societe) : ''}${f.client?.adresse ? '<br>' + esc(f.client.adresse).replace(/\n/g, '<br>') : ''}<br>${esc(f.client?.email || '')}</p></div><div><p class="eyebrow">Objet</p><p>${esc(f.objet || '')}</p></div></div>
+  ${f.annuleeParAvoir ? `<p class="note-paiement">Cette facture est annulée par l’avoir ${esc(f.annuleeParAvoir.numero)}.</p>` : ''}
   ${devisLignesHtml(f)}
-  ${totauxHtml(t)}
-  ${(f.dejaRegleCents || 0) ? `<dl class="totaux"><div><dt>Déjà réglé (acompte)</dt><dd>− ${euros(f.dejaRegleCents)}</dd></div><div class="tot"><dt>Reste à payer</dt><dd>${euros(t.ttcCents - f.dejaRegleCents)}</dd></div></dl>` : ''}
-  <p class="small">${esc(f.mentions || 'Paiement à réception. En cas de retard, pénalités au taux légal et indemnité forfaitaire de 40 € pour frais de recouvrement (clients professionnels).')}</p>
-  <p class="row noprint"><button class="btn btn-line" type="button" onclick="print()">Imprimer / PDF</button></p>
-  ${entrepriseInfos(R).mentions ? `<p class="doc-mentions">${esc(entrepriseInfos(R).mentions)}</p>` : ''}</section>`;
-  return layout(c, { title: 'Facture ' + f.numero, body, bodyClass: 'p-doc' }).replace('<head>', '<head><meta name="robots" content="noindex">');
+  ${avoir ? `<dl class="totaux"><div class="tot"><dt>Montant de l’avoir (TTC)</dt><dd>− ${euros(e.ttcCents - (f.dejaRegleCents || 0))}</dd></div></dl>` : totauxHtml(t)}
+  ${reglementsHtml}
+  ${payer}
+  <p class="small">${esc(f.mentions || (avoir ? 'Avoir valant annulation de la facture citée ci-dessus.' : 'En cas de retard de paiement, pénalités au taux légal et indemnité forfaitaire de 40 € pour frais de recouvrement (clients professionnels). Pas d’escompte pour paiement anticipé.'))}</p>
+  <p class="row noprint"><button class="btn btn-line" type="button" onclick="print()">Imprimer / PDF</button><a class="lnk" href="tel:${esc((R.telephone || '').replace(/\s/g, ''))}">Une question ? ${esc(R.telephone)}</a></p>
+  ${I.mentions ? `<p class="doc-mentions">${esc(I.mentions)}</p>` : ''}</section>`;
+  return layout(c, { title: (avoir ? 'Avoir ' : 'Facture ') + f.numero, body, bodyClass: 'p-doc' }).replace('<head>', '<head><meta name="robots" content="noindex">');
 }
 
 module.exports = {
