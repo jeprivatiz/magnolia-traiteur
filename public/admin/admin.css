@@ -1340,3 +1340,35 @@ input.verrou { background: var(--doux); color: var(--gris); cursor: not-allowed;
 .pli-btn::after { content: 'Replier ▲'; font-size: .82rem; font-weight: 600; color: var(--vert); border: 1px solid var(--vert); border-radius: 999px; padding: 5px 12px; white-space: nowrap; }
 .pli-btn:hover::after { background: var(--vert); color: #fff; }
 .pli.ferme .pli-btn::after { content: 'Afficher ▼'; background: var(--vert); color: #fff; }
+
+/* ---------- Clients : recherche multicritère + profil prestataire (fichier MADER, 2026-11-24) ---------- */
+.cl-multi { padding: 0; margin-bottom: 14px; overflow: hidden; }
+.cl-multi > summary { cursor: pointer; list-style: none; padding: 14px 18px; font-weight: 600; color: var(--vert); background: var(--doux); display: flex; align-items: center; gap: 10px; }
+.cl-multi > summary::-webkit-details-marker { display: none; }
+.cl-multi > summary::after { content: '▾'; margin-left: auto; color: var(--or); font-size: 1.1rem; transition: transform .2s; }
+.cl-multi:not([open]) > summary::after { transform: rotate(-90deg); }
+.cl-nbk { background: var(--or); color: #fff; border-radius: 999px; padding: 2px 10px; font-size: .78rem; font-weight: 600; }
+.cl-gr { padding: 12px 18px 4px; border-top: 1px solid var(--ligne); }
+.cl-gt { margin: 0 0 8px; font-weight: 600; font-size: .88rem; color: var(--vert); }
+.cl-crits { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px 14px; }
+.cl-crit { display: flex; flex-direction: column; gap: 4px; font-size: .82rem; color: var(--gris); margin: 0; }
+.cl-crit select { background: var(--carte); border: 1px solid var(--ligne); }
+.cl-crit select.on { border-color: var(--or); box-shadow: 0 0 0 2px color-mix(in srgb, var(--or) 25%, transparent); color: var(--texte); font-weight: 600; }
+.cl-multi > .row { padding: 6px 18px 14px; }
+.pf-d { border: 1px solid var(--ligne); border-radius: 12px; padding: 0 14px; margin: 4px 0 12px; background: var(--carte); }
+.pf-d > summary { cursor: pointer; padding: 12px 0; font-weight: 600; color: var(--vert); }
+.pf-d[open] { padding-bottom: 10px; }
+.pf-l { margin: 4px 0 6px; font-size: .85rem; font-weight: 600; }
+.pf-cases { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.pf-c { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--ligne); background: var(--doux); border-radius: 999px; padding: 6px 12px; font-size: .85rem; cursor: pointer; margin: 0; }
+.pf-c:has(input:checked) { background: var(--vert); border-color: var(--vert); color: #fff; }
+.pf-c input { width: 15px; height: 15px; }
+.pf-id { grid-template-columns: minmax(110px, 160px) 1fr; }
+.pf-box .pf-g { border-top: 1px solid var(--ligne); padding-top: 8px; margin-top: 8px; }
+.pf-box .pf-g:first-of-type { border-top: 0; margin-top: 0; }
+.pf-t { margin: 0 0 6px; font-weight: 600; font-size: .88rem; }
+.pf-ps { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 4px; }
+.pf-p { background: var(--doux); border: 1px solid var(--ligne); border-radius: 999px; padding: 3px 10px; font-size: .8rem; }
+.pf-npc { background: color-mix(in srgb, var(--rouge) 12%, var(--carte)); color: var(--rouge); border-radius: 10px; padding: 8px 12px; font-weight: 600; margin: 0 0 8px; }
+@media (max-width: 640px) { .cl-crits { grid-template-columns: 1fr 1fr; } .pf-id { grid-template-columns: 1fr; } }
+.cl-met { display: block; color: var(--vert-2); font-size: .78rem; }

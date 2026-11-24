@@ -1115,7 +1115,30 @@
   };
 
   /* ---------- clients (liste en pages : le fichier importé compte des dizaines de milliers de fiches) ---------- */
-  const CL = { q: '', page: 1, filtre: '' };
+  const CL = { q: '', page: 1, filtre: '', k: {} };
+  /* recherche multicritère de la liste Clients (demande de Jean-Luc, 2026-11-24) */
+  const urlClients = () => `${A}/clients?par=50&page=${CL.page}&filtre=${CL.filtre}&q=${encodeURIComponent(CL.q)}${Object.entries(CL.k).filter(([, v]) => v).map(([k, v]) => `&${k}=${encodeURIComponent(v)}`).join('')}`;
+  function filtresClients(F) {
+    const n = x => Number(x).toLocaleString('fr-FR');
+    const sel = (k, lab, opts) => `<label class="cl-crit"><span>${lab}</span><select data-ck="${k}"${CL.k[k] ? ' class="on"' : ''}>${opts.map(([v, l]) => `<option value="${esc(v)}"${String(CL.k[k] || '') === String(v) ? ' selected' : ''}>${l}</option>`).join('')}</select></label>`;
+    const liste = (l, tous) => [['', tous], ...l.map(([v, c]) => [v, `${esc(v)} (${n(c)})`])];
+    const nb = Object.values(CL.k).filter(Boolean).length;
+    return `<details class="box cl-multi"${nb || mem.get('mg_clmulti') === '1' ? ' open' : ''}><summary>🔎 Recherche multicritère${nb ? ` <span class="cl-nbk">${nb} critère${nb > 1 ? 's' : ''}</span>` : ''}</summary>
+      <div class="cl-gr"><p class="cl-gt">👤 Le contact</p><div class="cl-crits">
+        ${sel('pro', 'Particulier ou entreprise', [['', 'Tous'], ['part', 'Particuliers'], ['pro', 'Entreprises (société renseignée)']])}
+        ${sel('civ', 'Civilité', [['', 'Toutes'], ['Mme', 'Madame'], ['M.', 'Monsieur'], ['aucune', 'Non renseignée']])}
+        ${sel('dep', 'Département', [['', 'Tous'], ['idf', 'Toute l’Île-de-France'], ...F.dep.map(([v, c]) => [v, `${esc(v)} (${n(c)})`]), ['aucun', 'Inconnu']])}
+        ${sel('contactDe', 'Contact de (apporté par)', liste(F.contactDe, 'Tout le monde'))}</div></div>
+      <div class="cl-gr"><p class="cl-gt">🎭 Prestataires et talents</p><div class="cl-crits">
+        ${sel('metier', 'Métier', [['', 'Tous (clients compris)'], ['*', 'Tous les prestataires'], ...F.metiers.map(([v, c]) => [v, `${esc(v)} (${n(c)})`])])}
+        ${sel('dj', 'Style de DJ', liste(F.dj, 'Tous'))}
+        ${sel('indep', 'Indépendant(e)', [['', 'Peu importe'], ['1', `Oui (${n(F.indep)})`]])}
+        ${sel('permis', 'Permis de conduire', [['', 'Peu importe'], ['1', `Oui (${n(F.permis)})`]])}</div></div>
+      <div class="cl-gr"><p class="cl-gt">✉ Pour le joindre</p><div class="cl-crits">
+        ${sel('joignable', 'Joignable par', [['', 'Peu importe'], ['email', 'E-mail'], ['sms', 'SMS (portable)'], ['les2', 'E-mail et SMS'], ['aucun', 'Ni e-mail ni SMS']])}
+        ${sel('npc', 'NE PAS CONTACTER', [['', 'Peu importe'], ['non', 'Sauf « ne pas contacter »'], ['oui', `Seulement « ne pas contacter » (${n(F.npc)})`]])}</div></div>
+      ${nb ? '<div class="row"><button type="button" class="btn ghost sm" data-ckclear>✕ Effacer les critères</button></div>' : ''}</details>`;
+  }
   async function clients(id, sub) {
     if (id === 'entreprises') return sub ? ficheEntreprise(sub) : entreprises();
     if ((id === 'email' || id === 'sms') && !peut('diffusion')) return sansAcces();
@@ -1124,16 +1147,16 @@
     if (id === 'importer') return importerClients();
     if (id === 'appels') return appelsClients();
     if (id) return client(id);
-    const r = await api(`${A}/clients?par=50&page=${CL.page}&filtre=${CL.filtre}&q=${encodeURIComponent(CL.q)}`);
+    const r = await api(urlClients());
     return page('Clients', `${peut('fichiers') ? '<a class="btn ghost" href="#/clients/importer">⬆ Importer des clients</a>' : ''}<a class="btn" href="#/clients/nouveau">+ Nouveau client</a>`, `
-      ${ongletsClients('')}${bandeauClients('', r.tous, r.entreprises)}<div class="cl-bar"><input type="search" placeholder="🔍 Nom, prénom, téléphone, e-mail, société, ville, code postal…" data-q value="${esc(CL.q)}" aria-label="Rechercher un client">
+      ${ongletsClients('')}${bandeauClients('', r.tous, r.entreprises)}<div class="cl-bar"><input type="search" placeholder="🔍 Chercher dans toutes les cases des fiches : nom, téléphone, e-mail, société, ville, métier, remarque, rue…" data-q value="${esc(CL.q)}" aria-label="Rechercher un client">
         <div class="cl-f">${[['', `Tous (${r.tous.toLocaleString('fr-FR')})`], ['importes', `Fichier importé (${r.importes.toLocaleString('fr-FR')})`], ['autres', 'Site et back-office']].map(([k, l]) => `<button type="button" class="qs-own-b${CL.filtre === k ? ' on' : ''}" data-clf="${k}">${l}</button>`).join('')}</div></div>
-      <div id="clTable">${tableClients(r)}</div>`);
+      <div id="clMulti">${filtresClients(r.facettes)}</div><div id="clTable">${tableClients(r)}</div>`);
   }
   function tableClients(r) {
     const pages = Math.max(1, Math.ceil(r.total / r.par));
     return `<div class="table"><table><thead><tr><th>Nom</th><th>Société</th><th>Contact</th><th>Ville</th><th class="n">Demandes</th><th>Dernière activité</th><th></th></tr></thead><tbody>
-      ${r.items.map(c => `<tr data-href="#/clients/${esc(c.id)}"><td><b>${esc(c.nom || '—')}</b>${c.source === 'import CRM' ? '<small class="cl-imp">fichier importé</small>' : ''}</td><td>${esc(c.societe || '')}</td><td>${esc(c.email || '')}<small>${esc(c.tel || '')}</small></td><td>${esc([c.cp, c.ville].filter(Boolean).join(' '))}</td><td class="n">${c.nbDemandes || ''}</td><td>${dateFr(c.derniereActivite)}</td><td class="n"><a class="qs-back cl-edit" href="#/clients/${esc(c.id)}?edit=1" title="Modifier la fiche">✏ Modifier</a></td></tr>`).join('') || `<tr><td colspan="7" class="muted">${r.tous ? 'Aucun client ne correspond.' : 'Aucun client pour le moment.'}</td></tr>`}</tbody></table></div>
+      ${r.items.map(c => `<tr data-href="#/clients/${esc(c.id)}"><td><b>${esc(c.nom || '—')}</b>${c.nePasContacter ? ' <span class="pill d-refuse" title="NE PAS CONTACTER">⛔</span>' : ''}${(c.metiers || []).length ? `<small class="cl-met">🎭 ${esc(c.metiers.join(', '))}</small>` : ''}${c.source === 'import CRM' ? '<small class="cl-imp">fichier importé</small>' : ''}</td><td>${esc(c.societe || '')}</td><td>${esc(c.email || '')}<small>${esc(c.tel || '')}</small></td><td>${esc([c.cp, c.ville].filter(Boolean).join(' '))}</td><td class="n">${c.nbDemandes || ''}</td><td>${dateFr(c.derniereActivite)}</td><td class="n"><a class="qs-back cl-edit" href="#/clients/${esc(c.id)}?edit=1" title="Modifier la fiche">✏ Modifier</a></td></tr>`).join('') || `<tr><td colspan="7" class="muted">${r.tous ? 'Aucun client ne correspond.' : 'Aucun client pour le moment.'}</td></tr>`}</tbody></table></div>
       ${r.total > r.par ? `<div class="cl-pages"><button type="button" class="btn ghost sm" data-clp="-1"${r.page <= 1 ? ' disabled' : ''}>‹ Précédents</button><span>${((r.page - 1) * r.par + 1).toLocaleString('fr-FR')} à ${Math.min(r.total, r.page * r.par).toLocaleString('fr-FR')} sur ${r.total.toLocaleString('fr-FR')}</span><button type="button" class="btn ghost sm" data-clp="1"${r.page >= pages ? ' disabled' : ''}>Suivants ›</button></div>` : `<p class="muted sm cl-nb">${r.total.toLocaleString('fr-FR')} client${r.total > 1 ? 's' : ''}</p>`}`;
   }
   clients.after = (id, sub) => {
@@ -1142,7 +1165,13 @@
     if (id === 'importer') return importerClients.after();
     if (id === 'appels') return appelsClients.after();
     if (id) return client.after(id);
-    const recharger = async () => { try { const r = await api(`${A}/clients?par=50&page=${CL.page}&filtre=${CL.filtre}&q=${encodeURIComponent(CL.q)}`); $('#clTable').innerHTML = tableClients(r); brancher(); } catch (e) { toast(e.message, true); } };
+    const recharger = async (multi) => { try { const r = await api(urlClients()); $('#clTable').innerHTML = tableClients(r); if (multi) { $('#clMulti').innerHTML = filtresClients(r.facettes); brancherMulti(); } brancher(); } catch (e) { toast(e.message, true); } };
+    const brancherMulti = () => {
+      $$('[data-ck]').forEach(x => x.addEventListener('change', () => { CL.k[x.dataset.ck] = x.value; CL.page = 1; recharger(true); }));
+      $('[data-ckclear]')?.addEventListener('click', () => { CL.k = {}; CL.page = 1; recharger(true); });
+      $('.cl-multi')?.addEventListener('toggle', e => mem.set('mg_clmulti', e.target.open ? '1' : '0'));
+    };
+    brancherMulti();
     const brancher = () => {
       $$('tr[data-href]').forEach(tr => tr.addEventListener('click', e => { if (!e.target.closest('a')) location.hash = tr.dataset.href; }));
       $$('[data-clp]').forEach(b => b.addEventListener('click', () => { CL.page += +b.dataset.clp; recharger(); window.scrollTo(0, 0); }));
@@ -1259,7 +1288,7 @@
     const n = x => (x || 0).toLocaleString('fr-FR');
     const ex = v.exemples[0];
     return `<section class="box imp-step"><h2><span class="imp-n">3</span> Ce qui va se passer</h2>
-      <div class="kpis qk imp-k"><div><b>${n(v.nouveaux)}</b><span>nouveaux clients créés</span></div><div><b>${n(v.completes)}</b><span>clients déjà connus, complétés</span></div><div><b>${n(v.identiques)}</b><span>déjà connus, rien de nouveau</span></div><div><b>${n(v.doublonsFichier)}</b><span>doublons dans le fichier (regroupés)</span></div><div><b>${n(v.sansCoordonnees)}</b><span>lignes vides ignorées</span></div></div>
+      <div class="kpis qk imp-k"><div><b>${n(v.nouveaux)}</b><span>nouveaux clients créés</span></div><div><b>${n(v.completes)}</b><span>clients déjà connus, complétés</span></div><div><b>${n(v.identiques)}</b><span>déjà connus, rien de nouveau</span></div><div><b>${n(v.doublonsFichier)}</b><span>doublons dans le fichier (regroupés)</span></div><div><b>${n(v.sansCoordonnees)}</b><span>lignes vides ignorées</span></div>${v.essais ? `<div><b>${n(v.essais)}</b><span>lignes d’essai « [TEST…] » ignorées</span></div>` : ''}</div>
       ${v.telIllisibles || v.emailsIllisibles || v.sansContact ? `<p class="muted sm">${[v.telIllisibles ? `${n(v.telIllisibles)} téléphone(s) illisible(s)` : '', v.emailsIllisibles ? `${n(v.emailsIllisibles)} e-mail(s) illisible(s)` : '', v.sansContact ? `${n(v.sansContact)} fiche(s) avec un nom mais ni e-mail ni téléphone` : ''].filter(Boolean).join(' · ')} : ils sont gardés tels quels dans les notes de la fiche.</p>` : ''}
       ${ex ? `<div class="imp-ex1"><p class="muted sm">Exemple : la ligne ${ex.ligne} du fichier donnera cette fiche</p><dl>${[['Nom', ex.nom], ['Société', ex.societe], ['E-mail', ex.email], ['Téléphone', ex.tel + (ex.telE164 ? ' (SMS : ' + ex.telE164 + ')' : '')], ['Autre téléphone', ex.telAutre], ['Adresse', [ex.adresse, ex.cp, ex.ville].filter(Boolean).join(' ')], ['Département', ex.departement], ['Déjà commandé', ex.caCrmCents != null ? euros(ex.caCrmCents) : ''], ['Dernière commande', ex.derniereCommande ? dateFr(ex.derniereCommande) : ''], ['Notes', ex.notes]].filter(x => x[1] && x[1] !== 'undefined').map(([k, val]) => `<dt>${k}</dt><dd>${esc(val)}</dd>`).join('')}</dl></div>` : ''}
       <label class="chk imp-ok"><input type="checkbox" id="impOk"> Je confirme que ces personnes sont nos clients ou nous ont contactés d’elles-mêmes (aucun fichier de prospection acheté). Elles pourront recevoir nos e-mails et SMS ; chaque message garde le lien de désinscription et « STOP ».</label>
@@ -1312,7 +1341,7 @@
           if (r.fini) break;
         }
         const n = x => (x || 0).toLocaleString('fr-FR');
-        prog.innerHTML = `<div class="okbox imp-rap"><b>✓ Import terminé.</b><ul><li><b>${n(r.nouveaux)}</b> nouveaux clients créés</li><li><b>${n(r.completes)}</b> clients déjà connus, complétés</li><li><b>${n(r.identiques)}</b> déjà connus, rien de nouveau</li><li><b>${n(r.doublonsFichier)}</b> doublons du fichier regroupés</li><li><b>${n(r.sansCoordonnees)}</b> lignes vides ignorées</li></ul><div class="row"><a class="btn sm" href="#/clients">Voir les clients</a><button type="button" class="btn ghost sm" data-annul="${esc(r.impId)}">↶ Annuler cet import</button></div></div>`;
+        prog.innerHTML = `<div class="okbox imp-rap"><b>✓ Import terminé.</b><ul><li><b>${n(r.nouveaux)}</b> nouveaux clients créés</li><li><b>${n(r.completes)}</b> clients déjà connus, complétés</li><li><b>${n(r.identiques)}</b> déjà connus, rien de nouveau</li><li><b>${n(r.doublonsFichier)}</b> doublons du fichier regroupés</li><li><b>${n(r.sansCoordonnees)}</b> lignes vides ignorées</li>${r.essais ? `<li><b>${n(r.essais)}</b> lignes d’essai ignorées</li>` : ''}</ul><div class="row"><a class="btn sm" href="#/clients">Voir les clients</a><button type="button" class="btn ghost sm" data-annul="${esc(r.impId)}">↶ Annuler cet import</button></div></div>`;
         brancherAnnul(prog);
         toast('Import terminé.');
       });
@@ -1334,7 +1363,7 @@
   const IDF = ['75', '77', '78', '91', '92', '93', '94', '95'];
   function etatDif(canal) {
     let s = null; try { s = JSON.parse(mem.get(DFK(canal)) || 'null'); } catch { /* */ }
-    return { criteres: { statut: '', montantMin: 0, deps: [], types: [], pro: '', accord: false, ...(s?.criteres || {}) }, mode: s?.mode === 'manuel' ? 'manuel' : 'criteres', exclus: [], inclus: [], q: '', page: 0, seulementCoches: false,
+    return { criteres: { statut: '', montantMin: 0, deps: [], types: [], pro: '', accord: false, metiers: [], dj: [], contactDe: [], civ: '', ...(s?.criteres || {}) }, mode: s?.mode === 'manuel' ? 'manuel' : 'criteres', exclus: [], inclus: [], q: '', page: 0, seulementCoches: false,
       infos: s?.infos || '', nbSms: s?.nbSms || 1, ton: s?.ton || '', message: s?.message || (canal === 'sms' ? { texte: '' } : { objet: '', titre: '', corps: '', photo: '', bouton: { texte: '', lien: '' } }), essai: s?.essai || '' };
   }
   const garderDif = (canal, st) => mem.set(DFK(canal), JSON.stringify({ criteres: st.criteres, mode: st.mode, infos: st.infos, nbSms: st.nbSms, ton: st.ton, message: st.message, essai: st.essai }));
@@ -1360,6 +1389,10 @@
             <label class="check df-accord"><input type="checkbox" data-k="accord"${k.accord ? ' checked' : ''}> Seulement ceux qui ont coché « J’accepte les offres »</label></div>
             <div class="df-lab">Département <small>(aucun choisi = tous)</small></div>
             <div class="df-chips" data-deps>${deps.length ? deps.map(([d, n]) => chip('dep', d, `${esc(d)} <small>${n}</small>`, k.deps.includes(d))).join('') : '<span class="muted sm">Aucun département connu pour le moment.</span>'}</div>
+            <div class="g2"><label>Civilité<select data-k="civ"><option value="">Madame et Monsieur</option><option value="Mme"${k.civ === 'Mme' ? ' selected' : ''}>Seulement Madame</option><option value="M."${k.civ === 'M.' ? ' selected' : ''}>Seulement Monsieur</option></select></label></div>
+            ${(conf.metiers || []).length ? `<div class="df-lab">🎭 Métier (prestataires) <small>(aucun choisi = tous)</small></div><div class="df-chips" data-mets>${conf.metiers.map(([t, n]) => chip('met', t, `${esc(t)} <small>${n}</small>`, k.metiers.includes(t))).join('')}</div>` : ''}
+            ${(conf.dj || []).length ? `<div class="df-lab">🎧 Style de DJ <small>(aucun choisi = tous)</small></div><div class="df-chips">${conf.dj.map(([t, n]) => chip('djs', t, `${esc(t)} <small>${n}</small>`, k.dj.includes(t))).join('')}</div>` : ''}
+            ${(conf.contactDe || []).length ? `<div class="df-lab">🤝 Contact de <small>(aucun choisi = tous)</small></div><div class="df-chips">${conf.contactDe.slice(0, 40).map(([t, n]) => chip('cde', t, `${esc(t)} <small>${n}</small>`, k.contactDe.includes(t))).join('')}</div>` : ''}
             ${conf.types.length ? `<div class="df-lab">Type d’événement <small>(aucun choisi = tous)</small></div><div class="df-chips" data-types>${conf.types.slice(0, 24).map(([t, n]) => chip('type', t, `${esc(t)} <small>${n}</small>`, k.types.includes(t))).join('')}</div>` : ''}
           </div>
           <div class="df-compte" aria-live="polite"><b data-nb>…</b><span data-nbl>destinataires</span></div>
@@ -1426,7 +1459,8 @@
     $('[data-k=montant]').addEventListener('change', e => { const v = e.target.value; $('.df-autre').hidden = v !== 'autre'; if (v === 'autre') { $('[data-k=montantLibre]').focus(); return; } k.montantMin = +v; recharger(); });
     $('[data-k=montantLibre]').addEventListener('input', e => { k.montantMin = Math.max(0, Math.round(+e.target.value || 0)) * 100; clearTimeout(e.target._t); e.target._t = setTimeout(recharger, 350); });
     const bascule = (attr, liste) => $$(`[data-${attr}]`).forEach(b => b.addEventListener('click', () => { const v = b.dataset[attr], i = liste.indexOf(v); if (i < 0) liste.push(v); else liste.splice(i, 1); b.classList.toggle('on', i < 0); b.setAttribute('aria-pressed', i < 0); recharger(); }));
-    bascule('dep', k.deps); bascule('type', k.types);
+    bascule('dep', k.deps); bascule('type', k.types); bascule('met', k.metiers); bascule('djs', k.dj); bascule('cde', k.contactDe);
+    $('[data-k=civ]').addEventListener('change', e => { k.civ = e.target.value; recharger(); });
     $('[data-dq]').addEventListener('input', e => { st.q = e.target.value; clearTimeout(e.target._t); e.target._t = setTimeout(() => { st.page = 0; charger(); }, 250); });
     $('[data-coches]').addEventListener('change', e => { st.seulementCoches = e.target.checked; st.page = 0; charger(); });
     $('[data-dlist]').addEventListener('change', e => {
@@ -1652,11 +1686,12 @@
     if (id === 'nouveau') {
       const ent = new URLSearchParams(location.hash.split('?')[1] || '').get('ent');
       const e = ent ? await api(A + '/entreprises/' + encodeURIComponent(ent)).then(x => x.entreprise).catch(() => null) : null;
+      if (!cache.profilDef) cache.profilDef = await api(A + '/actions/profil-contact').catch(() => null);
       cache.client = { nom: '', email: '', tel: '', societe: e?.nom || '', entrepriseId: e?.id || '', adresse: e?.adresse || '', cp: e?.cp || '', ville: e?.ville || '', notes: '' };
       return page(e ? 'Nouveau contact · ' + esc(e.nom) : 'Nouveau client', e ? `<a class="btn ghost" href="#/clients/entreprises/${esc(e.id)}">← ${esc(e.nom)}</a>` : '<a class="btn ghost" href="#/suivi">← Suivi client</a>', `<section class="box hc-form"><form id="cf">${formClient(cache.client)}<button class="btn">Enregistrer</button></form></section>`);
     }
-    const [h, eq, R0] = await Promise.all([api(A + '/actions/historique-client/' + id), cache.equipe ? Promise.resolve(null) : api(A + '/actions/equipe').catch(() => []), cache.R ? Promise.resolve(null) : api(A + '/site').catch(() => ({}))]);
-    if (eq) cache.equipe = eq.filter(u => !u.desactive); if (R0) cache.R = R0;
+    const [h, eq, R0, PD] = await Promise.all([api(A + '/actions/historique-client/' + id), cache.equipe ? Promise.resolve(null) : api(A + '/actions/equipe').catch(() => []), cache.R ? Promise.resolve(null) : api(A + '/site').catch(() => ({})), cache.profilDef ? Promise.resolve(null) : api(A + '/actions/profil-contact').catch(() => null)]);
+    if (eq) cache.equipe = eq.filter(u => !u.desactive); if (R0) cache.R = R0; if (PD) cache.profilDef = PD;
     const c = h.client; cache.client = c; cache.hist = h;
     const tel = String(c.tel || '').replace(/[^\d+]/g, ''), r = h.resume;
     const coms = [...new Set([...h.devis.map(x => x.commercial), ...(h.demandes || []).map(x => x.commercial)].filter(Boolean))];
@@ -1675,17 +1710,47 @@
           <ol class="hc-list" id="hcList">${friseClient(h.events)}</ol></section>
         <div class="hc-side">
           <section class="box hc-rqbox"><div class="hc-th"><h2>🔒 Remarque</h2><span class="muted sm">visible seulement par l’équipe</span></div><textarea rows="4" data-rq placeholder="Ex. : client exigeant sur la ponctualité, préfère le vin rouge, code portail 1234…">${esc(c.notes || '')}</textarea><div class="row"><button type="button" class="btn sm" data-rqsave>Enregistrer la remarque</button><span class="muted sm" data-rqok></span></div><p class="muted sm">Jamais montrée au client : ni sur le site, ni sur les devis, ni dans les e-mails ou SMS.</p></section>
+          ${boxProfil(c)}
           <section class="box hc-rdvs"><div class="hc-th"><h2>Appels et visios</h2><button type="button" class="lnk" data-hrdv>+ Programmer</button></div>${listeRdv(h.rdv || [])}</section>
           <section class="box"><h2>Devis</h2>${h.devis.length ? `<ul class="list">${[...h.devis].sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).map(x => `<li><a href="#/devis/${x.id}"><b>${esc(x.numero)}</b> · ${euros(x.ttcCents)}<small class="muted"> ${esc([x.evenement?.type, x.evenement?.date ? dateFr(x.evenement.date) : ''].filter(Boolean).join(' · '))}</small></a><span class="pill d-${x.statut}">${DSTAT[x.statut]}</span></li>`).join('')}</ul>` : '<p class="muted">Aucun devis.</p>'}</section>
           <section class="box"><h2>Factures et règlements</h2>${h.factures.length ? `<ul class="list">${h.factures.map(x => `<li><a href="#/factures/${x.id}"><b>${esc(x.numero)}</b> · ${x.type === 'avoir' ? '− ' : ''}${euros(x.totalCents)}<small class="muted"> ${{ acompte: 'acompte', solde: 'solde', totale: '', avoir: 'avoir' }[x.type] || ''}${x.type !== 'avoir' && !x.annulee && x.regleCents && x.resteCents ? ` · réglé ${euros(x.regleCents)}, reste ${euros(x.resteCents)}` : ''}</small></a><span class="pill ${x.annulee ? 'd-refuse' : x.type === 'avoir' ? 'd-expire' : x.payee ? 'd-accepte' : 'd-envoye'}">${x.annulee ? 'Annulée' : x.type === 'avoir' ? 'Avoir' : x.payee ? (x.archivee ? 'Archivée' : 'Réglée') + (x.moyen ? ' · ' + esc(x.moyen) : '') : x.regleCents ? 'Acompte reçu' : 'À encaisser'}</span></li>`).join('')}</ul>` : '<p class="muted">Aucune facture.</p>'}</section>
           <section class="box"><h2>Demandes</h2>${h.demandes.length ? `<ul class="list">${h.demandes.map(d => `<li><a href="#/demandes/${d.id}"><b>${esc(d.ref || '')}</b> · ${esc(d.evenement?.type || (d.type === 'contact' ? 'message' : ''))} ${d.evenement?.date ? dateFr(d.evenement.date) : ''}</a><span class="pill st-${d.statut}">${STATUTS[d.statut] || ''}</span></li>`).join('')}</ul>` : '<p class="muted">Aucune demande.</p>'}</section>
         </div></div>`);
   }
-  const formClient = c => `<label>Prénom et NOM<input name="nom" value="${esc(c.nom)}" required data-nomclient placeholder="ex. Jean-Luc BERNARD"></label><div class="g2"><label>Société <small class="muted">(reliée à sa fiche entreprise)</small><input name="societe" value="${esc(c.societe || '')}" list="entL" autocomplete="off" data-soc><datalist id="entL"></datalist></label><label>Fonction <small class="muted">(dans l’entreprise)</small><input name="fonction" value="${esc(c.fonction || '')}" placeholder="ex. assistante de direction"></label></div>${c.entrepriseId && !c.id ? `<input type="hidden" name="entrepriseId" value="${esc(c.entrepriseId)}">` : ''}<div class="g2"><label>E-mail<input type="email" name="email" value="${esc(c.email || '')}"></label><label>Téléphone<input name="tel" value="${esc(c.tel || '')}" inputmode="tel"></label></div><div class="g2"><label>Date de naissance <small class="muted">(rappel de son anniversaire)</small><input type="date" name="naissance" value="${esc(c.naissance || '')}" max="${new Date().toISOString().slice(0, 10)}"></label></div><label>Adresse de facturation<textarea name="adresse" rows="2">${esc(c.adresse || '')}</textarea></label><div class="g2"><label>Code postal<input name="cp" value="${esc(c.cp || '')}" inputmode="numeric" maxlength="5"></label><label>Ville<input name="ville" value="${esc(c.ville || '')}"></label></div><label>🔒 Remarque <small class="muted">(visible seulement par l’équipe, jamais par le client)</small><textarea name="notes" rows="3">${esc(c.notes || '')}</textarea></label><fieldset class="df-fs"><legend>E-mails et SMS d’information</legend><label class="check"><input type="checkbox" name="_accord"${c.consentement?.email ? ' checked' : ''}> A accepté de recevoir nos offres</label><label class="check"><input type="checkbox" name="_stopEmail"${c.desinscrit?.email ? ' checked' : ''}> Ne plus lui envoyer d’e-mails d’information</label><label class="check"><input type="checkbox" name="_stopSms"${c.desinscrit?.sms ? ' checked' : ''}> Ne plus lui envoyer de SMS d’information</label></fieldset>`;
+  /* profil prestataire / DJ / origine (fichier contacts « MADER », 2026-11-24) */
+  const aProfil = c => !!((c.metiers || []).length || c.independant || c.permis || c.remuneration);
+  const aDj = c => !!((c.djStyles || []).length || c.djDepuis || c.djTarifs || (c.metiers || []).includes('DJ'));
+  function boxProfil(c) {
+    const puce = t => `<span class="pf-p">${esc(t)}</span>`;
+    const lignes = [];
+    if (c.nePasContacter) lignes.push('<p class="pf-npc">⛔ NE PAS CONTACTER <small>(aucun e-mail ni SMS d’information)</small></p>');
+    if (aProfil(c)) lignes.push(`<div class="pf-g"><p class="pf-t">🎭 Prestataire</p>${(c.metiers || []).length ? `<div class="pf-ps">${c.metiers.map(puce).join('')}</div>` : ''}<p class="sm">${[c.independant ? '✓ Indépendant(e)' : '', c.permis ? '🚗 Permis de conduire' : '', c.remuneration ? '💶 Rémunération : ' + esc(c.remuneration) : ''].filter(Boolean).join(' · ')}</p></div>`);
+    if (aDj(c)) lignes.push(`<div class="pf-g"><p class="pf-t">🎧 DJ</p>${(c.djStyles || []).length ? `<div class="pf-ps">${c.djStyles.map(puce).join('')}</div>` : ''}<p class="sm">${[c.djDepuis ? 'DJ depuis ' + esc(c.djDepuis) : '', c.djTarifs ? 'Tarifs : ' + esc(c.djTarifs) + ' €' : ''].filter(Boolean).join(' · ')}</p></div>`);
+    if (c.contactDe || c.siteWeb || c.pays || c.civilite) lignes.push(`<div class="pf-g"><p class="pf-t">🤝 Origine</p><p class="sm">${[c.civilite ? (c.civilite === 'Mme' ? 'Madame' : 'Monsieur') : '', c.contactDe ? 'Contact de <b>' + esc(c.contactDe) + '</b>' : '', c.pays ? esc(c.pays) : '', c.siteWeb ? `<a href="${esc(/^https?:/i.test(c.siteWeb) ? c.siteWeb : 'https://' + c.siteWeb)}" target="_blank" rel="noopener">${esc(String(c.siteWeb).replace(/^https?:\/\/(www\.)?/i, '').replace(/\/$/, ''))} ↗</a>` : ''].filter(Boolean).join(' · ')}</p></div>`);
+    return `<section class="box pf-box"><div class="hc-th"><h2>Profil</h2><button type="button" class="lnk" data-hedit>✏ Compléter</button></div>${lignes.join('') || '<p class="muted sm">Métiers, DJ, « contact de »… : rien de renseigné. « Compléter » pour les ajouter.</p>'}</section>`;
+  }
+  function casesProfil(c) {
+    const D = cache.profilDef || { metiers: [], djStyles: [], contactDe: [] };
+    const coches = (nom, base, choisis) => { const l = [...base, ...(choisis || []).filter(x => !base.includes(x))]; return `<div class="pf-cases">${l.map(x => `<label class="pf-c"><input type="checkbox" name="${nom}" value="${esc(x)}"${(choisis || []).includes(x) ? ' checked' : ''}><span>${esc(x)}</span></label>`).join('')}</div>`; };
+    return `<details class="pf-d"${aProfil(c) ? ' open' : ''}><summary>🎭 Profil prestataire / talent <small class="muted">(serveur, barman, DJ, magicien…)</small></summary>
+        <p class="pf-l">Métiers</p>${coches('_metiers', D.metiers, c.metiers)}
+        <div class="g2"><label class="check"><input type="checkbox" name="independant"${c.independant ? ' checked' : ''}> Indépendant(e) <small class="muted">(auto-entrepreneur…)</small></label><label class="check"><input type="checkbox" name="permis"${c.permis ? ' checked' : ''}> A le permis de conduire</label></div>
+        <label>Rémunération demandée<input name="remuneration" value="${esc(c.remuneration || '')}" placeholder="ex. 15 € de l’heure, 130 € la soirée"></label></details>
+      <details class="pf-d"${aDj(c) ? ' open' : ''}><summary>🎧 DJ <small class="muted">(styles, expérience, tarifs)</small></summary>
+        <p class="pf-l">Styles de musique</p>${coches('_djStyles', D.djStyles, c.djStyles)}
+        <div class="g2"><label>DJ depuis <small class="muted">(année)</small><input name="djDepuis" value="${esc(c.djDepuis || '')}" inputmode="numeric" maxlength="4" placeholder="ex. 2015"></label><label>Tarifs <small class="muted">(€ la soirée)</small><input name="djTarifs" value="${esc(c.djTarifs || '')}" placeholder="ex. 250, 300"></label></div></details>
+      <details class="pf-d"${c.contactDe || c.siteWeb || c.pays ? ' open' : ''}><summary>🤝 Origine du contact</summary>
+        <div class="g2"><label>Contact de <small class="muted">(qui nous l’a apporté)</small><input name="contactDe" value="${esc(c.contactDe || '')}" list="pfCde" autocomplete="off"><datalist id="pfCde">${D.contactDe.map(x => `<option value="${esc(x)}">`).join('')}</datalist></label><label>Site internet<input name="siteWeb" value="${esc(c.siteWeb || '')}" placeholder="www…"></label></div>
+        <div class="g2"><label>Pays <small class="muted">(si pas la France)</small><input name="pays" value="${esc(c.pays || '')}"></label><label class="check pf-npcc"><input type="checkbox" name="nePasContacter"${c.nePasContacter ? ' checked' : ''}> ⛔ NE PAS CONTACTER <small class="muted">(bloque aussi les e-mails et SMS d’information)</small></label></div></details>`;
+  }
+  const formClient = c => `<div class="g2 pf-id"><label>Civilité<select name="civilite"><option value="">—</option>${[['Mme', 'Madame'], ['M.', 'Monsieur']].map(([v, l]) => `<option value="${v}"${c.civilite === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label><label>Prénom et NOM<input name="nom" value="${esc(c.nom)}" required data-nomclient placeholder="ex. Jean-Luc BERNARD"></label></div><div class="g2"><label>Société <small class="muted">(reliée à sa fiche entreprise)</small><input name="societe" value="${esc(c.societe || '')}" list="entL" autocomplete="off" data-soc><datalist id="entL"></datalist></label><label>Fonction <small class="muted">(dans l’entreprise)</small><input name="fonction" value="${esc(c.fonction || '')}" placeholder="ex. assistante de direction"></label></div>${c.entrepriseId && !c.id ? `<input type="hidden" name="entrepriseId" value="${esc(c.entrepriseId)}">` : ''}<div class="g2"><label>E-mail<input type="email" name="email" value="${esc(c.email || '')}"></label><label>Téléphone<input name="tel" value="${esc(c.tel || '')}" inputmode="tel"></label></div><div class="g2"><label>Date de naissance <small class="muted">(rappel de son anniversaire)</small><input type="date" name="naissance" value="${esc(c.naissance || '')}" max="${new Date().toISOString().slice(0, 10)}"></label></div><label>Adresse de facturation<textarea name="adresse" rows="2">${esc(c.adresse || '')}</textarea></label><div class="g2"><label>Code postal<input name="cp" value="${esc(c.cp || '')}" inputmode="numeric" maxlength="5"></label><label>Ville<input name="ville" value="${esc(c.ville || '')}"></label></div><label>🔒 Remarque <small class="muted">(visible seulement par l’équipe, jamais par le client)</small><textarea name="notes" rows="3">${esc(c.notes || '')}</textarea></label>${casesProfil(c)}<fieldset class="df-fs"><legend>E-mails et SMS d’information</legend><label class="check"><input type="checkbox" name="_accord"${c.consentement?.email ? ' checked' : ''}> A accepté de recevoir nos offres</label><label class="check"><input type="checkbox" name="_stopEmail"${c.desinscrit?.email ? ' checked' : ''}> Ne plus lui envoyer d’e-mails d’information</label><label class="check"><input type="checkbox" name="_stopSms"${c.desinscrit?.sms ? ' checked' : ''}> Ne plus lui envoyer de SMS d’information</label></fieldset>`;
   client.after = id => {
     $('#cf').addEventListener('submit', async e => {
-      e.preventDefault(); const f = Object.fromEntries(new FormData(e.target));
+      e.preventDefault(); const fd = new FormData(e.target), f = Object.fromEntries(fd);
+      f.metiers = fd.getAll('_metiers'); f.djStyles = fd.getAll('_djStyles'); delete f._metiers; delete f._djStyles;
+      for (const k of ['independant', 'permis', 'nePasContacter']) f[k] = !!f[k];
       const now = new Date().toISOString(), c0 = cache.client || {}, ds = c0.desinscrit || {}, cs = c0.consentement || {};
+      if (f.nePasContacter && !c0.nePasContacter) { f._stopEmail = 'on'; f._stopSms = 'on'; }
       const stopE = !!f._stopEmail, stopS = !!f._stopSms, acc = !!f._accord; delete f._stopEmail; delete f._stopSms; delete f._accord;
       if (stopE !== !!ds.email || stopS !== !!ds.sms) f.desinscrit = { ...ds, email: stopE, sms: stopS, le: ds.le || now, ...(stopE && !ds.email ? { leEmail: now } : {}), ...(stopS && !ds.sms ? { leSms: now } : {}) };
       if (acc !== !!cs.email) f.consentement = acc ? { ...cs, email: true, sms: true, le: now, source: 'back-office' } : { ...cs, email: false, sms: false, le: now, source: 'back-office' };
