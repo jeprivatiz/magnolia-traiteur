@@ -3,7 +3,7 @@ const _fs = require('fs'), _path = require('path');
 const _logos = new Map();
 function logoExiste(src) { if (!src) return false; if (!src.startsWith('/site/')) return true; if (!_logos.has(src)) _logos.set(src, _fs.existsSync(_path.join(__dirname, '..', 'public', src))); return _logos.get(src); }
 /* Pages publiques, rendues par le serveur (rapides et bien référencées par Google). */
-const { esc, euros, dateFr } = require('./util');
+const { esc, euros, dateFr, titreHtml, titreTexte, avecPortion } = require('./util');
 const _euros = euros;
 const { prixCourt } = require('./catalogue');
 const { regleAcompte } = require('./devis');
@@ -143,8 +143,8 @@ function card(p, c, { rubNom = true } = {}) {
   const { prix, unite } = prixCourt(p, euros);
   const ph = p.photos?.[0];
   return `<a class="card" href="${prodHref(p)}" data-card data-rub="${esc([p.rubrique, ...(p.autresRubriques || [])].join(' '))}" data-prix="${p.prixCents ?? ''}" data-ordre="${p.ordre ?? 0}" data-titre="${esc(p.titre || '')}">
-    <div class="card-img">${img(ph?.src, ph?.alt || p.titre)}${rubNom && r ? `<span class="tag">${esc(r.nom)}</span>` : ''}</div>
-    <div class="card-b"><h3>${esc(p.titre)}</h3><p>${esc(trunc(p.extrait, 110))}</p>
+    <div class="card-img">${img(ph?.src, ph?.alt || titreTexte(p.titre))}${rubNom && r ? `<span class="tag">${esc(r.nom)}</span>` : ''}</div>
+    <div class="card-b"><h3>${titreHtml(p.titre)}</h3><p>${esc(trunc(p.extrait, 110))}</p>
     <div class="card-f"><span class="prix">${esc(prix)} <small>${esc(unite)}</small></span><span class="more">Découvrir ${icon.arrow}</span></div></div>
   </a>`;
 }
@@ -522,21 +522,21 @@ function produit(c, p) {
   const media = `
   <div class="gal" data-gal>
     <div class="gal-main">${p.video ? `<video src="${esc(p.video.src)}" poster="${esc(p.video.poster || '')}" muted loop playsinline autoplay preload="metadata" data-gal-item></video>` : ''}
-      ${photos.map((ph, i) => `<img src="${esc(ph.src)}" alt="${esc(ph.alt || p.titre)}" ${i || p.video ? 'loading="lazy" hidden' : ''} data-gal-item>`).join('')}
+      ${photos.map((ph, i) => `<img src="${esc(ph.src)}" alt="${esc(ph.alt || titreTexte(p.titre))}" ${i || p.video ? 'loading="lazy" hidden' : ''} data-gal-item>`).join('')}
       ${!photos.length && !p.video ? img('', '') : ''}
       ${photos.length + (p.video ? 1 : 0) > 1 ? '<button class="gal-nav prev" type="button" data-gal-prev aria-label="Photo précédente">‹</button><button class="gal-nav next" type="button" data-gal-next aria-label="Photo suivante">›</button>' : ''}</div>
     ${photos.length + (p.video ? 1 : 0) > 1 ? `<div class="gal-th">${p.video ? `<button type="button" data-gal-go="0" class="on vid">${icon.play}</button>` : ''}${photos.map((ph, i) => `<button type="button" data-gal-go="${i + (p.video ? 1 : 0)}"${!i && !p.video ? ' class="on"' : ''}><img src="${esc(ph.src)}" alt="" loading="lazy"></button>`).join('')}</div>` : ''}
   </div>`;
-  const sections = (p.sections || []).map(s => `<section class="compo"><h2>${esc(s.titre || '')}</h2>${s.note ? `<p class="note">${esc(s.note)}</p>` : ''}${(s.items || []).length ? `<ul class="items">${s.items.map(it => `<li>${esc(it)}</li>`).join('')}</ul>` : ''}${(s.paragraphes || []).map(t => `<p>${esc(t)}</p>`).join('')}${s.apres ? `<p class="note">${esc(s.apres)}</p>` : ''}</section>`).join('');
+  const sections = (p.sections || []).map(s => `<section class="compo"><h2>${esc(s.titre || '')}</h2>${s.note ? `<p class="note">${esc(s.note)}</p>` : ''}${(s.items || []).length ? `<ul class="items">${s.items.map(it => `<li>${esc(avecPortion(it))}</li>`).join('')}</ul>` : ''}${(s.paragraphes || []).map(t => `<p>${esc(t)}</p>`).join('')}${s.apres ? `<p class="note">${esc(s.apres)}</p>` : ''}</section>`).join('');
   const conf = { slug: p.slug, titre: p.titre, prixCents: p.prixCents, unite: p.unite, min: p.min || 1, groupes: p.groupes || [], variantes: p.variantes || [], regles: p.regles || {}, photo: photos[0]?.src || p.video?.poster || '', rubrique: r.nom };
   const body = `
 <section class="wrap fiche">
-  ${crumbs([['La boutique', '/boutique'], [r.nom, '/' + r.slug], ...(() => { const x = sousVisibles(c.rubriques.find(y => y.slug === p.rubrique)).find(y => y.slug === p.sous); return x ? [[x.nom, `/${p.rubrique}/${x.slug}`]] : []; })(), [p.titre]])}
+  ${crumbs([['La boutique', '/boutique'], [r.nom, '/' + r.slug], ...(() => { const x = sousVisibles(c.rubriques.find(y => y.slug === p.rubrique)).find(y => y.slug === p.sous); return x ? [[x.nom, `/${p.rubrique}/${x.slug}`]] : []; })(), [titreTexte(p.titre)]])}
   <div class="fiche-g">
     <div class="fiche-media">${media}${(p.sousPhoto || []).length ? `<div class="sous-photo" data-sp><div class="sp-txt">${p.sousPhoto.map(t => t ? `<p>${esc(t).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\*\*/g, '')}</p>` : '<p class="sp-vide" aria-hidden="true"></p>').join('')}</div><button type="button" class="sp-plus" data-sp-plus hidden>Voir plus</button></div>` : ''}</div>
     <div class="fiche-info">
       <p class="eyebrow"><a href="/${esc(r.slug)}">${esc(r.nom)}</a></p>
-      <h1>${esc(p.titre)}</h1>
+      <h1>${titreHtml(p.titre)}</h1>
       <p class="fiche-prix"><b>${esc(prixHaut)}</b>${p.prixCents != null ? ` <span>TTC${p.unite ? ' par ' + esc(p.unite) : ''}${p.contenuPortion ? ` <strong class="portion">(${esc(p.contenuPortion)})</strong>` : ''}</span>` : ''}${p.min > 1 ? `<span class="min">· dès ${p.min} ${esc(p.unite || '')}${p.min > 1 && p.unite && !/s$/.test(p.unite) ? 's' : ''}</span>` : ''}</p>
       ${(p.description || [p.extrait]).filter(Boolean).map(t => `<p class="desc">${esc(t)}</p>`).join('')}
       <form class="conf" data-conf='${esc(JSON.stringify(conf))}' novalidate>
@@ -555,8 +555,8 @@ function produit(c, p) {
 ${proches.length ? `<section class="wrap"><div class="sec-h"><h2>Dans la même rubrique</h2><a class="lnk" href="/${esc(r.slug)}">${esc(r.nom)} ${icon.arrow}</a></div><div class="cards scroller">${proches.map(x => card(x, c, { rubNom: false })).join('')}</div></section>` : ''}
 <div class="stickybar" data-sticky><span><b>${esc(prixTxt)}</b>${p.unite && p.prixCents != null ? ' / ' + esc(p.unite) : ''}</span><button class="btn btn-vert" type="button" data-scroll-conf>Choisir</button></div>`;
   const site = (process.env.SITE_URL || 'https://www.magnoliatraiteur.fr').replace(/\/$/, '');
-  const schema = { '@context': 'https://schema.org', '@type': 'Product', name: p.titre, description: p.extrait, category: r.nom, image: photos.map(x => site + x.src), brand: { '@type': 'Brand', name: R.nom }, ...(p.prixCents != null ? { offers: { '@type': 'Offer', price: (p.prixCents / 100).toFixed(2), priceCurrency: 'EUR', availability: 'https://schema.org/InStock', eligibleQuantity: { '@type': 'QuantitativeValue', minValue: p.min || 1 } } } : {}) };
-  return layout(c, { title: p.seoTitre || p.titre, description: p.seoDescription || p.extrait, body, path: prodHref(p), schema, image: photos[0]?.src, bodyClass: 'p-fiche' });
+  const schema = { '@context': 'https://schema.org', '@type': 'Product', name: titreTexte(p.titre), description: p.extrait, category: r.nom, image: photos.map(x => site + x.src), brand: { '@type': 'Brand', name: R.nom }, ...(p.prixCents != null ? { offers: { '@type': 'Offer', price: (p.prixCents / 100).toFixed(2), priceCurrency: 'EUR', availability: 'https://schema.org/InStock', eligibleQuantity: { '@type': 'QuantitativeValue', minValue: p.min || 1 } } } : {}) };
+  return layout(c, { title: p.seoTitre || titreTexte(p.titre), description: p.seoDescription || p.extrait, body, path: prodHref(p), schema, image: photos[0]?.src, bodyClass: 'p-fiche' });
 }
 
 /* ---------- page Lieux + recherche multicritère (localisation, type d'événement, type de lieu, convives, mot-clé) ---------- */
@@ -840,7 +840,7 @@ function espace(c, { client, demandes, devis, factures }) {
     const dv = devis.filter(x => x.demandeId === d.id);
     return `<article class="ev"><header><div><p class="eyebrow">${esc(d.evenement?.type || '')} · ${esc(dateFr(d.evenement?.date))}</p><h2>${esc(d.evenement?.invites || '')} invités · ${esc(d.evenement?.ville || '')}</h2></div><span class="pill p-${esc(d.statut)}">${esc(STATUTS[d.statut] || d.statut)}</span></header>
     <p class="small">Référence ${esc(d.ref)} · envoyée le ${esc(dateFr(d.createdAt))}</p>
-    <ul class="lignes">${(d.lignes || []).map(l => `<li><span>${esc(l.titre)}${l.resume ? `<small>${esc(l.resume)}</small>` : ''}</span><b>${esc(l.qte)} ${esc(l.unite || '')}</b></li>`).join('')}</ul>
+    <ul class="lignes">${(d.lignes || []).map(l => `<li><span>${titreHtml(l.titre)}${l.resume ? `<small>${esc(l.resume)}</small>` : ''}</span><b>${esc(l.qte)} ${esc(l.unite || '')}</b></li>`).join('')}</ul>
     ${dv.map(x => `<p class="row"><a class="btn btn-vert" href="/devis/${esc(x.token)}">Voir le devis ${esc(x.numero)}</a> <span class="pill p-${esc(x.statut)}">${esc({ envoye: 'À signer', accepte: 'Signé', refuse: 'Refusé', brouillon: 'En préparation' }[x.statut] || '')}</span></p>`).join('')}
     ${factures.filter(f => dv.some(x => x.id === f.devisId)).map(f => `<p><a class="lnk" href="/facture/${esc(f.token)}">${f.type === 'avoir' ? 'Avoir' : 'Facture'} ${esc(f.numero)} · ${esc(euros(f.totalCents))}${f.type !== 'avoir' && FAC.etat(f).resteCents && FAC.etat(f).regleCents ? ' · solde ' + esc(euros(FAC.etat(f).resteCents)) : ''}</a></p>`).join('')}
     </article>`;
@@ -851,7 +851,7 @@ function espace(c, { client, demandes, devis, factures }) {
 
 function devisLignesHtml(d) {
   return `<table class="tab"><thead><tr><th>Désignation</th><th class="n">Qté</th><th class="n">PU TTC</th><th class="n">Total TTC</th></tr></thead><tbody>
-  ${(d.lignes || []).map(l => l.type === 'titre' ? `<tr class="t"><td colspan="4">${esc(l.designation)}</td></tr>` : `<tr><td>${esc(l.designation)}${l.detail ? `<small>${esc(l.detail)}</small>` : ''}</td><td class="n">${esc(l.qte)} ${esc(l.unite || '')}</td><td class="n">${esc(euros(l.puCents))}</td><td class="n">${esc(euros(Math.round(l.puCents * l.qte)))}</td></tr>`).join('')}
+  ${(d.lignes || []).map(l => l.type === 'titre' ? `<tr class="t"><td colspan="4">${esc(l.designation)}</td></tr>` : `<tr><td>${titreHtml(l.designation)}${l.detail ? `<small>${esc(l.detail)}</small>` : ''}</td><td class="n">${esc(l.qte)} ${esc(l.unite || '')}</td><td class="n">${esc(euros(l.puCents))}</td><td class="n">${esc(euros(Math.round(l.puCents * l.qte)))}</td></tr>`).join('')}
   </tbody></table>`;
 }
 function totauxHtml(t) {

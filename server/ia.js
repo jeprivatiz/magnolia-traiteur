@@ -5,6 +5,7 @@
  * L'IA ne voit que le catalogue visible (titres, prix TTC, unités, minimums) ; jamais de coût d'achat ni de fournisseur.
  * Le serveur revérifie tout ce qu'elle propose : prestation existante et visible, quantité au moins égale au minimum.
  */
+const { avecPortion } = require('./util');
 
 /* client Anthropic : clé ANTHROPIC_API_KEY (variable Railway). opts.ask permet aux tests de simuler l'IA. */
 function createIa({ env = process.env, ask, log = console } = {}) {
@@ -173,7 +174,7 @@ function appliquerModif(rep, { lignes, evenement, remiseCents }, c, visibles, ta
     } else if (op === 'ajouter') {
       const p = ok.get(str(o.slug, 160)); if (!p) continue;
       const min = Math.max(1, +p.min || 1), q = Math.max(min, Math.min(100000, Math.round(+o.qte || min)));
-      const l = { designation: p.titre, detail: str(o.detail, 400), qte: q, unite: p.unite || 'unité', puCents: p.prixCents ?? 0, coutCents: p.coutCents ?? null, tva: p.tva ?? 10, produit: p.slug };
+      const l = { designation: avecPortion(p.titre), detail: str(o.detail, 400), qte: q, unite: p.unite || 'unité', puCents: p.prixCents ?? 0, coutCents: p.coutCents ?? null, tva: p.tva ?? 10, produit: p.slug };
       inserer(o.apres, l); changes.push({ type: 'ajoute', texte: `${p.titre} · ${q} ${p.unite || ''} × ${p.prixCents == null ? 'prix à confirmer' : euro(p.prixCents)}`.replace(/\s+·/, ' ·') });
     } else if (op === 'personnel') {
       const nb = Math.max(1, Math.min(50, Math.round(+o.serveurs || 1))), h = Math.max(tarifs.personnel?.minHeures || 4, Math.min(24, Math.round(+o.heures || 0)));

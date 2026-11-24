@@ -1,5 +1,6 @@
 'use strict';
 /* Calculs des devis et factures. Tous les prix sont saisis et affichés TTC ; la TVA est déduite ligne par ligne. */
+const { avecPortion } = require('./util');
 
 function totaux(doc) {
   const lignes = (doc.lignes || []).filter(l => l.type !== 'titre');
@@ -61,7 +62,7 @@ function lignesDepuisDemande(demande, catalogue, tarifs = {}) {
   for (const l of demande.lignes || []) {
     const p = catalogue.bySlug.get(l.slug);
     out.push({
-      designation: l.titre + (l.variante ? ' · ' + l.variante : ''),
+      designation: avecPortion(l.titre) + (l.variante ? ' · ' + l.variante : ''),
       detail: [l.resume, l.note ? 'Note : ' + l.note : ''].filter(Boolean).join(' — '),
       qte: Number(l.qte) || 1, unite: l.unite || p?.unite || '',
       puCents: (l.prixCents ?? p?.prixCents ?? 0) + (l.supCents || 0), coutCents: p?.coutCents ?? null,

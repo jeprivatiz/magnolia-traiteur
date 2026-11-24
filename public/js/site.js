@@ -6,6 +6,11 @@
   const MG = window.MG || {};
   const T = MG.tarifs || {};
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  /* formules de buffet : nom sur une ligne, formule en dessous, sans tiret (copie de server/util.js coupeTitre) */
+  /* taille d'une portion, ajoutée au nom partout (Jean-Luc, 2026-11-24) — copie de server/util.js PORTIONS */
+  const PORTIONS = [[/accras?\s+de\s+morue/i, '1 portion = 4 accras']];
+  const avecPortion = t => { t = String(t ?? ''); const x = PORTIONS.find(([re]) => re.test(t)); return x && !t.includes(x[1]) ? `${t} (${x[1]})` : t; };
+  const titreHtml = t => { t = avecPortion(t); const m = /^(Buffets?\s[^—·()]+?)\s+[—·–-]\s+(\S.*)$/u.exec(String(t ?? '').trim()); return m ? `${esc(m[1])}<span class="formule">${esc(m[2].charAt(0).toUpperCase() + m[2].slice(1))}</span>` : esc(t); };
   const euros = c => c == null ? 'Sur devis' : (Math.round(c) / 100).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).replace(/ /g, ' ') + ' €';
   const store = {
     get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } },
@@ -32,7 +37,7 @@
   document.addEventListener('click', async (e) => {
     const b = e.target.closest('[data-partage]'); if (!b) return;
     const url = location.href.split('#')[0];
-    const titre = (document.querySelector('h1')?.textContent || document.title).trim().replace(/\s+/g, ' ');
+    const titre = (document.querySelector('h1')?.innerText || document.title).trim().replace(/\s+/g, ' ');
     const tactile = matchMedia('(pointer: coarse)').matches;
     if (navigator.share && tactile) {
       try { await navigator.share({ title: titre, text: titre + ' · Magnolia Traiteur', url }); return; }
@@ -66,7 +71,7 @@
         const sugg = form.parentElement.querySelector('[data-sugg]'); if (sugg) sugg.hidden = q.length >= 2;
         if (q.length < 2) { out.innerHTML = ''; return; }
         const r = await fetch('/api/recherche?q=' + encodeURIComponent(q)).then(x => x.json()).catch(() => ({ resultats: [] }));
-        out.innerHTML = r.resultats.length ? r.resultats.map(x => `<a class="live-i${x.page ? ' live-page' : ''}" href="${x.href}">${x.photo ? `<img src="${esc(x.photo)}" alt="">` : x.page ? '<span class="live-ico">→</span>' : '<span></span>'}<span><b>${esc(x.titre)}</b><small>${esc(x.rubrique)} · ${esc(x.prix)}</small></span></a>`).join('') + `<a class="live-all" href="/boutique?q=${encodeURIComponent(q)}">Voir tous les résultats pour « ${esc(q)} »</a>`
+        out.innerHTML = r.resultats.length ? r.resultats.map(x => `<a class="live-i${x.page ? ' live-page' : ''}" href="${x.href}">${x.photo ? `<img src="${esc(x.photo)}" alt="">` : x.page ? '<span class="live-ico">→</span>' : '<span></span>'}<span><b>${titreHtml(x.titre)}</b><small>${esc(x.rubrique)} · ${esc(x.prix)}</small></span></a>`).join('') + `<a class="live-all" href="/boutique?q=${encodeURIComponent(q)}">Voir tous les résultats pour « ${esc(q)} »</a>`
           : `<p class="live-none">Rien pour « ${esc(q)} ». Appelez-nous au ${esc(MG.tel || '')} : nous trouvons toujours une solution.</p>`;
       }, 160);
     });
@@ -285,7 +290,7 @@
     if (!P.lieu) html += `<div class="conf-q"><span class="lab">Quantité</span><div class="qty"><button type="button" data-q="-1" aria-label="Moins">−</button><input type="number" name="qte" min="${P.min || 1}" value="${qte0}" inputmode="numeric" aria-label="Quantité"><button type="button" data-q="1" aria-label="Plus">+</button></div><span class="unit" data-unit>${esc(plur(P.unite || '', qte0))}</span></div>${P.min > 1 ? `<p class="small">Minimum : ${P.min} ${esc(plur(P.unite || '', P.min))}</p>` : ''}${propInv ? `<p class="small"><button type="button" class="lnk-inv" data-inv="${propInv}">Mettre ${propInv} ${esc(plur(P.unite || '', propInv))} (vos invités)</button></p>` : ''}`;
     if ((P.variantes || []).length) html += `<label class="conf-l">Formule<select name="variante">${P.variantes.map(v => `<option>${esc(v)}</option>`).join('')}</select></label>`;
     for (const g of P.groupes || []) {
-      const opts = g.options || [];
+      const opts = (g.options || []).map(o => ({ ...o, label: avecPortion(o.label) }));
       const max = g.max || opts.length;
       html += `<fieldset class="conf-g" data-g="${esc(g.id)}"${(g.variantes || []).length && (P.variantes || []).length ? ` data-var="${esc(JSON.stringify(g.variantes))}"` : ''} data-max="${max}" data-exact="${g.exact ? 1 : 0}"><legend>${esc(g.titre || 'Vos choix')} <small>${g.radio ? '' : g.mode === 'quantites' ? `${g.minParVariete || 1} portions minimum par ${esc(g.singulier || 'choix')}` : g.exact ? `${max} au choix` : max < opts.length ? `jusqu’à ${max} au choix` : 'au choix'}${g.facultatif ? ' · facultatif' : ''}</small></legend>
         ${g.aide ? `<p class="small">${esc(g.aide)}</p>` : ''}
@@ -463,7 +468,7 @@
           const pk = (T.packs || []).find(x => x.id === l.pack?.id);
           return `<article class="sel-i" data-k="${l.key}">
             ${l.photo ? `<img src="${esc(l.photo)}" alt="">` : '<span class="noimg"></span>'}
-            <div class="sel-c"><p class="eyebrow">${esc(l.rubrique || '')}</p><h3>${esc(l.titre)}${l.variante ? ` <small>· ${esc(l.variante)}</small>` : ''}</h3>
+            <div class="sel-c"><p class="eyebrow">${esc(l.rubrique || '')}</p><h3>${titreHtml(l.titre)}${l.variante ? ` <small>· ${esc(l.variante)}</small>` : ''}</h3>
             ${l.resume ? `<p class="small">${esc(l.resume)}</p>` : ''}
             ${l.personnel ? `<p class="small">+ Personnel : ${l.personnel.nb} pers. × ${l.personnel.heures} h</p>` : ''}${pk ? `<p class="small">+ ${esc(pk.label)}</p>` : ''}${l.note ? `<p class="small">Note : ${esc(l.note)}</p>` : ''}
             <div class="sel-a">${l.lieu ? '' : `<div class="qty sm"><button type="button" data-d="-1" aria-label="Moins">−</button><input type="number" value="${l.qte}" min="${l.min || 1}" data-qte aria-label="Quantité"><button type="button" data-d="1" aria-label="Plus">+</button></div><span class="small">${esc(l.unite || '')}</span>`}
