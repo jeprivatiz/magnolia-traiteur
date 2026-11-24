@@ -345,7 +345,7 @@ const CARTE_INDIEN = [
   ['desserts', 'Salade de fruits de Goa', 650], ['desserts', 'Pista kulfi', 650], ['desserts', 'Mango kulfi', 650], ['desserts', 'Halwa maison', 450], ['desserts', 'Kheer (riz au lait indien)', 450],
 ];
 const AMBIANCE_INDIEN = ['menu-client-1', 'menu-client-2', 'menu-client-3', 'menu-client-4', 'plat-seul-client-1', 'plat-seul-client-2', 'plat-seul-client-3'].map(n => N + n + '.webp.webp');
-const RANGEMENTS = [['buffets', 'Nos buffets'], ['mezzes-froids', 'Nos mezzés froids à l’unité'], ['mezzes-chauds', 'Nos mezzés chauds à l’unité'], ['entrees', 'Nos entrées à l’unité'], ['plats', 'Nos plats à l’unité'], ['accompagnements', 'Nos accompagnements à l’unité'], ['fromages', 'Nos fromages'], ['desserts', 'Nos desserts à l’unité'], ['divers', 'Produits divers à l’unité']];
+const RANGEMENTS = [['buffets', 'Nos buffets'], ['mezzes-froids', 'Nos mezzés froids à l’unité'], ['mezzes-chauds', 'Nos mezzés chauds à l’unité'], ['entrees', 'Nos entrées à l’unité'], ['plats', 'Nos plats à l’unité'], ['accompagnements', 'Nos accompagnements à l’unité'], ['fromages', 'Nos fromages'], ['desserts', 'Nos desserts à l’unité'], ['divers', 'Produits divers à l’unité'], ['animations', 'Nos animations'], ['corbeilles', 'Nos corbeilles de fruits'], ['pieces-montees', 'Nos pièces montées'], ['location', 'En location']];
 /* « Riz oriental : + 1,50 € HT/personne. » → « Riz oriental » (supplément d'un menu, pas un nom de plat) */
 const SUPPL = /\s*:\s*\+\s*[\d.,]+\s*€.*$/;
 /* accompagnements (riz, gratins, alloco…) : demande de Jean-Luc du 2026-11-22 */
@@ -751,6 +751,51 @@ async function initSousRubriques(store, { log = console } = {}) {
     }
   }
 
+  /* Animations sucrées & desserts (Jean-Luc, 2026-11-24) : chaque fiche reçoit une photo qui correspond au produit
+     (corbeilles toutes différentes, stands à sorbet, bar à bonbons, barbe à papa, pop-corn, candy bar, gâteaux et pièces montées
+     du pâtissier partenaire, jamais nommé sur le site). Une fois par fiche, et seulement si elle n'a encore que l'ancienne photo
+     commune ou aucune photo : une photo mise à la main dans le back-office n'est jamais remplacée. Sources dans data/credits-photos-univers.md */
+  for (const [slug, photos] of PHOTOS_DOUCEURS) {
+    const x = await store.get('produits/' + slug);
+    if (!x || x.photoDouceur) continue;
+    const avant = x.photos || [];
+    if (!avant.every(ph => DOUCEURS_ANCIENNES.some(re => re.test(String(ph.src || ''))))) continue;
+    await store.set('produits/' + slug, { ...x, photos: photos.map(([src, alt]) => ({ src, alt })), photoDouceur: 'v1' });
+  }
+
+  /* sans le médaillon « R » du pâtissier (Jean-Luc, 2026-11-24) : l'ancienne photo est remplacée là où elle est encore */
+  for (const n of ['framboisine', 'tarte-chocolat', 'craqueline', 'croquant-caramel']) {
+    const ancien = '/site/c/douceurs/' + n + '.webp', nouveau = '/site/c/douceurs/' + n + '-2.webp';
+    for (const { id, data: x } of await store.list('produits')) {
+      if ((x.photos || []).some(ph => ph.src === ancien)) await store.set('produits/' + id, { ...x, photos: x.photos.map(ph => ph.src === ancien ? { ...ph, src: nouveau } : ph) });
+    }
+  }
+
+  /* Corbeilles de fruits du partenaire Corbeilles Paris (Jean-Luc, 2026-11-24) : une fiche par corbeille, contenance au choix
+     (3, 5, 7, 9 kg…), prix du partenaire + 30 %. Les anciennes corbeilles sont masquées et renvoient vers la nouvelle fiche. Une fois. */
+  const RCorb = await store.get('site/reglages');
+  if (RCorb && !RCorb.corbeillesPartenaire) {
+    for (const [ordre, x] of CORBEILLES_PARTENAIRE.entries()) {
+      if (await store.get('produits/' + x.slug)) continue;
+      const base = Math.round(x.prix[0][1] * 130);
+      const groupes = x.prix.length > 1 ? [{ id: 'contenance', titre: 'Contenance', radio: true, max: 1, exact: true,
+        options: x.prix.map(([kg, e]) => ({ id: kg + 'kg', label: kg + ' kg', supCents: Math.round(e * 130) - base })) }] : [];
+      await store.set('produits/' + x.slug, {
+        id: x.slug, slug: x.slug, rubrique: x.rubrique || 'douceurs', autresRubriques: x.autresRubriques || [], sous: x.sous || '', autresSous: x.autresSous || [],
+        rangement: 'corbeilles', titre: x.titre, prixCents: base, coutCents: Math.round(x.prix[0][1] * 100), prixTexte: null,
+        unite: x.unite || 'corbeille', min: 1, minimumTexte: null, extrait: x.extrait, description: x.description, sections: [], details: [],
+        photos: x.photos.map(([n, alt]) => ({ src: '/site/c/corbeilles/' + n + '.webp', alt })), video: null, groupes, variantes: [],
+        regles: {}, ordre: 70 + ordre * 0.1, statut: 'visible', maison: false, tva: 10, allergenes: [], aCompleter: false,
+        partenaire: 'Corbeilles Paris', createdAt: new Date().toISOString(),
+      });
+    }
+    for (const [ancien, nouveau] of CORBEILLES_REMPLACEES) {
+      const x = await store.get('produits/' + ancien);
+      if (x && x.statut !== 'masque') await store.set('produits/' + ancien, { ...x, statut: 'masque', fusionneDans: nouveau });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), corbeillesPartenaire: true });
+  }
+
   /* vraies photos à la place des photos qui font « IA » (Jean-Luc, 2026-11-22) : posées une fois par fiche et par version,
      modifiables ensuite dans le back-office. Sources dans data/credits-photos-univers.md. */
   for (const [slug, ver, photos] of VRAIES_PHOTOS) {
@@ -906,6 +951,28 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('site/reglages', { ...(await store.get('site/reglages')), buffetsPortions: true });
   }
 
+  /* Animations sucrées & desserts en sections (Jean-Luc, 2026-11-24) : Nos animations, Nos corbeilles de fruits, Nos pièces montées,
+     Nos desserts, En location. Une fois ; chaque fiche reste modifiable (liste « Section » de la fiche). */
+  const RDs = await store.get('site/reglages');
+  if (RDs && !RDs.douceursSections) {
+    const ds = await store.get('rubriques/douceurs');
+    if (ds) await store.set('rubriques/douceurs', { ...ds, parSections: true, ordreSections: ['animations', 'corbeilles', 'pieces-montees', 'desserts', 'divers', 'location'], titresSections: { animations: 'Nos animations', corbeilles: 'Nos corbeilles de fruits', 'pieces-montees': 'Nos pièces montées', desserts: 'Nos desserts', location: 'En location', divers: 'Et aussi', ...(ds.titresSections || {}) } });
+    const sans = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const ORDRE_CORB = ['corbeille-de-fruits-de-saison-3-kg', 'corbeille-de-fruits-de-saison-5-kg', 'corbeille-de-fruits-de-saison-7-kg', 'corbeille-de-fruits-de-saison-9-kg-2',
+      'corbeille-special-fete-3-kg', 'corbeille-special-fete-5-kg', 'corbeille-special-fete-7-kg',
+      'corbeille-exotique-3-kg', 'corbeille-exotique-5-kg', 'corbeille-exotique-7-kg', 'corbeille-exotique-9-kg', 'corbeille-de-fruits-frais-a-composer'];
+    for (const { id, data: p } of await store.list('produits')) {
+      if (p.rubrique !== 'douceurs' && !(p.autresRubriques || []).includes('douceurs')) continue;
+      const t = sans(p.titre);
+      const k = /location|candy bar|bar a bonbons/.test(t) ? 'location' : /corbeille/.test(t) ? 'corbeilles'
+        : /piece montee|croquembouche|pyramide/.test(t) ? 'pieces-montees'
+        : /animation|stand|crepes|churros|brioche|gaufre|barbe a papa|pop-?corn|fontaine/.test(t) ? 'animations' : 'desserts';
+      const o = ORDRE_CORB.indexOf(p.slug || id);
+      await store.set('produits/' + id, { ...p, rangement: k, ...(o >= 0 ? { ordre: 71 + o * 0.1 } : {}) });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), douceursSections: true });
+  }
+
   /* La carte Magnolia en sections : Entrées, Plats, Plateau de fromages, Desserts (Jean-Luc, 2026-11-22).
      Pas d'accompagnements : les plats sont déjà accompagnés. Une fois ; chaque fiche reste modifiable (liste « Section »). */
   const RCm = await store.get('site/reglages');
@@ -947,6 +1014,15 @@ async function initSousRubriques(store, { log = console } = {}) {
     const cm = await store.get('rubriques/carte-magnolia'), ancienne = /carpaccio-de-tomates/;
     if (cm && (!cm.photoAccueil || ancienne.test(cm.photoAccueil))) await store.set('rubriques/carte-magnolia', { ...cm, photoAccueil: '/site/c/carte-magnolia-photos/souris-dagneau-confite.webp.webp' });
     await store.set('site/reglages', { ...(await store.get('site/reglages')), carteVignette2: true });
+  }
+
+  /* Vignette « La carte Magnolia » (Jean-Luc, 2026-11-24) : table ronde dressée pour un mariage (Pexels 2306282, retouchée :
+     carton imprimé et logos des tasses effacés), sur laquelle le menu animé s'ouvre. Une fois, seulement si la photo n'a pas été changée. */
+  const RCm4 = await store.get('site/reglages');
+  if (RCm4 && !RCm4.carteVignette3) {
+    const cm = await store.get('rubriques/carte-magnolia'), ancienne = /souris-dagneau-confite|carpaccio-de-tomates/;
+    if (cm && (!cm.photoAccueil || ancienne.test(cm.photoAccueil))) await store.set('rubriques/carte-magnolia', { ...cm, photoAccueil: '/site/c/accueil/table-ronde-mariage.webp' });
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), carteVignette3: true });
   }
 
   /* Ordre des vignettes d'univers de l'accueil (Jean-Luc, 2026-11-23) : la nourriture d'abord, « Traiteur végétarien et vegan »
@@ -1437,6 +1513,80 @@ const VRAIES_PHOTOS = [
     ['/site/c/italien22-produits/gressins-sans-logo-20261106.webp.webp', 'Gressins'], ['/site/c/italien22-produits/olives-sans-logo-20261106.webp.webp', 'Olives noires']]],
   ['samoussa-legumes', 'v1', [['https://images.pexels.com/photos/9027521/pexels-photo-9027521.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Samoussas aux légumes croustillants, chutneys vert et tamarin']]],
   ['samoussas-legumes', 'v1', [['/site/c/materiel/samoussas-legumes.webp', 'Samoussas aux légumes dorés dans une corbeille, sauces à côté']]],
+];
+/* Animations sucrées & desserts : photos qui correspondent au produit (Jean-Luc, 2026-11-24), regardées une à une. */
+const DOUCEURS_ANCIENNES = [/\/video-fruits-oct24\./, /\/cocktail7-photos\/assortiment-sucre\./, /\/pages-digital\//, /pexels-photo-36784776\./, /\/africain-boutique\/corbeille-/];
+const PX = id => `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&w=1600`;
+const D = n => '/site/c/douceurs/' + n + '.webp';
+const PHOTOS_DOUCEURS = [
+  /* animations */
+  ['animation-barbe-a-papa-a-volonte', [[PX(30808951), 'Barbe à papa rose qui se forme dans la machine']]],
+  ['animation-pop-corn', [[PX(3537844), 'Grand bol de pop-corn tout chaud']]],
+  ['candy-bar-a-la-location', [[PX(17594022), 'Candy bar : bocaux de bonbons, pinces et sachets sur une table']]],
+  ['mini-bar-a-bonbons-sur-presentoir', [[PX(17594024), 'Bocal de bonbons colorés sur présentoir']]],
+  ['stand-de-sorbet-coco-a-l-ancienne-avec-hotesse', [['/site/c/sorbet-sans-logo-20261101.webp.webp', 'Hôtesse qui sert le sorbet coco à la sorbetière à l’ancienne']]],
+  ['stand-de-sorbet-coco-sans-hotesse', [[PX(28735376), 'Sorbet coco servi dans la noix de coco']]],
+  ['sorbetiere-a-l-ancienne-location-seule', [['/site/c/antilles-site/sorbet-coco-antillais-fait-maison-1-20261101.webp.webp', 'Sorbetière à l’ancienne en bois et à manivelle, coupes de sorbet coco']]],
+  /* corbeilles de fruits : de saison (paniers classiques), spécial fête (compositions décorées), exotiques */
+  ['corbeille-de-fruits-frais-a-composer', [['/site/c/africain-produits/pyramide-de-fruits-frais.webp.webp', 'Pyramide de fruits frais composée à la demande']]],
+  ['corbeille-de-fruits-de-saison-3-kg', [[PX(235294), 'Corbeille en osier : raisin, bananes, pêches et pommes']]],
+  ['corbeille-de-fruits-de-saison-5-kg', [[PX(15626438), 'Corbeille d’oranges, bananes et mandarines']]],
+  ['corbeille-de-fruits-de-saison-7-kg', [[PX(6707512), 'Panier garni de fruits de saison sur nappe vichy']]],
+  ['corbeille-de-fruits-de-saison-9-kg-2', [[PX(6707511), 'Grand panier de fruits de saison']]],
+  ['corbeille-special-fete-3-kg', [[PX(1171170), 'Plateau de fête : fruit du dragon, fraises, myrtilles et agrumes']]],
+  ['corbeille-special-fete-5-kg', [[PX(1132047), 'Composition de fête : ananas, agrumes, fruits rouges et kiwis']]],
+  ['corbeille-special-fete-7-kg', [[PX(27583257), 'Grand plateau de fête : ananas, oranges, pommes et raisin']]],
+  ['corbeille-exotique-3-kg', [[PX(21998617), 'Paniers de fruits exotiques']]],
+  ['corbeille-exotique-5-kg', [[PX(1300975), 'Ananas, mangues, papayes et bananes']]],
+  ['corbeille-exotique-5-kg-2', [[PX(1300975), 'Ananas, mangues, papayes et bananes']]],
+  ['corbeille-exotique-7-kg', [[PX(6146103), 'Ananas dans une corbeille']]],
+  ['corbeille-exotique-7-kg-2', [[PX(6146103), 'Ananas dans une corbeille']]],
+  ['corbeille-exotique-9-kg', [[PX(37223904), 'Fruits de la passion, mangue, kiwis, raisin et fruits rouges']]],
+  ['corbeille-exotique-9-kg-2', [[PX(37223904), 'Fruits de la passion, mangue, kiwis, raisin et fruits rouges']]],
+  /* macarons et gâteaux */
+  ['macarons-36-pieces', [[PX(1346345), 'Boîtes de macarons assortis']]],
+  ['macarons-72-pieces', [[PX(239578), 'Macarons de toutes les couleurs']]],
+  ['fraisier-32-parts', [[D('fraisier'), 'Part de fraisier : génoise, crème et fraises']]],
+  ['framboisine-32-parts', [[D('framboisine-2'), 'Framboisine nappée de framboises']]],
+  ['tarte-duo-chocolat-10-parts', [[D('tarte-chocolat-2'), 'Tarte au chocolat sur sablé']]],
+  ['craqueline-16-parts', [[D('craqueline-2'), 'Craqueline au chocolat et praliné croustillant']]],
+  ['croquant-caramel-16-parts', [[D('croquant-caramel-2'), 'Croquant caramel et éclats de nougatine']]],
+  ['gateau-chocolat-32-parts', [[D('gateau-chocolat'), 'Gâteau au chocolat, génoise cacao et crème chocolatée']]],
+  /* pièces montées */
+  ['piece-montee-romantica', [[D('piece-montee-romantica'), 'Pièce montée Romantica, étages décorés de roses']]],
+  ['piece-montee-bella-rosa', [[D('piece-montee-bella-rosa'), 'Pièce montée Bella Rosa'], [D('piece-montee-bella-rosa-detail'), 'Pièce montée Bella Rosa, détail des fleurs']]],
+  ['piece-montee-elegance', [[D('piece-montee-elegance'), 'Pièce montée Élégance, cinq étages fleuris']]],
+  ['croquembouche-50-parts-200-choux', [[D('croquembouche'), 'Croquembouche de choux caramélisés']]],
+  ['pyramide-de-macarons', [[D('pyramide-macarons'), 'Pyramide de macarons multicolores']]],
+];
+/* Corbeilles du partenaire Corbeilles Paris (corbeillesparis.fr/categorie-produit/corbeilles-fruits-frais/, relevé le 2026-11-24).
+   prix = [kg, prix TTC du partenaire en €] ; prix de vente = + 30 %. Photos copiées dans public/site/c/corbeilles/ à la demande de Jean-Luc. */
+const TXT_CORB = ['Nous confectionnons avec soin les corbeilles qui accompagneront vos festivités, pour vous offrir un véritable moment de partage.',
+  'Faites plaisir en offrant cette délicieuse corbeille garnie de succulents fruits frais et de jolies fleurs ! Vous commandez, et nous nous occupons de la surprise.',
+  'Vous pouvez aussi y insérer un message personnalisé : indiquez-le dans vos souhaits.'];
+const CORBEILLES_PARTENAIRE = [
+  { slug: 'corbeille-love', titre: 'Corbeille Love', prix: [[3, 60], [5, 80], [7, 100], [9, 120]], extrait: 'Fruits frais, fruits rouges et roses fraîches. Contenance 3, 5, 7 ou 9 kg.',
+    description: [...TXT_CORB, 'La Corbeille Love est agrémentée de roses fraîches.', 'Les fruits peuvent varier selon la saison.'], photos: [['love-1', 'Corbeille Love : fraises, cerises, litchis, ananas et roses rouges']] },
+  { slug: 'corbeille-prestige', titre: 'Corbeille Prestige', prix: [[3, 60], [5, 80], [7, 100], [9, 120]], extrait: 'Fruits frais et fruits rouges, figues, myrtilles, gypsophile. Contenance 3, 5, 7 ou 9 kg.',
+    description: [...TXT_CORB, 'Les fruits peuvent varier selon la saison.'], photos: [['prestige-1', 'Corbeille Prestige : ananas, mangue, fraises, framboises, figues et myrtilles'], ['prestige-2', 'Corbeille Prestige, vue de face'], ['prestige-3', 'Corbeille Prestige et ses fruits']] },
+  { slug: 'corbeille-gourmande', titre: 'Corbeille Gourmande', prix: [[3, 60], [5, 80], [7, 100], [9, 130]], extrait: 'Fruits frais et fruits secs enrobés de chocolat. Contenance 3, 5, 7 ou 9 kg.',
+    description: ['Nous confectionnons avec soin les corbeilles qui accompagneront vos festivités, pour vous offrir un véritable moment de partage.', 'Faites plaisir en offrant cette délicieuse corbeille garnie de succulents fruits frais et de fruits secs enrobés de chocolat ! Vous commandez, et nous nous occupons de la surprise.', TXT_CORB[2], 'Les fruits peuvent varier selon la saison.'], photos: [['gourmande-1', 'Corbeille Gourmande : fruits frais et chocolats']] },
+  { slug: 'corbeille-fruits-de-saison', titre: 'Corbeille de fruits de saison', prix: [[5, 60], [7, 80], [9, 100], [11, 120]], extrait: 'Bananes, ananas, agrumes, raisin, pommes et kiwis. Contenance 5, 7, 9 ou 11 kg.',
+    description: [...TXT_CORB, 'Les fruits peuvent varier selon la saison.'], photos: [['saison-1', 'Corbeille de fruits de saison : bananes, ananas, oranges, raisin et kiwis'], ['saison-2', 'Corbeille de fruits de saison et ses fruits']] },
+  { slug: 'corbeille-exotique', titre: 'Corbeille exotique', prix: [[3, 60], [5, 80], [7, 100], [9, 120]], extrait: 'Ananas, mangue, grenade, litchis, raisin et kumquats. Contenance 3, 5, 7 ou 9 kg.',
+    rubrique: 'saveurs-du-monde', sous: 'buffet-africain', autresSous: ['buffet-antillais'], autresRubriques: ['douceurs'],
+    description: [...TXT_CORB, 'Les fruits peuvent varier selon la saison.'], photos: [['exotique-1', 'Corbeille exotique : ananas, mangue, grenade, litchis et raisin'], ['exotique-2', 'Corbeille exotique et ses fruits']] },
+  { slug: 'plateau-de-fruits-secs', titre: 'Plateau de fruits secs', prix: [[1.2, 35]], unite: 'plateau', extrait: 'Abricots, figues et pruneaux d’Agen. Poids net 1,2 kg.',
+    description: ['Composition artisanale de fruits secs extra : abricots tendres, figues et pruneaux d’Agen.', 'Abricots entiers (France), figues (Turquie), pruneaux d’Agen. Poids net : 1 200 g.'], photos: [['fruits-secs-1', 'Plateau de fruits secs : figues, abricots et pruneaux'], ['fruits-secs-2', 'Plateau de fruits secs sous cloche']] },
+];
+/* anciennes corbeilles → nouvelle fiche (l'ancienne adresse y renvoie) */
+const CORBEILLES_REMPLACEES = [
+  ['corbeille-de-fruits-de-saison-3-kg', 'corbeille-fruits-de-saison'], ['corbeille-de-fruits-de-saison-5-kg', 'corbeille-fruits-de-saison'],
+  ['corbeille-de-fruits-de-saison-7-kg', 'corbeille-fruits-de-saison'], ['corbeille-de-fruits-de-saison-9-kg-2', 'corbeille-fruits-de-saison'],
+  ['corbeille-de-fruits-de-saison-9-kg', 'corbeille-fruits-de-saison'], ['corbeille-de-fruits-frais-a-composer', 'corbeille-prestige'],
+  ['corbeille-special-fete-3-kg', 'corbeille-prestige'], ['corbeille-special-fete-5-kg', 'corbeille-prestige'], ['corbeille-special-fete-7-kg', 'corbeille-prestige'],
+  ['corbeille-exotique-3-kg', 'corbeille-exotique'], ['corbeille-exotique-3-kg-africain', 'corbeille-exotique'], ['corbeille-exotique-5-kg', 'corbeille-exotique'],
+  ['corbeille-exotique-7-kg', 'corbeille-exotique'], ['corbeille-exotique-9-kg', 'corbeille-exotique'],
 ];
 /* Boissons sans photo (Jean-Luc, 2026-11-24) : vraies photos libres, regardées une à une, sans étiquette lisible.
    Posées une fois, seulement si la fiche n'a toujours pas de photo. Sources dans data/credits-photos-univers.md */

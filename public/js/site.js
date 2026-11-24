@@ -199,6 +199,48 @@
     else if (lien) { location.replace(lien.getAttribute('href')); }
     else
     if (location.hash && location.pathname === '/boutique') $(`[data-filter="${CSS.escape(location.hash.slice(1))}"]`, shop)?.click();
+    /* Démonstration des filtres (Jean-Luc, 2026-11-24) : tant que le visiteur n'a rien touché, les boutons
+       s'allument doucement l'un après l'autre et les produits changent en fondu, en boucle. Au premier geste
+       (clic, toucher, molette, clavier, recherche, tri, défilement vers les produits) la démo s'arrête pour de bon. */
+    const row = $('.chips[role="tablist"]', shop), grid = $('[data-grid]', shop);
+    if (row && grid && location.pathname === '/boutique' && !location.hash && !new URLSearchParams(location.search).get('q')
+      && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      const chips = $$('.chip', row);
+      const slug = a => a.hasAttribute('data-filter') ? a.dataset.filter : (a.getAttribute('href') || '').slice(1);
+      const GESTES = ['pointerdown', 'touchstart', 'wheel', 'keydown', 'focusin'];
+      const PAS = 3500, FONDU = 380;
+      let k = 0, timer = null, vu = false, fini = false;
+      const montre = a => {
+        chips.forEach(x => x.classList.toggle('on', x === a));
+        /* la rangée défile seule (jamais la page) pour garder le bouton allumé au centre */
+        const g = a.offsetLeft - row.offsetLeft - (row.clientWidth - a.offsetWidth) / 2;
+        row.scrollTo({ left: Math.max(0, g), behavior: 'smooth' });
+        /* la grille ne raccourcit jamais au-dessus du bas de l'écran : rien ne saute */
+        const bas = innerHeight - grid.getBoundingClientRect().top;
+        grid.style.minHeight = bas > 0 ? Math.ceil(bas) + 'px' : '';
+        grid.classList.add('demo-fondu');
+        setTimeout(() => { if (fini) return; shop._f = slug(a); apply(); grid.classList.remove('demo-fondu'); }, FONDU);
+      };
+      const suivant = () => { if (fini) return; k = (k + 1) % chips.length; montre(chips[k]); };
+      const marche = () => { if (!fini && vu && !document.hidden && !timer) timer = setInterval(suivant, PAS); };
+      const pause = () => { clearInterval(timer); timer = null; };
+      const auDefil = () => { if (row.getBoundingClientRect().bottom < 0) stop(); };
+      const io = new IntersectionObserver(es => { vu = es[0].isIntersecting; if (vu) marche(); else pause(); });
+      function stop() {
+        if (fini) return;
+        fini = true; pause(); io.disconnect();
+        grid.classList.remove('demo-fondu');
+        GESTES.forEach(t => shop.removeEventListener(t, stop, true));
+        window.removeEventListener('scroll', auDefil);
+      }
+      /* premier geste du visiteur : la démo s'arrête avant le filtrage normal, son choix reste */
+      GESTES.forEach(t => shop.addEventListener(t, stop, { capture: true, passive: true }));
+      row.addEventListener('click', () => { grid.style.minHeight = ''; }, true);
+      /* le visiteur descend dans les produits : il regarde, on n'y touche plus */
+      window.addEventListener('scroll', auDefil, { passive: true });
+      io.observe(row);
+      document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); else marche(); });
+    }
     const qi = $('[data-shop-q]', shop);
     if (qi && location.pathname !== '/boutique') qi.form.addEventListener('submit', e => { e.preventDefault(); apply(); });
     qi?.addEventListener('input', () => { if (!new URLSearchParams(location.search).get('q')) apply(); });
@@ -245,9 +287,9 @@
     for (const g of P.groupes || []) {
       const opts = g.options || [];
       const max = g.max || opts.length;
-      html += `<fieldset class="conf-g" data-g="${esc(g.id)}"${(g.variantes || []).length && (P.variantes || []).length ? ` data-var="${esc(JSON.stringify(g.variantes))}"` : ''} data-max="${max}" data-exact="${g.exact ? 1 : 0}"><legend>${esc(g.titre || 'Vos choix')} <small>${g.mode === 'quantites' ? `${g.minParVariete || 1} portions minimum par ${esc(g.singulier || 'choix')}` : g.exact ? `${max} au choix` : max < opts.length ? `jusqu’à ${max} au choix` : 'au choix'}${g.facultatif ? ' · facultatif' : ''}</small></legend>
+      html += `<fieldset class="conf-g" data-g="${esc(g.id)}"${(g.variantes || []).length && (P.variantes || []).length ? ` data-var="${esc(JSON.stringify(g.variantes))}"` : ''} data-max="${max}" data-exact="${g.exact ? 1 : 0}"><legend>${esc(g.titre || 'Vos choix')} <small>${g.radio ? '' : g.mode === 'quantites' ? `${g.minParVariete || 1} portions minimum par ${esc(g.singulier || 'choix')}` : g.exact ? `${max} au choix` : max < opts.length ? `jusqu’à ${max} au choix` : 'au choix'}${g.facultatif ? ' · facultatif' : ''}</small></legend>
         ${g.aide ? `<p class="small">${esc(g.aide)}</p>` : ''}
-        ${g.mode === 'quantites' ? `<p class="gstat" data-gstat aria-live="polite"></p><div class="opts-q">${opts.map(o => `<div class="optq" data-optq>${o.photos?.[0] ? `<img src="${esc(o.photos[0])}" alt="" loading="lazy">` : ''}<span>${esc(o.label)}${o.supCents ? `<small>+ ${euros(o.supCents)} / portion</small>` : ''}<small class="optq-why" data-why></small></span><span class="optq-c"><button type="button" data-om="-1" aria-label="Moins : ${esc(o.label)}">−</button><input type="number" min="0" step="1" inputmode="numeric" value="0" data-oq="${esc(o.id)}" data-lab="${esc(o.label)}" data-sup="${o.supCents || 0}" aria-label="Portions : ${esc(o.label)}"><button type="button" data-om="1" aria-label="Plus : ${esc(o.label)}">+</button></span></div>`).join('')}</div>` : `<div class="opts">${opts.map(o => `<label class="opt"><input type="checkbox" value="${esc(o.id)}" data-sup="${o.supCents || 0}">${o.photos?.[0] ? `<img src="${esc(o.photos[0])}" alt="" loading="lazy">` : ''}<span>${esc(o.label)}${o.supCents ? `<small>+ ${euros(o.supCents)}</small>` : ''}${o.supDevis ? '<small>sur devis</small>' : ''}</span></label>`).join('')}</div>`}</fieldset>`;
+        ${g.mode === 'quantites' ? `<p class="gstat" data-gstat aria-live="polite"></p><div class="opts-q">${opts.map(o => `<div class="optq" data-optq>${o.photos?.[0] ? `<img src="${esc(o.photos[0])}" alt="" loading="lazy">` : ''}<span>${esc(o.label)}${o.supCents ? `<small>+ ${euros(o.supCents)} / portion</small>` : ''}<small class="optq-why" data-why></small></span><span class="optq-c"><button type="button" data-om="-1" aria-label="Moins : ${esc(o.label)}">−</button><input type="number" min="0" step="1" inputmode="numeric" value="0" data-oq="${esc(o.id)}" data-lab="${esc(o.label)}" data-sup="${o.supCents || 0}" aria-label="Portions : ${esc(o.label)}"><button type="button" data-om="1" aria-label="Plus : ${esc(o.label)}">+</button></span></div>`).join('')}</div>` : g.radio ? `<div class="opts-r">${opts.map((o, k) => `<label class="opt-r"><input type="radio" name="r_${esc(g.id)}" value="${esc(o.id)}" data-sup="${o.supCents || 0}"${k === 0 ? ' checked' : ''}><span>${esc(o.label)}</span></label>`).join('')}</div>` : `<div class="opts">${opts.map(o => `<label class="opt"><input type="checkbox" value="${esc(o.id)}" data-sup="${o.supCents || 0}">${o.photos?.[0] ? `<img src="${esc(o.photos[0])}" alt="" loading="lazy">` : ''}<span>${esc(o.label)}${o.supCents ? `<small>+ ${euros(o.supCents)}</small>` : ''}${o.supDevis ? '<small>sur devis</small>' : ''}</span></label>`).join('')}</div>`}</fieldset>`;
     }
     if (R.personnel && T.personnel) html += `<details class="conf-x"><summary>Personnel de service <small>facultatif · ${euros(T.personnel.heureCents)} TTC / heure</small></summary><p class="small">${T.personnel.minHeures} heures minimum par personne. Le personnel s’ajoute sur une ligne à part.</p><div class="f2"><label>Personnes<select name="pers_nb"><option value="0">Aucune</option>${[1, 2, 3, 4, 5, 6, 8, 10].map(n => `<option>${n}</option>`).join('')}</select></label><label>Heures<select name="pers_h">${[4, 5, 6, 7, 8, 9, 10, 12].map(n => `<option>${n}</option>`).join('')}</select></label></div></details>`;
     if (R.packs && (T.packs || []).length) html += `<details class="conf-x"><summary>Pack traiteur <small>facultatif · vaisselle, nappage</small></summary>${T.packs.map(pk => `<label class="radio"><input type="radio" name="pack" value="${esc(pk.id)}"><span><b>${esc(pk.label)}</b> · ${euros(pk.prixCents)} TTC / pers.<small>${esc(pk.detail)}</small></span></label>`).join('')}<label class="radio"><input type="radio" name="pack" value="" checked><span>Pas de pack</span></label></details>`;
@@ -318,6 +360,7 @@
       const u = $('[data-unit]', form); if (u) u.textContent = plur(P.unite || '', r.qte);
       $$('[data-g]', form).forEach(fs => {
         if ($('[data-oq]', fs)) return portions(fs, r.qte);
+        if ($('input[type=radio]', fs)) { $$('input', fs).forEach(i => i.parentElement.classList.toggle('on', i.checked)); return; }
         const max = +fs.dataset.max, n = $$('input:checked', fs).length;
         $$('input', fs).forEach(i => { i.disabled = !i.checked && n >= max; i.parentElement.classList.toggle('on', i.checked); });
       });
@@ -620,4 +663,11 @@ document.querySelector('.lsearch')?.addEventListener('submit', e => {
   addEventListener('resize', ajuste); addEventListener('load', ajuste);
   document.fonts?.ready.then(ajuste);
   if (window.ResizeObserver && info) new ResizeObserver(ajuste).observe(info);
+})();
+
+/* Accueil : le menu animé de la vignette « La carte Magnolia » ne tourne que lorsqu'il est à l'écran (économie de batterie sur iPhone) */
+(function () {
+  const t = document.querySelector('.tile .cm-scene')?.closest('.tile');
+  if (!t || !('IntersectionObserver' in window)) return;
+  new IntersectionObserver(([e]) => t.classList.toggle('cm-pause', !e.isIntersecting), { threshold: 0 }).observe(t);
 })();

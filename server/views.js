@@ -159,15 +159,23 @@ function universListe(c) {
     : [{ slug: r.slug, nom: r.nom, href: rubHref(r), photo: r.photoAccueil || r.photo, prods: c.byRub.get(r.slug) || [] }]);
   return l.some(u => u.slug === 'lieux') ? l : [...l, lieux];
 }
+/* Vignette « La carte Magnolia » : sur une table ronde de mariage, un menu en carton se relève, s'ouvre sur
+   « Entrée · Plat · Dessert », se referme et se repose, en boucle (Jean-Luc, 2026-11-24). Dessiné en HTML/CSS (pas d'image),
+   animé en CSS (public/css/site.css, bloc « cm- »), mis en pause hors de l'écran (public/js/site.js), fixe et ouvert si animations réduites. */
+const FLEUR_MENU = '<svg viewBox="0 0 40 40" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"><path d="M20 30c-3-5-3-12 0-19 3 7 3 14 0 19z"/><path d="M20 30c-6-2-10-7-11-14 6 2 10 7 11 14z"/><path d="M20 30c6-2 10-7 11-14-6 2-10 7-11 14z"/><path d="M20 30c-5 1-10-1-13-5 5-1 10 1 13 5z"/><path d="M20 30c5 1 10-1 13-5-5-1-10 1-13 5z"/><path d="M20 30v5"/></g></svg>';
+const MENU_TABLE = `<span class="cm-scene" aria-hidden="true"><span class="cm-ombre"></span><span class="cm-livre">
+<span class="cm-page cm-dedans"><span class="cm-cadre"><i class="cm-l">Entrée</i><i class="cm-sep"></i><i class="cm-l">Plat</i><i class="cm-sep"></i><i class="cm-l">Dessert</i></span></span>
+<span class="cm-couv"><span class="cm-page cm-avant"><span class="cm-cadre">${FLEUR_MENU}<b>Menu</b><small>Magnolia</small></span></span><span class="cm-page cm-arriere"><span class="cm-cadre"><small>Le repas</small><b>servi à table</b>${FLEUR_MENU}</span></span></span>
+</span></span>`;
 function univers(c) {
   /* la vignette Lieux prend la place de la rubrique « lieux » (ordre du back-office) */
   const lieux = `<a class="tile" href="/lieux">${img(c.lieux[0]?.photos?.[0], '')}<span class="tile-t"><b>Lieux de réception</b><small>${c.lieux.filter(l => l.statut !== 'masque').length} lieux à privatiser</small></span></a>`;
   const rubs = c.rubriques.filter(r => r.statut !== 'masque');
   /* Saveurs du monde : seule vignette animée, un petit globe qui tourne sur fond de verdure (Jean-Luc, 2026-11-24) */
-  const globe = r => { const ids = [...new Set(sousVisibles(r).flatMap(x => lieuDe(x)?.[2] || []).concat(['250']))];
+  const globe = r => { const ids = sousVisibles(r).map(x => (lieuDe(x)?.[2] || []).map(String)).filter(g => g.length).concat([['250']]); // un groupe de pays par spécialité (France en dernier)
     return `<a class="tile vg" href="${rubHref(r)}" data-vg='${esc(JSON.stringify(ids))}'>${img('/site/c/paysages/antilles.webp', '')}<canvas aria-hidden="true"></canvas><span class="tile-t"><b>${esc(r.nom)}</b><small>${esc(r.accroche || 'Dix traiteurs, une seule maison')}</small></span></a>`; };
   return rubs.map(r => r.slug === 'lieux' ? lieux : r.slug === 'saveurs-du-monde' ? globe(r) : `<a class="tile" href="${rubHref(r)}">
-    ${img(r.photoAccueil || r.photo, '')}<span class="tile-t"><b>${esc(r.nom)}</b>${r.accroche ? `<small>${esc(r.accroche)}</small>` : `<small>${c.byRub.get(r.slug)?.length || 0} prestations</small>`}</span></a>`).join('')
+    ${img(r.photoAccueil || r.photo, '')}${r.slug === 'carte-magnolia' ? MENU_TABLE : ''}<span class="tile-t"><b>${esc(r.nom)}</b>${r.accroche ? `<small>${esc(r.accroche)}</small>` : `<small>${c.byRub.get(r.slug)?.length || 0} prestations</small>`}</span></a>`).join('')
     + (rubs.some(r => r.slug === 'lieux') ? '' : lieux);
 }
 
@@ -427,7 +435,10 @@ function crumbs(list) {
 function sectionsRub(r, liste) {
   if (!r || !r.parSections) return null;
   const L = (liste || []).slice().sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
-  return RANGEMENTS.map(([k, t]) => [k, (r.titresSections || {})[k] || t, L.filter(p => rangementDe(p) === k)]).filter(b => b[2].length);
+  /* ordre des sections propre à la rubrique (Animations sucrées : animations, corbeilles, pièces montées, desserts, location) */
+  const ordre = (r.ordreSections || []).filter(k => RANGEMENTS.some(([x]) => x === k));
+  const R = [...ordre.map(k => RANGEMENTS.find(([x]) => x === k)), ...RANGEMENTS.filter(([x]) => !ordre.includes(x))];
+  return R.map(([k, t]) => [k, (r.titresSections || {})[k] || t, L.filter(p => rangementDe(p) === k)]).filter(b => b[2].length);
 }
 function boutique(c, { q = '', rub = '', titre, chapo, photo, path = '/boutique', liste = null, fil = null, chips = '', hero = '', seo = null, intro = null, sections = null, avant = '', scripts = '' }) {
   const rubs = c.rubriques.filter(r => r.statut !== 'masque' && r.slug !== 'lieux');
@@ -504,6 +515,10 @@ function produit(c, p) {
   const photos = p.photos || [];
   const proches = (c.byRub.get(p.rubrique) || []).filter(x => x.slug !== p.slug).slice(0, 8);
   const prixTxt = p.prixCents == null ? 'Sur devis' : euros(p.prixCents);
+  /* prix selon la contenance (corbeilles) : fourchette « 78,00 € – 156,00 € » */
+  const gR = (p.groupes || []).find(g => g.radio && (g.options || []).length > 1);
+  const prixMax = gR && p.prixCents != null ? p.prixCents + Math.max(...gR.options.map(o => o.supCents || 0)) : null;
+  const prixHaut = prixMax ? `${euros(p.prixCents)} – ${euros(prixMax)}` : prixTxt;
   const media = `
   <div class="gal" data-gal>
     <div class="gal-main">${p.video ? `<video src="${esc(p.video.src)}" poster="${esc(p.video.poster || '')}" muted loop playsinline autoplay preload="metadata" data-gal-item></video>` : ''}
@@ -522,7 +537,7 @@ function produit(c, p) {
     <div class="fiche-info">
       <p class="eyebrow"><a href="/${esc(r.slug)}">${esc(r.nom)}</a></p>
       <h1>${esc(p.titre)}</h1>
-      <p class="fiche-prix"><b>${esc(prixTxt)}</b>${p.prixCents != null ? ` <span>TTC${p.unite ? ' par ' + esc(p.unite) : ''}${p.contenuPortion ? ` <strong class="portion">(${esc(p.contenuPortion)})</strong>` : ''}</span>` : ''}${p.min > 1 ? `<span class="min">· dès ${p.min} ${esc(p.unite || '')}${p.min > 1 && p.unite && !/s$/.test(p.unite) ? 's' : ''}</span>` : ''}</p>
+      <p class="fiche-prix"><b>${esc(prixHaut)}</b>${p.prixCents != null ? ` <span>TTC${p.unite ? ' par ' + esc(p.unite) : ''}${p.contenuPortion ? ` <strong class="portion">(${esc(p.contenuPortion)})</strong>` : ''}</span>` : ''}${p.min > 1 ? `<span class="min">· dès ${p.min} ${esc(p.unite || '')}${p.min > 1 && p.unite && !/s$/.test(p.unite) ? 's' : ''}</span>` : ''}</p>
       ${(p.description || [p.extrait]).filter(Boolean).map(t => `<p class="desc">${esc(t)}</p>`).join('')}
       <form class="conf" data-conf='${esc(JSON.stringify(conf))}' novalidate>
         <div data-conf-body></div>
