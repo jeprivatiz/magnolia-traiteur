@@ -836,6 +836,24 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('produits/' + slug, { ...x, photos: [{ src, alt }, ...(x.photos || []).filter(ph => ph.src !== src)], photoBuffet: src });
   }
 
+  /* Buffet antillais (Jean-Luc, 2026-11-24) : la vidéo des 3 serveurs (antillais-boucle) s'affichait sur les formules et sur des pièces à l'unité.
+     Retirée de toutes les fiches : chaque fiche montre ses propres photos (la vidéo reste sur l'accueil et le bandeau de la page).
+     Les 3 formules reçoivent une galerie choisie d'après leur contenu. Boudin à la crevette : photo de son site magnoliatraiteur.fr. Une fois. */
+  const RAnt = await store.get('site/reglages');
+  if (RAnt && !RAnt.antillaisSansVideo1) {
+    for (const { id, data: x } of (await store.list('produits')) || []) {
+      if (x?.video?.src !== '/site/v/antillais-boucle.mp4') continue;
+      const { video, ...reste } = x;
+      const galerie = GALERIES_ANTILLAIS[id];
+      await store.set('produits/' + id, { ...reste, ...(galerie ? { photos: galerie.map(([src, alt]) => ({ src, alt })), photoBuffet: galerie[0][0] } : {}), sansVideo: true });
+    }
+    const bc = await store.get('produits/boudin-a-la-crevette');
+    if (bc && !(bc.photos || []).some(ph => ph.src && !/photo-a-venir/.test(ph.src))) {
+      await store.set('produits/boudin-a-la-crevette', { ...bc, photos: [{ src: '/site/c/antilles-unit/boudin-a-la-crevette.webp', alt: 'Boudins à la crevette' }] });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), antillaisSansVideo1: true });
+  }
+
   /* plateaux de sushis : compositions, prix et photos du site actuel magnoliatraiteur.fr/plateaux-de-sushis (Jean-Luc, 2026-11-22).
      Une fois. Le plateau 80 pièces n'existe plus et le « Plateau de 75 sushis » des coffrets faisait doublon : masqués, leur adresse renvoie au grand plateau. */
   const RSu = await store.get('site/reglages');
@@ -1567,11 +1585,38 @@ const CARTE_CHINOISE = [
   ['accompagnements', 'Riz gluant à la vapeur', 280, null, '/site/c/chinois-carte/riz-gluant-a-la-vapeur.webp', []],
   ['accompagnements', 'Riz sauté thaï (crevettes, ananas et œuf)', 600, null, '/site/c/chinois-carte/riz-saute-thai-crevettes-ananas-et-oeuf.webp', []],
 ];
+/* Galeries des formules du Buffet antillais (Jean-Luc, 2026-11-24) : d'abord la photo de buffet, puis ce que contient la formule. */
+const GALERIES_ANTILLAIS = {
+  'buffet-antillais-entrees-seules': [
+    ['/site/c/antilles-unit/produit-19.webp.webp', 'Plateau de buffet : accras, boudins créoles et samoussas'],
+    ['/site/c/antilles-unit/produit-5.webp.webp', 'Assiette d’entrées : accras, boudin créole et samoussas'],
+    ['/site/c/antilles-menus/accras-client-20261101.webp.webp', 'Accras de morue'],
+    ['/site/c/antilles-site/boudin-antillais-40g-1-20261101.webp.webp', 'Boudins créoles'],
+    ['/site/c/antilles-menus/samoussas.webp.webp', 'Samoussas'],
+  ],
+  'buffet-antillais-entree-et-plat-ou-plat-et-dessert': [
+    ['/site/c/antilles-menus/buffet-colombo-chafing.webp', 'Colombo de poulet, haricots rouges et gratins sur le buffet'],
+    ['/site/c/antilles-unit/produit-19.webp.webp', 'Plateau de buffet : accras, boudins créoles et samoussas'],
+    ['/site/c/antilles-site/colombo-de-poulet-1-20261101.webp.webp', 'Colombo de poulet'],
+    ['/site/c/antilles-site/riz-blanc-200g-pers-1-20261101.webp.webp', 'Riz blanc'],
+    ['/site/c/antilles-site/flan-coco-la-part-1-20261101.webp.webp', 'Flan coco'],
+  ],
+  'buffet-antillais-entree-plat-dessert': [
+    ['/site/c/antilles-menus/buffet-complet.jpg.webp', 'Buffet antillais complet servi en chafing dishes'],
+    ['/site/c/antilles-unit/produit-19.webp.webp', 'Plateau de buffet : accras, boudins créoles et samoussas'],
+    ['/site/c/antilles-site/colombo-de-poulet-1-20261101.webp.webp', 'Colombo de poulet'],
+    ['/site/c/antilles-site/gratin-de-bananes-plantin-250g-la-part-1-20261101.webp.webp', 'Gratin de bananes plantains'],
+    ['/site/c/antilles-site/blanc-manger-coco-la-part-1-20261101.webp.webp', 'Blanc-manger coco'],
+    ['/site/c/antilles-site/salade-de-fruits-exotiques-1-20261101.webp.webp', 'Salade de fruits exotiques'],
+  ],
+};
 /* « Nos buffets » des spécialités (Jean-Luc, 2026-11-23) : une photo de buffet en tête de chaque formule, choisie d'après son contenu
    (jamais une pièce à l'unité). Les autres photos de la fiche restent dans sa galerie. Sources dans data/credits-photos-univers.md. */
 const PHOTOS_BUFFETS_EN_TETE = [
-  ['buffet-antillais-entrees-seules', 'https://images.pexels.com/photos/16868526/pexels-photo-16868526.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Plateau d’entrées : beignets, bouchées frites et crevettes'],
-  ['buffet-antillais-entree-et-plat-ou-plat-et-dessert', 'https://images.pexels.com/photos/9638804/pexels-photo-9638804.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Repas antillais : riz aux haricots rouges, plats en sauce et dessert'],
+/* Buffet antillais (Jean-Luc, 2026-11-24) : entrées seules = plateau d'accras, boudins et samoussas (ses photos) ;
+     entrée + plat ou plat + dessert = colombo de poulet, haricots rouges et gratins sur le buffet (ses photos) ; formule complète = rangée de chafing dishes (ses photos). */
+  ['buffet-antillais-entrees-seules', '/site/c/antilles-unit/produit-19.webp.webp', 'Plateau de buffet : accras, boudins créoles et samoussas'],
+  ['buffet-antillais-entree-et-plat-ou-plat-et-dessert', '/site/c/antilles-menus/buffet-colombo-chafing.webp', 'Colombo de poulet, haricots rouges et gratins sur le buffet'],
   ['buffet-antillais-entree-plat-dessert', '/site/c/antilles-menus/buffet-complet.jpg.webp', 'Buffet antillais complet servi en chafing dishes'],
   ['buffet-indien-entrees-a-l-unite', 'https://images.pexels.com/photos/958547/pexels-photo-958547.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Entrées indiennes : pakoras, naans et chutneys'],
   ['buffet-indien-entree-plat-ou-plat-dessert', 'https://images.pexels.com/photos/7182077/pexels-photo-7182077.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Table indienne : currys, riz et accompagnements'],
