@@ -951,6 +951,19 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('site/reglages', { ...(await store.get('site/reglages')), sansBrochure: true });
   }
 
+  /* Plateau de fruits de mer (Jean-Luc, 2026-11-24) : toutes les photos sur fond blanc pur, produit détouré et centré,
+     format carré (comme les praires). Une fois : seule une photo encore d'origine est remplacée, jamais une photo
+     changée ensuite dans le back-office. */
+  const RFm = await store.get('site/reglages');
+  if (RFm && !RFm.fruitsDeMerBlanc) {
+    for (const { id, data: pr } of await store.list('produits')) {
+      const avant = pr.photos || [];
+      const ph = avant.map(x => FRUITS_DE_MER_BLANC[x.src] ? { ...x, src: '/site/c/seafood30/blanc/' + FRUITS_DE_MER_BLANC[x.src] + '.webp' } : x);
+      if (JSON.stringify(ph) !== JSON.stringify(avant)) await store.set('produits/' + id, { ...pr, photos: ph });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), fruitsDeMerBlanc: true });
+  }
+
   /* « Cocktails & buffets français » + paragraphe de présentation (Jean-Luc, 2026-11-22). Une fois : modifiable ensuite dans le back-office. */
   const RCb = await store.get('site/reglages');
   if (RCb && !RCb.cocktailsFrancais) {
@@ -1913,6 +1926,18 @@ const INTROS_SPE = {
 /* lassi sans texte incrusté (Pexels 18142603, licence Pexels) */
 const PHOTO_LASSI = 'https://images.pexels.com/photos/18142603/pexels-photo-18142603.jpeg?auto=compress&cs=tinysrgb&w=1200';
 const pexels = id => `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&w=1600`;
+/* fruits de mer détourés sur fond blanc (public/site/c/seafood30/blanc/, 2026-11-24) : ancienne photo -> nouveau fichier.
+   Crevettes roses : Pexels 566344 détourée (l'ancienne avait un logo) ; bulots : l'ancienne photo, sans l'étiquette « Marée du jour ». */
+const FRUITS_DE_MER_BLANC = Object.fromEntries([
+  ['pleine-mer', 'pleine-mer'], ['utah-beach', 'utah-beach'], ['gillardeau', 'gillardeau'], ['praires', 'praires'],
+  ['anchois-nature-20261110', 'anchois'], ['blinis', 'blinis'], ['bulots', 'bulots'], ['caviar-nature-20261110', 'caviar'],
+  ['crevettes-grises', 'crevettes-grises'], ['crevettes-roses', 'crevettes-roses'], ['demi-homard', 'demi-homard'], ['homard', 'homard'],
+  ['langoustines-nature-20261110', 'langoustines'], ['oeufs-saumon-nature-20261110', 'oeufs-saumon'], ['oursins', 'oursins'],
+  ['tarama-oursins-nature-20261110', 'tarama-oursins'], ['saumon-fume', 'saumon-fume'], ['tarama-nature-20261110', 'tarama'],
+  ['tarama-cabillaud', 'tarama-cabillaud'], ['demi-tourteau', 'demi-tourteau'], ['tourteau', 'tourteau'],
+].map(([a, b]) => ['/site/c/seafood30/' + a + '.webp.webp', b]).concat([
+  [pexels(37402010), 'bulots'], [pexels(16561736), 'crevettes-roses'],
+]));
 /* lot 1 des vraies photos (Pexels, licence libre ; sources dans data/credits-photos-univers.md) */
 const VRAIES_PHOTOS_SITE = [
   { id: 'bandeau-boutique-1', bandeau: 'boutique', avant: '/site/c/accueil/website-home-cocktail-20261110.webp', photo: pexels(8252824) },
