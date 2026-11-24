@@ -164,6 +164,7 @@
       <div class="cols">
         <section class="box"><h2>Suivi client</h2><div class="pipe">${Object.entries(STATUTS).filter(([k]) => k !== 'termine').map(([k, l]) => `<a href="#/suivi" class="pipe-i st-${k}"><b>${s.parStatut[k] || 0}</b><span>${l}</span></a>`).join('')}</div></section>
         <section class="box"><h2>Prochains événements</h2>${s.prochains.length ? `<ul class="list">${s.prochains.map(p => `<li><a href="#/demandes/${p.id}"><b>${dateFr(p.date, { weekday: 'short', day: 'numeric', month: 'short' })}</b> ${esc(p.nom)} · ${p.invites} pers.</a><span class="pill st-${p.statut}">${STATUTS[p.statut]}</span></li>`).join('')}</ul>` : '<p class="muted">Aucun événement confirmé à venir.</p>'}</section>
+        ${(s.rdvJour || []).length ? `<section class="box db-rdv"><h2>📞 Appels et visios aujourd’hui</h2><ul class="list">${s.rdvJour.map(r => `<li><a href="#/clients/${esc(r.clientId)}"><b>${esc(r.heure.replace(':', ' h '))}</b> ${r.type === 'visio' ? '🎥' : '📞'} ${esc(r.clientNom)} <small class="muted">${esc([r.motif, r.commerciaux?.length ? r.commerciaux.join(', ') : 'toute l’équipe'].filter(Boolean).join(' · '))}</small></a>${r.lien ? `<a class="qs-pill dark" href="${esc(r.lien)}" target="_blank" rel="noopener">Rejoindre</a>` : ''}</li>`).join('')}</ul></section>` : ''}
         ${(s.anniversaires || []).length ? `<section class="box db-anniv"><h2>🎂 Anniversaires des clients</h2><ul class="list">${s.anniversaires.map(a => `<li><a href="#/clients/${esc(a.id)}"><b>${a.dans === 0 ? 'Aujourd’hui' : a.dans === 1 ? 'Demain' : dateFr(a.date, { weekday: 'short', day: 'numeric', month: 'short' })}</b> ${esc(a.nom)} <small class="muted">${a.age} ans</small></a><span class="db-ab">${a.souhaite ? '<span class="pill d-accepte">✓ Souhaité</span>' : `${a.email && !a.stopEmail ? `<button type="button" class="qs-pill" data-anniv="${esc(a.id)}" data-canal="email" title="Envoyer un e-mail">✉</button>` : ''}${a.tel && !a.stopSms ? `<button type="button" class="qs-pill" data-anniv="${esc(a.id)}" data-canal="sms" title="Envoyer un SMS">💬</button>` : ''}`}</span></li>`).join('')}</ul></section>` : ''}
         <section class="box"><h2>Devis à relancer</h2>${s.aRelancer.length ? `<ul class="list">${s.aRelancer.map(d => `<li><a href="#/devis/${d.id}"><b>${esc(d.numero)}</b> ${esc(d.client)}</a><span class="muted">envoyé le ${dateFr(d.envoyeLe)}</span></li>`).join('')}</ul>` : '<p class="muted">Rien à relancer : bravo.</p>'}</section>
       </div>`);
@@ -821,7 +822,10 @@
 
   /* ---------- agenda ---------- */
   async function agenda(id) {
-    const items = await api(A + '/actions/agenda');
+    const [tous, eq, R0] = await Promise.all([api(A + '/actions/agenda'), cache.equipe ? Promise.resolve(null) : api(A + '/actions/equipe').catch(() => []), cache.R ? Promise.resolve(null) : api(A + '/site').catch(() => ({}))]);
+    if (eq) cache.equipe = eq.filter(u => !u.desactive); if (R0) cache.R = R0;
+    const qui = mem.get('mg_commercial') || '', noms = commerciaux();
+    const items = tous.filter(x => !qui || (qui === '—' ? !(x.commerciaux?.length || x.commercial) : x.commerciaux ? !x.commerciaux.length || x.commerciaux.includes(qui) : x.type === 'evenement' ? !x.commercial || x.commercial === qui : true));
     const base = id ? new Date(id + '-01T12:00') : new Date();
     const y = base.getFullYear(), m = base.getMonth();
     const first = new Date(y, m, 1), start = new Date(first); start.setDate(1 - ((first.getDay() + 6) % 7));
@@ -836,11 +840,13 @@
     }
     const aVenir = items.filter(x => x.date >= today).slice(0, 20);
     return page('Agenda', `<a class="btn ghost" href="#/agenda/${ym(y, m - 1)}">←</a><span class="mois">${first.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}</span><a class="btn ghost" href="#/agenda/${ym(y, m + 1)}">→</a>`, `
+      <div class="ag-who"><span class="qs-olab">Agenda de</span><label class="qs-csel"><span aria-hidden="true">👤</span><select data-agcom aria-label="Choisir le commercial"><option value="">Tous les commerciaux</option>${noms.map(n => `<option value="${esc(n)}"${qui === n ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select></label><span class="muted sm">${qui ? 'Ses appels, visios et événements, plus ceux de toute l’équipe.' : 'Tous les rendez-vous de l’équipe.'}</span></div>
       <div class="cal"><div class="cal-h">${['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map(j => `<span>${j}</span>`).join('')}</div><div class="cal-g">${cells}</div></div>
       <div class="cols"><section class="box"><h2>À venir</h2>${aVenir.length ? `<ul class="list">${aVenir.map(x => `<li><a href="${x.lien}"><b>${dateFr(x.date, { weekday: 'short', day: 'numeric', month: 'short' })}</b> ${esc(x.titre)}</a><small class="muted">${esc(x.detail || '')}</small></li>`).join('')}</ul>` : '<p class="muted">Rien de prévu.</p>'}</section>
       <section class="box"><h2>Ajouter un rendez-vous</h2><form id="rdv"><div class="g2"><label>Date<input type="date" name="date" required></label><label>Heure<input type="time" name="heure"></label></div><label>Objet<input name="titre" required placeholder="Dégustation, visite de lieu…"></label><label>Détail<input name="detail"></label><button class="btn">Ajouter</button></form></section></div>`);
   }
   agenda.after = () => {
+    $('[data-agcom]')?.addEventListener('change', e => { mem.set('mg_commercial', e.target.value); SV.o = e.target.value; render(); });
     $('#rdv')?.addEventListener('submit', async e => { e.preventDefault(); const f = Object.fromEntries(new FormData(e.target)); await api(A + '/rdv', { method: 'POST', body: { ...f, titre: (f.heure ? f.heure + ' · ' : '') + f.titre, statut: 'rdv' } }); toast('Rendez-vous ajouté.'); render(); });
   };
 
@@ -1231,18 +1237,39 @@
     if (!confirm(`Envoyer un message « Joyeux anniversaire » par ${canal === 'sms' ? 'SMS' : 'e-mail'} ?`)) return;
     try { await api(`${A}/actions/anniversaire/${id}`, { method: 'POST', body: { canal } }); toast('Message d’anniversaire envoyé.'); fin && fin(); } catch (err) { toast(err.message, true); }
   }
+  /* ---------- appels et visios programmés depuis la fiche client ---------- */
+  const auj = () => new Date().toLocaleDateString('sv-SE');
+  function listeRdv(l) {
+    const a = l.filter(r => !r.fait && (r.date + 'T' + r.heure) >= new Date(Date.now() - 36e5).toLocaleString('sv-SE').slice(0, 16).replace(' ', 'T')), p = l.filter(r => !a.includes(r)).reverse().slice(0, 5);
+    const li = r => `<li class="hr-i${r.fait ? ' fait' : ''}"><div><b>${r.type === 'visio' ? '🎥 Visio' : '📞 Appel'} · ${dateFr(r.date, { weekday: 'short', day: 'numeric', month: 'short' })} à ${esc(r.heure.replace(':', ' h '))}</b><small>${esc([r.motif, r.commerciaux?.length ? 'avec ' + r.commerciaux.join(', ') : 'toute l’équipe', r.envoye?.email || r.envoye?.sms ? 'invitation envoyée' : ''].filter(Boolean).join(' · '))}</small></div>
+      <div class="hr-a">${r.lien && !r.fait ? `<a class="qs-pill dark" href="${esc(r.lien)}" target="_blank" rel="noopener">Rejoindre la visio ↗</a><button type="button" class="qs-pill" data-rcopy="${esc(r.lien)}">Copier le lien</button>` : ''}${r.fait ? '<span class="pill d-accepte">Fait</span>' : `<button type="button" class="qs-pill" data-rfait="${esc(r.id)}">✓ Fait</button>`}<button type="button" class="lnk hc-del" data-rdel="${esc(r.id)}">Supprimer</button></div></li>`;
+    return a.length || p.length ? `<ul class="hr-l">${a.map(li).join('')}</ul>${p.length ? `<p class="muted sm hr-pt">Passés</p><ul class="hr-l">${p.map(li).join('')}</ul>` : ''}` : '<p class="muted">Aucun appel prévu. « + Programmer » pour en ajouter un.</p>';
+  }
+  function formRdv(c) {
+    const noms = commerciaux(), moi = session.nom || '';
+    return `<section class="box hc-edit hc-rdvf" id="hcRdv" hidden><div class="hc-th"><h2>📞 Programmer un appel ou une visio avec ${esc(c.nom || 'ce client')}</h2><button type="button" class="lnk" data-rclose>Fermer</button></div>
+      <form id="rdvf"><div class="hr-type"><label class="hr-t"><input type="radio" name="type" value="appel" checked><span>📞 Appel téléphonique</span></label><label class="hr-t"><input type="radio" name="type" value="visio"><span>🎥 Visio</span></label></div>
+      <div class="g3"><label>Date<input type="date" name="date" required min="${auj()}" value="${auj()}"></label><label>Heure<input type="time" name="heure" required step="300"></label><label>Durée<select name="duree">${[15, 30, 45, 60, 90].map(m => `<option value="${m}"${m === 30 ? ' selected' : ''}>${m} min</option>`).join('')}</select></label></div>
+      <label>Motif de l’appel<textarea name="motif" rows="2" placeholder="ex. Faire le point sur le menu du mariage, confirmer le nombre d’invités…"></textarea></label>
+      <fieldset class="df-fs"><legend>Dans l’agenda de</legend><label class="check"><input type="checkbox" data-rtous> Tous les commerciaux</label>${noms.map(n => `<label class="check"><input type="checkbox" name="com" value="${esc(n)}"${n === moi ? ' checked' : ''}> ${esc(n)}</label>`).join('')}<p class="muted sm">Chaque commercial choisi le voit dans l’agenda et reçoit un rappel par SMS sur son portable et par e-mail 24 h, 4 h et 1 h avant (numéros dans Équipe &amp; activité › Alertes de l’équipe).</p></fieldset>
+      <div class="hr-visio" hidden><p class="muted sm">Un lien de visio est créé tout seul (Jitsi Meet : gratuit, rien à installer, il s’ouvre dans le navigateur ou sur le téléphone).</p><label>Ou votre propre lien (Google Meet, Zoom, Teams…) <small class="muted">facultatif</small><input name="lienVisio" type="url" placeholder="https://meet.google.com/…"></label></div>
+      <fieldset class="df-fs"><legend>Prévenir le client</legend><label class="check"><input type="checkbox" name="envoyerEmail"${c.email ? ' checked' : ' disabled'}> Lui envoyer l’invitation par e-mail${c.email ? ` (${esc(c.email)}), avec le rendez-vous à ajouter à son agenda` : ' (pas d’e-mail sur la fiche)'}</label><label class="check"><input type="checkbox" name="envoyerSms"${c.tel ? '' : ' disabled'}> Lui envoyer aussi un SMS${c.tel ? ` (${esc(c.tel)})` : ' (pas de téléphone sur la fiche)'}</label></fieldset>
+      <div class="row"><button class="btn">Programmer</button><button type="button" class="btn ghost" data-rclose>Annuler</button></div></form></section>`;
+  }
   async function client(id) {
     if (id === 'nouveau') {
       cache.client = { nom: '', email: '', tel: '', societe: '', adresse: '', notes: '' };
       return page('Nouveau client', '<a class="btn ghost" href="#/suivi">← Suivi client</a>', `<section class="box hc-form"><form id="cf">${formClient(cache.client)}<button class="btn">Enregistrer</button></form></section>`);
     }
-    const h = await api(A + '/actions/historique-client/' + id);
+    const [h, eq, R0] = await Promise.all([api(A + '/actions/historique-client/' + id), cache.equipe ? Promise.resolve(null) : api(A + '/actions/equipe').catch(() => []), cache.R ? Promise.resolve(null) : api(A + '/site').catch(() => ({}))]);
+    if (eq) cache.equipe = eq.filter(u => !u.desactive); if (R0) cache.R = R0;
     const c = h.client; cache.client = c; cache.hist = h;
     const tel = String(c.tel || '').replace(/[^\d+]/g, ''), r = h.resume;
     const coms = [...new Set([...h.devis.map(x => x.commercial), ...(h.demandes || []).map(x => x.commercial)].filter(Boolean))];
     const an = annivInfo(c.naissance);
-    return page(esc(c.nom || 'Client'), `<a class="btn ghost" href="#/suivi">← Suivi client</a><button type="button" class="btn hc-editbtn" data-hedit>✏ Modifier la fiche</button><button class="btn" data-newdv>+ Devis pour ce client</button>`, `
+    return page(esc(c.nom || 'Client'), `<a class="btn ghost" href="#/suivi">← Suivi client</a><button type="button" class="btn hc-editbtn" data-hedit>✏ Modifier la fiche</button><button type="button" class="btn ghost hc-rdvbtn" data-hrdv>📞 Programmer un appel / une visio</button><button class="btn" data-newdv>+ Devis pour ce client</button>`, `
       <section class="box hc-edit" id="hcEdit"${/[?&]edit=1/.test(location.hash) ? '' : ' hidden'}><div class="hc-th"><h2>✏ Modifier la fiche de ${esc(c.nom || 'ce client')}</h2><button type="button" class="lnk" data-hcancel>Fermer</button></div><p class="muted sm">Corrigez ce qui a changé (nom, téléphone, e-mail, adresse…) puis « Enregistrer ». Les demandes et le suivi client sont mis à jour en même temps.</p><form id="cf">${formClient(c)}<div class="row"><button class="btn">Enregistrer la fiche</button><button type="button" class="btn ghost" data-hcancel>Annuler</button></div></form></section>
+      ${formRdv(c)}
       <section class="box hc-head"><div class="hc-who"><span class="qs-av hc-av">${esc(initiales(c.nom))}</span><div><div class="hc-nm">${esc(c.nom || '—')} <button type="button" class="hc-pen" data-hedit title="Modifier la fiche" aria-label="Modifier la fiche">✏</button></div>${c.societe ? `<div class="hc-co">${esc(c.societe)}</div>` : ''}
         <div class="hc-ct">${tel ? `<a class="qs-pill" href="tel:${esc(tel)}" data-happel>📞 ${esc(c.tel)}</a>` : ''}${c.email ? `<a class="qs-pill" href="mailto:${esc(c.email)}">✉ ${esc(c.email)}</a>` : ''}</div>
         ${an ? `<div class="hc-anniv${an.dans <= 14 ? ' bientot' : ''}">🎂 Né(e) le ${dateFr(c.naissance, { day: 'numeric', month: 'long', year: 'numeric' })} · ${an.age - (an.dans ? 1 : 0)} ans · ${an.dans === 0 ? '<b>anniversaire aujourd’hui !</b>' : an.dans <= 14 ? `<b>anniversaire dans ${an.dans} jour${an.dans > 1 ? 's' : ''}</b>` : 'anniversaire le ' + dateFr(an.date, { day: 'numeric', month: 'long' })}${an.dans <= 14 ? ` <button type="button" class="qs-pill" data-anniv="${esc(c.id)}" data-canal="email">✉ Souhaiter par e-mail</button><button type="button" class="qs-pill" data-anniv="${esc(c.id)}" data-canal="sms">💬 par SMS</button>` : ''}</div>` : `<div class="hc-since"><button type="button" class="lnk" data-hedit>🎂 Ajouter sa date de naissance</button></div>`}<div class="hc-since">Client depuis le ${dateFr(c.creeLe || h.events[h.events.length - 1]?.at)}${coms.length ? ' · suivi par ' + esc(coms.join(', ')) : ''}</div>${c.source === 'import CRM' || c.consentement ? `<div class="hc-since hc-cons">${c.source === 'import CRM' ? '📥 Repris du fichier clients de l’ancien CRM' : '✓ Client existant'}${c.consentement ? ` · accepte nos ${[c.consentement.email && !c.desinscrit?.email ? 'e-mails' : '', c.consentement.sms && !c.desinscrit?.sms ? 'SMS' : ''].filter(Boolean).join(' et ') || '—'}` : ''}${c.desinscrit?.email || c.desinscrit?.sms ? ` · <b>désinscrit des ${[c.desinscrit.email ? 'e-mails' : '', c.desinscrit.sms ? 'SMS' : ''].filter(Boolean).join(' et ')}</b>` : ''}${c.caCrmCents ? ` · déjà commandé (ancien CRM) : ${euros(c.caCrmCents)}` : ''}${c.derniereCommande ? ` · dernière commande le ${dateFr(c.derniereCommande)}` : ''}</div>` : ''}</div></div>
@@ -1253,6 +1280,7 @@
           <div class="hc-f">${HFILTRES.map(([k, l]) => `<button type="button" class="qs-own-b${HF.f === k ? ' on' : ''}" data-hf="${k}">${l}</button>`).join('')}</div>
           <ol class="hc-list" id="hcList">${friseClient(h.events)}</ol></section>
         <div class="hc-side">
+          <section class="box hc-rdvs"><div class="hc-th"><h2>Appels et visios</h2><button type="button" class="lnk" data-hrdv>+ Programmer</button></div>${listeRdv(h.rdv || [])}</section>
           <section class="box"><h2>Devis</h2>${h.devis.length ? `<ul class="list">${[...h.devis].sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).map(x => `<li><a href="#/devis/${x.id}"><b>${esc(x.numero)}</b> · ${euros(x.ttcCents)}<small class="muted"> ${esc([x.evenement?.type, x.evenement?.date ? dateFr(x.evenement.date) : ''].filter(Boolean).join(' · '))}</small></a><span class="pill d-${x.statut}">${DSTAT[x.statut]}</span></li>`).join('')}</ul>` : '<p class="muted">Aucun devis.</p>'}</section>
           <section class="box"><h2>Factures et règlements</h2>${h.factures.length ? `<ul class="list">${h.factures.map(x => `<li><a href="#/factures/${x.id}"><b>${esc(x.numero)}</b> · ${euros(x.totalCents)}<small class="muted"> ${{ acompte: 'acompte', solde: 'solde', totale: 'totale' }[x.type] || ''}</small></a><span class="pill ${x.payee ? 'd-accepte' : 'd-envoye'}">${x.payee ? 'Payée' + (x.moyen ? ' · ' + esc(x.moyen) : '') : 'À encaisser'}</span></li>`).join('')}</ul>` : '<p class="muted">Aucune facture.</p>'}</section>
           <section class="box"><h2>Demandes</h2>${h.demandes.length ? `<ul class="list">${h.demandes.map(d => `<li><a href="#/demandes/${d.id}"><b>${esc(d.ref || '')}</b> · ${esc(d.evenement?.type || (d.type === 'contact' ? 'message' : ''))} ${d.evenement?.date ? dateFr(d.evenement.date) : ''}</a><span class="pill st-${d.statut}">${STATUTS[d.statut] || ''}</span></li>`).join('')}</ul>` : '<p class="muted">Aucune demande.</p>'}</section>
@@ -1278,6 +1306,28 @@
     $$('[data-hcancel]').forEach(b => b.addEventListener('click', () => { ed.hidden = true; $('#cf').reset(); }));
     if (!ed.hidden) setTimeout(() => ed.querySelector('input[name=nom]')?.focus(), 50);
     $$('[data-anniv]').forEach(b => b.addEventListener('click', () => souhaiter(b.dataset.anniv, b.dataset.canal, () => render())));
+    const rp = $('#hcRdv'), rf = $('#rdvf');
+    $$('[data-hrdv]').forEach(b => b.addEventListener('click', () => { rp.hidden = false; rp.scrollIntoView({ behavior: 'smooth', block: 'start' }); }));
+    $$('[data-rclose]').forEach(b => b.addEventListener('click', () => { rp.hidden = true; }));
+    if (/[?&]rdv=1/.test(location.hash)) rp.hidden = false;
+    rf.addEventListener('change', e => {
+      if (e.target.name === 'type') $('.hr-visio', rf).hidden = rf.type.value !== 'visio';
+      if (e.target.matches('[data-rtous]')) $$('input[name=com]', rf).forEach(x => { x.checked = false; x.disabled = e.target.checked; });
+    });
+    rf.addEventListener('submit', async e => {
+      e.preventDefault(); const f = new FormData(rf), tous = $('[data-rtous]', rf).checked;
+      const body = { type: f.get('type'), date: f.get('date'), heure: f.get('heure'), duree: +f.get('duree'), motif: f.get('motif'), lienVisio: f.get('lienVisio') || '', commerciaux: tous ? [] : f.getAll('com'), envoyerEmail: !!f.get('envoyerEmail'), envoyerSms: !!f.get('envoyerSms') };
+      if (!tous && !body.commerciaux.length) return toast('Cochez au moins un commercial (ou « Tous »).', true);
+      try { const r = await api(`${A}/actions/rdv-client/${id}`, { method: 'POST', body }); toast((body.type === 'visio' ? 'Visio programmée' : 'Appel programmé') + (r.envoye?.email || r.envoye?.sms ? ' : invitation envoyée au client.' : '.')); render(); } catch (err) { toast(err.message, true); }
+    });
+    $('.hc-rdvs').addEventListener('click', async e => {
+      const t = e.target.closest('button'); if (!t) return;
+      if (t.dataset.rcopy) { try { await navigator.clipboard.writeText(t.dataset.rcopy); toast('Lien copié.'); } catch { prompt('Lien de la visio :', t.dataset.rcopy); } return; }
+      try {
+        if (t.dataset.rfait) { const r = await api(A + '/rdv/' + t.dataset.rfait); await api(A + '/rdv/' + r.id, { method: 'PUT', body: { ...r, fait: new Date().toISOString() } }); toast('Noté comme fait.'); render(); }
+        if (t.dataset.rdel && confirm('Supprimer ce rendez-vous ? (le client n’est pas prévenu)')) { await api(A + '/rdv/' + t.dataset.rdel, { method: 'DELETE' }); toast('Rendez-vous supprimé.'); render(); }
+      } catch (err) { toast(err.message, true); }
+    });
     const recharger = async () => { const h = await api(A + '/actions/historique-client/' + id); cache.hist = h; cache.client = h.client; $('#hcList').innerHTML = friseClient(h.events); $('.hc-th .muted').textContent = h.events.length + ' événement' + (h.events.length > 1 ? 's' : ''); };
     const noter = async (type, texte) => { try { await api(`${A}/actions/client-journal/${id}`, { method: 'POST', body: { type, texte } }); await recharger(); return true; } catch (err) { toast(err.message, true); return false; } };
     $$('[data-hadd]').forEach(b => b.addEventListener('click', async () => { const ta = $('[data-hnote]'); if (await noter(b.dataset.hadd, ta.value.trim())) { ta.value = ''; toast(b.dataset.hadd === 'appel' ? 'Appel noté dans l’historique.' : 'Note ajoutée.'); } }));

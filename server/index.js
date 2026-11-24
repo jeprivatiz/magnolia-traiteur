@@ -90,6 +90,16 @@ async function createApp(opts = {}) {
     await createUser({ email: env.ADMIN_EMAIL, name: env.ADMIN_NAME || 'Liam Bernard', role: 'manager', password: env.ADMIN_PASSWORD });
     log.log?.('[comptes] compte Manager créé pour ' + env.ADMIN_EMAIL);
   }
+  /* réparation : une note, un appel ou des vœux ajoutés sur une fiche créée dans le back-office ont pu être rangés sous « clients/undefined » ;
+     on les remet sur la vraie fiche (même e-mail, sinon même nom) puis on retire ce document */
+  {
+    const perdu = await store.get('clients/undefined');
+    if (perdu) {
+      const vrai = (await store.list('clients')).find(x => x.id !== 'undefined' && ((perdu.email && x.data.email === perdu.email) || (!perdu.email && x.data.nom === perdu.nom)));
+      if (vrai) { const j = [...(vrai.data.journal || [])]; for (const e of perdu.journal || []) if (!j.some(x => x.id === e.id)) j.push(e); await store.set('clients/' + vrai.id, { ...vrai.data, journal: j.sort((x, y) => String(x.at).localeCompare(String(y.at))), anniversaires: [...new Set([...(vrai.data.anniversaires || []), ...(perdu.anniversaires || [])])], ...(perdu.naissance && !vrai.data.naissance ? { naissance: perdu.naissance } : {}) }); }
+      await store.delete('clients/undefined');
+    }
+  }
   /* une seule fois (règle de Jean-Luc, 2026-11-24) : fiches existantes en « Prénom NOM » (factures déjà émises inchangées) */
   if (!(await store.get('_migr/nomsClients'))) {
     for (const { id, data: c } of await store.list('clients')) { const n = nomPropre(c.nom); if (c.nom && n !== c.nom) await store.set('clients/' + id, { ...c, nom: n }); }
@@ -488,6 +498,7 @@ async function createApp(opts = {}) {
       tauxSignature: devis.filter(d => ['accepte', 'refuse'].includes(d.statut)).length ? Math.round(100 * signes.length / devis.filter(d => ['accepte', 'refuse'].includes(d.statut)).length) : null,
       prochains: demandes.filter(d => d.evenement?.date >= aujourdHui && ['accord', 'reserve'].includes(d.statut)).sort((a, b) => a.evenement.date.localeCompare(b.evenement.date)).slice(0, 6).map(d => ({ id: d.id, date: d.evenement.date, nom: d.contact?.nom, invites: d.evenement.invites, statut: d.statut })),
       anniversaires: await anniversaires(14),
+      rdvJour: (await store.list('rdv')).map(d => d.data).filter(r => r.clientId && r.type && !r.fait && r.date === new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Paris' })).sort((a, b) => a.heure.localeCompare(b.heure)).map(r => ({ id: r.id, clientId: r.clientId, clientNom: r.clientNom, type: r.type, heure: r.heure, motif: r.motif, lien: r.lien, commerciaux: r.commerciaux })),
       aRelancer: devis.filter(d => d.statut === 'envoye' && d.envoyeLe && Date.now() - Date.parse(d.derniereRelance || d.envoyeLe) > 3 * 86400e3).map(d => ({ id: d.id, numero: d.numero, client: d.clientNom, envoyeLe: d.envoyeLe })),
     });
   }));
@@ -604,7 +615,7 @@ async function createApp(opts = {}) {
     let id = coll === 'produits' || coll === 'lieux' ? slugify(req.body?.titre || req.body?.nom) : coll === 'rubriques' ? slugify(req.body?.nom) : coll.slice(0, 1) + '_' + rid(7);
     if (await store.get(coll + '/' + id)) id = id + '-' + rid(3).toLowerCase().replace(/[^a-z0-9]/g, 'x');
     const data = { ...(req.body || {}), createdAt: new Date().toISOString() };
-    if (coll === 'clients' && typeof data.nom === 'string') data.nom = nomPropre(data.nom);
+    if (coll === 'clients' && typeof data.nom === 'string') data.nom = nomPropre(data.nom); if (coll === 'clients') data.id = id;
     if (coll === 'clients' && 'naissance' in data) data.naissance = dateNaissance(data.naissance);
     if (coll === 'clients') ficheClientNette(data, null);
     if (coll === 'produits') Object.assign(data, { id, slug: id, statut: data.statut || 'masque', maison: true, photos: data.photos || [], description: data.description || [], sections: data.sections || [], groupes: [], variantes: [], details: [], regles: data.regles || { packs: true, personnel: 'service' }, ordre: -1 });
@@ -897,6 +908,90 @@ async function createApp(opts = {}) {
     res.json({ ok: true, lien });
   }));
 
+  /* ---------- appels et visios programmés avec un client (fiche client) : agenda des commerciaux, invitation au client, rappel avant l'heure ---------- */
+  const parisMs = (date, heure = '09:00') => {
+    const [y, m, d] = date.split('-').map(Number), [h, mi] = heure.split(':').map(Number), g = Date.UTC(y, m - 1, d, h, mi);
+    const vu = tz => new Date(new Date(g).toLocaleString('en-US', { timeZone: tz }));
+    return g - (vu('Europe/Paris') - vu('UTC'));
+  };
+  const icsDate = ms => new Date(ms).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  function icsRdv(r, R) {
+    const debut = parisMs(r.date, r.heure), fin = debut + (r.duree || 30) * 6e4;
+    const t = x => String(x || '').replace(/[\\;,]/g, m => '\\' + m).replace(/\n/g, '\\n');
+    const quoi = r.type === 'visio' ? 'Visio' : 'Appel';
+    return ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Magnolia Traiteur//Back-office//FR', 'METHOD:PUBLISH', 'BEGIN:VEVENT', `UID:${r.id}@magnoliatraiteur.fr`, `DTSTAMP:${icsDate(Date.now())}`, `DTSTART:${icsDate(debut)}`, `DTEND:${icsDate(fin)}`,
+      `SUMMARY:${t(quoi + ' Magnolia Traiteur' + (r.clientNom ? ' · ' + r.clientNom : ''))}`, `DESCRIPTION:${t([r.motif, r.lien ? 'Lien de la visio : ' + r.lien : '', R?.telephone ? 'Magnolia Traiteur : ' + R.telephone : ''].filter(Boolean).join('\n'))}`,
+      ...(r.lien ? [`LOCATION:${t(r.lien)}`, `URL:${r.lien}`] : []), 'BEGIN:VALARM', 'TRIGGER:-PT15M', 'ACTION:DISPLAY', 'DESCRIPTION:Rappel', 'END:VALARM', 'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
+  }
+  const quandFr = r => `${dateFr(r.date, { weekday: 'long', day: 'numeric', month: 'long' })} à ${r.heure.replace(':', ' h ')}`;
+  async function personnesDuRdv(r) {
+    const R = (await cat.get()).reglages, P = (R.alertes?.personnes || []).filter(x => x.nom);
+    const users = (await store.list('_users')).map(d => d.data).filter(u => !u.disabled);
+    const qui = r.commerciaux?.length ? r.commerciaux : [...new Set([...P.map(x => x.nom), ...users.map(u => u.name)])];
+    return qui.map(nom => { const p = P.find(x => x.nom === nom) || {}, u = users.find(x => x.name === nom) || {}; return { nom, email: p.email || u.email || '', tel: p.tel || '' }; });
+  }
+  A.post('/actions/rdv-client/:id', sameSite, json, wrap(async (req, res) => {
+    const c0 = await store.get('clients/' + req.params.id), c = c0 && { ...c0, id: req.params.id }; /* une fiche créée dans le back-office n'a pas toujours son id dans le document */
+    if (!c) return res.status(404).json({ error: 'Client introuvable.' });
+    const b = req.body || {}, type = b.type === 'visio' ? 'visio' : 'appel';
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(b.date || '') || !/^\d{2}:\d{2}$/.test(b.heure || '')) return res.status(400).json({ error: 'Choisissez la date et l’heure.' });
+    if (parisMs(b.date, b.heure) < Date.now() - 36e5) return res.status(400).json({ error: 'Cette date est déjà passée.' });
+    const R = (await cat.get()).reglages;
+    const id = 'r_' + rid(7), duree = [15, 30, 45, 60, 90].includes(+b.duree) ? +b.duree : 30;
+    const perso = /^https:\/\/\S+$/.test(String(b.lienVisio || '').trim()) ? String(b.lienVisio).trim().slice(0, 300) : '';
+    const lien = type === 'visio' ? perso || `https://meet.jit.si/MagnoliaTraiteur-${slugify(c.nom || 'client').replace(/-/g, '')}-${rid(6).replace(/[^A-Za-z0-9]/g, '')}` : '';
+    const commerciaux = (Array.isArray(b.commerciaux) ? b.commerciaux : []).map(x => s(x, 80)).filter(Boolean).slice(0, 20);
+    const reste = parisMs(b.date, b.heure) - Date.now();
+    const r = { id, clientId: c.id, clientNom: c.nom || '', type, date: b.date, heure: b.heure, duree, motif: s(b.motif, 600), commerciaux, lien,
+      titre: `${b.heure} · ${type === 'visio' ? '🎥 Visio' : '📞 Appel'} ${c.nom || ''}`.trim(), detail: s(b.motif, 600), statut: type, par: req.ctx.name || '', createdAt: new Date().toISOString(), envoye: {}, rappels: Object.fromEntries(RAPPELS.filter(([, ms]) => reste <= ms).map(([k]) => [k, 'inutile'])) };
+    const ics = { name: 'rendez-vous-magnolia.ics', content: Buffer.from(icsRdv(r, R)).toString('base64') };
+    const prenom = c.prenom || String(c.nom || '').split(' ')[0] || '';
+    const avec = commerciaux.length === 1 ? ' avec ' + commerciaux[0] : '';
+    if (b.envoyerEmail && c.email) {
+      const x = await brevo.sendEmail({ to: c.email, name: c.nom, replyTo: R.email, subject: `Magnolia Traiteur : ${type === 'visio' ? 'notre visio' : 'notre appel'} ${quandFr(r)}`, attachment: [ics],
+        html: `<p>Bonjour ${esc(prenom)},</p><p>${type === 'visio' ? `Nous vous proposons un rendez-vous en <b>visio</b>${esc(avec)} <b>${esc(quandFr(r))}</b> (environ ${duree} minutes).` : `Nous vous appellerons${esc(avec)} <b>${esc(quandFr(r))}</b>${c.tel ? ' au ' + esc(c.tel) : ''}.`}</p>${r.motif ? `<p>Objet : ${esc(r.motif)}</p>` : ''}${lien ? `<p><a href="${esc(lien)}" style="background:#1d3b2f;color:#fff;padding:12px 20px;text-decoration:none;border-radius:4px;display:inline-block">Rejoindre la visio</a></p><p style="font-size:13px;color:#666">Le lien s’ouvre sur ordinateur, tablette ou téléphone, sans rien installer : ${esc(lien)}</p>` : ''}<p>Le rendez-vous est joint à ce message : ouvrez-le pour l’ajouter à votre agenda.</p><p>À bientôt,<br>L’équipe Magnolia Traiteur<br>${esc(R.telephone || '')}</p>`,
+        text: `${type === 'visio' ? 'Visio' : 'Appel'} Magnolia Traiteur ${quandFr(r)}. ${r.motif || ''} ${lien}` });
+      r.envoye.email = !x?.error && !x?.skipped;
+    }
+    if (b.envoyerSms && c.tel) {
+      const x = await brevo.sendSms({ to: c.tel, content: `Magnolia Traiteur : ${type === 'visio' ? 'visio' : 'appel'}${avec} ${quandFr(r)}.${lien ? ' Lien : ' + lien : ''}`, lien: !lien });
+      r.envoye.sms = !x?.error && !x?.skipped;
+    }
+    await store.set('rdv/' + id, r);
+    /* chaque commercial concerné reçoit le rendez-vous pour son propre agenda (Google, iPhone…) */
+    for (const p of await personnesDuRdv(r)) if (p.email) brevo.sendEmail({ to: p.email, name: p.nom, subject: `${type === 'visio' ? 'Visio' : 'Appel'} avec ${c.nom || 'un client'} ${quandFr(r)}`, attachment: [ics],
+      html: `<p>${type === 'visio' ? 'Visio' : 'Appel'} programmé par ${esc(r.par)} avec <b>${esc(c.nom || '')}</b>${c.tel ? ' (' + esc(c.tel) + ')' : ''} <b>${esc(quandFr(r))}</b>.</p>${r.motif ? `<p>Motif : ${esc(r.motif)}</p>` : ''}${lien ? `<p>Lien de la visio : <a href="${esc(lien)}">${esc(lien)}</a></p>` : ''}<p><a href="${SITE}/admin#/clients/${c.id}">Ouvrir la fiche client</a></p>`, text: `${r.titre} ${quandFr(r)} ${lien}` }).catch(() => {});
+    await store.set('clients/' + c.id, { ...(await store.get('clients/' + c.id)), derniereActivite: new Date().toISOString() });
+    audit(req.ctx, type === 'visio' ? 'visio programmée' : 'appel programmé', 'rdv/' + id, `${c.nom} ${b.date} ${b.heure}`);
+    res.json({ ok: true, id, lien, envoye: r.envoye, test: !brevo.live });
+  }));
+  /* rappels aux commerciaux concernés (règle de Jean-Luc, 2026-11-24) : SMS sur le portable + e-mail, 24 h, 4 h et 1 h avant.
+     Vérifié chaque minute ; chaque rappel envoyé est noté sur le rendez-vous (jamais deux fois, même après un redémarrage).
+     Rappel manqué (serveur arrêté) : on envoie seulement le plus proche encore utile ; un rendez-vous pris tard n'a que les rappels encore à venir. */
+  const RAPPELS = [['24h', 24 * 36e5, 'demain'], ['4h', 4 * 36e5, 'dans 4 h'], ['1h', 36e5, 'dans 1 h']];
+  async function rappelsRdv(now = Date.now()) {
+    let n = 0;
+    for (const { id, data: r } of await store.list('rdv')) {
+      if (!r.clientId || !r.type || r.fait || !r.date || !r.heure) continue;
+      const t = parisMs(r.date, r.heure); if (t <= now) continue;
+      const faits = r.rappels || {}, dus = RAPPELS.filter(([k, ms]) => !faits[k] && t - now <= ms);
+      if (!dus.length) continue;
+      const [k, , quand] = dus[dus.length - 1];
+      const c = await store.get('clients/' + r.clientId) || {};
+      const jour = new Date(t).toLocaleDateString('fr-FR', { timeZone: 'Europe/Paris' }) === new Date(now).toLocaleDateString('fr-FR', { timeZone: 'Europe/Paris' }) ? 'aujourd’hui' : quandFr(r).split(' à ')[0];
+      const txt = `Rappel Magnolia (${quand}) : ${r.type === 'visio' ? 'visio' : 'appel'} ${jour} à ${r.heure.replace(':', 'h')} avec ${r.clientNom}${c.tel ? ' ' + c.tel : ''}${r.motif ? '. ' + r.motif.slice(0, 90) : ''}${r.lien ? ' ' + r.lien : ''}`;
+      for (const p of await personnesDuRdv(r)) {
+        if (p.tel) await brevo.sendSms({ to: p.tel, content: txt, lien: false });
+        if (p.email) await brevo.sendEmail({ to: p.email, name: p.nom, subject: `Rappel (${quand}) : ${r.type === 'visio' ? 'visio' : 'appel'} avec ${r.clientNom}`, html: `<p>${esc(txt)}</p><p><a href="${SITE}/admin#/clients/${r.clientId}">Ouvrir la fiche client</a></p>`, text: txt });
+      }
+      const at = new Date(now).toISOString();
+      await store.set('rdv/' + id, { ...r, rappels: { ...faits, ...Object.fromEntries(dus.map(([x]) => [x, x === k ? at : 'passé'])) } });
+      n++;
+    }
+    return n;
+  }
+  app.locals.rappelsRdv = rappelsRdv;
+
   /* ---------- anniversaires des clients : rappel sur le tableau de bord et dans l'agenda, message de vœux par e-mail ou SMS ---------- */
   function prochainAnniv(naissance, ref = new Date()) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(naissance || '')) return null;
@@ -915,7 +1010,7 @@ async function createApp(opts = {}) {
   }
   A.get('/actions/anniversaires', wrap(async (req, res) => res.json(await anniversaires(Math.min(366, +req.query.jours || 14)))));
   A.post('/actions/anniversaire/:id', sameSite, json, wrap(async (req, res) => {
-    const c = await store.get('clients/' + req.params.id);
+    const c0 = await store.get('clients/' + req.params.id), c = c0 && { ...c0, id: req.params.id }; /* une fiche créée dans le back-office n'a pas toujours son id dans le document */
     if (!c) return res.status(404).json({ error: 'Client introuvable.' });
     const canal = req.body?.canal === 'sms' ? 'sms' : 'email', R = (await cat.get()).reglages;
     const prenom = c.prenom || String(c.nom || '').split(' ').filter(w => w !== w.toLocaleUpperCase('fr-FR') || w.length < 2)[0] || String(c.nom || '').split(' ')[0] || '';
@@ -931,7 +1026,7 @@ async function createApp(opts = {}) {
   /* ---------- historique complet d'un client (fiche CRM) : demandes, devis, signatures, factures, règlements, e-mails et SMS, appels, notes ---------- */
   const telCourt = t => { let d = String(t || '').replace(/\D/g, ''); if (d.startsWith('0033')) d = d.slice(4); else if (d.startsWith('33') && d.length === 11) d = d.slice(2); return d.replace(/^0/, ''); };
   A.get('/actions/historique-client/:id', wrap(async (req, res) => {
-    const c = await store.get('clients/' + req.params.id);
+    const c0 = await store.get('clients/' + req.params.id), c = c0 && { ...c0, id: req.params.id }; /* une fiche créée dans le back-office n'a pas toujours son id dans le document */
     if (!c) return res.status(404).json({ error: 'Client introuvable.' });
     const [dem, dv, fac, out, rdv, camps] = await Promise.all(['demandes', 'devis', 'factures', '_outbox', 'rdv', '_campagnes'].map(k => store.list(k).then(l => l.map(x => x.data))));
     const demandes = dem.filter(d => d.clientId === c.id);
@@ -977,13 +1072,17 @@ async function createApp(opts = {}) {
     }
     if (c.desinscrit?.email) add(c.desinscrit.leEmail || c.desinscrit.le, 'note', 'Désinscrit des e-mails d’information');
     if (c.desinscrit?.sms) add(c.desinscrit.leSms || c.desinscrit.le, 'note', 'Ne veut plus de SMS d’information');
-    for (const r of rdv) if (r.clientId === c.id) add(r.date + 'T' + (/^\d\d:\d\d/.test(r.titre) ? r.titre.slice(0, 5) : '09:00'), 'rdv', 'Rendez-vous : ' + r.titre, { detail: r.detail || '' });
+    for (const r of rdv) if (r.clientId === c.id) {
+      if (r.type) { add(r.createdAt, 'rdv', `${r.type === 'visio' ? 'Visio' : 'Appel'} programmé ${quandFr(r)}`, { detail: [r.motif, r.commerciaux?.length ? 'Avec ' + r.commerciaux.join(', ') : 'Toute l’équipe', r.envoye?.email || r.envoye?.sms ? 'Invitation envoyée au client par ' + [r.envoye.email ? 'e-mail' : '', r.envoye.sms ? 'SMS' : ''].filter(Boolean).join(' et ') : ''].filter(Boolean).join('\n'), par: r.par, lien: r.lien || '' }); continue; }
+      add(r.date + 'T' + (/^\d\d:\d\d/.test(r.titre) ? r.titre.slice(0, 5) : '09:00'), 'rdv', 'Rendez-vous : ' + r.titre, { detail: r.detail || '' });
+    }
     for (const j of c.journal || []) add(j.at, j.type === 'appel' ? 'appel' : 'note', j.type === 'appel' ? 'Appel téléphonique' : 'Note', { detail: j.texte, par: j.par, jid: j.id });
     if (c.creeLe) add(c.creeLe, 'client', 'Fiche client créée', { par: c.source || '' });
     ev.sort((a, b) => String(b.at).localeCompare(String(a.at)));
     const signes = devisL.filter(d => d.statut === 'accepte');
     res.json({
       client: c, events: ev,
+      rdv: rdv.filter(r => r.clientId === c.id && r.type).sort((a, b) => (a.date + a.heure).localeCompare(b.date + b.heure)),
       demandes: demandes.map(d => ({ id: d.id, ref: d.ref, statut: d.statut, type: d.type, evenement: d.evenement, createdAt: d.createdAt, commercial: d.commercial || '' })),
       devis: devisL.map(d => ({ id: d.id, numero: d.numero, statut: d.statut, ttcCents: totaux(d).ttcCents, token: d.statut !== 'brouillon' ? d.token : '', evenement: d.evenement, createdAt: d.createdAt, commercial: d.commercial?.nom || '' })),
       factures: facts.map(f => ({ id: f.id, numero: f.numero, type: f.type, totalCents: f.totalCents, payee: !!f.payee, payeeLe: f.payeeLe, moyen: f.moyen })),
@@ -992,7 +1091,7 @@ async function createApp(opts = {}) {
   }));
   /* note ou appel ajouté depuis la fiche client */
   A.post('/actions/client-journal/:id', sameSite, json, wrap(async (req, res) => {
-    const c = await store.get('clients/' + req.params.id);
+    const c0 = await store.get('clients/' + req.params.id), c = c0 && { ...c0, id: req.params.id }; /* une fiche créée dans le back-office n'a pas toujours son id dans le document */
     if (!c) return res.status(404).json({ error: 'Client introuvable.' });
     const texte = s(req.body?.texte, 2000), type = req.body?.type === 'appel' ? 'appel' : 'note';
     if (req.body?.supprimer) { await store.set('clients/' + c.id, { ...c, journal: (c.journal || []).filter(j => j.id !== req.body.supprimer) }); return res.json({ ok: true }); }
@@ -1168,8 +1267,8 @@ async function createApp(opts = {}) {
   A.get('/actions/agenda', wrap(async (req, res) => {
     const [dem, rdv] = await Promise.all([store.list('demandes'), store.list('rdv')]);
     const items = [
-      ...dem.map(d => d.data).filter(d => d.evenement?.date && d.type !== 'contact' && d.statut !== 'refuse').map(d => ({ id: d.id, type: 'evenement', date: d.evenement.date, titre: `${d.contact?.nom || ''} · ${d.evenement.type || ''}`, detail: `${d.evenement.invites || ''} pers. · ${d.evenement.ville || ''} · ${d.evenement.horaire || ''}`, statut: d.statut, lien: '#/demandes/' + d.id })),
-      ...rdv.map(r => ({ id: r.id, type: 'rdv', ...r.data, lien: '#/agenda' })),
+      ...dem.map(d => d.data).filter(d => d.evenement?.date && d.type !== 'contact' && d.statut !== 'refuse').map(d => ({ id: d.id, type: 'evenement', date: d.evenement.date, titre: `${d.contact?.nom || ''} · ${d.evenement.type || ''}`, detail: `${d.evenement.invites || ''} pers. · ${d.evenement.ville || ''} · ${d.evenement.horaire || ''}`, statut: d.statut, commercial: d.commercial || '', lien: '#/demandes/' + d.id })),
+      ...rdv.map(r => ({ id: r.id, type: 'rdv', ...r.data, visio: r.data.lien || '', lien: r.data.clientId ? '#/clients/' + r.data.clientId : '#/agenda' })),
       ...(await anniversaires(400)).map(a => ({ id: 'anniv-' + a.id, type: 'anniversaire', date: a.date, titre: '🎂 ' + a.nom, detail: `Anniversaire (${a.age} ans)`, statut: 'anniv', lien: '#/clients/' + a.id })),
     ];
     res.json(items.sort((a, b) => String(a.date).localeCompare(String(b.date))));
@@ -1392,6 +1491,7 @@ async function createApp(opts = {}) {
   if (!opts.noTimers && env.JP_NO_TIMERS !== '1') {
     setTimeout(() => alerte24h().catch(e => log.error?.('[alerte 24 h]', e)), 60e3).unref();
     setInterval(() => alerte24h().catch(e => log.error?.('[alerte 24 h]', e)), 36e5).unref();
+    setInterval(() => rappelsRdv().catch(e => log.error?.('[rappel rdv]', e)), 6e4).unref();
   }
 
   app.locals.store = store;
