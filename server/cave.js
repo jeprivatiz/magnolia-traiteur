@@ -227,9 +227,36 @@ async function vinsCave(store) {
   await store.set('_migr/caveVins1', { at: now });
 }
 
+/* Eaux (Jean-Luc, 2026-11-25) : l'eau plate devient la Cristaline 1,5 L à 2,50 € TTC l'unité ; le Perrier est remplacé
+   par l'eau pétillante 1,5 L que Magnolia propose déjà (ancien site, page « Nos boissons sans alcool »), au même prix. */
+const EAUX_RETIREES = ['eau-evian-50-cl', 'eau-vittel-1-l', 'perrier-fines-bulles-1-l'];
+const EAUX_NOUVELLES = [
+  { slug: 'eau-plate-cristaline-1-5-l', titre: 'Eau plate Cristaline (1,5 L)', ordre: 10, photo: [px(13055851), 'Bouteilles d’eau plate'],
+    extrait: 'Eau de source plate Cristaline, bouteille de 1,5 litre, vendue à l’unité.', description: ['Eau de source plate Cristaline, bouteille de 1,5 litre, vendue à l’unité.', FRAIS] },
+  { slug: 'eau-petillante-1-5-l', titre: 'Eau pétillante (1,5 L)', ordre: 10.5, photo: [px(31699476), 'Bouteille d’eau pétillante'],
+    extrait: 'Eau pétillante, bouteille de 1,5 litre, vendue à l’unité.', description: ['Eau pétillante, bouteille de 1,5 litre, vendue à l’unité.', FRAIS] },
+];
+async function eauxCave(store) {
+  if (await store.get('_migr/caveEaux1')) return;
+  for (const slug of EAUX_RETIREES) {
+    const x = await store.get('produits/' + slug);
+    if (x && x.statut !== 'masque') await store.set('produits/' + slug, { ...x, statut: 'masque', masqueCave: true });
+  }
+  for (const x of EAUX_NOUVELLES) {
+    if (await store.get('produits/' + x.slug)) continue;
+    await store.set('produits/' + x.slug, {
+      id: x.slug, slug: x.slug, rubrique: 'boissons', autresRubriques: [], sous: '', autresSous: [], rangement: 'eaux', titre: x.titre, prixCents: 250, coutCents: null, prixTexte: null,
+      unite: 'bouteille', min: 1, minimumTexte: null, extrait: x.extrait, description: x.description, sections: [], details: [],
+      photos: [{ src: x.photo[0], alt: x.photo[1] }], video: null, groupes: [], variantes: [], regles: {}, ordre: x.ordre, statut: 'visible', maison: false, tva: 10,
+      allergenes: [], aCompleter: false, createdAt: new Date().toISOString(),
+    });
+  }
+  await store.set('_migr/caveEaux1', { at: new Date().toISOString() });
+}
+
 async function initCave(store) {
   await prixCave(store);
-  if (await store.get('_migr/caveCercle')) { await openBarCave(store); await sodasCave(store); await vinsCave(store); return ajoutsCave(store); }
+  if (await store.get('_migr/caveCercle')) { await openBarCave(store); await sodasCave(store); await vinsCave(store); await eauxCave(store); return ajoutsCave(store); }
   const now = new Date().toISOString();
   let n = 0;
   for (const d of await store.list('produits')) {
@@ -269,6 +296,7 @@ async function initCave(store) {
   await openBarCave(store);
   await sodasCave(store);
   await vinsCave(store);
+  await eauxCave(store);
   return n + await ajoutsCave(store);
 }
 
