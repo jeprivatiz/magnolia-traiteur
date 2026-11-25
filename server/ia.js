@@ -67,7 +67,7 @@ function catalogueCompact(c) {
   return { visibles, texte: lignes.join('\n') };
 }
 
-function promptProduits(fiche, texte, compact, tarifs) {
+function promptProduits(fiche, texte, compact, tarifs, anciens = []) {
   return `Tu es conseiller commercial chez Magnolia Traiteur. À partir de la demande du client, compose sa commande en choisissant UNIQUEMENT des prestations de la liste ci-dessous (une ligne par prestation : identifiant | titre | rubrique | prix TTC / unité | minimum | choix possibles).
 Règles :
 - Reprends d'abord ce que le client a demandé explicitement (plats, buffets, quantités). S'il reste vague (« un buffet antillais pour 40 »), propose la formule la plus adaptée et les quantités pour ses invités.
@@ -76,7 +76,10 @@ Règles :
 - Si le client donne un budget, respecte-le autant que possible.
 - note : les choix du client pour cette prestation (ex. « entrées : accras, boudins »), sinon "". Pour un plat « supplément … la part » (ex. coq roussi), écris le nombre de parts : « plats : colombo de poulet × 20, coq roussi × 20 » (le supplément est ajouté tout seul sur le devis).
 - pourquoi : raison courte en français (12 mots maximum).
-Réponds UNIQUEMENT avec un tableau JSON, sans texte autour : [{"slug":"identifiant","qte":nombre,"note":"","pourquoi":""}] (20 lignes maximum).
+${anciens.length ? `- Voici d'anciens devis de Magnolia qui ressemblent à cette demande (les signés ont plu à un client) : si l'un d'eux correspond bien, PARS DE CE DEVIS (mêmes prestations), adapte les quantités au nombre d'invités et à la demande, retire ce que le client ne veut pas, ajoute ce qu'il demande en plus. Indique son numéro dans "base" ; sinon "base" vaut "".
+Anciens devis proches :
+${anciens.map(a => `${a.numero} (${a.statut}${a.modele ? ', modèle' : ''}${a.type ? ', ' + a.type : ''}${a.invites ? ', ' + a.invites + ' invités' : ''}) : ${a.lignes.map(l => l.slug + ' × ' + l.qte).join(', ')}`).join('\n')}
+` : ''}Réponds UNIQUEMENT avec un objet JSON, sans texte autour : {"base":"${anciens.length ? 'numéro de l’ancien devis repris, ou vide' : ''}","articles":[{"slug":"identifiant","qte":nombre,"note":"","pourquoi":""}]} (20 articles maximum).
 
 Client : ${JSON.stringify(fiche)}
 
