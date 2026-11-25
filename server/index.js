@@ -15,6 +15,7 @@ const { seed, importerAvisAncienSite, initSousRubriques } = require('./seed');
 const views = require('./views');
 const { preparerAlerte } = require('./relances');
 const STATS = require('./statistiques');
+const ANC = require('./anciens');
 const { raisonsDevisManuel, regleAcompte, totaux, controleMarge, prochainNumero, lignesDepuisDemande, estimerLigne, choixDepuisNote, totalSupplements } = require('./devis');
 const { rid, sha, esc, euros, limiter, dateFr, slugify, nomPropre, dateNaissance, titreTexte } = require('./util');
 const LIVR = require('../public/js/livraison-paliers');
@@ -1218,6 +1219,7 @@ async function createApp(opts = {}) {
       const err = controleMarge(data);
       if (err.length) return res.status(400).json({ error: 'Marge négative bloquée : ' + err.join(' ') });
       data.token = before?.token || data.token;
+      if (before) { if (before.modele) data.modele = true; else delete data.modele; } /* ⭐ Modèle : changé seulement par son bouton (un devis ouvert avant ne l'efface pas) */
       if (before?.commentaires) data.commentaires = before.commentaires; /* écrits par le client : jamais effacés par un enregistrement du back-office */
     }
     if (coll === 'demandes' && before && data.statut && data.statut !== before.statut) data.historique = [...(before.historique || []), { at: new Date().toISOString(), statut: data.statut, par: req.ctx.name || req.ctx.email }];
@@ -1342,7 +1344,18 @@ async function createApp(opts = {}) {
     const c = await cat.get(), compact = IA.catalogueCompact(c);
     const fiche = IA.nettoyerFiche(req.body?.fiche || {}, c.reglages.evenements || []);
     const fichePourIa = { type: fiche.type, date: fiche.date, horaire: fiche.horaire, invites: fiche.invites, ville: fiche.ville, budgetTTC: fiche.budget, precisions: fiche.notes };
-    try { res.json({ articles: IA.nettoyerArticles(IA.json(await ia.demander(IA.promptProduits(fichePourIa, s(req.body?.texte, 6000), compact, c.reglages.tarifs || {}), { effort: 'medium', maxTokens: 6000 })), c, compact.visibles) }); }
+    /* l'IA part d'abord des anciens devis les plus proches (signés en priorité), puis ajoute les compléments souvent pris avec */
+    const { vis, liste } = await tousLesDevis(req), texte = s(req.body?.texte, 6000);
+    const prox = ANC.proches(liste, { type: fiche.type, invites: fiche.invites, budgetCents: (+fiche.budget || 0) * 100, texte: [texte, fiche.notes].join(' ') }, 3);
+    const anciens = prox.map(x => ({ numero: x.d.numero, statut: x.d.statut === 'accepte' ? 'signé' : 'non signé', modele: !!x.d.modele, type: x.d.evenement?.type || '', invites: +x.d.evenement?.invites || null,
+      lignes: (x.d.lignes || []).filter(l => l.produit && compact.visibles.some(p => p.slug === l.produit)).map(l => ({ slug: l.produit, qte: l.qte })) })).filter(x => x.lignes.length);
+    try {
+      const rep = IA.json(await ia.demander(IA.promptProduits(fichePourIa, texte, compact, c.reglages.tarifs || {}, anciens), { effort: 'medium', maxTokens: 6000 }));
+      const articles = IA.nettoyerArticles(Array.isArray(rep) ? rep : rep?.articles, c, compact.visibles);
+      const b = !Array.isArray(rep) && rep?.base ? prox.find(x => x.d.numero === String(rep.base).trim()) : null;
+      const comp = ANC.complements(liste, articles.map(a => ({ produit: a.slug, designation: a.titre })), c).filter(x => x.slug);
+      res.json({ articles, base: b ? carteDe(vis, b.d, { pourquoi: b.pourquoi }) : null, complements: comp });
+    }
     catch (e) { iaErreur(res, e); }
   }));
   /* « ✨ Proposer avec l'IA » à côté des cases Google (produit, rubrique ou spécialité) : propose, n'enregistre rien */
@@ -1440,7 +1453,7 @@ async function createApp(opts = {}) {
     };
     await store.set('demandes/' + id, demande);
     audit(req.ctx, 'commande préparée avec l’IA', 'demandes/' + id, ref);
-    const devisId = await devisDepuisDemande(demande, req.ctx, { iaDraft: true });
+    const devisId = await devisDepuisDemande(demande, req.ctx, { iaDraft: true, ...(req.body?.base ? { inspireDe: s(req.body.base, 40) } : {}) });
     res.json({ ok: true, demandeId: id, devisId, ref });
   }));
   /* plusieurs devis pour un même client : copie d'un devis (lignes, événement, textes) en nouveau brouillon */
@@ -1469,6 +1482,53 @@ async function createApp(opts = {}) {
     await store.set('_devistoken/' + sha(token), { id });
     audit(req.ctx, 'devis créé', 'devis/' + id, numero);
     res.json({ ok: true, id });
+  }));
+
+  /* ---------- « 📂 Partir d'un ancien devis » (server/anciens.js) ----------
+     Recherche dans TOUS les anciens devis (tous commerciaux, toutes dates) : le nom du client d'un dossier
+     suivi par un autre commercial est masqué pour qui ne voit que ses opportunités, ses lignes restent réutilisables. */
+  async function tousLesDevis(req) {
+    const vis = await visibles(req);
+    return { vis, liste: (await store.list('devis')).map(x => ({ ...x.data, id: x.data?.id || x.id })).filter(d => d && d.numero) };
+  }
+  const carteDe = (vis, d, extra = {}) => ({ ...ANC.carte(d, { masquer: !!vis && !vis.devis.has(d.id) }), ...extra });
+  /* référence d'un devis en cours : type, invités, produits (ceux du devis, sinon ceux de sa demande) et texte de la demande */
+  async function refDevis(d) {
+    const dem = d.demandeId ? await store.get('demandes/' + d.demandeId) : null;
+    const cl = [...new Set((d.lignes || []).map(ANC.cle).filter(Boolean))];
+    if (!cl.length && dem) for (const l of dem.lignes || []) if (l.slug) cl.push('p:' + l.slug);
+    return { sauf: d.id, type: d.evenement?.type || dem?.evenement?.type, invites: d.evenement?.invites || dem?.evenement?.invites, cles: cl, texte: [d.titre, dem?.message].filter(Boolean).join(' ') };
+  }
+  A.get('/anciens-devis', wrap(async (req, res) => {
+    const { vis, liste } = await tousLesDevis(req), q = req.query || {};
+    const f = { q: s(q.q, 200), type: s(q.type, 80), invites: +q.invites || 0, budgetMin: +q.bmin || 0, budgetMax: +q.bmax || 0, du: s(q.du, 10), au: s(q.au, 10), com: s(q.com, 80), signes: q.signes === '1', modeles: q.modeles === '1', sauf: s(q.pour, 40) };
+    const R = ANC.rechercher(liste, f);
+    let proches = [];
+    const cur = f.sauf ? liste.find(d => d.id === f.sauf) : null;
+    if (cur) proches = ANC.proches(liste, { ...(await refDevis(cur)), invites: +q.refInvites || cur.evenement?.invites, type: s(q.refType, 80) || cur.evenement?.type }).map(x => carteDe(vis, x.d, { pourquoi: x.pourquoi }));
+    const commerciaux = [...new Set(liste.map(d => d.commercial?.nom || '').filter(Boolean))].sort((a, b) => a.localeCompare(b));
+    res.set('Cache-Control', 'no-store').json({ total: R.length, resultats: R.slice(0, 60).map(d => carteDe(vis, d)), proches, commerciaux, types: [...new Set(liste.map(d => d.evenement?.type).filter(Boolean))].sort() });
+  }));
+  A.post('/anciens-devis/complements', sameSite, json, wrap(async (req, res) => {
+    const { liste } = await tousLesDevis(req);
+    const L = (Array.isArray(req.body?.lignes) ? req.body.lignes : []).slice(0, 300).map(l => ({ type: l?.type, produit: s(l?.produit, 160), designation: s(l?.designation, 300), unite: s(l?.unite, 40), supplement: l?.supplement }));
+    res.json({ complements: ANC.complements(liste, L, await cat.get()) });
+  }));
+  A.post('/anciens-devis/:id/reprendre', sameSite, json, wrap(async (req, res) => {
+    const src = await store.get('devis/' + req.params.id);
+    if (!src) return res.status(404).json({ error: 'Ancien devis introuvable.' });
+    const c = await cat.get();
+    const r = ANC.reprendre(src, { invites: +req.body?.invites || 0 }, c, c.reglages.tarifs || {});
+    audit(req.ctx, 'ancien devis repris', 'devis/' + req.params.id, src.numero);
+    res.json({ ...r, source: { id: req.params.id, numero: src.numero, titre: src.titre || '', type: src.evenement?.type || '', invites: +src.evenement?.invites || null, conditions: src.conditions || '' } });
+  }));
+  A.post('/actions/modele-devis/:id', sameSite, json, wrap(async (req, res) => {
+    const d = await store.get('devis/' + req.params.id);
+    if (!d) return res.status(404).json({ error: 'Devis introuvable.' });
+    const on = !!req.body?.modele, next = { ...d }; if (on) next.modele = true; else delete next.modele;
+    await store.set('devis/' + req.params.id, next);
+    audit(req.ctx, on ? 'devis marqué modèle ⭐' : 'devis retiré des modèles', 'devis/' + req.params.id, d.numero);
+    res.json({ ok: true, modele: on });
   }));
 
   function remplir(modele, vars) { return String(modele || '').replace(/\{(\w+)\}/g, (m, k) => vars[k] ?? ''); }

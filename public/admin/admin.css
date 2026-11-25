@@ -1763,3 +1763,79 @@ body.avec-psbar .content { padding-bottom: 120px; }
 .st-loupe input { width: 100%; min-height: 0; border: 1px solid var(--db-line); background: #fff; color: var(--db-ink); border-radius: 999px; padding: 7px 14px 7px 36px; font: 500 13.5px var(--sans); }
 .st-loupe input:focus { outline: 2px solid var(--db-or); outline-offset: -1px; }
 @media (max-width: 700px) { .st-loupe { max-width: none; flex-basis: 100%; } }
+
+/* ---------- 📂 Partir d'un ancien devis (anciens devis, modèles ⭐, devis proches, souvent pris avec) ---------- */
+.btn.anc-btn { border-color: #b9cfc2; color: #1d3b2f; background: #eef5f0; }
+.btn.anc-btn:hover { background: #dfece4; }
+.anc-in { width: min(1080px, 100%); overflow: auto; gap: 0; background: #f8f5ee; }
+.anc-f { display: grid; grid-template-columns: 2fr 1.2fr .8fr .7fr .7fr 1fr 1fr 1.1fr; gap: 8px 10px; align-items: end; padding: 12px; margin: 4px 0 12px; background: #fff; border: 1px solid var(--ligne); border-radius: 12px; }
+.anc-f label { font-size: .8rem; color: var(--gris); display: grid; gap: 3px; margin: 0; }
+.anc-f input, .anc-f select { background: #fbfaf6; border: 1.5px solid #d6cfbf; min-width: 0; width: 100%; }
+.anc-ck { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; }
+.anc-t { font: 600 1rem var(--sans); margin: 14px 0 8px; color: var(--vert); }
+.anc-g { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+.anc-c { background: #fff; color: #1f2a24; border: 1px solid #e0d9c9; border-radius: 12px; padding: 12px 13px; display: flex; flex-direction: column; gap: 5px; box-shadow: 0 1px 2px rgba(20, 30, 25, .05); }
+.anc-c.star { border-color: #d8b76a; box-shadow: 0 0 0 2px #d8b76a33; background: linear-gradient(180deg, #fffaf0, #fff 60%); }
+.anc-h { display: flex; align-items: center; gap: 6px; }
+.anc-h b { font-size: .95rem; }
+.anc-h .pill { margin-left: auto; }
+.anc-star { background: none; border: 0; font-size: 1.15rem; line-height: 1; cursor: pointer; color: #b08a4f; padding: 2px 4px; }
+.anc-cl { margin: 0; font-weight: 500; }
+.anc-m { margin: 0; display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: .84rem; color: #55605a; align-items: baseline; }
+.anc-m b { margin-left: auto; color: #1d3b2f; font-size: .95rem; }
+.anc-p { margin: 2px 0 0; padding-left: 16px; font-size: .84rem; }
+.anc-p li { margin: 1px 0; }
+.anc-why { margin: 2px 0 0; font-size: .8rem; color: #7a5a1c; background: #fff8ea; border-radius: 8px; padding: 4px 8px; }
+.anc-by { margin: 0; }
+.anc-a { display: flex; gap: 6px; margin-top: auto; padding-top: 4px; flex-wrap: wrap; }
+.anc-a .btn { flex: 1; justify-content: center; }
+.anc-box { border-color: #b9cfc2; background: linear-gradient(180deg, #eef5f0, transparent 80%), var(--carte); }
+.anc-box .anc-g { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+.anc-ap { background: #fff; color: #1f2a24; border: 1px solid var(--ligne); border-radius: 12px; padding: 10px 12px; margin: 6px 0 12px; overflow: auto; }
+.anc-tl { width: 100%; border-collapse: collapse; font-size: .88rem; }
+.anc-tl th, .anc-tl td { padding: 6px 6px; border-bottom: 1px solid #eee7d8; text-align: left; }
+.anc-tl .n { text-align: right; white-space: nowrap; }
+.anc-tl tr.t td { font-weight: 600; color: #1d3b2f; background: #f4efe4; }
+.anc-tot { text-align: right; margin: 8px 0 0; }
+.anc-rap { list-style: none; margin: 6px 0 14px; padding: 12px 14px; background: #fff; color: #1f2a24; border: 1px solid var(--ligne); border-radius: 12px; display: grid; gap: 8px; }
+.anc-rap s { color: #8a8f88; }
+.anc-comp { margin-top: 14px; padding: 12px; border: 1px dashed #c9b88f; border-radius: 12px; background: #fffaf0; color: #1f2a24; }
+.anc-comp h3 { font: 600 .98rem var(--sans); margin: 0 0 8px; color: #1d3b2f; }
+.anc-comp h3 small { font-weight: 400; }
+.anc-cg { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
+.anc-ci { display: flex; gap: 10px; align-items: center; background: #fff; border: 1px solid #ece3cf; border-radius: 10px; padding: 7px 8px; }
+.anc-ci img, .anc-ph { width: 46px; height: 46px; object-fit: cover; border-radius: 8px; flex: none; background: #efe8d8; display: grid; place-items: center; }
+.anc-ci span:not(.anc-ph) { flex: 1; min-width: 0; display: grid; font-size: .86rem; }
+.anc-ci small { color: #6b7069; }
+.anc-base { margin: 0 0 12px; padding: 10px 14px; border-radius: 10px; background: #eef5f0; border: 1px solid #b9cfc2; color: #1d3b2f; }
+.anc-base p { margin: 0 0 3px; }
+.qs-back.anc-q { color: #1d3b2f; }
+@media (max-width: 860px) {
+  .anc-f { grid-template-columns: 1fr 1fr; }
+  .anc-f .anc-q { grid-column: 1 / -1; }
+  .anc-g, .anc-box .anc-g, .anc-cg { grid-template-columns: 1fr; }
+  .anc-modal { padding: 0; }
+  .anc-modal .modal-in { border-radius: 0; max-height: 100vh; height: 100%; }
+}
+@media (prefers-color-scheme: dark) {
+  .anc-in { background: var(--fond); }
+  .anc-f, .anc-ap, .anc-rap { background: var(--carte); color: var(--texte); }
+  .anc-f input, .anc-f select { background: var(--doux); border-color: var(--ligne); color: var(--texte); }
+  .anc-c, .anc-ci { background: var(--carte); color: var(--texte); border-color: var(--ligne); }
+  .anc-c.star { background: linear-gradient(180deg, #2a2618, var(--carte) 60%); }
+  .anc-comp { background: #1f1d15; color: var(--texte); }
+  .anc-base, .btn.anc-btn { background: #1c2a23; color: var(--vert-2); border-color: #2f4a3c; }
+  .anc-m, .anc-ci small { color: var(--gris); }
+  .anc-m b, .anc-comp h3, .anc-t { color: var(--vert-2); }
+  .anc-tl tr.t td { background: var(--doux); color: var(--vert-2); }
+  .anc-tl th, .anc-tl td { border-color: var(--ligne); }
+}
+.anc-plusb { display: none; }
+@media (max-width: 860px) {
+  .anc-plusb { display: inline; }
+  .anc-f:not(.ouvert) .anc-plus { display: none; }
+  .anc-modal .aq-h p.muted { font-size: .85rem; }
+  .anc-modal .aq-h h2 { font-size: 1.35rem; }
+}
+.anc-f label.chk { display: inline-flex; align-items: center; gap: 6px; font-size: .9rem; color: var(--texte); }
+.anc-f label.chk input { width: 18px; height: 18px; }

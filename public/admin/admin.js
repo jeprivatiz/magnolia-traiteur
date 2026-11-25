@@ -444,7 +444,7 @@
     const action = d => {
       if (d.type === 'contact') return `<button class="lnk sm" type="button" data-classer="${d.id}">Déjà traité : classer</button>`;
       const x = dv.filter(v => v.demandeId === d.id).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))[0];
-      return `${x ? `<a class="btn sm" href="#/devis/${x.id}">${x.statut === 'brouillon' ? 'Terminer le devis' : 'Ouvrir le devis'}</a>` : `<button class="btn sm" type="button" data-mk="${d.id}">Créer un devis</button>`}${voir === 'todo' ? `<button class="lnk sm" type="button" data-classer="${d.id}">Déjà traitée : classer</button>` : ''}`;
+      return `${x ? `<a class="btn sm" href="#/devis/${x.id}">${x.statut === 'brouillon' ? 'Terminer le devis' : 'Ouvrir le devis'}</a>` : `<button class="btn sm" type="button" data-mk="${d.id}">Créer un devis</button><button class="btn ghost sm anc-btn" type="button" data-mkanc="${d.id}" title="Créer le devis en reprenant un ancien devis proche">📂 Ancien devis</button>`}${voir === 'todo' ? `<button class="lnk sm" type="button" data-classer="${d.id}">Déjà traitée : classer</button>` : ''}`;
     };
     const row = d => `<tr data-href="#/demandes/${d.id}"${d.statut === 'demande' && !d.vue ? ' class="new"' : ''}>
       <td>${new Date(d.createdAt).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })}<small>${esc(d.ref)}</small></td>
@@ -456,7 +456,7 @@
       <td class="k4c">${d.type === 'contact' ? '' : chiffresDemande(d)}</td>
       <td class="act">${action(d)}${d.devisAuto && !d.devisAuto.envoye && (d.devisAuto.raisons || []).length ? `<small class="da-why" title="Pourquoi l’IA n’a pas envoyé le devis toute seule">À faire à la main : ${esc(d.devisAuto.raisons.slice(0, 2).join(' ; '))}${d.devisAuto.raisons.length > 2 ? '…' : ''}</small>` : ''}</td></tr>`;
     const onglet = (k, l, n) => `<button type="button" class="qs-chip${voir === k ? ' on' : ''}" data-voir="${k}">${l} <b>${n}</b></button>`;
-    return page('Demandes de devis', '<button type="button" class="btn ghost aq-btn" data-aiq>✨ Devis avec l’IA</button><a class="btn" href="#/devis/nouveau">+ Nouveau devis</a>', `
+    return page('Demandes de devis', '<button type="button" class="btn ghost aq-btn" data-aiq>✨ Devis avec l’IA</button><a class="btn anc-btn" href="#/devis/nouveau?anciens=1">📂 Partir d’un ancien devis</a><a class="btn" href="#/devis/nouveau">+ Nouveau devis</a>', `
       <p class="muted intro">Les demandes envoyées depuis le site arrivent ici, avec une alerte par e-mail. Dès que quelqu’un s’en occupe (devis, e-mail, SMS, appel, note, rendez-vous ou attribution à un commercial), elles passent dans « Suivi client », à son nom.</p>
       <section class="box da-box"><label class="chk"><input type="checkbox" data-devisauto${autoOn ? ' checked' : ''}${peut('equipe') ? '' : ' disabled title="Réservé aux personnes qui gèrent l’équipe"'}> <b>✨ Envoi automatique des devis complets : ${autoOn ? 'activé' : 'désactivé'}</b></label><p class="muted sm">Quand une demande du site ne contient que des prestations du catalogue, avec leur prix, les quantités minimum, la date, le nombre d’invités, l’adresse et le téléphone, l’IA crée le devis et l’envoie aussitôt au client (e-mail et SMS), quel que soit le montant. L’équipe est prévenue par e-mail et SMS pour rappeler le client, et la demande passe dans « Suivi client ». Sinon, la demande reste ici, avec la raison.</p><div class="row da-sms"><label>📱 SMS « devis envoyé par l’IA » à ce(s) portable(s)<input type="tel" data-dasms value="${esc((cache.R || {}).devisAutoSms ?? '06 58 22 69 69')}" placeholder="06 12 34 56 78 (plusieurs : séparés par une virgule)"${peut('equipe') ? '' : ' disabled'}></label>${peut('equipe') ? '<button type="button" class="btn sm" data-dasmsok>Enregistrer</button>' : ''}</div></section>
       <div class="qs-top"><div class="qs-chips">${onglet('todo', 'À traiter', todo.length)}${onglet('msg', 'Messages', msgs.length)}${onglet('done', 'Déjà traitées', done.length)}</div></div>
@@ -478,13 +478,14 @@
       catch (err) { e.target.checked = !on; toast(err.message, true); }
     });
     $$('[data-mk]').forEach(b => b.addEventListener('click', async () => { const r = await api(`${A}/actions/devis-depuis-demande/${b.dataset.mk}`, { method: 'POST' }); location.hash = '#/devis/' + r.id; }));
+    $$('[data-mkanc]').forEach(b => b.addEventListener('click', async () => { const r = await api(`${A}/actions/devis-depuis-demande/${b.dataset.mkanc}`, { method: 'POST' }); location.hash = '#/devis/' + r.id + '?anciens=1'; }));
     $$('[data-classer]').forEach(b => b.addEventListener('click', async () => { const d = await api(`${A}/demandes/${b.dataset.classer}`); await api(`${A}/demandes/${d.id}`, { method: 'PUT', body: { ...d, classee: true } }); toast('Demande classée : elle reste visible dans « Déjà traitées ».'); render(); }));
   };
   async function demande(id) {
     const d = await api(A + '/demandes/' + id);
     const dv = (await api(A + '/devis')).filter(x => x.demandeId === id);
     cache.demande = d;
-    return page(`${esc(d.ref)} · ${esc(d.contact?.nom)}`, `<a class="btn ghost" href="#/demandes">← Demandes</a>${d.type !== 'contact' ? `<button class="btn" data-mkdevis>${dv.length ? 'Nouveau devis' : 'Créer le devis'}</button>` : ''}`, `
+    return page(`${esc(d.ref)} · ${esc(d.contact?.nom)}`, `<a class="btn ghost" href="#/demandes">← Demandes</a>${d.type !== 'contact' ? `<button class="btn anc-btn" data-mkdevisanc>📂 Partir d’un ancien devis</button><button class="btn" data-mkdevis>${dv.length ? 'Nouveau devis' : 'Créer le devis'}</button>` : ''}`, `
       <div class="cols">
         <section class="box"><h2>Client</h2><p><b>${esc(d.contact?.nom)}</b>${d.contact?.societe ? '<br>' + esc(d.contact.societe) : ''}<br><a href="mailto:${esc(d.contact?.email)}">${esc(d.contact?.email)}</a><br><a href="tel:${esc(d.contact?.tel)}">${esc(d.contact?.tel)}</a></p><p><a class="lnk" href="#/clients/${d.clientId}">Fiche client → (corriger le nom, la société, l’e-mail ou le téléphone)</a></p></section>
         <section class="box"><h2>Événement</h2><p><b>${esc(d.evenement?.type)}</b> · ${dateFr(d.evenement?.date, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}<br>${d.evenement?.invites || '?'} invités · ${esc(d.evenement?.cp)} ${esc(d.evenement?.ville)}<br>${esc(d.evenement?.horaire)}${d.livraison ? `<br>Livraison estimée : ${d.livraison.km} km A/R · ${d.livraison.horsZone ? 'hors Île-de-France, tarif à proposer' : d.livraison.offerte ? 'offerte' : euros(d.livraison.cents) + (d.livraison.kmCents != null ? ` (${euros(d.livraison.kmCents)}/km)` : '')}` : ''}</p></section>
@@ -500,6 +501,7 @@
     $('[data-statut]')?.addEventListener('change', async e => { await api(`${A}/demandes/${id}`, { method: 'PUT', body: { ...cache.demande, statut: e.target.value } }); toast('Statut mis à jour.'); render(); });
     $('[data-savenotes]')?.addEventListener('click', async () => { await api(`${A}/demandes/${id}`, { method: 'PUT', body: { ...cache.demande, notes: $('[data-notes]').value } }); toast('Note enregistrée.'); });
     $('[data-mkdevis]')?.addEventListener('click', async () => { const r = await api(`${A}/actions/devis-depuis-demande/${id}`, { method: 'POST' }); location.hash = '#/devis/' + r.id; });
+    $('[data-mkdevisanc]')?.addEventListener('click', async () => { const r = await api(`${A}/actions/devis-depuis-demande/${id}`, { method: 'POST' }); location.hash = '#/devis/' + r.id + '?anciens=1'; });
   };
 
   /* ---------- suivi client : une fiche par opportunité et sa frise (Demande → Devis envoyé → Relance → Accord client → Réservé / Refusé), comme Je Privatise ---------- */
@@ -527,7 +529,7 @@
     cache.opps = dem.filter(d => d.type !== 'contact' && !aTraiter(d, devisL)).map(d => opportunite(d, devisL));
     cache.annuaire = annuaire(cl, dem, devisL, fac);
     if (SV.o == null) { const m = mem.get('mg_commercial'); SV.o = m != null ? m : ''; }
-    return page('Suivi client', '<button type="button" class="btn ghost aq-btn" data-aiq>✨ Devis avec l’IA</button><a class="btn" href="#/devis/nouveau">+ Nouveau devis</a>', `<p class="muted intro">Vos opportunités en cours, d’un coup d’œil. Une commande prise au téléphone ? Bouton « ✨ Devis avec l’IA » : tapez ou dictez tout en vrac, l’IA prépare la fiche client et le devis avec le catalogue.</p>
+    return page('Suivi client', '<button type="button" class="btn ghost aq-btn" data-aiq>✨ Devis avec l’IA</button><a class="btn anc-btn" href="#/devis/nouveau?anciens=1">📂 Partir d’un ancien devis</a><a class="btn" href="#/devis/nouveau">+ Nouveau devis</a>', `<p class="muted intro">Vos opportunités en cours, d’un coup d’œil. Une commande prise au téléphone ? Bouton « ✨ Devis avec l’IA » : tapez ou dictez tout en vrac, l’IA prépare la fiche client et le devis avec le catalogue.</p>
       <div class="cf-box"><label class="cf-lab" for="cfQ">Retrouver un client et tout son historique</label><div class="cf-in"><input id="cfQ" type="search" data-cf autocomplete="off" placeholder="🔍 Nom, prénom, téléphone, e-mail, société ou n° de devis…" aria-label="Rechercher un client"><div class="cf-res" id="cfRes" hidden></div></div></div>
       <div id="qs"></div>`);
   }
@@ -657,7 +659,7 @@
         <div class="qs-ev">${e.type ? '<b>' + esc(e.type) + '</b> · ' : ''}${esc([e.date ? dateFr(e.date, { day: 'numeric', month: 'short', year: 'numeric' }) : 'date à définir', e.invites ? e.invites + ' pers.' : '', e.ville || ''].filter(Boolean).join(' · '))}</div></div></div>
       <div class="qs-right">${k4Html(o.main ? chiffres(o.main) : chiffres(o.d, { lignes: lignesDemande(o.d), ttc: o.d.totalEstimeCents }), o.main ? '#/devis/' + o.main.id : '')}<div class="qs-ht">${o.main ? 'devis n° ' + esc(o.main.numero) : 'estimation du site'}</div></div>
       ${frise(o)}
-      <div class="qs-foot"><div class="qs-info">${o.d.notes ? `<div class="qs-note">📝 ${esc(String(o.d.notes).slice(0, 140))}</div>` : ''}</div><div class="qs-acts">${o.late ? '' : icons}${['refuse', 'reserve', 'termine'].includes(o.d.statut) ? `<button class="qs-back" type="button" data-qback="${o.d.id}" title="Remettre dans les opportunités en cours">↺ Remettre en cours</button>` : ''}${o.main && o.main.statut !== 'brouillon' ? `<a class="qs-back" href="/devis/${esc(o.main.token)}" target="_blank" title="Le devis tel que le client le voit">📨 ${o.main.statut === 'accepte' ? 'Devis signé' : 'Devis envoyé'}</a>` : ''}${o.d.clientId ? `<a class="qs-back" href="#/clients/${esc(o.d.clientId)}" title="Tout ce qui s’est passé avec ce client">🕘 Historique</a>` : ''}<button class="qs-open" type="button" data-qopen="${o.d.id}">${o.cat === 'draft' ? 'Terminer' : 'Ouvrir'}</button></div></div>
+      <div class="qs-foot"><div class="qs-info">${o.d.notes ? `<div class="qs-note">📝 ${esc(String(o.d.notes).slice(0, 140))}</div>` : ''}</div><div class="qs-acts">${o.late ? '' : icons}${['refuse', 'reserve', 'termine'].includes(o.d.statut) ? `<button class="qs-back" type="button" data-qback="${o.d.id}" title="Remettre dans les opportunités en cours">↺ Remettre en cours</button>` : ''}${o.main && o.main.statut !== 'brouillon' ? `<a class="qs-back" href="/devis/${esc(o.main.token)}" target="_blank" title="Le devis tel que le client le voit">📨 ${o.main.statut === 'accepte' ? 'Devis signé' : 'Devis envoyé'}</a>` : ''}${!o.main && !['refuse', 'termine'].includes(o.d.statut) ? `<button class="qs-back anc-q" type="button" data-qanc="${o.d.id}" title="Créer le devis en reprenant un ancien devis proche">📂 Ancien devis</button>` : ''}${o.d.clientId ? `<a class="qs-back" href="#/clients/${esc(o.d.clientId)}" title="Tout ce qui s’est passé avec ce client">🕘 Historique</a>` : ''}<button class="qs-open" type="button" data-qopen="${o.d.id}">${o.cat === 'draft' ? 'Terminer' : 'Ouvrir'}</button></div></div>
       ${o.late ? `<div class="qs-alert"><b>⚠ Plus de 24 h sans nouvelles.</b> <span>${o.envoyeLe ? `Rappelez ${esc(first || 'ce client')} ou relancez-le.` : `La demande de ${esc(first || 'ce client')} attend son devis.`}</span><span class="sp"></span>${tel ? `<a class="qs-pill dark" href="tel:${esc(tel)}" data-qappel="${o.d.id}">📞 Appeler</a>` : ''}${o.envoyeLe && c.email ? `<button class="qs-pill" type="button" data-qrel="${o.d.id}" data-canal="mail">✉ Relancer par e-mail</button>` : ''}${o.envoyeLe && tel ? `<button class="qs-pill" type="button" data-qrel="${o.d.id}" data-canal="sms">💬 Relancer par SMS</button>` : ''}${o.envoyeLe ? '' : `<button class="qs-pill dark" type="button" data-qdevis="${o.d.id}">✎ Préparer le devis</button>`}<button class="qs-pill" type="button" data-qfait="${o.d.id}">✓ Relance faite (noter)</button></div>` : ''}
     </article>`;
   }
@@ -696,6 +698,7 @@
         try { await api(`${A}/actions/relancer/${x.main.id}`, { method: 'POST', body: { modele: canal === 'sms' ? 'sms-relance' : x.relances.length ? 'relance-j7' : 'relance-j3' } }); await majDemande(x.d.id, d => d, 'Relance envoyée.'); } catch (err) { toast(err.message, true); }
         return;
       }
+      if (t?.dataset.qanc) { const r = await api(`${A}/actions/devis-depuis-demande/${t.dataset.qanc}`, { method: 'POST' }); location.hash = '#/devis/' + r.id + '?anciens=1'; return; }
       if (t?.dataset.qdevis) { const x = o(t.dataset.qdevis); if (x?.main) { location.hash = '#/devis/' + x.main.id; return; } const r = await api(`${A}/actions/devis-depuis-demande/${t.dataset.qdevis}`, { method: 'POST' }); location.hash = '#/devis/' + r.id; return; }
       if (t?.dataset.qstep) {
         const k = t.dataset.qstep, x = o(t.dataset.q), cur = x.d.statut;
@@ -756,7 +759,7 @@
       return { presta, pers, pack, liv, offerte, total: presta + pers + pack + liv };
     };
     const draw = () => {
-      if (st.step === 1) m.innerHTML = `<div class="modal-in aq-in">${tete('Décrivez la commande du client', 'Tapez ou dictez tout en vrac : nom, téléphone, e-mail, date, nombre d’invités, ville de livraison, ce qu’il veut manger, le personnel… L’IA prépare la fiche client et la commande avec le catalogue Magnolia (prix TTC, minimums). Rien n’est envoyé au client.')}
+      if (st.step === 1) m.innerHTML = `<div class="modal-in aq-in">${tete('Décrivez la commande du client', 'Tapez ou dictez tout en vrac : nom, téléphone, e-mail, date, nombre d’invités, ville de livraison, ce qu’il veut manger, le personnel… L’IA prépare la fiche client et la commande avec le catalogue Magnolia (prix TTC, minimums). 📂 Elle part de l’ancien devis le plus proche (signés en priorité) et vous propose les compléments souvent pris avec. Rien n’est envoyé au client.')}
         ${conf.actif ? '' : '<p class="aq-warn">L’IA n’est pas encore activée sur le site : il faut ajouter la clé <b>ANTHROPIC_API_KEY</b> dans les variables Railway. En attendant, vous pouvez créer le devis à la main (« + Nouveau devis »).</p>'}
         <div class="aq-nrow"><textarea id="aqTexte" rows="7" placeholder="ex. Sophie Durand, 06 12 34 56 78, sophie.durand@gmail.com, anniversaire de ses 40 ans le 14 mars, 40 personnes à Massy 91300, livraison 19 h, buffet antillais avec accras et colombo de poulet, 2 serveurs 5 h, vaisselle en dur">${esc(st.texte)}</textarea><button type="button" class="aq-mic" id="aqMic" title="Dicter" aria-label="Dicter">🎤</button></div><p class="aq-nmsg" id="aqNMsg"></p>
         <div class="aq-f"><span class="aq-msg" id="aqMsg"></span><span class="aq-sp"></span><button type="button" class="btn ghost" data-aqx>Annuler</button><button type="button" class="btn" id="aqGo"${conf.actif ? '' : ' disabled'}>✨ Préparer la fiche client</button></div></div>`;
@@ -790,7 +793,9 @@
           <input class="aq-note" data-aqnote="${i}" value="${esc(a.note)}" placeholder="Choix du client, précisions (facultatif)"></div>
           <label class="aq-q">Quantité<input type="number" min="${a.min}" inputmode="numeric" data-aqq="${i}" value="${a.qte}"><small>${a.prixCents == null ? '—' : euros(a.prixCents * a.qte)}</small></label></div>`;
         m.innerHTML = `<div class="modal-in aq-in">${tete('La commande proposée', `Pour ${esc([st.f.prenom, st.f.nom].filter(Boolean).join(' ') || 'le client')}${st.f.invites ? ' · ' + st.f.invites + ' invités' : ''} · décochez ce qui ne convient pas, ajustez les quantités (jamais sous le minimum), ajoutez une prestation si besoin.`)}
+          ${st.base ? `<div class="anc-base"><p>📂 L’IA est partie de l’ancien devis <b>${esc(st.base.numero)}</b> <span class="pill d-${st.base.statut}">${DSTAT[st.base.statut] || ''}</span>${st.base.modele ? ' ⭐' : ''}, le plus proche de la demande, puis l’a adapté (invités, prix actuels du catalogue).</p><small class="muted">${esc([st.base.clientNom, st.base.type, st.base.invites ? st.base.invites + ' invités' : '', euros(st.base.ttcCents) + ' TTC à l’époque'].filter(Boolean).join(' · '))}${st.base.pourquoi?.length ? ' · ' + esc(st.base.pourquoi.join(', ')) : ''}</small></div>` : ''}
           <div class="aq-as">${st.art.map(ligne).join('') || '<p class="muted">L’IA n’a rien trouvé dans le catalogue : ajoutez les prestations ci-dessous.</p>'}</div>
+          ${(() => { const C = (st.comp || []).filter(x => !st.art.some(a => a.slug === x.slug)); return C.length ? `<div class="anc-comp"><h3>🧩 Souvent pris avec <small class="muted">d’après les anciens devis signés</small></h3><div class="anc-cg">${C.map(x => `<div class="anc-ci">${x.photo ? `<img src="${esc(x.photo)}" alt="" loading="lazy">` : '<span class="anc-ph">🧩</span>'}<span><b>${esc(x.designation)}</b><small>${euros(x.puCents)}${x.unite ? ' / ' + esc(x.unite) : ''} · dans ${x.n} devis signé${x.n > 1 ? 's' : ''} sur ${x.sur}</small></span><button type="button" class="btn ghost sm" data-aqcomp="${esc(x.slug)}">+ Ajouter</button></div>`).join('')}</div></div>` : ''; })()}
           <select class="aq-add" data-aqadd><option value="">+ Ajouter une prestation du catalogue…</option>${visibles.map(p => `<option value="${esc(p.slug)}">${esc(titreTexte(p.titre))} · ${p.prixCents == null ? 'prix à confirmer' : euros(p.prixCents)}</option>`).join('')}</select>
           <dl class="aq-tot"><dt>Prestations</dt><dd>${euros(t.presta)}</dd>${t.pers ? `<dt>Personnel (${st.f.serveurs} × ${Math.max(T.personnel?.minHeures || 4, +st.f.heures || 0)} h)</dt><dd>${euros(t.pers)}</dd>` : ''}${t.pack ? `<dt>Pack vaisselle</dt><dd>${euros(t.pack)}</dd>` : ''}${st.km ? `<dt>Livraison (${st.km} km A/R)</dt><dd>${t.offerte ? 'offerte' : euros(t.liv)}</dd>` : ''}<dt class="g">Total estimé TTC</dt><dd class="g">${euros(t.total)}</dd></dl>
           <div class="aq-f"><button type="button" class="btn ghost" data-aqback="2">← Modifier la fiche</button><span class="aq-msg" id="aqMsg"></span><span class="aq-sp"></span><button type="button" class="btn" id="aqMake"${st.art.some(a => a.on) ? '' : ' disabled'}>Préparer le devis</button></div></div>`;
@@ -812,6 +817,7 @@
       if (e.target === m || e.target.closest('[data-aqx]')) { m.remove(); return; }
       const bk = e.target.closest('[data-aqback]'); if (bk) { st.step = +bk.dataset.aqback; draw(); return; }
       const on = e.target.closest('[data-aqon]'); if (on) { st.art[+on.dataset.aqon].on = on.checked; draw(); return; }
+      const cp = e.target.closest('[data-aqcomp]'); if (cp) { const p = visibles.find(x => x.slug === cp.dataset.aqcomp); if (p && !st.art.some(a => a.slug === p.slug)) { st.art.push({ ...ajout(p), pourquoi: 'souvent pris avec ces produits' }); draw(); } return; }
       if (e.target.closest('#aqGo')) {
         st.texte = m.querySelector('#aqTexte').value.trim(); if (st.texte.length < 5) { occupe('#aqGo', false, '<span class="err">Écrivez ou dictez d’abord les infos du client.</span>'); return; }
         occupe('#aqGo', true, '<span class="muted">L’IA lit la demande…</span>');
@@ -822,14 +828,14 @@
       if (e.target.closest('#aqProd')) {
         lireForm(); if (!st.f.nom && !st.f.prenom) { occupe('#aqProd', false, '<span class="err">Indiquez au moins le nom du client.</span>'); return; }
         occupe('#aqProd', true, '<span class="muted">L’IA compose la commande avec le catalogue…</span>');
-        try { st.art = (await api(A + '/ia/produits', { method: 'POST', body: { fiche: st.f, texte: st.texte } })).articles.map(a => ({ ...a, on: true })); st.step = 3; draw(); }
+        try { const r = await api(A + '/ia/produits', { method: 'POST', body: { fiche: st.f, texte: st.texte } }); st.art = r.articles.map(a => ({ ...a, on: true })); st.base = r.base || null; st.comp = r.complements || []; st.step = 3; draw(); }
         catch (err) { occupe('#aqProd', false, `<span class="err">${esc(err.message)}</span>`); }
         return;
       }
       if (e.target.closest('#aqMake')) {
         occupe('#aqMake', true, '<span class="muted">Création du devis…</span>');
         try {
-          const r = await api(A + '/actions/commande-ia', { method: 'POST', body: { fiche: st.f, km: st.km, texte: st.texte, articles: st.art.filter(a => a.on).map(a => ({ slug: a.slug, qte: a.qte, note: a.note })) } });
+          const r = await api(A + '/actions/commande-ia', { method: 'POST', body: { fiche: st.f, km: st.km, texte: st.texte, base: st.base?.numero || '', articles: st.art.filter(a => a.on).map(a => ({ slug: a.slug, qte: a.qte, note: a.note })) } });
           m.remove(); toast('✨ Devis préparé avec l’IA : vérifiez les lignes et le message, enregistrez, puis envoyez.'); location.hash = '#/devis/' + r.devisId;
         } catch (err) { occupe('#aqMake', false, `<span class="err">${esc(err.message)}</span>`); }
       }
@@ -840,7 +846,7 @@
 
   /* ---------- devis ---------- */
   async function devis(id) {
-    if (id === 'nouveau') { const r = await api(A + '/actions/devis-vierge', { method: 'POST', body: {} }); location.replace('#/devis/' + r.id); return ''; }
+    if (id === 'nouveau') { const r = await api(A + '/actions/devis-vierge', { method: 'POST', body: {} }); location.replace('#/devis/' + r.id + (/[?&]anciens=1/.test(location.hash) ? '?anciens=1' : '')); return ''; }
     if (id) return devisEdit(id);
     const [tous, eq, R0] = await Promise.all([api(A + '/devis'), cache.equipe ? null : api(A + '/actions/equipe').catch(() => []), cache.R ? null : api(A + '/site')]);
     if (eq) cache.equipe = eq.filter(u => !u.desactive); if (R0) cache.R = R0;
@@ -854,7 +860,7 @@
     const filtre = `<div class="dv-who"><span class="qs-olab">Commercial</span><label class="qs-csel"><span aria-hidden="true">👤</span><select data-dvcom aria-label="Choisir le commercial"><option value=""${!qui ? ' selected' : ''}>Tous les commerciaux</option>${noms.map(n => `<option value="${esc(n)}"${qui === n ? ' selected' : ''}>${esc(n)}</option>`).join('')}<option value="—"${qui === '—' ? ' selected' : ''}>Sans commercial</option></select></label><span class="muted sm">${list.length} devis${qui ? ` · ${euros(list.reduce((t, d) => t + tot(d).ttc, 0))} TTC` : ''}</span></div>`;
     if (tous.length && !list.length) return page('Devis', '<button type="button" class="btn ghost aq-btn" data-aiq>✨ Devis avec l’IA</button><a class="btn" href="#/devis/nouveau">+ Nouveau devis</a>', filtre + '<div class="vide"><p>Aucun devis pour ce commercial.</p></div>');
     return page('Devis', '<button type="button" class="btn ghost aq-btn" data-aiq>✨ Devis avec l’IA</button><a class="btn" href="#/devis/nouveau">+ Nouveau devis</a>', list.length ? `${filtre}<div class="row sel-bar">${peut('effacerDevis') ? '<button type="button" class="btn danger sm" data-effacer disabled>🗑 Effacer</button>' : ''}<span class="muted sm" data-nbsel>Cochez les devis à effacer.</span></div><div class="table"><table><thead><tr><th class="ck"><input type="checkbox" data-tout aria-label="Tout cocher" title="Tout cocher"></th><th>N°</th><th>Client</th><th>Nature de l’événement</th><th>Date</th><th class="n">Personnes</th><th>Commercial</th><th class="n">Montants 🔒</th><th>Statut</th><th>Vu par le client</th></tr></thead><tbody>
-      ${list.map(d => `<tr data-href="#/devis/${d.id}"><td class="ck">${effacable(d) ? `<input type="checkbox" data-sel="${esc(d.id)}" data-num="${esc(d.numero)}" data-st="${esc(d.statut)}" aria-label="Sélectionner ${esc(d.numero)}">` : '<span title="Devis signé : ne peut pas être effacé">🔒</span>'}</td><td class="nw"><b>${esc(d.numero)}</b>${(d.commentaires || []).length ? ` <span title="${d.commentaires.length} commentaire(s) du client">💬</span>` : ''}</td><td>${esc(d.clientNom)}</td><td>${esc(d.evenement?.type || '—')}</td><td class="nw">${d.evenement?.date ? dateFr(d.evenement.date) : '—'}</td><td class="n nw">${d.evenement?.invites ? esc(d.evenement.invites) + ' pers.' : '—'}</td><td>${comDe(d) ? esc(comDe(d)) : d.auto ? '<span class="pill ia-pill" title="Devis créé et envoyé automatiquement par l’IA">✨ IA</span>' : '—'}</td><td class="k4c">${k4Html(chiffres(d), '#/devis/' + d.id)}</td><td><span class="pill d-${d.statut}">${DSTAT[d.statut]}</span></td><td>${d.vuLe ? dateH(d.vuLe) : '—'}</td></tr>`).join('')}</tbody></table></div>` : '<div class="vide"><p>Aucun devis.</p><p class="muted">Créez un devis depuis une demande (les lignes sont reprises) ou partez d’un devis vierge.</p></div>');
+      ${list.map(d => `<tr data-href="#/devis/${d.id}"><td class="ck">${effacable(d) ? `<input type="checkbox" data-sel="${esc(d.id)}" data-num="${esc(d.numero)}" data-st="${esc(d.statut)}" aria-label="Sélectionner ${esc(d.numero)}">` : '<span title="Devis signé : ne peut pas être effacé">🔒</span>'}</td><td class="nw"><b>${esc(d.numero)}</b>${d.modele ? ' <span title="Modèle de l’équipe">⭐</span>' : ''}${(d.commentaires || []).length ? ` <span title="${d.commentaires.length} commentaire(s) du client">💬</span>` : ''}</td><td>${esc(d.clientNom)}</td><td>${esc(d.evenement?.type || '—')}</td><td class="nw">${d.evenement?.date ? dateFr(d.evenement.date) : '—'}</td><td class="n nw">${d.evenement?.invites ? esc(d.evenement.invites) + ' pers.' : '—'}</td><td>${comDe(d) ? esc(comDe(d)) : d.auto ? '<span class="pill ia-pill" title="Devis créé et envoyé automatiquement par l’IA">✨ IA</span>' : '—'}</td><td class="k4c">${k4Html(chiffres(d), '#/devis/' + d.id)}</td><td><span class="pill d-${d.statut}">${DSTAT[d.statut]}</span></td><td>${d.vuLe ? dateH(d.vuLe) : '—'}</td></tr>`).join('')}</tbody></table></div>` : '<div class="vide"><p>Aucun devis.</p><p class="muted">Créez un devis depuis une demande (les lignes sont reprises) ou partez d’un devis vierge.</p></div>');
   }
   devis.after = id => {
     if (id && id !== 'nouveau') return devisEdit.after(id);
@@ -970,6 +976,109 @@
     return { pct, auto: !force, seuil, delai, raison, cents: Math.round(ttc * pct / 100), total: pct >= 100 };
   }
 
+  /* ---------- « 📂 Partir d'un ancien devis » (Jean-Luc, 2026-11-25, comme dans Teamleader) ----------
+     Recherche dans TOUS les anciens devis, ⭐ modèles en tête, aperçu rapide, puis « Utiliser ce devis » :
+     lignes reprises aux prix actuels du catalogue, quantités pour le nombre d'invités, sans les remises (server/anciens.js). */
+  const ancCarte = (x, { use = true } = {}) => `<article class="anc-c${x.modele ? ' star' : ''}" data-ancid="${esc(x.id)}">
+      <div class="anc-h"><b>${esc(x.numero)}</b><button type="button" class="anc-star${x.modele ? ' on' : ''}" data-ancstar="${esc(x.id)}" title="${x.modele ? 'Retirer des modèles' : 'Marquer comme modèle : il apparaîtra en tête de liste'}" aria-label="Modèle">${x.modele ? '⭐' : '☆'}</button><span class="pill d-${x.statut}">${DSTAT[x.statut] || x.statut}</span></div>
+      <p class="anc-cl">${esc(x.clientNom || '—')}${x.titre ? ` · <i>${esc(x.titre)}</i>` : ''}</p>
+      <p class="anc-m">${x.type ? `<span>🎉 ${esc(x.type)}</span>` : ''}${x.date ? `<span>📅 ${dateFr(x.date)}</span>` : ''}${x.invites ? `<span>👥 ${x.invites}</span>` : ''}<b>${euros(x.ttcCents)}</b></p>
+      <ul class="anc-p">${x.produits.map(p => `<li>${esc(p)}</li>`).join('')}${x.nbLignes > x.produits.length ? `<li class="muted">+ ${x.nbLignes - x.produits.length} autre${x.nbLignes - x.produits.length > 1 ? 's' : ''}</li>` : ''}</ul>
+      ${x.pourquoi?.length ? `<p class="anc-why">💡 ${esc(x.pourquoi.join(' · '))}</p>` : ''}
+      <p class="anc-by muted sm">${x.commercial ? esc(x.commercial) + ' · ' : ''}créé le ${dateFr(String(x.createdAt).slice(0, 10))}</p>
+      <div class="anc-a"><button type="button" class="btn ghost sm" data-ancvoir="${esc(x.id)}">👁 Aperçu</button>${use ? `<button type="button" class="btn sm" data-ancuse="${esc(x.id)}">Utiliser ce devis</button>` : ''}</div></article>`;
+  async function ancStar(id, on) {
+    try { await api(`${A}/actions/modele-devis/${id}`, { method: 'POST', body: { modele: on } }); toast(on ? '⭐ Marqué comme modèle : il sera proposé en tête de liste.' : 'Retiré des modèles.'); return true; }
+    catch (e) { toast(e.message, true); return false; }
+  }
+  /* rapport de reprise lisible : prix changés, produits supprimés, quantités, remises */
+  const ancRapport = r => {
+    const R = r.rapport, out = [];
+    if (R.invitesAvant && R.invitesApres && R.invitesAvant !== R.invitesApres) out.push(`👥 Quantités recalculées pour <b>${R.invitesApres} invités</b> (l’ancien devis était pour ${R.invitesAvant})${R.quantites ? ` : ${R.quantites} ligne${R.quantites > 1 ? 's' : ''} ajustée${R.quantites > 1 ? 's' : ''}` : ''}.`);
+    if (R.prix.length) out.push(`💶 <b>Prix mis à jour</b> avec le catalogue actuel : ${R.prix.map(p => `${esc(p.nom)} <s>${euros(p.avant)}</s> → <b>${euros(p.apres)}</b>`).join(' · ')}.`);
+    else out.push('✓ Tous les prix sont déjà ceux du catalogue actuel.');
+    if (R.options.length) out.push(`⚠ Option payante choisie à l’époque, prix gardé : ${R.options.map(esc).join(' · ')}. <small>Vérifiez l’option.</small>`);
+    if (R.supprimes.length) out.push(`<span class="err">⚠ N’existe plus dans le catalogue (ligne gardée à l’ancien prix, à vérifier ou supprimer) : ${R.supprimes.map(esc).join(' · ')}.</span>`);
+    if (R.masques.length) out.push(`⚠ Masqué sur le site : ${R.masques.map(esc).join(' · ')}.`);
+    if (R.remises) out.push('✂ Les remises de l’ancien devis ne sont pas reprises.');
+    if (R.livraison) out.push('🚚 Livraison reprise telle quelle : vérifiez la distance du nouveau client.');
+    return `<ul class="anc-rap">${out.map(x => `<li>${x}</li>`).join('')}</ul>`;
+  };
+  /* fenêtre de recherche. opts : { pour, invites, type, nbLignes, onUse(r, mode) } */
+  async function anciensDevis(opts = {}) {
+    document.querySelector('.anc-modal')?.remove();
+    const m = document.createElement('div'); m.className = 'modal anc-modal'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-modal', 'true');
+    const F = { q: '', type: '', invites: '', bmin: '', bmax: '', du: '', au: '', com: '', signes: false, modeles: false };
+    let data = null, vue = 'liste', courant = null;
+    const tous = () => [...(data?.proches || []), ...(data?.resultats || [])];
+    const filtre = () => Object.entries(F).some(([k, v]) => v && v !== false);
+    const qs = () => { const p = new URLSearchParams(); if (opts.pour) p.set('pour', opts.pour); if (opts.invites) p.set('refInvites', opts.invites); if (opts.type) p.set('refType', opts.type); for (const [k, v] of Object.entries(F)) if (v) p.set(k, v === true ? '1' : v); return p.toString(); };
+    const charger = async () => { try { data = await api(A + '/anciens-devis?' + qs()); } catch (e) { toast(e.message, true); data = { resultats: [], proches: [], total: 0, commerciaux: [], types: [] }; } dessinRes(); };
+    const tete = `<div class="aq-h"><div><p class="aq-eye">📂 Partir d’un ancien devis</p><h2>Retrouvez un devis qui ressemble à la demande</h2><p class="muted">Tous les devis de l’équipe, toutes dates, signés ou non. ⭐ = modèles de l’équipe, toujours en tête. « Utiliser ce devis » reprend les lignes aux <b>prix actuels</b>, pour le nombre d’invités du nouveau client, sans les remises.</p></div><button type="button" class="x" data-ancx aria-label="Fermer">×</button></div>`;
+    const dessin = () => {
+      m.innerHTML = `<div class="modal-in anc-in">${tete}
+        <form class="anc-f" autocomplete="off" onsubmit="return false">
+          <label class="anc-q">Mot-clé <small>(produit, client, nom de la proposition, n°)</small><input type="search" name="q" placeholder="🔍 ex. buffet antillais, mariage, accras, Dupont…" value="${esc(F.q)}"></label>
+          <label>Type d’événement<select name="type"><option value="">Tous</option></select></label>
+          <label>Invités <small>(± 20 %)</small><input type="number" name="invites" min="1" inputmode="numeric" value="${esc(F.invites)}" placeholder="ex. 50"></label>
+          <label class="anc-plus">Budget TTC de<input type="number" name="bmin" min="0" inputmode="numeric" value="${esc(F.bmin)}" placeholder="€"></label>
+          <label class="anc-plus">à<input type="number" name="bmax" min="0" inputmode="numeric" value="${esc(F.bmax)}" placeholder="€"></label>
+          <label class="anc-plus">Période du<input type="date" name="du" value="${esc(F.du)}"></label>
+          <label class="anc-plus">au<input type="date" name="au" value="${esc(F.au)}"></label>
+          <label class="anc-plus">Commercial<select name="com"><option value="">Tous</option></select></label>
+          <div class="anc-ck"><label class="chk"><input type="checkbox" name="signes"${F.signes ? ' checked' : ''}> Signés seulement</label><label class="chk"><input type="checkbox" name="modeles"${F.modeles ? ' checked' : ''}> ⭐ Modèles seulement</label><button type="button" class="lnk sm anc-plusb" data-ancplus>⚙ Plus de filtres (budget, période, commercial)</button><button type="button" class="lnk sm" data-ancraz>Effacer les filtres</button></div>
+        </form>
+        <div class="anc-res" id="ancRes"><p class="muted">Recherche…</p></div></div>`;
+      const f = m.querySelector('.anc-f');
+      f.addEventListener('input', e => { const el = e.target; if (!el.name) return; F[el.name] = el.type === 'checkbox' ? el.checked : el.value.trim(); clearTimeout(f._t); f._t = setTimeout(charger, el.type === 'search' ? 300 : 150); });
+    };
+    const dessinRes = () => {
+      const res = m.querySelector('#ancRes'); if (!res) return;
+      const f = m.querySelector('.anc-f');
+      const sel = (n, L) => { const s2 = f.elements[n], cur = F[n]; s2.innerHTML = '<option value="">Tous</option>' + L.map(x => `<option${x === cur ? ' selected' : ''}>${esc(x)}</option>`).join(''); };
+      sel('type', data.types || []); sel('com', data.commerciaux || []);
+      const pr = !filtre() && (data.proches || []).length;
+      res.innerHTML = `${pr ? `<h3 class="anc-t">💡 Devis proches de cette demande <small class="muted">(type d’événement, invités, produits ; signés en premier)</small></h3><div class="anc-g">${data.proches.map(x => ancCarte(x)).join('')}</div>` : ''}
+        <h3 class="anc-t">${filtre() ? `${data.total} devis trouvé${data.total > 1 ? 's' : ''}` : 'Tous les anciens devis'}${data.total > 60 ? ' <small class="muted">(60 premiers : affinez la recherche)</small>' : ''}</h3>
+        ${data.resultats.length ? `<div class="anc-g">${data.resultats.map(x => ancCarte(x)).join('')}</div>` : '<p class="muted">Aucun ancien devis ne correspond : élargissez la recherche (moins de filtres, autre mot-clé).</p>'}`;
+    };
+    const apercu = x => {
+      vue = 'apercu'; courant = x;
+      m.querySelector('.modal-in').innerHTML = `<div class="aq-h"><div><p class="aq-eye">📂 Aperçu de l’ancien devis</p><h2>${esc(x.numero)} <span class="pill d-${x.statut}">${DSTAT[x.statut] || ''}</span>${x.modele ? ' ⭐' : ''}</h2><p class="muted">${esc([x.clientNom, x.type, x.date ? dateFr(x.date) : '', x.invites ? x.invites + ' invités' : '', x.lieu].filter(Boolean).join(' · '))}</p></div><button type="button" class="x" data-ancx aria-label="Fermer">×</button></div>
+        <div class="anc-ap"><table class="anc-tl"><thead><tr><th>Désignation</th><th class="n">Qté</th><th class="n">PU TTC</th></tr></thead><tbody>${x.lignes.map(l => l.titre ? `<tr class="t"><td colspan="3">${esc(l.designation)}</td></tr>` : `<tr><td>${titreHtml(l.designation)}</td><td class="n">${esc(l.qte)} ${esc(l.unite)}</td><td class="n">${euros(l.puCents)}</td></tr>`).join('')}</tbody></table><p class="anc-tot">Total TTC de l’époque <b>${euros(x.ttcCents)}</b></p>${x.masque ? '' : `<p class="sm"><a href="#/devis/${esc(x.id)}" target="_blank">Ouvrir ce devis dans un nouvel onglet ↗</a></p>`}</div>
+        <div class="aq-f"><button type="button" class="btn ghost" data-ancback>← Retour aux résultats</button><span class="aq-sp"></span><button type="button" class="btn ghost" data-ancstar="${esc(x.id)}">${x.modele ? '⭐ Modèle' : '☆ Marquer comme modèle'}</button><button type="button" class="btn" data-ancuse="${esc(x.id)}">Utiliser ce devis</button></div>`;
+    };
+    const utiliser = async id => {
+      let r; try { r = await api(`${A}/anciens-devis/${id}/reprendre`, { method: 'POST', body: { invites: +opts.invites || 0 } }); } catch (e) { toast(e.message, true); return; }
+      vue = 'confirm';
+      const deja = +opts.nbLignes > 0;
+      m.querySelector('.modal-in').innerHTML = `<div class="aq-h"><div><p class="aq-eye">📂 Reprendre ${esc(r.source.numero)}</p><h2>${r.lignes.filter(l => l.type !== 'titre').length} lignes prêtes pour le nouveau client</h2><p class="muted">Rien n’est encore enregistré : vous pourrez tout retravailler, puis « Enregistrer ».</p></div><button type="button" class="x" data-ancx aria-label="Fermer">×</button></div>
+        ${ancRapport(r)}
+        <div class="aq-f"><button type="button" class="btn ghost" data-ancback>← Retour</button><span class="aq-sp"></span>${deja ? `<button type="button" class="btn ghost" data-ancok="ajouter">＋ Ajouter à la suite des ${opts.nbLignes} lignes</button><button type="button" class="btn" data-ancok="remplacer">Remplacer les lignes actuelles</button>` : '<button type="button" class="btn" data-ancok="remplacer">✓ Utiliser ce devis</button>'}</div>`;
+      m._r = r;
+    };
+    m.addEventListener('click', async e => {
+      if (e.target === m || e.target.closest('[data-ancx]')) { m.remove(); return; }
+      const st = e.target.closest('[data-ancstar]'); if (st) {
+        const id = st.dataset.ancstar, x = tous().find(y => y.id === id) || courant, on = !x?.modele;
+        if (!(await ancStar(id, on))) return;
+        for (const y of tous()) if (y.id === id) y.modele = on; if (courant?.id === id) courant.modele = on;
+        if (vue === 'apercu') apercu(courant); else m.querySelectorAll(`[data-ancid="${id}"]`).forEach(c => { c.classList.toggle('star', on); const b = c.querySelector('.anc-star'); b.classList.toggle('on', on); b.textContent = on ? '⭐' : '☆'; });
+        return;
+      }
+      if (e.target.closest('[data-ancplus]')) { m.querySelector('.anc-f').classList.toggle('ouvert'); return; }
+      if (e.target.closest('[data-ancraz]')) { for (const k of Object.keys(F)) F[k] = typeof F[k] === 'boolean' ? false : ''; dessin(); charger(); return; }
+      if (e.target.closest('[data-ancback]')) { vue = 'liste'; dessin(); dessinRes(); return; }
+      const v = e.target.closest('[data-ancvoir]'); if (v) { const x = tous().find(y => y.id === v.dataset.ancvoir); if (x) apercu(x); return; }
+      const u = e.target.closest('[data-ancuse]'); if (u) { u.disabled = true; await utiliser(u.dataset.ancuse); return; }
+      const ok = e.target.closest('[data-ancok]'); if (ok && m._r) { opts.onUse?.(m._r, ok.dataset.ancok); m.remove(); }
+    });
+    /* le bouton ☆ d'une carte change sa propre classe ; dans l'aperçu, c'est un bouton texte */
+    dessin(); document.body.append(m);
+    charger().then(() => { if (opts.direct) utiliser(opts.direct); else if (opts.apercu) { const x = tous().find(y => y.id === opts.apercu); if (x) apercu(x); } });
+    return m;
+  }
+
   async function devisEdit(id) {
     const [d, clientsL, cat] = await Promise.all([api(A + '/devis/' + id), api(A + '/clients?vue=actifs'), cache.produits ? cache.produits : api(A + '/produits')]);
     if (d.clientId && !clientsL.some(c => c.id === d.clientId)) clientsL.push(...await api(A + '/clients?ids=' + encodeURIComponent(d.clientId)).catch(() => []));
@@ -980,24 +1089,25 @@
     const facsDv = facsL.filter(x => x.devisId === d.id);
     const signe = d.statut === 'accepte';
     const lock = signe && !peut('devisSignes');
-    return page(`Devis ${esc(d.numero)} <span class="pill d-${d.statut}">${DSTAT[d.statut]}</span>`, `<a class="btn ghost" href="#/devis">← Devis</a><button class="btn ghost" type="button" data-dup>⧉ Dupliquer ce devis</button>${d.clientId ? `<button class="btn ghost" type="button" data-newcl>+ Nouveau devis pour ce client</button>` : ''}${d.statut !== 'brouillon' ? `<a class="btn ghost" href="/devis/${d.token}" target="_blank">Voir comme le client ↗</a>` : ''}`, `
+    return page(`Devis ${esc(d.numero)} <span class="pill d-${d.statut}">${DSTAT[d.statut]}</span>`, `<a class="btn ghost" href="#/devis">← Devis</a>${lock ? '' : '<button class="btn anc-btn" type="button" data-ancopen>📂 Partir d’un ancien devis</button>'}<button class="btn ghost" type="button" data-dvstar title="Les modèles sont proposés en tête quand on part d’un ancien devis">${d.modele ? '⭐ Modèle' : '☆ Marquer comme modèle'}</button><button class="btn ghost" type="button" data-dup>⧉ Dupliquer ce devis</button>${d.clientId ? `<button class="btn ghost" type="button" data-newcl>+ Nouveau devis pour ce client</button>` : ''}${d.statut !== 'brouillon' ? `<a class="btn ghost" href="/devis/${d.token}" target="_blank">Voir comme le client ↗</a>` : ''}`, `
       ${d.iaDraft && d.statut === 'brouillon' ? '<p class="aq-info">✨ Devis préparé avec l’IA à partir de la commande du client : vérifiez les lignes, les quantités et le texte, enregistrez, puis envoyez-le.</p>' : ''}
       ${(d.commentaires || []).length ? `<section class="box dv-coms"><h2>💬 Commentaires du client <small class="muted">(${d.commentaires.length})</small></h2><p class="muted sm">Laissés sur la page du devis : le commercial les reçoit par e-mail et SMS.</p><ul>${d.commentaires.slice().reverse().map(m => `<li><p>${esc(m.texte).replace(/\n/g, '<br>')}</p><small>${esc(m.nom || 'Client')} · ${dateH(m.at)}</small></li>`).join('')}</ul></section>` : ''}
       ${signe ? `<p class="okbox">✓ Signé en ligne par <b>${esc(d.signature?.nom)}</b> le ${dateH(d.signature?.at)}.${lock ? ' Il faut le droit « Modifier un devis signé » pour le changer.' : ''}</p>` : ''}
       <form id="dv" class="${lock ? 'lock' : ''}">
       <div class="cols">
-        <section class="box"><h2>Client</h2><label class="dv-clq">Chercher dans tous les clients <small>(dont le fichier importé)</small><input type="search" data-dvclq placeholder="🔍 Nom, téléphone, e-mail, ville…" autocomplete="off"></label><label>Client<select name="clientId"><option value="">— Choisir —</option>${clientsL.sort((a, b) => (a.nom || '').localeCompare(b.nom || '')).map(c => `<option value="${c.id}"${c.id === d.clientId ? ' selected' : ''}>${esc(c.nom)} · ${esc(c.email)}</option>`).join('')}</select></label><p class="muted sm"><a href="#/clients/nouveau">+ Nouveau client</a>${d.clientId ? ` · <a href="#/clients/${esc(d.clientId)}">Fiche client</a>` : ''}</p>${(() => { const autres = (cache.tousDevis || []).filter(x => x.clientId && x.clientId === d.clientId && x.id !== d.id); return autres.length ? `<p class="sm"><b>Autres devis de ce client</b></p><ul class="histo">${autres.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).map(x => `<li><a href="#/devis/${x.id}">${esc(x.numero)}</a> · ${euros(tot(x).ttc)} <span class="pill d-${x.statut}">${DSTAT[x.statut]}</span></li>`).join('')}</ul>` : ''; })()}${d.copieDe ? `<p class="muted sm">Copie du devis ${esc(d.copieDe)}.</p>` : ''}</section>
+        <section class="box"><h2>Client</h2><label class="dv-clq">Chercher dans tous les clients <small>(dont le fichier importé)</small><input type="search" data-dvclq placeholder="🔍 Nom, téléphone, e-mail, ville…" autocomplete="off"></label><label>Client<select name="clientId"><option value="">— Choisir —</option>${clientsL.sort((a, b) => (a.nom || '').localeCompare(b.nom || '')).map(c => `<option value="${c.id}"${c.id === d.clientId ? ' selected' : ''}>${esc(c.nom)} · ${esc(c.email)}</option>`).join('')}</select></label><p class="muted sm"><a href="#/clients/nouveau">+ Nouveau client</a>${d.clientId ? ` · <a href="#/clients/${esc(d.clientId)}">Fiche client</a>` : ''}</p>${(() => { const autres = (cache.tousDevis || []).filter(x => x.clientId && x.clientId === d.clientId && x.id !== d.id); return autres.length ? `<p class="sm"><b>Autres devis de ce client</b></p><ul class="histo">${autres.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).map(x => `<li><a href="#/devis/${x.id}">${esc(x.numero)}</a> · ${euros(tot(x).ttc)} <span class="pill d-${x.statut}">${DSTAT[x.statut]}</span></li>`).join('')}</ul>` : ''; })()}${d.copieDe ? `<p class="muted sm">Copie du devis ${esc(d.copieDe)}.</p>` : ''}${d.inspireDe ? `<p class="muted sm">📂 Préparé à partir de l’ancien devis ${esc(d.inspireDe)}.</p>` : ''}</section>
         <section class="box"><h2>Événement</h2><div class="g2"><label>Nature de l’événement<input name="ev_type" list="dv-natures" value="${esc(d.evenement?.type || '')}" placeholder="Choisissez ou écrivez" maxlength="80"><datalist id="dv-natures">${[...new Set([...(R0.evenements || []), 'Anniversaire', 'Mariage', 'Baptême', 'Communion', 'Fête de famille', 'Séminaire', 'Soirée d’entreprise', 'Cocktail', 'Repas de fin d’année', 'Pot de départ', 'Inauguration', 'Funérailles'])].map(e => `<option value="${esc(e)}">`).join('')}</datalist></label><label>Date<input type="date" name="ev_date" value="${esc(d.evenement?.date || '')}"></label><label>Nombre de personnes<input type="number" name="ev_invites" value="${esc(d.evenement?.invites || '')}"></label><label>Lieu<input name="ev_lieu" value="${esc(d.evenement?.lieu || '')}"></label></div></section>
         <section class="box"><h2>Conditions</h2><div class="g2"><label>Valable jusqu’au<input type="date" name="validiteJusquau" value="${esc(d.validiteJusquau || '')}"></label><label>Acompte<select name="acomptePct"><option value="">Automatique</option>${[0, 20, 30, 40, 50, 100].map(p => `<option value="${p}"${d.acomptePct != null && d.acomptePct !== '' && +d.acomptePct === p ? ' selected' : ''}>${p} % (forcé)</option>`).join('')}</select></label></div><p class="muted sm">Automatique : totalité à la signature sous ${euros(R0.tarifs?.seuilAcompteCents ?? 80000)} TTC ou si l’événement a lieu dans moins de ${R0.tarifs?.delaiDeuxFoisJours ?? 10} jours ; sinon acompte de ${R0.tarifs?.acomptePct ?? 50} %.</p>
           ${(() => { const P = (R0.alertes?.personnes || []).filter(x => x.nom); const cur = d.commercial?.nom || (P.find(x => x.email && x.email === session.email) || P[0] || {}).nom || ''; const L = [...P]; if (d.commercial?.nom && !P.some(x => x.nom === d.commercial.nom)) L.unshift(d.commercial); return `<label>Commercial (nom et téléphone sur le devis)<select name="commercial"><option value="">— Aucun —</option>${L.map(x => `<option value="${esc(x.nom)}"${x.nom === cur ? ' selected' : ''}>${esc(x.nom)}${x.tel ? ' · ' + esc(x.tel) : ''}</option>`).join('')}</select></label><p class="muted sm">La liste vient de <a href="#/equipe">Équipe &amp; activité</a> › Alertes de l’équipe (nom, portable, e-mail).</p>`; })()}
           <label>Lien de paiement de l’acompte <small>(SumUp, Stripe, banque…)</small><input name="lienPaiement" value="${esc(d.lienPaiement || '')}" placeholder="https://"></label></section>
       </div>
       <section class="box"><label>Nom de la proposition <small>(facultatif, ex. « Formule buffet antillais » : affiché dans l’e-mail quand vous envoyez plusieurs devis)</small><input name="titre" value="${esc(d.titre || '')}" maxlength="120"></label><label>Texte d’introduction<textarea name="intro" rows="2">${esc(d.intro || '')}</textarea></label></section>
+      ${lock || d.statut === 'accepte' ? '' : '<section class="box anc-box" id="ancProches" hidden></section>'}
       ${lock ? '' : `<section class="box ia-modif"><h2>✨ Demander à l’IA de modifier ce devis</h2><p class="muted sm">Écrivez ou dictez ce qu’il faut changer, par exemple : « Supprime le DJ et mets une contorsionniste à la place », « passe à 80 invités », « ajoute 2 serveurs pendant 5 h ». L’IA vous montre les changements avant de les appliquer. Vous pouvez toujours modifier les lignes vous-même.</p>
         <textarea id="iam-t" rows="2" placeholder="Ex. : supprime le DJ et mets une contorsionniste à la place"></textarea><div class="row"><button type="button" class="btn aq-btn" data-iam>✨ Proposer la modification</button><button type="button" class="btn ghost sm" data-iam-mic>🎤 Dicter</button><span id="iam-msg" class="muted sm"></span></div><div id="iam-res"></div></section>`}
       <section class="box"><div class="bh"><h2>Lignes du devis</h2><div class="row"><select data-addprod class="wide"><option value="">+ Ajouter une prestation du catalogue…</option>${cat.filter(p => p.statut !== 'masque').sort((a, b) => a.titre.localeCompare(b.titre)).map(p => `<option value="${esc(p.slug)}">${esc(titreTexte(p.titre))} · ${p.prixCents == null ? 'sur devis' : euros(p.prixCents)}</option>`).join('')}${lieuxD.length ? `<optgroup label="Lieux à privatiser (3 photos sur le devis)">${lieuxD.sort((a, b) => a.nom.localeCompare(b.nom)).map(l => `<option value="lieu-${esc(l.slug)}">📍 ${esc(l.nom)}${l.capacite ? ' · ' + l.capacite + ' pers.' : ''}${l.statut === 'masque' ? ' (masqué)' : ''}</option>`).join('')}</optgroup>` : ''}</select><button type="button" class="btn ghost sm" data-addline>+ Ligne libre</button><button type="button" class="btn ghost sm" data-addtitle>+ Titre</button></div></div>
         <div class="table"><table class="lines"><thead><tr><th></th><th>Désignation</th><th class="n">Qté</th><th>Unité</th><th class="n">PU TTC</th><th class="n" title="Réduction sur cette ligne, en % — le client voit le prix barré et le prix remisé">Remise</th><th class="n" title="Prix d’achat HT à l’unité — interne, jamais montré au client">Achat HT 🔒</th><th>TVA</th><th class="n">Total TTC</th><th></th></tr></thead><tbody id="lines"></tbody></table></div>
-        <div class="totbox"><div class="g2"><label>Remise sur le total du devis<span class="remg"><input name="remise" value="${d.remisePct ? String(d.remisePct).replace('.', ',') : fromCents(d.remiseCents || 0)}" inputmode="decimal" placeholder="0"><select name="remiseMode" aria-label="Remise en euros ou en pourcentage"><option value="eur">€ TTC</option><option value="pct"${d.remisePct ? ' selected' : ''}>%</option></select></span><small class="muted">Pour une remise sur un seul produit : colonne « Remise » de la ligne. La marge 💰 ci-dessous se met à jour pendant que vous tapez. 🔒 Le client voit la remise, jamais la marge.</small></label></div><dl id="totaux"></dl></div><div class="mg-box" id="marge"></div></section>
+        <div class="totbox"><div class="g2"><label>Remise sur le total du devis<span class="remg"><input name="remise" value="${d.remisePct ? String(d.remisePct).replace('.', ',') : fromCents(d.remiseCents || 0)}" inputmode="decimal" placeholder="0"><select name="remiseMode" aria-label="Remise en euros ou en pourcentage"><option value="eur">€ TTC</option><option value="pct"${d.remisePct ? ' selected' : ''}>%</option></select></span><small class="muted">Pour une remise sur un seul produit : colonne « Remise » de la ligne. La marge 💰 ci-dessous se met à jour pendant que vous tapez. 🔒 Le client voit la remise, jamais la marge.</small></label></div><dl id="totaux"></dl></div><div class="mg-box" id="marge"></div>${lock ? '' : '<div class="anc-comp" id="ancComp" hidden></div>'}</section>
       <section class="box"><label>Conditions particulières<textarea name="conditions" rows="2">${esc(d.conditions || '')}</textarea></label></section>
       <div class="actions sticky"><button class="btn" type="submit">Enregistrer</button><button class="btn ghost" type="button" data-voir>👁 Voir le devis</button><span class="muted" id="dirty"></span></div>
       </form>
@@ -1064,7 +1174,7 @@
       $('#totaux').innerHTML = `${t.remise ? `<div><dt>Sous-total</dt><dd>${euros(t.brut)}</dd></div><div><dt>Remise${form.remiseMode.value === 'pct' ? ' ' + String(nombre(form.remise.value)).replace('.', ',') + ' %' : ''}</dt><dd>− ${euros(t.remise)}</dd></div>` : ''}${Object.entries(t.tva).map(([k, v]) => `<div class="sm"><dt>dont TVA ${String(k).replace('.', ',')} %</dt><dd>${euros(v)}</dd></div>`).join('')}<div class="sm"><dt>Total HT</dt><dd>${euros(t.ht)}</dd></div><div class="big"><dt>Total TTC</dt><dd>${euros(t.ttc)}</dd></div>${(() => { const a = regleAcompte(t.ttc, { acomptePct: form.acomptePct.value, evenement: { date: form.ev_date.value }, signature: d.signature }, cache.R?.tarifs); return `<div class="sm"><dt>${a.total ? `À payer à la signature (totalité${a.raison === 'proche' ? ', événement dans moins de ' + a.delai + ' jours' : ''})` : `Acompte ${a.pct} %`}</dt><dd>${euros(a.cents)}</dd></div>`; })()}`;
     };
     draw();
-    const dirty = () => { $('#dirty').textContent = 'Modifications non enregistrées'; };
+    const dirty = () => { $('#dirty').textContent = 'Modifications non enregistrées'; clearTimeout(dirty._t); dirty._t = setTimeout(() => majComp?.(), 600); };
     body.addEventListener('input', e => {
       const tr = e.target.closest('[data-i]'); const l = lignes[+tr.dataset.i]; const f = e.target.dataset.f;
       if (!f) return;
@@ -1106,6 +1216,63 @@
       e.target.value = ''; draw(); dirty();
     });
     form.addEventListener('input', e => { if (!e.target.closest('#lines, .ia-modif')) dirty(); });
+    /* ---------- 📂 Partir d'un ancien devis ---------- */
+    const nbL = () => lignes.filter(l => l.type !== 'titre').length;
+    const utiliserAncien = (r, mode) => {
+      lignes = mode === 'ajouter' ? [...lignes, ...r.lignes] : r.lignes;
+      if (!form.ev_type.value && r.source.type) form.ev_type.value = r.source.type;
+      if (!form.ev_invites.value && r.source.invites) form.ev_invites.value = r.source.invites;
+      if (!form.titre.value && r.source.titre) form.titre.value = r.source.titre;
+      d.inspireDe = r.source.numero;
+      draw(); dirty();
+      toast(`📂 Lignes de ${r.source.numero} reprises aux prix actuels : retravaillez-les, puis « Enregistrer ».`);
+      $('#lines')?.closest('.box')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+    const ouvrirAnciens = (extra = {}) => anciensDevis({ pour: id, invites: +form.ev_invites.value || null, type: form.ev_type.value, nbLignes: nbL(), onUse: utiliserAncien, ...extra });
+    $('[data-ancopen]')?.addEventListener('click', () => ouvrirAnciens());
+    $('[data-dvstar]')?.addEventListener('click', async e => { const b = e.currentTarget, on = !d.modele; if (await ancStar(id, on)) { d.modele = on; b.textContent = on ? '⭐ Modèle' : '☆ Marquer comme modèle'; } });
+    const boxP = $('#ancProches');
+    const proches = async () => {
+      if (!boxP) return;
+      try {
+        const q = new URLSearchParams({ pour: id }); if (form.ev_invites.value) q.set('refInvites', form.ev_invites.value); if (form.ev_type.value) q.set('refType', form.ev_type.value);
+        const r = await api(A + '/anciens-devis?' + q);
+        const P = (r.proches || []).slice(0, 3);
+        boxP.hidden = !P.length && nbL() > 0;
+        boxP.innerHTML = `<div class="bh"><h2>💡 Devis proches de cette demande</h2><button type="button" class="btn anc-btn sm" data-ancall>📂 Chercher dans tous les anciens devis${r.total ? ` (${r.total})` : ''}</button></div>
+          ${P.length ? `<p class="muted sm">Trouvés automatiquement d’après le type d’événement, le nombre d’invités et les produits, signés en premier. « Utiliser ce devis » reprend ses lignes aux prix actuels, sans les remises.</p><div class="anc-g">${P.map(x => ancCarte(x)).join('')}</div>` : '<p class="muted sm">Aucun ancien devis vraiment proche pour l’instant : indiquez le type d’événement et le nombre d’invités, ou cherchez par mot-clé.</p>'}`;
+      } catch { boxP.hidden = true; }
+    };
+    boxP?.addEventListener('click', async e => {
+      if (e.target.closest('[data-ancall]')) return ouvrirAnciens();
+      const v = e.target.closest('[data-ancvoir]'); if (v) return ouvrirAnciens({ apercu: v.dataset.ancvoir });
+      const u = e.target.closest('[data-ancuse]'); if (u) return ouvrirAnciens({ direct: u.dataset.ancuse });
+      const st = e.target.closest('[data-ancstar]'); if (st) { const on = !st.classList.contains('on'); if (await ancStar(st.dataset.ancstar, on)) { st.classList.toggle('on', on); st.textContent = on ? '⭐' : '☆'; st.closest('.anc-c')?.classList.toggle('star', on); } }
+    });
+    if (boxP) { proches(); form.ev_type.addEventListener('change', proches); form.ev_invites.addEventListener('change', proches); }
+    if (/[?&]anciens=1/.test(location.hash)) { history.replaceState(null, '', '#/devis/' + id); setTimeout(() => ouvrirAnciens(), 50); }
+    /* 🧩 souvent pris avec : d'après les anciens devis signés qui contiennent les mêmes produits */
+    const boxC = $('#ancComp'); let sigC = '';
+    const majComp = async () => {
+      if (!boxC) return;
+      const L = lignes.filter(l => l.type !== 'titre').map(l => ({ produit: l.produit || '', designation: l.designation, unite: l.unite, supplement: l.supplement || '' }));
+      const sig = JSON.stringify(L.map(l => l.produit || l.designation)); if (sig === sigC) return; sigC = sig;
+      if (!L.length) { boxC.hidden = true; return; }
+      try {
+        const r = await api(A + '/anciens-devis/complements', { method: 'POST', body: { lignes: L } });
+        boxC._c = r.complements;
+        boxC.hidden = !r.complements.length;
+        boxC.innerHTML = `<h3>🧩 Souvent pris avec ces produits <small class="muted">d’après les anciens devis signés : ce à quoi on ne pense pas toujours</small></h3><div class="anc-cg">${r.complements.map((x, i) => `<div class="anc-ci">${x.photo ? `<img src="${esc(x.photo)}" alt="" loading="lazy">` : '<span class="anc-ph">🧩</span>'}<span><b>${esc(x.designation)}</b><small>${euros(x.puCents)}${x.unite ? ' / ' + esc(x.unite) : ''} · dans ${x.n} devis signé${x.n > 1 ? 's' : ''} sur ${x.sur}</small></span><button type="button" class="btn ghost sm" data-ancadd="${i}">+ Ajouter</button></div>`).join('')}</div>`;
+      } catch { boxC.hidden = true; }
+    };
+    boxC?.addEventListener('click', e => {
+      const b = e.target.closest('[data-ancadd]'); if (!b) return;
+      const x = boxC._c[+b.dataset.ancadd]; if (!x) return;
+      const l = { ...x.ligne }, inv = +form.ev_invites.value || 0;
+      if (l.unite === 'personne' && inv) l.qte = Math.max(+l.qte || 1, inv);
+      lignes.push(l); draw(); dirty(); toast(`« ${x.designation} » ajouté au devis.`);
+    });
+    majComp();
     /* « Demander à l'IA de modifier ce devis » : proposition → changements affichés → Appliquer ou Annuler */
     const iamT = $('#iam-t'), iamMsg = $('#iam-msg'), iamRes = $('#iam-res');
     if (iamT) {
@@ -1970,7 +2137,7 @@
     const tel = String(c.tel || '').replace(/[^\d+]/g, ''), r = h.resume;
     const coms = [...new Set([...h.devis.map(x => x.commercial), ...(h.demandes || []).map(x => x.commercial)].filter(Boolean))];
     const an = annivInfo(c.naissance);
-    return page(esc(c.nom || 'Client'), `<a class="btn ghost" href="#/suivi">← Suivi client</a><button type="button" class="btn hc-editbtn" data-hedit>✏ Modifier la fiche</button><button type="button" class="btn ghost hc-rdvbtn" data-hrdv>📞 Programmer un appel / une visio</button><button class="btn" data-newdv>+ Devis pour ce client</button>`, `
+    return page(esc(c.nom || 'Client'), `<a class="btn ghost" href="#/suivi">← Suivi client</a><button type="button" class="btn hc-editbtn" data-hedit>✏ Modifier la fiche</button><button type="button" class="btn ghost hc-rdvbtn" data-hrdv>📞 Programmer un appel / une visio</button><button class="btn anc-btn" data-newdvanc>📂 Partir d’un ancien devis</button><button class="btn" data-newdv>+ Devis pour ce client</button>`, `
       <section class="box hc-edit" id="hcEdit"${/[?&]edit=1/.test(location.hash) ? '' : ' hidden'}><div class="hc-th"><h2>✏ Modifier la fiche de ${esc(c.nom || 'ce client')}</h2><button type="button" class="lnk" data-hcancel>Fermer</button></div><p class="muted sm">Corrigez ce qui a changé (nom, téléphone, e-mail, adresse…) puis « Enregistrer ». Les demandes et le suivi client sont mis à jour en même temps.</p><form id="cf">${formClient(c)}<div class="row"><button class="btn">Enregistrer la fiche</button><button type="button" class="btn ghost" data-hcancel>Annuler</button></div></form></section>
       ${formRdv(c)}
       <section class="box hc-head"><div class="hc-who"><span class="qs-av hc-av">${esc(initiales(c.nom))}</span><div><div class="hc-nm">${esc(c.nom || '—')} <button type="button" class="hc-pen" data-hedit title="Modifier la fiche" aria-label="Modifier la fiche">✏</button></div>${c.societe ? `<div class="hc-co">${c.entrepriseId ? `<a class="hc-ent" href="#/clients/entreprises/${esc(c.entrepriseId)}" title="Ouvrir la fiche de l’entreprise">🏢 ${esc(c.societe)} ›</a>` : esc(c.societe)}${c.fonction ? ' · ' + esc(c.fonction) : ''}</div>` : c.fonction ? `<div class="hc-co">${esc(c.fonction)}</div>` : ''}
@@ -2056,6 +2223,7 @@
       } catch (err) { toast(err.message, true); }
     });
     $('[data-newdv]')?.addEventListener('click', async () => { const r = await api(A + '/actions/devis-vierge', { method: 'POST', body: { clientId: id } }); location.hash = '#/devis/' + r.id; });
+    $('[data-newdvanc]')?.addEventListener('click', async () => { const r = await api(A + '/actions/devis-vierge', { method: 'POST', body: { clientId: id } }); location.hash = '#/devis/' + r.id + '?anciens=1'; });
     /* Société : propose les entreprises déjà enregistrées pendant la frappe */
     const soc = $('[data-soc]');
     soc?.addEventListener('input', () => { clearTimeout(soc._t); const v = soc.value.trim(); if (v.length < 2) return; soc._t = setTimeout(async () => { try { const r = await api(`${A}/entreprises?par=8&q=${encodeURIComponent(v)}`); $('#entL').innerHTML = r.items.map(e => `<option value="${esc(e.nom)}">${esc([e.ville, e.nbContacts ? e.nbContacts + ' contact' + (e.nbContacts > 1 ? 's' : '') : ''].filter(Boolean).join(' · '))}</option>`).join(''); } catch { /* */ } }, 200); });
