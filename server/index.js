@@ -2166,6 +2166,22 @@ async function createApp(opts = {}) {
   }));
   /* mettre un fournisseur sur toute une catégorie (rubrique, ou rubrique › sous-catégorie) ; en option, prix d'achat
      des fiches qui n'en ont pas = prix de vente ÷ (1 + pct %) — les prix d'achat déjà tapés ne changent jamais */
+  /* prix d'achat de toute une catégorie : prix d'achat HT = prix de vente HT − pct % (même TVA des deux côtés, gardé en TTC dans coutCents).
+     Le pourcentage est tapé dans le back-office : il n'est jamais écrit dans le code. Prix de vente inchangés. */
+  A.post('/actions/achats/categorie', sameSite, json, peut('prix'), wrap(async (req, res) => {
+    const rubrique = String(req.body?.rubrique || ''), sous = String(req.body?.sous || ''), pct = Number(req.body?.pct), remplacer = req.body?.remplacer !== false;
+    if (!rubrique) return res.status(400).json({ error: 'Catégorie manquante.' });
+    if (!(pct > 0 && pct < 100)) return res.status(400).json({ error: 'Pourcentage invalide.' });
+    let fiches = 0;
+    for (const d of await store.list('produits')) {
+      const p = d.data; if (!p || p.prixCents == null || (p.rubrique !== rubrique && !(p.autresRubriques || []).includes(rubrique)) || (sous && p.sous !== sous)) continue;
+      if (!remplacer && p.coutCents != null) continue;
+      await store.set('produits/' + d.id, { ...p, coutCents: Math.round(p.prixCents * (1 - pct / 100)), updatedAt: new Date().toISOString() });
+      fiches++;
+    }
+    cat.invalidate(); audit(req.ctx, 'prix d’achat calculé sur une catégorie', 'produits', rubrique + (sous ? ' › ' + sous : '') + ' · ' + fiches + ' fiche(s)');
+    res.json({ ok: true, fiches });
+  }));
   A.post('/actions/fournisseurs/appliquer', sameSite, json, peut('prix'), wrap(async (req, res) => {
     const nom = String(req.body?.nom || '').trim().slice(0, 80), rubrique = String(req.body?.rubrique || ''), sous = String(req.body?.sous || ''), pct = Number(req.body?.pct) || 0;
     if (!nom) return res.status(400).json({ error: 'Nom du fournisseur manquant.' });
