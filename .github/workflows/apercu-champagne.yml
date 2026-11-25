@@ -1,0 +1,22 @@
+name: Vidéos champagne candidates (temporaire)
+on:
+  push:
+    branches: [ 'claude/**' ]
+    paths: [ apercu-champagne/liste.txt, apercu-champagne/finale.txt ]
+permissions:
+  contents: write
+jobs:
+  apercu:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-dejavu-core >/dev/null
+      - run: if [ -s apercu-champagne/finale.txt ]; then bash apercu-champagne/finale.sh; else bash apercu-champagne/run.sh; rm -f apercu-champagne/*.mp4; fi
+      - run: |
+          git config user.name "magnolia-bot"
+          git config user.email "magnolia-bot@users.noreply.github.com"
+          git add apercu-champagne public/site/v 2>/dev/null
+          if git diff --cached --quiet; then echo "Rien."; exit 0; fi
+          git commit -m "Vidéos champagne candidates"
+          git pull --rebase && git push
