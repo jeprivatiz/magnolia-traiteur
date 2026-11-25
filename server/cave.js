@@ -380,9 +380,34 @@ async function vinsRouges2(store) {
   await store.set('_migr/caveVins2', { at: now });
 }
 
+/* Bar à cocktails, tarif au cocktail (Jean-Luc, 2026-11-25) : minimum 30 cocktails (la fiche s'ouvre sur 30) */
+async function barCocktailsMin(store) {
+  if (await store.get('_migr/barCocktailsMin1')) return;
+  for (const { id, data: x } of await store.list('produits')) {
+    if (!x || !(id === 'bar-a-cocktails-4-h-au-cocktail' || (/bar à cocktails?/i.test(x.titre || '') && /cocktail/i.test(x.unite || '')))) continue;
+    await store.set('produits/' + id, { ...x, min: 30 });
+  }
+  await store.set('_migr/barCocktailsMin1', { at: new Date().toISOString() });
+}
+
+/* Bar à cocktails (Jean-Luc, 2026-11-25) : vidéo d'un barman qui prépare un cocktail à la place de la photo (Pexels 11268027),
+   et phrase ajoutée à la fin du texte sous la photo. */
+const BAR_COCKTAILS_FIN = 'Tous les alcools, glaçons et ingrédients permettant la préparation des cocktails sont inclus dans le prix. Il vous suffit d’ajouter, si vous le désirez, le stand pour bar à cocktails et le barman si vous en avez besoin.';
+async function barCocktailsVideo(store) {
+  if (await store.get('_migr/barCocktailsVideo1')) return;
+  const x = await store.get('produits/bar-a-cocktails-4-h-au-cocktail');
+  if (x) {
+    const sp = (x.sousPhoto || []).filter(t => !t.includes('sont inclus dans le prix'));
+    await store.set('produits/bar-a-cocktails-4-h-au-cocktail', { ...x, photos: [],
+      video: { src: '/site/v/produits/bar-a-cocktails.mp4', poster: '/site/v/produits/bar-a-cocktails.jpg' },
+      sousPhoto: [...sp, BAR_COCKTAILS_FIN], sousPhotoAuto: false });
+  }
+  await store.set('_migr/barCocktailsVideo1', { at: new Date().toISOString() });
+}
+
 async function initCave(store) {
   await prixCave(store);
-  if (await store.get('_migr/caveCercle')) { await openBarCave(store); await sodasCave(store); await vinsCave(store); await eauxCave(store); await cocaPhotos(store); await cristalineGaz(store); await cristalinePlate(store); await caveBandeauBadoit(store); await barmanSousPhoto(store); await barmanPrix(store); await alcoolsBlanc(store); await vinsRouges2(store); return ajoutsCave(store); }
+  if (await store.get('_migr/caveCercle')) { await openBarCave(store); await sodasCave(store); await vinsCave(store); await eauxCave(store); await cocaPhotos(store); await cristalineGaz(store); await cristalinePlate(store); await caveBandeauBadoit(store); await barmanSousPhoto(store); await barmanPrix(store); await alcoolsBlanc(store); await vinsRouges2(store); await barCocktailsMin(store); await barCocktailsVideo(store); return ajoutsCave(store); }
   const now = new Date().toISOString();
   let n = 0;
   for (const d of await store.list('produits')) {
@@ -431,6 +456,8 @@ async function initCave(store) {
   await barmanPrix(store);
   await alcoolsBlanc(store);
   await vinsRouges2(store);
+  await barCocktailsMin(store);
+  await barCocktailsVideo(store);
   return n + await ajoutsCave(store);
 }
 
