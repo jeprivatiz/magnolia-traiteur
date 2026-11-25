@@ -327,6 +327,15 @@
     }
     if (R.personnel && T.personnel) html += `<details class="conf-x"><summary>Personnel de service <small>facultatif · ${euros(T.personnel.heureCents)} TTC / heure</small></summary><p class="small">${T.personnel.minHeures} heures minimum par personne. Le personnel s’ajoute sur une ligne à part.</p><div class="f2"><label>Personnes<select name="pers_nb"><option value="0">Aucune</option>${[1, 2, 3, 4, 5, 6, 8, 10].map(n => `<option>${n}</option>`).join('')}</select></label><label>Heures<select name="pers_h">${[4, 5, 6, 7, 8, 9, 10, 12].map(n => `<option>${n}</option>`).join('')}</select></label></div></details>`;
     if (R.packs && (T.packs || []).length) html += `<details class="conf-x"><summary>Pack traiteur <small>facultatif · vaisselle, nappage</small></summary>${T.packs.map(pk => `<label class="radio"><input type="radio" name="pack" value="${esc(pk.id)}"><span><b>${esc(pk.label)}</b> · ${euros(pk.prixCents)} TTC / pers.<small>${esc(pk.detail)}</small></span></label>`).join('')}<label class="radio"><input type="radio" name="pack" value="" checked><span>Pas de pack</span></label></details>`;
+    /* autres propositions choisies dans le back-office pour ce produit (ex. Mobilier pour bar à cocktail) */
+    (P.propositions || []).forEach(B => {
+      html += `<details class="conf-x conf-prop" open><summary>${esc(B.titre)} <small>facultatif · à ajouter à votre sélection</small></summary><div class="props-l">${B.items.map(x => {
+        const prix = x.prixCents == null ? esc(x.prixAffiche || 'Sur devis') : `${euros(x.prixCents)} TTC${x.unite ? ' / ' + esc(x.unite) : ''}`;
+        const im = x.photo ? `<img src="${esc(x.photo)}" alt="" loading="lazy">` : '<span class="ph"></span>';
+        if (x.choix) return `<a class="prop-i lien" href="${esc(x.href)}" target="_blank" rel="noopener">${im}<span class="prop-t"><b>${esc(x.nom)}</b><small>${prix}</small></span><em>Choisir ›</em></a>`;
+        return `<div class="prop-i" data-prop="${esc(x.slug)}"><label class="prop-c"><input type="checkbox" data-prop-on aria-label="Ajouter : ${esc(x.nom)}">${im}<span class="prop-t"><b>${esc(x.nom)}</b><small>${prix}${x.contenuPortion ? ` (${esc(x.contenuPortion)})` : ''}${x.min > 1 ? ` · dès ${x.min}` : ''}</small></span></label><div class="qty sm"><button type="button" data-pq="-1" aria-label="Moins">−</button><input type="number" min="${x.min}" value="${x.min}" inputmode="numeric" data-pq-n aria-label="Quantité : ${esc(x.nom)}"><button type="button" data-pq="1" aria-label="Plus">+</button></div></div>`;
+      }).join('')}</div></details>`;
+    });
     html += `<label class="conf-l">Vos annotations et souhaits <small>(facultatif)</small><textarea name="note" rows="2" placeholder="Allergies, présentation, horaire…"></textarea></label>`;
     body.innerHTML = html;
 
@@ -341,7 +350,9 @@
       if (total != null && persNb) total += T.personnel.heureCents * persNb * persH;
       const pk = (T.packs || []).find(x => x.id === pack);
       if (total != null && pk) total += pk.prixCents * qte;
-      return { qte, sup, supps, choix, labels, persNb, persH, pack, total, variante: form.variante?.value || '', note: form.note?.value.trim() || '' };
+      const props = $$('[data-prop]', form).filter(d => $('[data-prop-on]', d).checked).map(d => { const x = (P.propositions || []).flatMap(B => B.items).find(y => y.slug === d.dataset.prop); return x && { x, n: Math.max(x.min || 1, Math.round(+$('[data-pq-n]', d).value || 0)) }; }).filter(Boolean);
+      props.forEach(({ x, n }) => { if (total != null && x.prixCents != null) total += x.prixCents * n; });
+      return { props, qte, sup, supps, choix, labels, persNb, persH, pack, total, variante: form.variante?.value || '', note: form.note?.value.trim() || '' };
     };
     /* plats à choisir en portions (règle de Jean-Luc) : le total des portions = le nombre de personnes,
        au moins « minParVariete » portions (5) pour chaque plat choisi, donc au plus floor(personnes / 5) plats différents */
@@ -372,6 +383,8 @@
       return { tot, mn, sg, sgs };
     };
     form.addEventListener('click', e => {
+      const pb = e.target.closest('[data-pq]');
+      if (pb) { const d = pb.closest('[data-prop]'), i = $('[data-pq-n]', d), x = (P.propositions || []).flatMap(B => B.items).find(y => y.slug === d.dataset.prop) || {}; i.value = Math.max(x.min || 1, (+i.value || 0) + (+pb.dataset.pq)); $('[data-prop-on]', d).checked = true; refresh(); return; }
       const b = e.target.closest('[data-om]'); if (!b) return;
       const fs = b.closest('[data-g]'), i = $('[data-oq]', b.parentElement), { mn } = regleG(fs);
       const qte = Math.max(P.min || 1, +(q?.value) || 0), tot = $$('[data-oq]', fs).reduce((a, x) => a + Math.max(0, Math.round(+x.value || 0)), 0);
@@ -396,6 +409,7 @@
       if (!sp && t) { sp = document.createElement('div'); sp.className = 'conf-supp'; sp.dataset.confSupp = ''; t.closest('.conf-tot').before(sp); }
       if (sp) { sp.hidden = !r.supps.length; sp.innerHTML = r.supps.map(x => `<p><span>Supplément ${esc(x.label.toLowerCase())}<small>${x.n} part${x.n > 1 ? 's' : ''} × ${euros(x.puCents)}</small></span><b>+ ${euros(x.n * x.puCents)}</b></p>`).join(''); }
       const u = $('[data-unit]', form); if (u) u.textContent = plur(P.unite || '', r.qte);
+      $$('[data-prop]', form).forEach(d => d.classList.toggle('on', $('[data-prop-on]', d).checked));
       $$('[data-g]', form).forEach(fs => {
         if ($('[data-oq]', fs)) return portions(fs, r.qte);
         if ($('input[type=radio]', fs)) { $$('input', fs).forEach(i => i.parentElement.classList.toggle('on', i.checked)); return; }
@@ -429,8 +443,9 @@
         if (g.exact && n !== +fs.dataset.max) { toast(`Choisissez exactement ${fs.dataset.max} options : ${g.titre || ''}`); fs.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
       }
       sel.add({ slug: P.slug, titre: P.titre, photo: P.photo, rubrique: P.rubrique, unite: P.unite, min: P.min, prixCents: P.prixCents, qte: r.qte, variante: r.variante, choix: r.choix, supCents: r.sup, supplements: r.supps, resume: r.labels.join(', '), note: r.note, personnel: r.persNb ? { nb: r.persNb, heures: r.persH } : null, pack: r.pack ? { id: r.pack, nb: r.qte } : null, lieu: !!P.lieu });
+      r.props.forEach(({ x, n }) => sel.add({ slug: x.slug, titre: x.titre, photo: x.photo, rubrique: x.rubrique, unite: x.unite, min: x.min, prixCents: x.prixCents, qte: n, variante: '', choix: {}, supCents: 0, supplements: [], resume: '', note: '', personnel: null, pack: null, lieu: false, avec: P.titre }));
       if (go === 'devis') location.href = '/ma-selection';
-      else toast('Ajouté à votre sélection.', ['Voir ma sélection', '/ma-selection']);
+      else toast(r.props.length ? `Ajouté à votre sélection, avec ${r.props.length > 1 ? r.props.length + ' propositions' : '1 proposition'}.` : 'Ajouté à votre sélection.', ['Voir ma sélection', '/ma-selection']);
     });
   });
   const sticky = $('[data-sticky]'), conf = $('[data-conf]');

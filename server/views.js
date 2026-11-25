@@ -580,6 +580,19 @@ function fichesLiees(c, p) {
   if (!L.length) return '';
   return `<div class="liees">${L.map(({ l, x }) => { const ph = x.photos?.[0]; return `<a class="liee" href="${prodHref(x)}">${img(ph?.src, ph?.alt || titreTexte(x.titre))}<span><b>${esc(l.titre || titreTexte(x.titre))}</b><small>${esc(l.texte || '')}</small><em>Choisir ${icon.arrow}</em></span></a>`; }).join('')}</div>`;
 }
+/* Autres propositions (Jean-Luc, 2026-11-25) : encadrés choisis dans le back-office pour CE produit (ex. Bar à cocktail →
+   « Mobilier pour bar à cocktail »). Le client coche les produits proposés et ils s'ajoutent à sa sélection, chacun sur sa ligne.
+   Un produit proposé qui a des choix obligatoires (formules, options) renvoie vers sa fiche. Les produits masqués ne sont pas montrés. */
+function propositionsDe(c, p) {
+  return (p.propositions || []).map(b => ({
+    titre: String(b.titre || '').trim() || 'Nous vous proposons aussi',
+    items: (b.slugs || []).map(sl => c.produits.find(y => y.slug === sl && y.statut !== 'masque' && y.slug !== p.slug)).filter(Boolean).map(x => {
+      const rr = c.rubriques.find(y => y.slug === x.rubrique) || { nom: '' };
+      return { slug: x.slug, titre: x.titre, nom: titreTexte(x.titre), photo: x.photos?.[0]?.src || x.video?.poster || '', prixCents: x.prixCents ?? null, prixAffiche: x.prixAffiche || null, unite: x.unite || '', min: x.min || 1, contenuPortion: x.contenuPortion || '', rubrique: rr.nom, href: prodHref(x),
+        choix: (x.variantes || []).length > 0 || (x.groupes || []).some(g => !g.facultatif && (g.options || []).length) };
+    }),
+  })).filter(b => b.items.length);
+}
 function produit(c, p) {
   const r = c.rubriques.find(x => x.slug === p.rubrique) || { nom: '', slug: p.rubrique };
   const R = c.reglages, T = R.tarifs || {};
@@ -599,7 +612,7 @@ function produit(c, p) {
     ${photos.length + (p.video ? 1 : 0) > 1 ? `<div class="gal-th">${p.video ? `<button type="button" data-gal-go="0" class="on vid">${icon.play}</button>` : ''}${photos.map((ph, i) => `<button type="button" data-gal-go="${i + (p.video ? 1 : 0)}"${!i && !p.video ? ' class="on"' : ''}><img src="${esc(ph.src)}" alt="" loading="lazy"></button>`).join('')}</div>` : ''}
   </div>`;
   const sections = (p.sections || []).map(s => `<section class="compo"><h2>${esc(s.titre || '')}</h2>${s.note ? `<p class="note">${esc(s.note)}</p>` : ''}${(s.items || []).length ? `<ul class="items">${s.items.map(it => `<li>${esc(avecPortion(it))}</li>`).join('')}</ul>` : ''}${(s.paragraphes || []).map(t => `<p>${esc(t)}</p>`).join('')}${s.apres ? `<p class="note">${esc(s.apres)}</p>` : ''}</section>`).join('');
-  const conf = { slug: p.slug, titre: p.titre, prixCents: p.prixCents, unite: p.unite, min: p.min || 1, groupes: (p.groupes || []).map(g => ({ ...g, options: (g.options || []).map(({ coutCents, ...o }) => o) })) /* prix d'achat des options : jamais envoyé au navigateur du client */, variantes: p.variantes || [], regles: p.regles || {}, photo: photos[0]?.src || p.video?.poster || '', rubrique: r.nom, prixAffiche: p.prixAffiche || null };
+  const conf = { slug: p.slug, titre: p.titre, prixCents: p.prixCents, unite: p.unite, min: p.min || 1, groupes: (p.groupes || []).map(g => ({ ...g, options: (g.options || []).map(({ coutCents, ...o }) => o) })) /* prix d'achat des options : jamais envoyé au navigateur du client */, variantes: p.variantes || [], regles: p.regles || {}, photo: photos[0]?.src || p.video?.poster || '', rubrique: r.nom, prixAffiche: p.prixAffiche || null, propositions: propositionsDe(c, p) };
   const body = `
 <section class="wrap fiche">
   ${crumbs([['La boutique', '/boutique'], [r.nom, '/' + r.slug], ...(() => { const x = sousVisibles(c.rubriques.find(y => y.slug === p.rubrique)).find(y => y.slug === p.sous); return x ? [[x.nom, `/${p.rubrique}/${x.slug}`]] : []; })(), [titreTexte(p.titre)]])}
