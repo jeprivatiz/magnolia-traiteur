@@ -425,7 +425,7 @@ async function barCocktailsTexte(store) {
 /* Un enregistrement du back-office fait depuis une page ouverte avant la mise en ligne a remis l'ancienne photo, le minimum à 1
    et l'ancien texte sous la photo : on repose une fois la vidéo, le minimum de 30 et la phrase finale (le reste de la fiche est gardé). */
 async function barCocktailsRetablir(store) {
-  if (await store.get('_migr/barCocktailsRetablir1')) return;
+  if (await store.get('_migr/barCocktailsRetablir2')) return;
   const x = await store.get('produits/bar-a-cocktails-4-h-au-cocktail');
   if (x) {
     const sp = (x.sousPhoto || []).map(texteBarCocktails).filter(t => !t.includes('sont inclus dans le prix'));
@@ -434,7 +434,7 @@ async function barCocktailsRetablir(store) {
       extrait: x.extrait ? texteBarCocktails(x.extrait) : x.extrait, description: (x.description || []).map(texteBarCocktails),
       sousPhoto: [...sp, BAR_COCKTAILS_FIN], sousPhotoAuto: false });
   }
-  await store.set('_migr/barCocktailsRetablir1', { at: new Date().toISOString() });
+  await store.set('_migr/barCocktailsRetablir2', { at: new Date().toISOString() });
 }
 
 async function initCave(store) {
