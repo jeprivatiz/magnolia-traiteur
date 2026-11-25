@@ -14,7 +14,7 @@ Branchement : `VIDEOS_ACCUEIL` dans `server/views.js`, lecture dans `public/js/s
 | Les indispensables | photobooth | https://www.pexels.com/video/6225145/ (A Group of Friends Using Photo Props) | RDNE Stock project |
 | Petits-déjeuners | petit-dejeuner | https://www.pexels.com/video/6466347/ (Maid Hands Serving Coffee) | cottonbro studio |
 | Animations sucrées & desserts | churros | https://www.pexels.com/video/40304302/ (Delicious Churros with Powdered Sugar Topping), recadrée sans le gobelet imprimé | Anh Nguyen |
-| Musique & spectacles | dj | https://www.pexels.com/video/7424065/ (Man Using a Sound Mixer : DJ en gros plan) | Gustavo Fring |
+| Musique & spectacles | dj | https://www.pexels.com/video/3134595/ (A Disc Jockey Scratching A Record : mains du DJ sur la platine) | Caleb Oquendo |
 | Plateaux de fruits de mer | huitres | https://www.pexels.com/video/4084096/ (Close-Up Shot of a Seafood Platter : grand plateau filmé en mouvement) | Catherine Franken |
 | Mobilier et matériel à la location | mobilier | https://www.pexels.com/video/39846486/ (Elegant Indoor Wedding Reception Setup : tables nappées, chaises habillées) | Mir Burhan |
 | Coffrets & plateaux | coffrets | https://www.pexels.com/video/7550987/ (personne qui referme un coffret blanc) | Hanna Pad |
