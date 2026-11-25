@@ -1593,3 +1593,7 @@ body.avec-psbar .content { padding-bottom: 120px; }
 @media (max-width: 900px) { .psbar { bottom: max(76px, calc(env(safe-area-inset-bottom) + 66px)); width: calc(100vw - 24px); } body.avec-psbar .toast { bottom: max(170px, calc(env(safe-area-inset-bottom) + 160px)); } }
 .psrow > .prow { margin: 0; }
 .psbar [data-psundo] { background: var(--or); border-color: var(--or); color: #14221b; }
+.mrow .pchk { border: 0; background: none; width: 36px; min-height: 36px; margin: -4px -6px -4px -2px; }
+.mrow.on { border-color: var(--rouge); background: rgba(180, 65, 47, .07); }
+.smrow .psrow { flex: 1; min-width: 0; }
+@media (max-width: 600px) { .psbar { padding: 8px 10px; gap: 6px; } .psbar b { width: 100%; text-align: center; font-size: .92rem; } .psbtns { flex-wrap: nowrap; gap: 6px; } .psbar .btn { min-height: 38px; padding: 6px 10px; font-size: .84rem; white-space: nowrap; } }
