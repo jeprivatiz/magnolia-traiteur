@@ -380,9 +380,19 @@ async function vinsRouges2(store) {
   await store.set('_migr/caveVins2', { at: now });
 }
 
+/* Bar à cocktails, tarif au cocktail (Jean-Luc, 2026-11-25) : minimum 30 cocktails (la fiche s'ouvre sur 30) */
+async function barCocktailsMin(store) {
+  if (await store.get('_migr/barCocktailsMin1')) return;
+  for (const { id, data: x } of await store.list('produits')) {
+    if (!x || !(id === 'bar-a-cocktails-4-h-au-cocktail' || (/bar à cocktails?/i.test(x.titre || '') && /cocktail/i.test(x.unite || '')))) continue;
+    await store.set('produits/' + id, { ...x, min: 30 });
+  }
+  await store.set('_migr/barCocktailsMin1', { at: new Date().toISOString() });
+}
+
 async function initCave(store) {
   await prixCave(store);
-  if (await store.get('_migr/caveCercle')) { await openBarCave(store); await sodasCave(store); await vinsCave(store); await eauxCave(store); await cocaPhotos(store); await cristalineGaz(store); await cristalinePlate(store); await caveBandeauBadoit(store); await barmanSousPhoto(store); await barmanPrix(store); await alcoolsBlanc(store); await vinsRouges2(store); return ajoutsCave(store); }
+  if (await store.get('_migr/caveCercle')) { await openBarCave(store); await sodasCave(store); await vinsCave(store); await eauxCave(store); await cocaPhotos(store); await cristalineGaz(store); await cristalinePlate(store); await caveBandeauBadoit(store); await barmanSousPhoto(store); await barmanPrix(store); await alcoolsBlanc(store); await vinsRouges2(store); await barCocktailsMin(store); return ajoutsCave(store); }
   const now = new Date().toISOString();
   let n = 0;
   for (const d of await store.list('produits')) {
@@ -431,6 +441,7 @@ async function initCave(store) {
   await barmanPrix(store);
   await alcoolsBlanc(store);
   await vinsRouges2(store);
+  await barCocktailsMin(store);
   return n + await ajoutsCave(store);
 }
 

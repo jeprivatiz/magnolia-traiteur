@@ -25,6 +25,7 @@ test('initCave : anciens vins masqués, nos open bars gardés, nouvelles fiches 
   docs.set('rubriques/boissons', { slug: 'boissons', nom: 'La cave de Magnolia', introTexte: 'Champagne, vins choisis en Bourgogne, à Bordeaux ou en Provence…' });
   docs.set('produits/vieille-eau', { slug: 'vieille-eau', rubrique: 'boissons', titre: 'Eau', description: ['Eau.', 'Livré frais avec le reste de votre commande.'] });
   docs.set('produits/barman', { ...require('../server/cave').BARMAN, sousPhoto: ['Prévoyez environ un barman pour 30 à 40 invités, jusqu’à 5 barmans, pour 4 heures minimum.'] });
+  docs.set('produits/bar-a-cocktails-4-h-au-cocktail', { slug: 'bar-a-cocktails-4-h-au-cocktail', rubrique: 'boissons', titre: 'Bar à cocktails (tarif au cocktail)', unite: 'cocktail', min: 1 });
   docs.set('produits/chablis', { slug: 'chablis', rubrique: 'boissons', titre: 'Chablis', statut: 'visible' });
   docs.set('produits/sangria-maison-au-litre', { slug: 'sangria-maison-au-litre', rubrique: 'boissons', titre: 'Sangria', statut: 'visible' });
   docs.set('produits/champagne-andre-diligent', { slug: 'champagne-andre-diligent', rubrique: 'boissons', titre: 'Champagne André Diligent', prixCents: 2850, statut: 'visible' });
@@ -58,6 +59,7 @@ test('initCave : anciens vins masqués, nos open bars gardés, nouvelles fiches 
   assert.equal(docs.get('produits/eau-petillante-1-5-l').prixCents, 220);
   assert.match(docs.get('produits/eau-plate-cristaline-1-5-l').photos[0].src, /cristaline-plate-1-5-l\.webp/);
   assert.equal(docs.get('produits/eau-badoit-50-cl').statut, 'masque');
+  assert.equal(docs.get('produits/bar-a-cocktails-4-h-au-cocktail').min, 30);
   assert.equal(docs.get('produits/nuiton-beaunoy-hautes-cotes-de-beaune-grande-cuvee-rouge').prixCents, 2400);
   assert.equal(docs.get('produits/gin-bombay-sapphire-70-cl').prixCents, 3790);
   assert.equal(docs.get('produits/rhum-havana-club-especial-70-cl').statut, 'masque');
