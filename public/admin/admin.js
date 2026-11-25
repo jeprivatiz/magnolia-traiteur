@@ -1990,7 +1990,7 @@
   const trierF = L => [...new Set(L.map(x => String(x).trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
   const smfOptions = sel => `<option value="">Fournisseur (facultatif)</option>${SMF.map(x => `<option${x === sel ? ' selected' : ''}>${esc(x)}</option>`).join('')}<option value="__nouveau">✚ Nouveau fournisseur…</option>`;
   const fgestHtml = () => SMF.map(x => `<span class="fchip" data-fg="${esc(x)}" title="Tapez deux fois pour supprimer">${esc(x)}<button type="button" data-fgdel aria-label="Supprimer ${esc(x)}">×</button></span>`).join('') || '<span class="muted sm">Aucun fournisseur pour l’instant.</span>';
-  const smLigne = p => `<div class="smrow" data-smid="${esc(p.id || p.slug)}">${prow(p)}${peut('prix') ? `<span class="sm-saisie"><input data-smcout inputmode="decimal" placeholder="Prix d’achat HT €" aria-label="Prix d’achat HT de ${esc(titreTexte(p.titre))}"><select data-smf aria-label="Fournisseur">${smfOptions('')}</select><input data-smfnew placeholder="Nom du nouveau fournisseur" hidden><button type="button" class="btn sm" data-smok title="Enregistrer dans la fiche">✓</button></span>` : ''}</div>`;
+  const smLigne = p => `<div class="smrow" data-smid="${esc(p.id || p.slug)}">${prowSel(p)}${peut('prix') ? `<span class="sm-saisie"><input data-smcout inputmode="decimal" placeholder="Prix d’achat HT €" aria-label="Prix d’achat HT de ${esc(titreTexte(p.titre))}"><select data-smf aria-label="Fournisseur">${smfOptions('')}</select><input data-smfnew placeholder="Nom du nouveau fournisseur" hidden><button type="button" class="btn sm" data-smok title="Enregistrer dans la fiche">✓</button></span>` : ''}</div>`;
   const majFgest = () => { const g = $('[data-fgest]'); if (g) g.innerHTML = fgestHtml(); const n = $('[data-fgn]'); if (n) n.textContent = `(${SMF.length})`; $$('[data-smf]').forEach(s => { const v = SMF.includes(s.value) || s.value === '__nouveau' ? s.value : ''; s.innerHTML = smfOptions(v); }); };
   const supprimerFournisseur = async nom => {
     let n = 0; try { n = (await api(A + '/actions/fournisseurs/compter?nom=' + encodeURIComponent(nom))).n; } catch { /* compte indisponible : on demande quand même */ }
@@ -2114,9 +2114,9 @@
     const nomRub = sl => rubs.find(x => x.slug === sl)?.nom || sl || 'Sans rubrique';
     const rang = sl => { const i = rubs.findIndex(x => x.slug === sl); return i < 0 ? 999 : i; };
     const groupes = [...new Set(L.map(x => x.p.rubrique))].sort((a, b) => rang(a) - rang(b));
-    const ligne = ({ p, r }) => `<div class="mrow" data-mk="${r.k}" data-mid="${esc(p.id || p.slug)}">${p.photos?.[0]?.src ? `<img src="${esc(p.photos[0].src)}" alt="" loading="lazy">` : '<span class="ph0"></span>'}<span class="mtx"><b>${titreHtml(p.titre)}</b><small>${p.prixCents == null ? 'Sur devis' : euros(p.prixCents) + (p.unite ? ' / ' + esc(p.unite) : '')}</small><em class="mwhy mw-${r.k}">${esc(r.t)}</em></span><span class="mact"><a class="btn ghost sm" href="#/catalogue/${esc(p.id || p.slug)}">✏ Modifier la fiche</a><button type="button" class="btn sm" data-mvis>👁 Rendre visible</button></span></div>`;
+    const ligne = ({ p, r }) => `<div class="mrow" data-mk="${r.k}" data-mid="${esc(p.id || p.slug)}">${pchk(p)}${p.photos?.[0]?.src ? `<img src="${esc(p.photos[0].src)}" alt="" loading="lazy">` : '<span class="ph0"></span>'}<span class="mtx"><b>${titreHtml(p.titre)}</b><small>${p.prixCents == null ? 'Sur devis' : euros(p.prixCents) + (p.unite ? ' / ' + esc(p.unite) : '')}</small><em class="mwhy mw-${r.k}">${esc(r.t)}</em></span><span class="mact"><a class="btn ghost sm" href="#/catalogue/${esc(p.id || p.slug)}">✏ Modifier la fiche</a><button type="button" class="btn sm" data-mvis>👁 Rendre visible</button></span></div>`;
     return page('Catalogue' + pavesCat(prods, 'masques'), `<a class="btn ghost" href="#/catalogue">← Retour au catalogue</a>`, `
-      <section class="box"><h2>Fiches masquées</h2><p class="muted">Ces fiches existent dans le back-office mais <b>ne s’affichent pas sur le site</b>. La raison est écrite en couleur sous chaque nom. « Rendre visible » la remet aussitôt sur le site ; « Modifier la fiche » ouvre la fiche complète.</p>
+      <section class="box"><h2>Fiches masquées</h2><p class="muted">Ces fiches existent dans le back-office mais <b>ne s’affichent pas sur le site</b>. La raison est écrite en couleur sous chaque nom. « Rendre visible » la remet aussitôt sur le site ; « Modifier la fiche » ouvre la fiche complète. Pour <b>supprimer</b> des fiches, cochez leur petit carré (ou un filtre puis « Tout cocher »).</p>
       <div class="row mfil"><button type="button" class="btn sm on" data-mf="">Toutes (${L.length})</button>${RAISONS_M.map(([k, t]) => { const n = L.filter(x => x.r.k === k).length; return n ? `<button type="button" class="btn ghost sm" data-mf="${k}">${t} (${n})</button>` : ''; }).join('')}</div></section>
       ${groupes.map(g => `<section class="box mgrp"><h2>${esc(nomRub(g))} <small class="muted">(${L.filter(x => x.p.rubrique === g).length})</small></h2><div class="mlist">${L.filter(x => x.p.rubrique === g).map(ligne).join('')}</div></section>`).join('') || '<section class="box"><p class="muted">Aucune fiche masquée : tout le catalogue est visible.</p></section>'}`);
   }
@@ -2218,8 +2218,8 @@
     document.body.classList.toggle('avec-psbar', !b.hidden);
   }
   async function psClic(e) {
-    if (e.target.closest('[data-psall]')) { $$('[data-psel]').forEach(x => { x.checked = true; PSEL.add(x.dataset.psel); x.closest('.psrow, .qrow')?.classList.add('on'); }); return majPsBar(); }
-    if (e.target.closest('[data-psnone]')) { PSEL.clear(); $$('[data-psel]').forEach(x => { x.checked = false; x.closest('.psrow, .qrow')?.classList.remove('on'); }); return majPsBar(); }
+    if (e.target.closest('[data-psall]')) { $$('[data-psel]').filter(x => !x.closest('[hidden]')).forEach(x => { x.checked = true; PSEL.add(x.dataset.psel); x.closest('.psrow, .qrow, .mrow')?.classList.add('on'); }); return majPsBar(); }
+    if (e.target.closest('[data-psnone]')) { PSEL.clear(); $$('[data-psel]').forEach(x => { x.checked = false; x.closest('.psrow, .qrow, .mrow')?.classList.remove('on'); }); return majPsBar(); }
     if (e.target.closest('[data-psfin]')) { psDernier = null; return majPsBar(); }
     if (e.target.closest('[data-psundo]')) {
       try { const r = await api(`${A}/actions/produits/supprimer/${encodeURIComponent(psDernier.lot)}/remettre`, { method: 'POST' }); psDernier = null; cache.produits = null; toast(`${r.remis} produit${r.remis > 1 ? 's' : ''} remis dans le catalogue.`); render(); } catch (err) { toast(err.message, true); }
@@ -2241,7 +2241,7 @@
   document.addEventListener('change', e => {
     const x = e.target.closest?.('[data-psel]'); if (!x) return;
     if (x.checked) PSEL.add(x.dataset.psel); else PSEL.delete(x.dataset.psel);
-    x.closest('.psrow, .qrow')?.classList.toggle('on', x.checked);
+    x.closest('.psrow, .qrow, .mrow')?.classList.toggle('on', x.checked);
     majPsBar();
   });
   addEventListener('hashchange', () => { PSEL.clear(); majPsBar(); });
