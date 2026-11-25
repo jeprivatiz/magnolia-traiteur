@@ -82,6 +82,7 @@
   const CRM = ['demandes', 'suivi', 'devis', 'factures', 'clients'];
   const MENU = [
     ['', 'Tableau de bord'],
+    ['statistiques', 'Statistiques'],
     ['crm', 'CRM'],
     ['demandes', 'Demandes de devis'],
     ['suivi', 'Suivi client'],
@@ -137,7 +138,7 @@
     }
     if (!session) return login();
     const [route, id, sub] = location.hash.replace(/^#\/?/, '').split('?')[0].split('/');
-    const views = { '': dashboard, demandes, suivi, devis, factures, agenda, clients, catalogue, produit, achats, lieux, lieu, site, avis, medias, entreprise, equipe, outils };
+    const views = { '': dashboard, statistiques, demandes, suivi, devis, factures, agenda, clients, catalogue, produit, achats, lieux, lieu, site, avis, medias, entreprise, equipe, outils };
     let fn = route === 'catalogue' && id ? produit : route === 'lieux' && id ? lieu : views[route] || dashboard;
     if (!voitEcran(route)) fn = sansAcces;
     if (!peut('toutes') && typeof SV !== 'undefined') { SV.o = ''; mem.set('mg_commercial', ''); } /* « seulement ses opportunités » : pas de filtre sur un autre commercial */
@@ -292,6 +293,97 @@
       try { const html = await dashboard(); const c = $('.content'); if (c && location.hash.replace(/^#\/?/, '') === '') { c.innerHTML = html; dashboard.after(); } }
       catch (e) { toast(e.message, true); $('.db')?.classList.remove('db-charge'); }
     }));
+  };
+
+  /* ---------- statistiques (Jean-Luc, 2026-11-25) ----------
+     Pour chaque univers de l'accueil, dans l'ordre des vignettes : marge moyenne du catalogue (même calcul que le pavé du Catalogue)
+     et ce qui a été réellement vendu sur 12 mois (devis signés : CA HT, marge HT, courbe par mois). Calcul : server/statistiques.js */
+  async function statistiques() {
+    const s = await api(A + '/statistiques');
+    cache.stats = s;
+    const pctTxt = v => v == null ? '—' : v.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' %';
+    const moisL = m => MOIS_C[+m.slice(5) - 1] + ' ' + m.slice(0, 4);
+    const T = s.total, C = s.catalogueTotal;
+    const photo = (u, cls) => u ? `<img class="${cls}" src="${esc(u)}" alt="" loading="lazy" decoding="async" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'${cls} st-sansphoto'}))">` : `<span class="${cls} st-sansphoto"></span>`;
+    /* nombre animé : data-n = valeur finale (compte de 0 à la valeur à l'ouverture) */
+    const anim = (v, fmt) => v == null ? '—' : `<span data-n="${v}" data-f="${fmt}">${fmt === 'e' ? eurosRond(v) : pctTxt(v)}</span>`;
+    /* barres horizontales : marge moyenne du catalogue, une ligne par rubrique (et par spécialité de Saveurs du monde) */
+    const barreCat = (x, sousL) => {
+      const c = x.catalogue;
+      const lab = c ? `${c.avecMarge} produit${c.avecMarge > 1 ? 's' : ''} avec prix d’achat${c.sansAchat ? ` · <a href="#/catalogue?sansmarge=1">${c.sansAchat} sans</a>` : ''}` : 'pas de prix d’achat sur les lieux';
+      return `<li class="st-cr${sousL ? ' st-sous' : ''}" title="${esc(x.nom)} : ${c?.pct == null ? 'marge inconnue' : pctTxt(c.pct) + ' de marge moyenne'}">${photo(x.photo, 'st-av')}<span class="st-cn"><b>${esc(x.nom)}</b><small>${lab}</small></span>
+        <span class="st-ct"><i class="st-gx" style="width:${c?.pct == null ? 0 : Math.max(1.5, Math.min(100, c.pct))}%"></i></span><span class="st-cv${c?.pct == null ? ' vide' : ''}">${pctTxt(c?.pct)}</span></li>`;
+    };
+    const lignesCat = s.rubriques.map(r => barreCat(r) + (r.sous || []).map(x => barreCat(x, true)).join('')).join('');
+    /* courbe par mois : la barre = CA HT signé, la partie dorée = la marge HT */
+    const histo = (v, grand) => {
+      const max = Math.max(1, ...v.serie.map(x => x.venteHtCents));
+      return `<div class="st-h${grand ? ' grand' : ''}" role="img" aria-label="Chiffre d’affaires HT et marge HT par mois">${v.serie.map((x, i) => `<span class="st-hb${i === v.serie.length - 1 ? ' cur' : ''}" style="--i:${i}" title="${moisL(x.mois)} : ${eurosRond(x.venteHtCents)} HT vendus · ${eurosRond(x.margeHtCents)} de marge"><span class="st-hc"><i class="ca" style="height:${x.venteHtCents ? Math.max(3, x.venteHtCents / max * 100) : 0}%"><i class="mg" style="height:${x.venteHtCents ? Math.max(0, Math.min(100, x.margeHtCents / x.venteHtCents * 100)) : 0}%"></i></i></span><em>${MOIS_C[+x.mois.slice(5) - 1].replace('.', '').slice(0, grand ? 5 : 1)}</em></span>`).join('')}</div>`;
+    };
+    /* une carte par rubrique, avec la photo de sa vignette */
+    const carte = (x, parent) => {
+      const v = x.ventes, c = x.catalogue;
+      return `<article class="st-card${v.venteHtCents ? '' : ' st-rien'}"><header class="st-ph">${photo(x.photo, 'st-phi')}<h3>${parent ? `<small>${esc(parent)}</small>` : ''}${esc(x.nom)}</h3><span class="st-pill" title="Marge moyenne du catalogue">catalogue ${c ? pctTxt(c.pct) : '—'}</span></header>
+        <div class="st-cb">${v.venteHtCents ? `<div class="st-nums"><span><b>${eurosRond(v.venteHtCents)}</b><small>vendus HT</small></span><span><b>${eurosRond(v.margeHtCents)}</b><small>de marge HT</small></span><span><b>${pctTxt(v.pct)}</b><small>marge réelle</small></span></div>${histo(v)}
+        <p class="st-foot">${v.devis} devis signé${v.devis > 1 ? 's' : ''}${v.venteConnueHtCents < v.venteHtCents ? ` · marge connue sur ${Math.round(100 * v.venteConnueHtCents / v.venteHtCents)} % des ventes` : ''}</p>`
+        : '<p class="st-foot">Aucun devis signé sur les 12 derniers mois.</p>'}</div></article>`;
+    };
+    const cartes = s.rubriques.flatMap(r => r.sous?.length ? [carte(r), ...r.sous.map(x => carte(x, r.nom))] : [carte(r)]).join('');
+    const p1 = s.mois[0], p2 = s.mois[s.mois.length - 1];
+    return `<div class="db st">
+      <section class="db-hero st-hero"><div class="db-hero-in">
+        <p class="db-jour">${moisL(p1)} → ${moisL(p2)}${s.siennes ? ' · vos devis' : ''}</p>
+        <h1>Statistiques</h1>
+        <p class="db-resume">Ce que rapporte chaque univers du site, dans l’ordre des vignettes de l’accueil. Montants hors taxes, marge = prix de vente − prix d’achat.</p></div>
+        <div class="st-kpis">
+          <span><b>${anim(C.pct, 'p')}</b><small>marge moyenne du catalogue</small></span>
+          <span><b>${anim(T.venteHtCents, 'e')}</b><small>vendus HT en 12 mois</small></span>
+          <span><b>${anim(T.margeHtCents, 'e')}</b><small>de marge HT · ${pctTxt(T.pct)}</small></span>
+        </div></section>
+      <div class="st-duo">
+        <section class="db-card st-podium"><div class="db-h"><h2>🏆 Le classement</h2></div>
+          <div class="st-tri">${[['e', 'Marge en €'], ['r', 'Marge réelle %'], ['c', 'Marge catalogue %']].map(([k, l]) => `<button type="button" class="st-tc${(statistiques.tri || 'e') === k ? ' on' : ''}" data-sttri="${k}" aria-pressed="${(statistiques.tri || 'e') === k}">${l}</button>`).join('')}</div>
+          <ol class="st-rank" data-strank></ol></section>
+        <section class="db-card"><div class="db-h"><h2>${ico('euro')} Ventes signées par mois</h2></div>
+          ${T.venteHtCents ? histo(T, true) : '<div class="db-vide"><p>Aucun devis signé sur les 12 derniers mois : les courbes se rempliront avec les premières signatures.</p></div>'}
+          <p class="st-leg"><span><i class="ca"></i>Chiffre d’affaires HT</span><span><i class="mg"></i>dont marge HT</span></p></section>
+      </div>
+      <section class="db-card"><div class="db-h"><h2>Marge moyenne du catalogue par rubrique</h2><a class="db-lien" href="#/catalogue">Catalogue ${ico('arrow')}</a></div>
+        <p class="muted sm">Moyenne des marges des produits visibles qui ont un prix d’achat, en % du prix de vente HT (le même calcul que le pavé « marge moyenne » du Catalogue).</p>
+        <ul class="st-cl">${lignesCat}</ul></section>
+      <section><div class="st-sh"><h2>Ce que chaque rubrique rapporte</h2><p class="st-leg"><span><i class="ca"></i>CA HT par mois</span><span><i class="mg"></i>dont marge</span></p></div>
+        <div class="st-grid">${cartes}</div>
+        <p class="muted sm st-note">Devis signés, au mois de la signature. Un produit rangé dans deux rubriques (par exemple une chaise dans « Indispensables » et « Mobilier et matériel à la location ») compte dans les deux ; le total du haut le compte une seule fois.${s.autres.venteHtCents ? ` Livraison, packs et lignes hors catalogue : ${eurosRond(s.autres.venteHtCents)} HT.` : ''}</p></section>
+    </div>`;
+  }
+  /* classement : Saveurs du monde est remplacée par ses spécialités (Buffet antillais, Paëlla party…) */
+  statistiques.classement = () => {
+    const s = cache.stats, el = $('[data-strank]'); if (!s || !el) return;
+    const tri = statistiques.tri || 'e';
+    const L = s.rubriques.flatMap(r => r.sous?.length ? r.sous : [r]);
+    const val = x => tri === 'e' ? x.ventes.margeHtCents : tri === 'r' ? x.ventes.pct : x.catalogue?.pct;
+    const R = L.filter(x => val(x) != null && val(x) > 0).sort((a, b) => val(b) - val(a)).slice(0, 8);
+    const max = Math.max(1, ...R.map(val));
+    const fmt = v => tri === 'e' ? eurosRond(v) : v.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' %';
+    const pc = v => v == null ? '—' : v.toLocaleString('fr-FR', { maximumFractionDigits: 1 }) + ' %';
+    const det = x => tri === 'e' ? `${eurosRond(x.ventes.venteHtCents)} vendus · ${pc(x.ventes.pct)}` : tri === 'r' ? `${eurosRond(x.ventes.margeHtCents)} sur ${eurosRond(x.ventes.venteHtCents)} vendus` : `${x.catalogue.avecMarge} produit${x.catalogue.avecMarge > 1 ? 's' : ''} avec prix d’achat`;
+    el.innerHTML = R.length ? R.map((x, i) => `<li class="st-ri${i < 3 ? ' top' : ''}" style="--i:${i}"><span class="st-rn">${['🥇', '🥈', '🥉'][i] || i + 1}</span>${x.photo ? `<img class="st-av" src="${esc(x.photo)}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'st-av st-sansphoto'}))">` : '<span class="st-av st-sansphoto"></span>'}<span class="st-rt"><b>${esc(x.nom)}</b><small>${esc(det(x))}</small><span class="st-rb"><i style="width:${Math.max(3, val(x) / max * 100)}%"></i></span></span><span class="st-rv">${fmt(val(x))}</span></li>`).join('')
+      : `<li class="db-vide"><p>${tri === 'c' ? 'Aucun prix d’achat saisi pour le moment.' : 'Le classement se remplira avec les premiers devis signés.'}</p></li>`;
+  };
+  statistiques.after = () => {
+    statistiques.classement();
+    $$('[data-sttri]').forEach(b => b.addEventListener('click', () => {
+      statistiques.tri = b.dataset.sttri;
+      $$('[data-sttri]').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', x === b); });
+      statistiques.classement();
+    }));
+    /* chiffres qui défilent jusqu'à leur valeur (rien si l'utilisateur a demandé moins d'animations) */
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    $$('.st [data-n]').forEach(e => {
+      const fin = +e.dataset.n, f = e.dataset.f, t0 = performance.now(), D = 1100;
+      const pas = t => { const k = Math.min(1, (t - t0) / D), v = fin * (1 - Math.pow(1 - k, 3)); e.textContent = f === 'e' ? eurosRond(Math.round(v)) : (Math.round(v * 10) / 10).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' %'; if (k < 1) requestAnimationFrame(pas); };
+      requestAnimationFrame(pas);
+    });
   };
 
   /* ---------- demandes ---------- */
