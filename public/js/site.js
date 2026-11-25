@@ -46,6 +46,14 @@
     toast(await copier(url) ? 'Lien copié : vous pouvez le coller dans un SMS, un e-mail ou WhatsApp.' : 'Copiez ce lien : ' + url);
   });
 
+  /* ---------- bulle « Revenir à la page précédente » (téléphone) : page d'avant sur le site, sinon l'accueil ---------- */
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('[data-retour]')) return;
+    let duSite = false;
+    try { duSite = !!document.referrer && new URL(document.referrer).origin === location.origin; } catch { duSite = false; }
+    if (duSite && history.length > 1) history.back(); else location.href = '/';
+  });
+
   /* ---------- en-tête, menu, recherche ---------- */
   const top = $('[data-top]');
   const onScroll = () => top && top.classList.toggle('scrolled', scrollY > 30);
