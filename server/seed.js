@@ -1369,7 +1369,7 @@ async function initSousRubriques(store, { log = console } = {}) {
       'mange-debout': ['mange-debout', 'Mange-debout sans nappe'],
       'nappe-rectangulaire-170-250-cm': ['nappe-rectangulaire', 'Table rectangulaire avec nappe blanche'],
       'chaise-pliante-de-luxe-en-velours-bordeaux': ['chaise-velours', 'Chaises dorées en velours bordeaux'],
-      'verres-en-verre-vin-coupes-a-champagne': ['verres-vin-coupes', 'Coupes à champagne en verre'],
+      'verres-en-verre-vin-coupes-a-champagne': ['verres-vin-flutes', 'Un verre à vin et une flûte à champagne sur une table de réception'],
       'verres-reutilisables-eco-responsables': ['verres-reutilisables', 'Gobelets réutilisables empilés'],
       'set-de-vaisselle-complet-par-personne': ['set-complet', 'Assiettes, couverts et verre à pied'],
       'set-de-vaisselle-sans-verrerie-par-personne': ['set-sans-verrerie', 'Assiettes en porcelaine blanche'],

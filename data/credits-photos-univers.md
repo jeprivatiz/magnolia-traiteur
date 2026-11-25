@@ -205,7 +205,7 @@ Photos Pexels : licence Pexels (usage commercial libre, sans attribution obligat
 | Mange-debout | public/site/c/materiel/mange-debout.webp | https://www.flickr.com/photos/74708580@N00/4466169977 (glasseyes view) | CC BY-SA 2.0 |
 | Nappe rectangulaire 170 × 250 cm | public/site/c/materiel/nappe-rectangulaire.webp | https://www.pexels.com/photo/8112784/ | Pexels |
 | Chaise pliante de luxe en velours bordeaux | public/site/c/materiel/chaise-velours.webp (recadrée) | https://www.pexels.com/photo/35560665/ | Pexels |
-| Verres en verre (vin, coupes à champagne) | public/site/c/materiel/verres-vin-coupes.webp | https://www.pexels.com/photo/29157921/ | Pexels |
+| Verres à vin et flûtes à champagne | public/site/c/materiel/verres-vin-flutes.webp | https://www.pexels.com/photo/19408256/ (Luis Felipe Pérez) | Pexels |
 | Verres réutilisables éco-responsables | public/site/c/materiel/verres-reutilisables.webp (recadrée) | https://www.flickr.com/photos/36976328@N04/54546620525 (re:publica) | CC BY-SA 2.0 |
 | Set de vaisselle complet | public/site/c/materiel/set-complet.webp | https://www.pexels.com/photo/291767/ | Pexels |
 | Set de vaisselle sans verrerie | public/site/c/materiel/set-sans-verrerie.webp | https://www.pexels.com/photo/18977894/ | Pexels |
