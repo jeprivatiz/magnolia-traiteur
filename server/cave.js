@@ -125,18 +125,31 @@ async function ajoutsCave(store) {
 /* Open bar vins et champagnes (Jean-Luc, 2026-11-25, texte de son ancien site) : aucun prix de barman ni de verre sur la fiche ;
    des vignettes mènent à la fiche Barman (nombre de barmans et d'heures) et à la fiche Verres en verre.
    Fiche Barman : forfait de son ancien site, 229 € HT pour un barman, lu comme 4 heures minimum → 57,25 € HT = 68,70 € TTC de l'heure (TVA 20 %). */
-const BARMAN_HEURE = 6870;
+/* Tarif barman (Jean-Luc, 2026-11-25) : 270 € TTC par barman pour les 4 premières heures, puis 39 € TTC l'heure supplémentaire par barman.
+   La quantité = le nombre de barmans (1 à 5) ; la durée se choisit dans la liste (4 h incluses, + 39 € par heure en plus).
+   Total = barmans × (270 + 39 × heures supplémentaires). */
+const BARMAN_FORFAIT = 27000, BARMAN_HEURE_SUP = 3900;
+const BARMAN_PRIX = {
+  prixCents: BARMAN_FORFAIT, unite: 'barman', min: 1, minimumTexte: null,
+  description: ['Nos barmans tiennent votre bar pendant toute la durée de l’événement : ils servent vos invités, ouvrent les bouteilles, gardent le bar propre et rangé.',
+    '270 € TTC par barman pour 4 heures de service, puis 39 € TTC par heure supplémentaire. Comptez un barman pour 30 à 40 invités, jusqu’à 5 barmans : indiquez le nombre de barmans, puis la durée.'],
+  groupes: [{ id: 'duree', titre: 'Durée de service', radio: true, max: 1, exact: true, aide: '4 heures comprises dans le forfait ; chaque heure en plus : 39 € TTC par barman.',
+    options: [4, 5, 6, 7, 8, 9, 10, 11, 12].map(h => ({ id: h + 'h', label: h === 4 ? '4 heures (forfait)' : `${h} heures (4 h + ${h - 4} h supplémentaire${h > 5 ? 's' : ''})`, supCents: (h - 4) * BARMAN_HEURE_SUP })) }],
+  regles: {},
+};
 const BARMAN = {
   id: 'barman', slug: 'barman', rubrique: 'personnel', autresRubriques: ['boissons'], sous: '', autresSous: [], rangement: 'bars', titre: 'Barman',
-  prixCents: BARMAN_HEURE, coutCents: null, prixTexte: null, unite: 'heure', min: 4, minimumTexte: null,
+  coutCents: null, prixTexte: null,
   extrait: 'Un barman pour servir vos invités au bar : open bar, cocktails, champagne. Un barman pour 30 à 40 invités environ.',
-  description: ['Nos barmans tiennent votre bar pendant toute la durée de l’événement : ils servent vos invités, ouvrent et rafraîchissent les bouteilles, gardent le bar propre et rangé.',
-    'Comptez un barman pour 30 à 40 invités environ, selon l’événement. Choisissez le nombre de barmans, puis le nombre d’heures (4 heures minimum).'],
   sections: [], details: [], photos: [{ src: px(5531479), alt: 'Barman qui sert un cocktail au bar' }], video: null,
-  groupes: [{ id: 'barmans', titre: 'Nombre de barmans', radio: true, max: 1, exact: true, aide: 'Un barman pour 30 à 40 invités environ.',
-    options: [1, 2, 3, 4, 5].map(n => ({ id: n + 'b', label: n === 1 ? '1 barman (jusqu’à 40 invités)' : `${n} barmans (jusqu’à ${n * 40} invités)`, supCents: (n - 1) * BARMAN_HEURE })) }],
-  variantes: [], regles: { horaire: true }, ordre: 5, statut: 'visible', maison: true, tva: 20, allergenes: [], aCompleter: false,
+  variantes: [], ordre: 5, statut: 'visible', maison: true, tva: 20, allergenes: [], aCompleter: false, ...BARMAN_PRIX,
 };
+async function barmanPrix(store) {
+  if (await store.get('_migr/barmanPrix2')) return;
+  const x = await store.get('produits/barman');
+  if (x) await store.set('produits/barman', { ...x, ...BARMAN_PRIX });
+  await store.set('_migr/barmanPrix2', { at: new Date().toISOString() });
+}
 const OPEN_BAR_VC = {
   prixAffiche: 'Selon consommation',
   extrait: 'Un open bar vins et champagnes pour toute la durée de votre événement : vous ne payez que les bouteilles consommées.',
@@ -327,7 +340,7 @@ async function barmanSousPhoto(store) {
 
 async function initCave(store) {
   await prixCave(store);
-  if (await store.get('_migr/caveCercle')) { await openBarCave(store); await sodasCave(store); await vinsCave(store); await eauxCave(store); await cocaPhotos(store); await cristalineGaz(store); await cristalinePlate(store); await caveBandeauBadoit(store); await barmanSousPhoto(store); return ajoutsCave(store); }
+  if (await store.get('_migr/caveCercle')) { await openBarCave(store); await sodasCave(store); await vinsCave(store); await eauxCave(store); await cocaPhotos(store); await cristalineGaz(store); await cristalinePlate(store); await caveBandeauBadoit(store); await barmanSousPhoto(store); await barmanPrix(store); return ajoutsCave(store); }
   const now = new Date().toISOString();
   let n = 0;
   for (const d of await store.list('produits')) {
@@ -373,6 +386,7 @@ async function initCave(store) {
   await cristalinePlate(store);
   await caveBandeauBadoit(store);
   await barmanSousPhoto(store);
+  await barmanPrix(store);
   return n + await ajoutsCave(store);
 }
 

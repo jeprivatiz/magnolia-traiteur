@@ -45,8 +45,11 @@ test('initCave : anciens vins masqués, nos open bars gardés, nouvelles fiches 
   assert.match(r.introTitre, /cave/);
   assert.equal(docs.get('produits/paris-cola-33-cl').statut, 'masque');
   assert.equal(docs.get('produits/coca-cola-1-5-l').prixCents, 550);
-  assert.ok(docs.get('produits/barman').groupes[0].options.length === 5);
-  assert.equal(docs.get('produits/barman').prixCents, 6870);
+  const bm = docs.get('produits/barman');
+  assert.equal(bm.prixCents, 27000);
+  assert.equal(bm.unite, 'barman');
+  /* 3 barmans, 6 heures : 3 × (270 + 2 × 39) = 1 044 € */
+  assert.equal((bm.prixCents + bm.groupes[0].options.find(o => o.id === '6h').supCents) * 3, 104400);
   assert.equal(docs.get('produits/bordeaux-rose-manoir-de-la-valette').prixCents, 1650);
   assert.equal(docs.get('produits/chateau-la-gordonne-verite-du-terroir').prixCents, 1790);
   assert.equal(docs.get('produits/eau-vittel-1-l').statut, 'masque');
