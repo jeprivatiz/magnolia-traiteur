@@ -181,7 +181,7 @@ const MENU_TABLE = `<span class="cm-scene" aria-hidden="true"><span class="cm-om
 const VIDEOS_ACCUEIL = {
   'cocktails-buffets': 'cocktail', boissons: 'boissons', 'traiteur-vegetarien-vegan': 'vegetarien', 'animations-salees': 'barbecue',
   personnel: 'personnel', indispensables: 'photobooth', 'petits-dejeuners': 'petit-dejeuner', douceurs: 'churros',
-  'musique-animations': 'dj', lieux: 'peniche', 'grand-large': 'huitres', 'coffrets-plateaux': 'coffrets',
+  'musique-animations': 'dj', lieux: 'peniche', 'grand-large': 'huitres', 'coffrets-plateaux': 'coffrets', 'mobilier-a-la-location': 'mobilier',
 };
 const _empreintes = new Map();
 /* ?v= change dès que le fichier change : sinon téléphones et navigateurs gardent l'ancienne vidéo 30 jours en cache */

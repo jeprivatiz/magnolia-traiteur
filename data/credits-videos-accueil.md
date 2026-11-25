@@ -14,8 +14,9 @@ Branchement : `VIDEOS_ACCUEIL` dans `server/views.js`, lecture dans `public/js/s
 | Les indispensables | photobooth | https://www.pexels.com/video/6225145/ (A Group of Friends Using Photo Props) | RDNE Stock project |
 | Petits-déjeuners | petit-dejeuner | https://www.pexels.com/video/6466347/ (Maid Hands Serving Coffee) | cottonbro studio |
 | Animations sucrées & desserts | churros | https://www.pexels.com/video/40304302/ (Delicious Churros with Powdered Sugar Topping), recadrée sans le gobelet imprimé | Anh Nguyen |
-| Musique & spectacles | dj | https://www.pexels.com/video/31531557/ (DJ Mixing Tracks in Vibrant Studio Setting) | Pexels |
-| Plateaux de fruits de mer | huitres | https://www.pexels.com/video/3780141/ (Opening An Oyster) | Taryn Elliott |
+| Musique & spectacles | dj | https://www.pexels.com/video/7424065/ (Man Using a Sound Mixer : DJ en gros plan) | Gustavo Fring |
+| Plateaux de fruits de mer | huitres | https://www.pexels.com/video/4084096/ (Close-Up Shot of a Seafood Platter : grand plateau filmé en mouvement) | Catherine Franken |
+| Mobilier et matériel à la location | mobilier | https://www.pexels.com/video/39846486/ (Elegant Indoor Wedding Reception Setup : tables nappées, chaises habillées) | Mir Burhan |
 | Coffrets & plateaux | coffrets | https://www.pexels.com/video/7550987/ (personne qui referme un coffret blanc) | Hanna Pad |
 | Lieux de réception | peniche | https://www.pexels.com/video/9756181/ (Friends Having Fun Together, sur un bateau) | KoolShooters |
 
