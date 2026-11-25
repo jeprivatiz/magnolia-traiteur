@@ -682,9 +682,29 @@ async function valettePhoto(store) {
   await store.set('_migr/caveValettePhoto1', { at: new Date().toISOString() });
 }
 
+/* Vins blancs : photos des bouteilles fournies par Jean-Luc ; Petit Balthazar renommé comme son étiquette (2026-11-25) */
+const PHOTOS_BLANCS = {
+  'maison-orcia-viognier-blanc': ['/site/c/cave/blanc-maison-orcia-viognier.webp', 'Bouteille de Maison Orcia Viognier'],
+  'jean-des-valanges-chardonnay-blanc': ['/site/c/cave/blanc-jean-des-valanges-chardonnay.webp', 'Bouteille de Jean des Valanges Chardonnay'],
+  'pierrick-harang-petit-balthazar-bio-blanc': ['/site/c/cave/blanc-petit-balthazar-bio.webp', 'Bouteille de Le Petit Balthazar Viognier Sauvignon blanc'],
+};
+async function blancsPhotos(store) {
+  if (await store.get('_migr/caveBlancsPhotos1')) return;
+  for (const [slug, [src, alt]] of Object.entries(PHOTOS_BLANCS)) {
+    const x = await store.get('produits/' + slug);
+    if (!x) continue;
+    const y = { ...x, photos: [{ src, alt }] };
+    if (slug.includes('balthazar')) Object.assign(y, { titre: 'Le Petit Balthazar Viognier Sauvignon blanc bio, Pays d’Oc',
+      extrait: 'Viognier et sauvignon blanc issus de l’agriculture biologique, Pays d’Oc, bouteille de 75 cl.',
+      description: ['Un vin blanc bio du Pays d’Oc, assemblage de viognier et de sauvignon blanc : vif, fruité et aromatique.', 'Bouteille de 75 cl. ' + TIRE] });
+    await store.set('produits/' + slug, y);
+  }
+  await store.set('_migr/caveBlancsPhotos1', { at: new Date().toISOString() });
+}
+
 async function initCave(store) {
   await prixCave(store);
-  if (await store.get('_migr/caveCercle')) { await openBarCave(store); await sodasCave(store); await vinsCave(store); await eauxCave(store); await cocaPhotos(store); await cristalineGaz(store); await cristalinePlate(store); await caveBandeauBadoit(store); await barmanSousPhoto(store); await barmanPrix(store); await alcoolsBlanc(store); await vinsRouges2(store); await barCocktailsMin(store); await barCocktailsVideo(store); await barCocktailsTexte(store); await barCocktailsRetablir(store); await valettePrix(store); await minutyCave(store); await rosesCave2(store); const k = await ajoutsCave(store); await metroCave(store); await barmanHeuresSup(store); await rosesPhotos(store); await barmanVideo(store); await openBarVideo(store); await openBarPersonnel(store); await saintTropezPhoto(store); await barsVideos(store); await openBarTextes(store); await pepsiMax(store); await pepsiMaxPhoto(store); await jusPhotos(store); await pechePhoto(store); await valettePhoto(store); return k; }
+  if (await store.get('_migr/caveCercle')) { await openBarCave(store); await sodasCave(store); await vinsCave(store); await eauxCave(store); await cocaPhotos(store); await cristalineGaz(store); await cristalinePlate(store); await caveBandeauBadoit(store); await barmanSousPhoto(store); await barmanPrix(store); await alcoolsBlanc(store); await vinsRouges2(store); await barCocktailsMin(store); await barCocktailsVideo(store); await barCocktailsTexte(store); await barCocktailsRetablir(store); await valettePrix(store); await minutyCave(store); await rosesCave2(store); const k = await ajoutsCave(store); await metroCave(store); await barmanHeuresSup(store); await rosesPhotos(store); await barmanVideo(store); await openBarVideo(store); await openBarPersonnel(store); await saintTropezPhoto(store); await barsVideos(store); await openBarTextes(store); await pepsiMax(store); await pepsiMaxPhoto(store); await jusPhotos(store); await pechePhoto(store); await valettePhoto(store); await blancsPhotos(store); return k; }
   const now = new Date().toISOString();
   let n = 0;
   for (const d of await store.list('produits')) {
@@ -740,7 +760,7 @@ async function initCave(store) {
   await valettePrix(store);
   await minutyCave(store);
   await rosesCave2(store);
-  const k = await ajoutsCave(store); await metroCave(store); await barmanHeuresSup(store); await rosesPhotos(store); await barmanVideo(store); await openBarVideo(store); await openBarPersonnel(store); await saintTropezPhoto(store); await barsVideos(store); await openBarTextes(store); await pepsiMax(store); await pepsiMaxPhoto(store); await jusPhotos(store); await pechePhoto(store); await valettePhoto(store); return n + k;
+  const k = await ajoutsCave(store); await metroCave(store); await barmanHeuresSup(store); await rosesPhotos(store); await barmanVideo(store); await openBarVideo(store); await openBarPersonnel(store); await saintTropezPhoto(store); await barsVideos(store); await openBarTextes(store); await pepsiMax(store); await pepsiMaxPhoto(store); await jusPhotos(store); await pechePhoto(store); await valettePhoto(store); await blancsPhotos(store); return n + k;
 }
 
 module.exports = { texteBarCocktails, BARMAN, OPEN_BAR_VC, CAVE_SECTIONS, CAVE_PRODUITS, AJOUTS_CAVE, CAVE_GARDEES, INTRO_CAVE, ttc, initCave };
