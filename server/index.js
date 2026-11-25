@@ -14,6 +14,7 @@ const { createCatalogue } = require('./catalogue');
 const { seed, importerAvisAncienSite, initSousRubriques } = require('./seed');
 const views = require('./views');
 const { preparerAlerte } = require('./relances');
+const STATS = require('./statistiques');
 const { raisonsDevisManuel, regleAcompte, totaux, controleMarge, prochainNumero, lignesDepuisDemande, estimerLigne, choixDepuisNote, totalSupplements } = require('./devis');
 const { rid, sha, esc, euros, limiter, dateFr, slugify, nomPropre, dateNaissance, titreTexte } = require('./util');
 const LIVR = require('../public/js/livraison-paliers');
@@ -949,6 +950,14 @@ async function createApp(opts = {}) {
       rdvJour: rdvDuJour.sort((a, b) => a.heure.localeCompare(b.heure)).map(r => ({ id: r.id, clientId: r.clientId, clientNom: r.clientNom, type: r.type, heure: r.heure, motif: r.motif, lien: r.lien, commerciaux: r.commerciaux })),
       aRelancer: devis.filter(d => d.statut === 'envoye' && d.envoyeLe && Date.now() - Date.parse(d.derniereRelance || d.envoyeLe) > 3 * 86400e3).map(d => ({ id: d.id, numero: d.numero, client: d.clientNom, envoyeLe: d.envoyeLe, jours: Math.floor((Date.now() - Date.parse(d.derniereRelance || d.envoyeLe)) / 86400e3), montantCents: totaux(d).ttcCents, commercial: comDevis(d) })),
     });
+  }));
+
+  /* statistiques par rubrique : marge moyenne du catalogue + ventes signées des 12 derniers mois (server/statistiques.js) */
+  A.get('/statistiques', wrap(async (req, res) => {
+    const [rub, prod, dv, li] = await Promise.all([store.list('rubriques'), store.list('produits'), store.list('devis'), store.list('lieux')]);
+    const vis = await visibles(req); /* « seulement ses opportunités » : seulement ses devis */
+    const devis = dv.map(d => ({ ...d.data, id: d.data?.id || d.id })).filter(v => !vis || vis.devis.has(v.id));
+    res.set('Cache-Control', 'no-store').json({ ...STATS.statistiques({ rubriques: rub.map(d => d.data).filter(Boolean), produits: prod.map(d => d.data).filter(Boolean), lieux: li.map(d => d.data).filter(Boolean), devis }), siennes: !!vis });
   }));
 
   A.get('/site', wrap(async (req, res) => res.json((await store.get('site/reglages')) || {})));
