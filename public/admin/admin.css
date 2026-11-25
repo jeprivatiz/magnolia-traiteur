@@ -1514,3 +1514,16 @@ input.verrou { background: var(--doux); color: var(--gris); cursor: not-allowed;
 .prop-res button:hover, .prop-res button:focus { background: var(--doux, #f3efe6); }
 .prop-res img, .prop-res .ph0 { width: 40px; height: 40px; object-fit: cover; border-radius: 7px; flex: none; background: var(--doux, #f3efe6); }
 .prop-res p { margin: 8px; }
+
+/* page « sans marge » : catégories en accordéon */
+.sm-acc{padding-top:0;padding-bottom:0}.sm-acc>h2{margin:0}
+.sm-tog{all:unset;box-sizing:border-box;display:flex;width:100%;align-items:center;justify-content:space-between;gap:10px;padding:16px 0;cursor:pointer;font:inherit;color:inherit}
+.sm-tog:focus-visible{outline:2px solid var(--bo-green);outline-offset:2px;border-radius:6px}
+.sm-tog i{font-style:normal;font-size:18px;transition:transform .2s}
+.sm-acc.ouvert .sm-tog i{transform:rotate(180deg)}
+.sm-acc:not(.ouvert) .smlist{display:none}
+.sm-acc.ouvert .smlist{padding-bottom:16px}
+.box.sm-acc>h2:first-child{border:0;padding:0;margin:0}
+.sm-acc.ouvert .smlist{border-top:1px solid var(--bo-line);padding-top:12px}
+.sm-rech label{display:block}.sm-rech input{display:block;width:100%;max-width:none}
+@media (max-width:860px){.sm-cats{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px;scrollbar-width:none}.sm-cats::-webkit-scrollbar{display:none}.sm-cats .btn{flex:0 0 auto}}

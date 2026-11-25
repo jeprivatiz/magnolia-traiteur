@@ -2001,10 +2001,14 @@
     /* recherche pendant la frappe : nom du produit, accents et majuscules ignorés */
     const sansA = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
     let smCat = '';
+    /* catégories en accordéon (Jean-Luc, 2026-11-25) : toutes fermées à l'arrivée, un clic ouvre / referme ;
+       pendant une recherche ou sur un bouton de catégorie, celles qui ont des résultats s'ouvrent seules */
+    const ouvrir = (sec, on) => { sec.classList.toggle('ouvert', on); $('[data-smtog]', sec)?.setAttribute('aria-expanded', on ? 'true' : 'false'); };
+    $$('[data-smtog]').forEach(t => t.addEventListener('click', () => { const sec = t.closest('[data-smrub]'); ouvrir(sec, !sec.classList.contains('ouvert')); }));
     const filtrer = () => {
       const mots = sansA($('[data-smq]')?.value).split(/\s+/).filter(Boolean); let n = 0;
       $$('.smrow').forEach(r => { const ok = (!smCat || r.closest('[data-smrub]')?.dataset.smrub === smCat) && mots.every(m => sansA(r.querySelector('.prow b')?.textContent).includes(m)); r.hidden = !ok; if (ok) n++; });
-      $$('[data-smrub]').forEach(sec => { sec.hidden = !$$('.smrow', sec).some(r => !r.hidden); });
+      $$('[data-smrub]').forEach(sec => { sec.hidden = !$$('.smrow', sec).some(r => !r.hidden); ouvrir(sec, !sec.hidden && (!!mots.length || !!smCat)); });
       $('[data-smqn]').textContent = mots.length || smCat ? (n ? `${n} produit${n > 1 ? 's' : ''} affiché${n > 1 ? 's' : ''}` : 'Aucun produit sans marge ne correspond.') : '';
     };
     $('[data-smq]')?.addEventListener('input', filtrer);
@@ -2051,7 +2055,7 @@
       <section class="box smbox"><h2>Produits sans marge <small class="muted">(${L.length})</small></h2><p class="muted">Produits visibles sur le site qui ont un prix de vente mais <b>pas de prix d’achat</b> (ou un prix d’achat supérieur au prix de vente) : leur marge ne peut pas être calculée sur les devis. Tapez le prix d’achat <b>HT</b> dans la case à droite (et le fournisseur si vous voulez), puis <b>Entrée</b> ou ✓ : la fiche est enregistrée et le produit disparaît de la liste. Vous pouvez aussi importer votre tableau Excel.</p></section>
       ${peut('prix') ? `<section class="box fourn-gest"><h2>Vos fournisseurs <small class="muted" data-fgn>(${SMF.length})</small></h2><p class="muted sm">Classés par ordre alphabétique. Pour supprimer un fournisseur, <b>tapez deux fois dessus</b> (ou sur ×) : il est retiré de la liste et de toutes les fiches qui l’utilisent.</p><div class="fourn-chips" data-fgest>${fgestHtml()}</div></section>` : ''}
       <section class="box sm-rech"><div class="sm-cats" role="tablist">${smCats.map(([g, n, nom]) => `<button type="button" class="btn sm${g ? ' ghost' : ''}" data-smcat="${esc(g)}">${esc(nom)} <b>${n}</b></button>`).join('')}</div><label>🔎 Rechercher un produit sans marge<input type="search" data-smq placeholder="Tapez un nom : colombo, champagne, nappe…" autocomplete="off"></label><p class="muted sm" data-smqn></p></section>
-      ${groupes.map(g => `<section class="box" data-smrub="${esc(g)}"><h2>${esc(nomRub(g))} <small class="muted">(${L.filter(p => p.rubrique === g).length})</small></h2><div class="plist smlist">${L.filter(p => p.rubrique === g).map(smLigne).join('')}</div></section>`).join('') || '<section class="box"><p class="ok">✓ Tous les produits visibles ont un prix d’achat.</p></section>'}`);
+      ${groupes.map(g => `<section class="box sm-acc" data-smrub="${esc(g)}"><h2><button type="button" class="sm-tog" data-smtog aria-expanded="false"><span>${esc(nomRub(g))} <small class="muted">(${L.filter(p => p.rubrique === g).length})</small></span><i aria-hidden="true">▾</i></button></h2><div class="plist smlist">${L.filter(p => p.rubrique === g).map(smLigne).join('')}</div></section>`).join('') || '<section class="box"><p class="ok">✓ Tous les produits visibles ont un prix d’achat.</p></section>'}`);
   }
   /* Fiches masquées de tout le catalogue (clic sur « + N masqués ») : raison du masquage, Modifier, Rendre visible */
   const raisonMasque = (p, prods) => {
