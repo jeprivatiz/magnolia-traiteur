@@ -60,6 +60,14 @@ async function createApp(opts = {}) {
   const log = opts.log || console;
   const store = opts.store || createStore(env);
   await store.init();
+  /* produits supprimés au back-office (Jean-Luc 2026-11-25) : une pierre tombale _produitsSupprimes/<id> empêche qu'une
+     reprise de démarrage, une tâche de fond ou un vieil onglet du back-office ne recrée la fiche */
+  const produitsSupprimes = new Set((await store.list('_produitsSupprimes')).map(d => d.id));
+  if (!store._gardeSupprimes) {
+    const setBrut = store.set.bind(store);
+    store.set = async (p, data) => { if (typeof p === 'string' && p.startsWith('produits/') && produitsSupprimes.has(p.slice(9))) return; return setBrut(p, data); };
+    store._gardeSupprimes = true;
+  }
   await seed(store, { log });
   await importerAvisAncienSite(store, { log });
   await initSousRubriques(store, { log });
@@ -982,6 +990,45 @@ async function createApp(opts = {}) {
 
   /* effacer des contacts cochés (Jean-Luc, 2026-11-24) : jamais un contact qui a une demande, un devis ou une facture ;
      chaque effacement est gardé dans _effacements/<id> pour pouvoir tout remettre */
+  /* supprimer des produits cochés dans le catalogue (Jean-Luc 2026-11-25) : fiches gardées dans un lot pour « Annuler »,
+     pierre tombale pour qu'elles ne reviennent jamais (redémarrage, reprises) ; retirées des incontournables de l'accueil */
+  A.post('/actions/produits/supprimer', sameSite, json, peut('produits'), wrap(async (req, res) => {
+    const ids = [...new Set((Array.isArray(req.body?.ids) ? req.body.ids : []).map(String).filter(x => /^[A-Za-z0-9_-]{1,120}$/.test(x)))].slice(0, 5000);
+    if (!ids.length) return res.status(400).json({ error: 'Aucun produit coché.' });
+    const lot = 'ps_' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '_' + rid(5).replace(/[^A-Za-z0-9]/g, 'x');
+    const at = new Date().toISOString(), par = req.ctx.name || req.ctx.email || '';
+    const fiches = [];
+    for (const id of ids) {
+      const p = await store.get('produits/' + id);
+      if (!p) continue;
+      fiches.push({ id, data: p });
+      await store.set('_produitsSupprimes/' + id, { id, at, par, lot, titre: p.titre || '' });
+      produitsSupprimes.add(id);
+      await store.delete('produits/' + id);
+    }
+    if (!fiches.length) return res.status(404).json({ error: 'Ces produits n’existent plus.' });
+    await store.set('_effacementsProduits/' + lot, { id: lot, at, par, statut: 'supprimé', fiches });
+    const reg = await store.get('site/reglages');
+    const inc = reg?.accueil?.incontournables;
+    if (Array.isArray(inc) && inc.some(s => produitsSupprimes.has(s))) await store.set('site/reglages', { ...reg, accueil: { ...reg.accueil, incontournables: inc.filter(s => !produitsSupprimes.has(s)) } });
+    cat.invalidate();
+    audit(req.ctx, 'produits supprimés', '_effacementsProduits/' + lot, fiches.map(f => f.data.titre || f.id).join(', ').slice(0, 500));
+    await store.flush?.();
+    res.json({ ok: true, lot, supprimes: fiches.length });
+  }));
+  A.post('/actions/produits/supprimer/:lot/remettre', sameSite, peut('produits'), wrap(async (req, res) => {
+    const lot = String(req.params.lot), doc = await store.get('_effacementsProduits/' + lot);
+    if (!doc || doc.statut !== 'supprimé') return res.status(404).json({ error: 'Rien à remettre.' });
+    let remis = 0;
+    for (const { id, data } of doc.fiches || []) {
+      produitsSupprimes.delete(id); await store.delete('_produitsSupprimes/' + id);
+      if (!(await store.get('produits/' + id))) { await store.set('produits/' + id, data); remis++; }
+    }
+    await store.set('_effacementsProduits/' + lot, { ...doc, statut: 'remis', remisLe: new Date().toISOString() });
+    cat.invalidate(); audit(req.ctx, 'produits remis', '_effacementsProduits/' + lot, remis + ' fiche(s)');
+    await store.flush?.();
+    res.json({ ok: true, remis });
+  }));
   A.post('/actions/effacer-clients', sameSite, peut('effacerContacts'), json, wrap(async (req, res) => {
     const ids = [...new Set((Array.isArray(req.body?.ids) ? req.body.ids : []).map(String).filter(x => /^[A-Za-z0-9_-]{1,120}$/.test(x)))].slice(0, 100000);
     if (!ids.length) return res.status(400).json({ error: 'Aucun contact coché.' });
@@ -1047,6 +1094,7 @@ async function createApp(opts = {}) {
   A.put('/:coll/:id', sameSite, json, wrap(async (req, res, next) => {
     const { coll, id } = req.params;
     if (!COLLECTIONS.includes(coll) || !/^[A-Za-z0-9_-]{1,120}$/.test(id)) return next();
+    if (coll === 'produits' && produitsSupprimes.has(id)) return res.status(410).json({ error: 'Ce produit a été supprimé du catalogue. Rechargez la page.' });
     const before = await store.get(coll + '/' + id);
     if (before && !(await voitDoc(req, coll, id))) return res.status(404).json({ error: 'Introuvable : ce dossier est suivi par un autre commercial.' });
     let data = { ...(req.body || {}) };
@@ -1100,7 +1148,7 @@ async function createApp(opts = {}) {
     const { coll } = req.params;
     if (!COLLECTIONS.includes(coll) || ['devis', 'factures', 'demandes'].includes(coll)) return next();
     let id = coll === 'produits' || coll === 'lieux' ? slugify(req.body?.titre || req.body?.nom) : coll === 'rubriques' ? slugify(req.body?.nom) : coll.slice(0, 1) + '_' + rid(7);
-    if (await store.get(coll + '/' + id)) id = id + '-' + rid(3).toLowerCase().replace(/[^a-z0-9]/g, 'x');
+    if (await store.get(coll + '/' + id) || (coll === 'produits' && produitsSupprimes.has(id))) id = id + '-' + rid(3).toLowerCase().replace(/[^a-z0-9]/g, 'x');
     const data = { ...(req.body || {}), createdAt: new Date().toISOString() };
     if (coll === 'produits' && !req.ctx.droits.prix) for (const k of Object.keys(data)) if (/prix|cout/i.test(k)) delete data[k]; /* nouvelle fiche sans prix : « Sur devis » */
     if (coll === 'clients' && typeof data.nom === 'string') data.nom = nomPropre(data.nom); if (coll === 'clients') data.id = id;

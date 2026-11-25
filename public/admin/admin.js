@@ -1975,7 +1975,7 @@
       ${r === 'lieux' ? `<section class="box"><h2>Les lieux de réception <small class="muted">(${nbLieux} visibles sur le site${lieuxL.length > nbLieux ? `, ${lieuxL.length - nbLieux} masqué${lieuxL.length - nbLieux > 1 ? 's' : ''}` : ''})</small></h2><p class="muted">Les lieux ne sont pas des produits : chaque lieu a sa propre fiche (photos, capacité, type de lieu, événements…) dans le menu <b>Lieux</b>.</p><p><a class="btn" href="#/lieux">Gérer les lieux</a></p></section>` : ''}
       <section class="box pliable prodbox" data-pli="prods"${r === 'lieux' ? ' hidden' : ''}><div class="plihead"><h2>Produits à l’unité <small class="muted">(${liste.length})</small></h2><button type="button" class="btn ghost sm plibtn" data-plibtn></button></div><div class="plibody">
       <div class="row sousfiltre"><label class="pq">Rechercher une prestation<input type="search" data-pq placeholder="Tapez un nom : nems, mafé, paëlla…" autocomplete="off"></label><label class="vuebox">Présentation<select data-vue><option value="cartes">▦ En cartes (Kanban)</option><option value="liste">☰ En liste (prix, marge, fournisseur)</option></select></label>${(rub.sous || []).length ? `<label>Afficher<select data-sousf><option value="*">Toutes les prestations (${liste.length})</option>${[...rub.sous].sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0)).map(x => `<option value="${esc(x.slug)}">${esc(x.nom)} (${liste.filter(p => p.sous === x.slug).length})</option>`).join('')}<option value="">Sans spécialité (${liste.filter(p => !(rub.sous || []).some(x => x.slug === p.sous)).length})</option></select></label>` : ''}<label>Classement<select data-tri><option value="">Ordre du site</option><option value="az">Ordre alphabétique (A → Z)</option><option value="za">Ordre alphabétique (Z → A)</option><option value="p+">Prix croissant</option><option value="p-">Prix décroissant</option></select></label><label>Visibilité<select data-vis><option value="">Tous les produits (${liste.length})</option><option value="visible">Produits visibles (${liste.filter(p => p.statut !== 'masque').length})</option><option value="masque">Produits masqués (${liste.filter(p => p.statut === 'masque').length})</option></select></label><span class="muted sm" data-pqn></span></div>
-      <div class="plist" id="plist">${liste.map(prow).join('') || '<p class="muted">Aucune prestation dans cette rubrique.</p>'}</div></div></section></div></div>`);
+      <div class="plist" id="plist">${liste.map(prowSel).join('') || '<p class="muted">Aucune prestation dans cette rubrique.</p>'}</div></div></section></div></div>`);
   }
   /* Pavés vert foncé à droite du titre « Catalogue » : chacun est un lien (même classe .nbcat pour les suivants) */
   const pavesCat = (prods, actif) => {
@@ -2201,7 +2201,64 @@
   const masquesALaFin = L => [...L.filter(p => p.statut !== 'masque'), ...L.filter(p => p.statut === 'masque')];
   const ordreSite = (a, b) => (b.maison ? 1 : 0) - (a.maison ? 1 : 0) || (a.ordre ?? 0) - (b.ordre ?? 0);
   const prow = p => `<a class="prow${p.statut === 'masque' ? ' hid' : ''}" href="#/catalogue/${p.id || p.slug}">${p.photos?.[0]?.src ? `<img src="${esc(p.photos[0].src)}" alt="" loading="lazy">` : '<span class="ph0"></span>'}<span><b>${titreHtml(p.titre)}</b><small>${p.prixCents == null ? 'Sur devis' : euros(p.prixCents) + (p.unite ? ' / ' + esc(p.unite) : '')}${p.min > 1 ? ' · min. ' + p.min : ''}</small></span><span class="pill ${p.statut === 'masque' ? 'd-refuse' : 'd-accepte'}">${p.statut === 'masque' ? 'Masqué' : 'Visible'}</span>${p.maison ? '<span class="pill" title="Réglage « Ordre sur le site » de la fiche : produit affiché en premier">★ En premier sur le site</span>' : ''}${sansMarge(p) ? `<span class="pill smpill">${p.coutCents == null ? 'Prix d’achat manquant' : 'Vendu à perte'}</span>` : ''}${p.sous ? `<span class="pill">${esc(((cache.rubriques || []).find(r => r.slug === p.rubrique)?.sous || []).find(x => x.slug === p.sous)?.nom || '')}</span>` : ''}</a>`;
+  /* cases à cocher devant chaque produit + « 🗑 Supprimer » groupé, barre en bas d'écran (Jean-Luc 2026-11-25).
+     La sélection est vidée à chaque changement d'écran ; « ↶ Annuler » remet les fiches juste après. */
+  const PSEL = new Set();
+  let psDernier = null;
+  const pchk = p => peut('produits') ? `<label class="pchk" title="Cocher pour supprimer"><input type="checkbox" data-psel="${esc(p.id || p.slug)}"${PSEL.has(p.id || p.slug) ? ' checked' : ''} aria-label="Cocher « ${esc(titreTexte(p.titre))} »"></label>` : '';
+  const prowSel = p => peut('produits') ? `<div class="psrow${PSEL.has(p.id || p.slug) ? ' on' : ''}">${pchk(p)}${prow(p)}</div>` : prow(p);
+  function majPsBar() {
+    let b = $('#psbar');
+    if (!b) { b = document.createElement('div'); b.id = 'psbar'; b.className = 'psbar'; b.setAttribute('role', 'region'); b.setAttribute('aria-label', 'Produits cochés'); document.body.appendChild(b); b.addEventListener('click', psClic); }
+    const enCat = /^#\/catalogue(\?|$)/.test(location.hash || '');
+    const n = PSEL.size, s = n > 1 ? 's' : '';
+    if (n && enCat) b.innerHTML = `<b>${n} produit${s} coché${s}</b><span class="psbtns"><button type="button" class="btn ghost sm" data-psall>☑ Tout cocher</button><button type="button" class="btn ghost sm" data-psnone>Décocher</button><button type="button" class="btn sm psdel" data-psdel>🗑 Supprimer ${n > 1 ? 'les ' + n : 'ce produit'}</button></span>`;
+    else if (psDernier && enCat) b.innerHTML = `<b>${psDernier.n} produit${psDernier.n > 1 ? 's' : ''} supprimé${psDernier.n > 1 ? 's' : ''}</b><span class="psbtns"><button type="button" class="btn sm" data-psundo>↶ Annuler</button><button type="button" class="btn ghost sm" data-psfin>OK</button></span>`;
+    b.hidden = !((n || psDernier) && enCat);
+    document.body.classList.toggle('avec-psbar', !b.hidden);
+  }
+  async function psClic(e) {
+    if (e.target.closest('[data-psall]')) { $$('[data-psel]').forEach(x => { x.checked = true; PSEL.add(x.dataset.psel); x.closest('.psrow, .qrow')?.classList.add('on'); }); return majPsBar(); }
+    if (e.target.closest('[data-psnone]')) { PSEL.clear(); $$('[data-psel]').forEach(x => { x.checked = false; x.closest('.psrow, .qrow')?.classList.remove('on'); }); return majPsBar(); }
+    if (e.target.closest('[data-psfin]')) { psDernier = null; return majPsBar(); }
+    if (e.target.closest('[data-psundo]')) {
+      try { const r = await api(`${A}/actions/produits/supprimer/${encodeURIComponent(psDernier.lot)}/remettre`, { method: 'POST' }); psDernier = null; cache.produits = null; toast(`${r.remis} produit${r.remis > 1 ? 's' : ''} remis dans le catalogue.`); render(); } catch (err) { toast(err.message, true); }
+      return;
+    }
+    if (e.target.closest('[data-psdel]')) {
+      const ids = [...PSEL]; if (!ids.length) return;
+      const noms = ids.map(id => titreTexte((cache.produits || []).find(p => (p.id || p.slug) === id)?.titre || id));
+      const n = ids.length;
+      if (!confirm(`Supprimer définitivement ${n > 1 ? 'ces ' + n + ' produits' : 'ce produit'} ?\n\n${noms.slice(0, 12).map(x => '• ' + x).join('\n')}${n > 12 ? `\n… et ${n - 12} autre${n - 12 > 1 ? 's' : ''}` : ''}\n\n${n > 1 ? 'Ils disparaissent' : 'Il disparaît'} du site et du back-office, et ne ${n > 1 ? 'reviendront' : 'reviendra'} pas. Les devis déjà faits ne changent pas.\nVous pourrez annuler juste après avec « ↶ Annuler ».`)) return;
+      try {
+        const r = await api(A + '/actions/produits/supprimer', { method: 'POST', body: { ids } });
+        PSEL.clear(); psDernier = { lot: r.lot, n: r.supprimes }; cache.produits = null;
+        toast(`${r.supprimes} produit${r.supprimes > 1 ? 's' : ''} supprimé${r.supprimes > 1 ? 's' : ''}.`);
+        render();
+      } catch (err) { toast(err.message, true); }
+    }
+  }
+  document.addEventListener('change', e => {
+    const x = e.target.closest?.('[data-psel]'); if (!x) return;
+    if (x.checked) PSEL.add(x.dataset.psel); else PSEL.delete(x.dataset.psel);
+    x.closest('.psrow, .qrow')?.classList.toggle('on', x.checked);
+    majPsBar();
+  });
+  addEventListener('hashchange', () => { PSEL.clear(); majPsBar(); });
+  /* bouton « 🗑 Supprimer ce produit » en haut de la fiche : même suppression, puis retour au catalogue avec « ↶ Annuler » */
+  document.addEventListener('click', async e => {
+    const b = e.target.closest?.('[data-psdelfiche]'); if (!b) return;
+    const p = cache.p || {};
+    if (!confirm(`Supprimer définitivement « ${titreTexte(p.titre || b.dataset.psdelfiche)} » ?\n\nIl disparaît du site et du back-office, et ne reviendra pas. Les devis déjà faits ne changent pas.\nVous pourrez annuler juste après avec « ↶ Annuler ».`)) return;
+    try {
+      const r = await api(A + '/actions/produits/supprimer', { method: 'POST', body: { ids: [b.dataset.psdelfiche] } });
+      psDernier = { lot: r.lot, n: r.supprimes }; cache.produits = null;
+      toast('Produit supprimé.');
+      location.hash = '#/catalogue?r=' + encodeURIComponent(p.rubrique || cache.catR || '');
+    } catch (err) { toast(err.message, true); }
+  });
   catalogue.after = () => {
+    majPsBar();
     if (new URLSearchParams(location.hash.split('?')[1] || '').get('masques')) return apresMasques();
     if (new URLSearchParams(location.hash.split('?')[1] || '').get('sansmarge')) return apresSansMarge();
     /* 🔍 Trouver un produit : toutes les rubriques, sans accents ni majuscules, tous les mots tapés ; la recherche est gardée au retour d'une fiche */
@@ -2226,7 +2283,7 @@
         + `<label class="qc"><small>Achat HT €</small><input data-qa inputmode="decimal" value="${fromCents(aHt)}" placeholder="—"></label>`
         + `<span class="qc${mg.cls}" data-qm><small>Marge HT</small><b>${mg.html}</b></span></span>`;
     };
-    const qrow = p => `<div class="qrow${p.statut === 'masque' ? ' hid' : ''}" data-qid="${esc(p.id || p.slug)}"><a class="qlien" href="#/catalogue/${esc(p.id || p.slug)}">${p.photos?.[0]?.src ? `<img src="${esc(p.photos[0].src)}" alt="" loading="lazy">` : '<span class="ph0"></span>'}<span class="qtx"><b>${titreHtml(p.titre)}</b><small>${p.unite ? 'par ' + esc(p.unite) : ''}${p.min > 1 ? ' · min. ' + p.min : ''}</small><span class="qrub">📂 ${esc(nomRubQ(p))}</span></span></a>${qchif(p)}<span class="pill ${p.statut === 'masque' ? 'd-refuse' : 'd-accepte'}">${p.statut === 'masque' ? 'Masqué' : 'Visible'}</span>${peut('prix') ? '<button type="button" class="btn sm qok" data-qok hidden>✓ Enregistrer</button>' : ''}<a class="btn sm" href="#/catalogue/${esc(p.id || p.slug)}">✏ Ouvrir la fiche</a></div>`;
+    const qrow = p => `<div class="qrow${p.statut === 'masque' ? ' hid' : ''}${PSEL.has(p.id || p.slug) ? ' on' : ''}" data-qid="${esc(p.id || p.slug)}">${pchk(p)}<a class="qlien" href="#/catalogue/${esc(p.id || p.slug)}">${p.photos?.[0]?.src ? `<img src="${esc(p.photos[0].src)}" alt="" loading="lazy">` : '<span class="ph0"></span>'}<span class="qtx"><b>${titreHtml(p.titre)}</b><small>${p.unite ? 'par ' + esc(p.unite) : ''}${p.min > 1 ? ' · min. ' + p.min : ''}</small><span class="qrub">📂 ${esc(nomRubQ(p))}</span></span></a>${qchif(p)}<span class="pill ${p.statut === 'masque' ? 'd-refuse' : 'd-accepte'}">${p.statut === 'masque' ? 'Masqué' : 'Visible'}</span>${peut('prix') ? '<button type="button" class="btn sm qok" data-qok hidden>✓ Enregistrer</button>' : ''}<a class="btn sm" href="#/catalogue/${esc(p.id || p.slug)}">✏ Ouvrir la fiche</a></div>`;
     const qProd = row => (cache.produits || []).find(x => (x.id || x.slug) === row.dataset.qid);
     const qMaj = row => {
       const p = qProd(row) || {}, v = toCents($('[data-qv]', row).value), a = toCents($('[data-qa]', row).value), mg = margeQ(v, a, p.tva), m = $('[data-qm]', row);
@@ -2317,7 +2374,7 @@
       /* présentation en cartes (Kanban) ou en liste avec fournisseur, vente, achat et marge modifiables (Jean-Luc 2026-11-25) */
       const enListe = $('[data-vue]')?.value === 'liste';
       $('#plist').className = enListe ? 'qlist' : 'plist';
-      $('#plist').innerHTML = L.map(enListe ? qrow : prow).join('') || '<p class="muted">Aucune prestation ne correspond.</p>';
+      $('#plist').innerHTML = L.map(enListe ? qrow : prowSel).join('') || '<p class="muted">Aucune prestation ne correspond.</p>';
       $('[data-pqn]').textContent = q || vis ? `${L.length} résultat${L.length > 1 ? 's' : ''}` : '';
     };
     $('[data-sousf]')?.addEventListener('change', filtrer);
@@ -2435,7 +2492,7 @@
     const [p, rubs, prods] = await Promise.all([api(A + '/produits/' + id), cache.rubriques || api(A + '/rubriques'), cache.produits || api(A + '/produits').catch(() => [])]);
     cache.rubriques = rubs; cache.p = p; cache.produits = prods;
     const sec = s => `${s.titre || ''}\n${(s.items || []).join('\n')}${(s.paragraphes || []).length ? '\n' + s.paragraphes.map(x => '> ' + x).join('\n') : ''}${s.note ? '\n# ' + s.note : ''}${s.apres ? '\n## ' + s.apres : ''}`;
-    return page(titreHtml(p.titre), `<a class="btn ghost" href="#/catalogue?r=${esc(p.rubrique)}">← Catalogue</a><a class="btn voir-site" href="/${esc(p.rubrique)}/${esc(p.slug)}?apercu=1" target="_blank">👁 Voir la présentation sur le site</a>`, `
+    return page(titreHtml(p.titre), `<a class="btn ghost" href="#/catalogue?r=${esc(p.rubrique)}">← Catalogue</a><a class="btn voir-site" href="/${esc(p.rubrique)}/${esc(p.slug)}?apercu=1" target="_blank">👁 Voir la présentation sur le site</a>${peut('produits') ? `<button type="button" class="btn ghost psdelfiche" data-psdelfiche="${esc(p.id || p.slug)}">🗑 Supprimer ce produit</button>` : ''}`, `
       <form id="pf">
       <div class="cols c21">
         <section class="box"><h2>Informations</h2>
