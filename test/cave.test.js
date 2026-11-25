@@ -45,5 +45,7 @@ test('initCave : anciens vins masqués, nos open bars gardés, nouvelles fiches 
   assert.equal(docs.get('produits/coca-cola-1-5-l').prixCents, 550);
   assert.ok(docs.get('produits/barman').groupes[0].options.length === 5);
   assert.equal(docs.get('produits/barman').prixCents, 6870);
+  assert.equal(docs.get('produits/bordeaux-rose-manoir-de-la-valette').prixCents, 1650);
+  assert.equal(docs.get('produits/chateau-la-gordonne-verite-du-terroir').prixCents, 1790);
   assert.equal(await initCave(store), 0);
 });
