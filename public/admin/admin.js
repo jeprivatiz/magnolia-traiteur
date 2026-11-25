@@ -351,7 +351,8 @@
           <p class="st-leg"><span><i class="ca"></i>Chiffre d’affaires HT</span><span><i class="mg"></i>dont marge HT</span></p>`, 'st-mois')}
       </div>
       ${pli('produits', '⭐ Meilleurs produits', `<div class="st-tri">${[['p', 'Marge %'], ['ca', 'Chiffre d’affaires'], ['m', 'Marge en €'], ['f', 'Marge la plus faible']].map(([k, l]) => `<button type="button" class="st-tc${(statistiques.triP || 'p') === k ? ' on' : ''}" data-sttrip="${k}" aria-pressed="${(statistiques.triP || 'p') === k}">${l}</button>`).join('')}
-          <select class="st-sel" data-strubp aria-label="Rubrique"><option value="">Toutes les rubriques</option>${[...new Set((s.produits || []).map(x => x.rubrique).filter(Boolean))].map(n => `<option${statistiques.rubP === n ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select></div>
+          <select class="st-sel" data-strubp aria-label="Rubrique"><option value="">Toutes les rubriques</option>${[...new Set((s.produits || []).map(x => x.rubrique).filter(Boolean))].map(n => `<option${statistiques.rubP === n ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select>
+          <label class="st-loupe"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg><input type="search" data-stqp placeholder="Rechercher un produit…" aria-label="Rechercher un produit" value="${esc(statistiques.qP || '')}" autocomplete="off"></label></div>
           <p class="muted sm" data-stpinfo></p><ol class="st-rank st-prods" data-stprods></ol><div class="st-plus" data-stplus></div>`)}
       ${pli('rubriques', 'Marge moyenne du catalogue par rubrique', `<p class="muted sm">Moyenne des marges des produits visibles qui ont un prix d’achat, en % du prix de vente HT (le même calcul que le pavé « marge moyenne » du Catalogue). <a href="#/catalogue">Ouvrir le Catalogue →</a></p>
         <ul class="st-cl">${lignesCat}</ul>`)}
@@ -383,15 +384,18 @@
     const L = (s.produits || []).filter(x => (!rub || x.rubrique === rub) && val(x) != null && (tri === 'f' || tri === 'p' || val(x) > 0))
       .sort((a, b) => tri === 'f' ? val(a) - val(b) : val(b) - val(a));
     const max = Math.max(1, ...L.map(x => Math.abs(val(x))));
+    /* loupe (Jean-Luc 2026-11-25) : filtre par nom ou rubrique, chaque produit garde son rang dans le classement */
+    const q = sansAccent(statistiques.qP || '').trim(), mots = q.split(/\s+/).filter(Boolean);
+    const V = L.map((x, i) => ({ x, i })).filter(({ x }) => !mots.length || mots.every(m => sansAccent(x.titre + ' ' + x.rubrique).includes(m)));
     const pc = v => v == null ? '—' : v.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' %';
     const fmt = v => tri === 'p' || tri === 'f' ? pc(v) : eurosRond(v);
     const det = x => [x.rubrique, x.prixCents != null ? euros(x.prixCents) + (x.unite ? ' / ' + x.unite : '') : '', tri === 'ca' || tri === 'm' ? `${x.devis} devis · marge ${pc(x.pct)}` : x.venteHtCents ? eurosRond(x.venteHtCents) + ' vendus' : ''].filter(Boolean).join(' · ');
     const info = $('[data-stpinfo]');
-    if (info) info.textContent = tri === 'p' || tri === 'f' ? `${L.length} produit${L.length > 1 ? 's' : ''} avec prix d’achat : marge en % du prix de vente HT.` : `Devis signés des 12 derniers mois, hors taxes : ${L.length} produit${L.length > 1 ? 's' : ''} vendu${L.length > 1 ? 's' : ''}.`;
-    el.innerHTML = L.length ? L.slice(0, nb).map((x, i) => `<li class="st-ri${i < 3 && tri !== 'f' ? ' top' : ''}${tri === 'f' && val(x) < 15 ? ' bas' : ''}" style="--i:${Math.min(i, 12)}"><span class="st-rn">${tri !== 'f' ? ['🥇', '🥈', '🥉'][i] || i + 1 : i + 1}</span>${x.photo ? `<img class="st-av" src="${esc(x.photo)}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'st-av st-sansphoto'}))">` : '<span class="st-av st-sansphoto"></span>'}<a class="st-rt" href="#/catalogue/${esc(x.slug)}"><b>${esc(x.titre)}</b><small>${esc(det(x))}</small><span class="st-rb"><i style="width:${Math.max(3, Math.abs(val(x)) / max * 100)}%"></i></span></a><span class="st-rv">${fmt(val(x))}</span></li>`).join('')
-      : `<li class="db-vide"><p>${tri === 'ca' || tri === 'm' ? 'Le chiffre d’affaires par produit apparaîtra avec les premiers devis signés. En attendant, le classement par marge % est à jour.' : 'Aucun produit avec prix d’achat dans cette rubrique.'}</p></li>`;
+    if (info) info.textContent = mots.length ? `${V.length} produit${V.length > 1 ? 's' : ''} trouvé${V.length > 1 ? 's' : ''} pour « ${statistiques.qP.trim()} », avec leur rang dans le classement.` : tri === 'p' || tri === 'f' ? `${L.length} produit${L.length > 1 ? 's' : ''} avec prix d’achat : marge en % du prix de vente HT.` : `Devis signés des 12 derniers mois, hors taxes : ${L.length} produit${L.length > 1 ? 's' : ''} vendu${L.length > 1 ? 's' : ''}.`;
+    el.innerHTML = V.length ? V.slice(0, nb).map(({ x, i }) => `<li class="st-ri${i < 3 && tri !== 'f' ? ' top' : ''}${tri === 'f' && val(x) < 15 ? ' bas' : ''}" style="--i:${Math.min(i, 12)}"><span class="st-rn">${tri !== 'f' ? ['🥇', '🥈', '🥉'][i] || i + 1 : i + 1}</span>${x.photo ? `<img class="st-av" src="${esc(x.photo)}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'st-av st-sansphoto'}))">` : '<span class="st-av st-sansphoto"></span>'}<a class="st-rt" href="#/catalogue/${esc(x.slug)}"><b>${esc(x.titre)}</b><small>${esc(det(x))}</small><span class="st-rb"><i style="width:${Math.max(3, Math.abs(val(x)) / max * 100)}%"></i></span></a><span class="st-rv">${fmt(val(x))}</span></li>`).join('')
+      : `<li class="db-vide"><p>${mots.length ? 'Aucun produit de ce classement ne correspond à cette recherche.' : tri === 'ca' || tri === 'm' ? 'Le chiffre d’affaires par produit apparaîtra avec les premiers devis signés. En attendant, le classement par marge % est à jour.' : 'Aucun produit avec prix d’achat dans cette rubrique.'}</p></li>`;
     const plus = $('[data-stplus]');
-    if (plus) plus.innerHTML = L.length > nb ? `<button type="button" class="st-tc" data-stplusb>Voir ${Math.min(20, L.length - nb)} de plus (${L.length - nb} restants)</button>` : '';
+    if (plus) plus.innerHTML = V.length > nb ? `<button type="button" class="st-tc" data-stplusb>Voir ${Math.min(20, V.length - nb)} de plus (${V.length - nb} restants)</button>` : '';
     $('[data-stplusb]')?.addEventListener('click', () => { statistiques.nbP = nb + 20; statistiques.produits(); });
   };
   statistiques.after = () => {
@@ -405,6 +409,7 @@
       $$('[data-sttrip]').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', x === b); });
       statistiques.produits();
     }));
+    $('[data-stqp]')?.addEventListener('input', e => { statistiques.qP = e.target.value; statistiques.nbP = 20; statistiques.produits(); });
     $('[data-strubp]')?.addEventListener('change', e => { statistiques.rubP = e.target.value; statistiques.nbP = 20; statistiques.produits(); });
     $$('[data-sttri]').forEach(b => b.addEventListener('click', () => {
       statistiques.tri = b.dataset.sttri;

@@ -1757,3 +1757,9 @@ body.avec-psbar .content { padding-bottom: 120px; }
 .lines td.rem .mgl.pos{color:var(--ok)}.lines td.rem .mgl.neg{color:var(--ko);font-weight:600}
 .remg{display:flex;gap:6px;align-items:center}.remg input{flex:1;min-width:0}.remg select{width:90px}
 .totbox label>small{display:block;font-weight:400;margin-top:4px;font-size:12px}
+/* loupe de « Meilleurs produits » */
+.st-loupe { position: relative; display: flex; align-items: center; flex: 1 1 220px; max-width: 340px; margin: 0; }
+.st-loupe svg { position: absolute; left: 12px; width: 17px; height: 17px; fill: none; stroke: var(--db-or-f); stroke-width: 2; stroke-linecap: round; pointer-events: none; }
+.st-loupe input { width: 100%; min-height: 0; border: 1px solid var(--db-line); background: #fff; color: var(--db-ink); border-radius: 999px; padding: 7px 14px 7px 36px; font: 500 13.5px var(--sans); }
+.st-loupe input:focus { outline: 2px solid var(--db-or); outline-offset: -1px; }
+@media (max-width: 700px) { .st-loupe { max-width: none; flex-basis: 100%; } }
