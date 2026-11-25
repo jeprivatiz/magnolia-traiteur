@@ -72,3 +72,25 @@ test('livraison offerte : coût compté dans la marge, jamais bloquée', () => {
   assert.deepEqual(controleMarge(doc), []);
   assert.deepEqual(controleMarge({ lignes: [liv] }), []);
 });
+
+test('remise globale : jamais sur la livraison', () => {
+  const { totaux } = require('../server/devis');
+  const doc = { remiseCents: 10000, lignes: [{ designation: 'Buffet', qte: 1, puCents: 100000, tva: 10 }, { designation: 'Livraison', qte: 50, unite: 'km', puCents: 50, puBaseCents: 100, remisePct: 50, coutCents: 100, tva: 20, livraison: true }] };
+  const t = totaux(doc);
+  assert.equal(t.ttcCents, 100000 + 2500 - 10000);
+  assert.equal(t.remiseCents, 10000);
+  const tout = totaux({ ...doc, remiseCents: 999999 });
+  assert.equal(tout.ttcCents, 2500); /* une remise de 100 % laisse la livraison */
+});
+
+test('ligne de livraison verrouillée pour un commercial', () => {
+  const { verrouLivraison } = require('../server/devis');
+  const liv = { designation: 'Livraison et reprise', qte: 40, unite: 'km', puCents: 80, puBaseCents: 100, remisePct: 20, coutCents: 100, tva: 20, livraison: true };
+  const avant = { lignes: [{ designation: 'Buffet', qte: 1, puCents: 50000 }, liv] };
+  assert.ok(verrouLivraison(avant, [avant.lignes[0], liv]).lignes);
+  assert.match(verrouLivraison(avant, [avant.lignes[0]]).erreur, /administrateur/);
+  assert.match(verrouLivraison(avant, [avant.lignes[0], { ...liv, puCents: 0, remisePct: 100 }]).erreur, /administrateur/);
+  /* ligne ajoutée : prix des paliers imposé */
+  const n = verrouLivraison({ lignes: [] }, [{ designation: 'Buffet', qte: 1, puCents: 150000 }, { designation: 'Livraison', qte: 30, unite: 'km', puCents: 0 }]).lignes.at(-1);
+  assert.equal(n.puCents, 30); assert.equal(n.remisePct, 70); assert.equal(n.coutCents, 100);
+});

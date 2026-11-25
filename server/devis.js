@@ -19,6 +19,16 @@ function supplementsParPart(l, p) {
   return out;
 }
 const totalSupplements = s => (s || []).reduce((t, x) => t + x.n * x.puCents, 0);
+/* ligne de livraison (Jean-Luc, 2026-11-25) : vendue volontairement sous son coût (remise des paliers), jamais bloquée par le contrôle de marge,
+   jamais touchée par la remise globale du devis, et seulement modifiable par un administrateur */
+const estLivraison = l => !!(l && (l.livraison || l.unite === 'km'));
+/* part de chaque ligne après la remise sur le total : la remise ne porte que sur les lignes hors livraison */
+function ratioRemise(lignes, remiseCents) {
+  const hors = lignes.filter(l => !estLivraison(l)).reduce((s, l) => s + Math.round((l.puCents || 0) * (Number(l.qte) || 0)), 0);
+  const remise = Math.min(hors, Math.max(0, Math.round(remiseCents || 0)));
+  const r = hors ? (hors - remise) / hors : 1;
+  return { remise, ratio: l => (estLivraison(l) ? 1 : r) };
+}
 
 /* l'IA (devis préparé au téléphone) ne coche pas les portions : on retrouve dans sa note les plats à supplément
    (« plats : colombo de poulet × 20, coq roussi × 20 ») ; sans nombre, toutes les parts de la ligne. */
@@ -41,12 +51,11 @@ function choixDepuisNote(note, p, qte) {
 function totaux(doc) {
   const lignes = (doc.lignes || []).filter(l => l.type !== 'titre');
   const brutCents = lignes.reduce((s, l) => s + Math.round((l.puCents || 0) * (Number(l.qte) || 0)), 0);
-  const remiseCents = Math.min(brutCents, Math.max(0, Math.round(doc.remiseCents || 0)));
-  const ratio = brutCents ? (brutCents - remiseCents) / brutCents : 1;
+  const { remise: remiseCents, ratio } = ratioRemise(lignes, doc.remiseCents);
   const tva = {};
   let htCents = 0;
   for (const l of lignes) {
-    const ttc = Math.round((l.puCents || 0) * (Number(l.qte) || 0) * ratio);
+    const ttc = Math.round((l.puCents || 0) * (Number(l.qte) || 0) * ratio(l));
     const taux = Number(l.tva ?? 10);
     const ht = Math.round(ttc / (1 + taux / 100));
     htCents += ht;
@@ -64,9 +73,7 @@ function totaux(doc) {
    Une ligne sans prix d'achat n'est PAS comptée à 0 : elle est listée « prix d'achat manquant » et laissée hors du calcul. */
 function marge(doc) {
   const lignes = (doc.lignes || []).filter(l => l.type !== 'titre');
-  const brut = lignes.reduce((s, l) => s + Math.round((l.puCents || 0) * (Number(l.qte) || 0)), 0);
-  const remise = Math.min(brut, Math.max(0, Math.round(doc.remiseCents || 0)));
-  const ratio = brut ? (brut - remise) / brut : 1;
+  const { ratio } = ratioRemise(lignes, doc.remiseCents);
   let venteHtCents = 0, achatHtCents = 0, achatTtcCents = 0, venteTtcCents = 0;
   const manquants = [];
   for (const l of lignes) {
@@ -74,7 +81,7 @@ function marge(doc) {
     if (!qte) continue;
     const taux = Number(l.tva ?? 10);
     if (l.coutCents == null || l.coutCents === '') { manquants.push(String(l.designation || 'Ligne sans nom').replace(/\*\*/g, '')); continue; }
-    const vTtc = Math.round((l.puCents || 0) * qte * ratio), aTtc = Math.round(l.coutCents * qte);
+    const vTtc = Math.round((l.puCents || 0) * qte * ratio(l)), aTtc = Math.round(l.coutCents * qte);
     venteTtcCents += vTtc; achatTtcCents += aTtc;
     venteHtCents += Math.round(vTtc / (1 + taux / 100)); achatHtCents += Math.round(aTtc / (1 + taux / 100));
   }
@@ -101,8 +108,6 @@ function coutLigne(l, p) {
 }
 
 /* marge négative bloquée : une ligne vendue sous son coût, ou un total sous le coût total */
-/* ligne de livraison : vendue volontairement sous son coût (remise des paliers), jamais bloquée */
-const estLivraison = l => !!l.livraison || l.unite === 'km';
 function controleMarge(doc) {
   const erreurs = [];
   for (const l of doc.lignes || []) {
@@ -169,14 +174,41 @@ function lignesDepuisDemande(demande, catalogue, tarifs = {}) {
     const pu = demande.livraison.kmCents ?? (demande.livraison.offerte ? 0 : LIVR.kmCents(tarifs, demande.sousTotalCents || 0));
     /* coût réel de la livraison pour Magnolia (Jean-Luc, 2026-11-25) : 1 € TTC du km (livreur + véhicule), compté dans la marge ;
        la ligne montre ce plein tarif avec la remise du palier (20, 50, 70 ou 100 %) au lieu de 0 €. */
-    const base = Math.max(pu, LIVR.coutKmCents(tarifs));
-    const remisePct = base > pu ? Math.round(1000 * (1 - pu / base)) / 10 : 0;
+    const { base, remisePct } = prixLivraison(tarifs, pu);
     const offerte = pu === 0;
     const des = LIVR.offerteDes(tarifs);
     out.push({ designation: offerte ? 'Livraison et reprise (offerte)' : 'Livraison et reprise', detail: `${demande.evenement?.ville || ''} · ${demande.livraison.km} km aller-retour${offerte ? (des != null ? ` · offerte au-delà de ${LIVR.eur(des)} TTC de commande` : '') : remisePct ? ' · remise selon le montant de la commande' : ''}`,
       qte: demande.livraison.km, unite: 'km', puCents: pu, ...(remisePct ? { puBaseCents: base, remisePct } : {}), coutCents: LIVR.coutKmCents(tarifs), tva: 20, livraison: true });
   }
   return out;
+}
+
+/* plein tarif (coût réel du km) et remise du palier pour un prix du km donné */
+function prixLivraison(tarifs, pu) {
+  const base = Math.max(pu, LIVR.coutKmCents(tarifs));
+  return { base, remisePct: base > pu ? Math.round(1000 * (1 - pu / base)) / 10 : 0 };
+}
+
+/* Ligne de livraison verrouillée (Jean-Luc, 2026-11-25) : sans le droit Administrateur, une ligne de livraison déjà enregistrée
+   ne change pas et ne s'efface pas ; une ligne de livraison ajoutée prend le prix des paliers (total hors livraison).
+   Renvoie { lignes } corrigées, ou { erreur }. */
+function verrouLivraison(avant, lignes, tarifs = {}) {
+  const cle = l => JSON.stringify([+l.qte || 0, l.puCents ?? null, l.puBaseCents ?? null, l.remisePct ?? null, l.coutCents ?? null, l.tva ?? null]);
+  const anciennes = ((avant && avant.lignes) || []).filter(estLivraison).map(cle);
+  const restantes = [...anciennes];
+  const horsLiv = (lignes || []).filter(l => l.type !== 'titre' && !estLivraison(l)).reduce((s, l) => s + Math.round((l.puCents || 0) * (Number(l.qte) || 0)), 0);
+  const out = (lignes || []).map(l => {
+    if (l.type === 'titre' || !estLivraison(l)) return l;
+    const i = restantes.indexOf(cle(l));
+    if (i >= 0) { restantes.splice(i, 1); return l; }
+    const pu = LIVR.kmCents(tarifs, horsLiv), { base, remisePct } = prixLivraison(tarifs, pu);
+    const n = { ...l, livraison: true, unite: 'km', puCents: pu, coutCents: LIVR.coutKmCents(tarifs), tva: 20 };
+    delete n.puBaseCents; delete n.remisePct;
+    if (remisePct) { n.puBaseCents = base; n.remisePct = remisePct; }
+    return n;
+  });
+  if (restantes.length) return { erreur: 'La ligne de livraison ne peut être modifiée ou retirée que par un administrateur.' };
+  return { lignes: out };
 }
 
 /* estimation d'une ligne de sélection (contrôle serveur du total affiché au client) */
@@ -231,4 +263,4 @@ function raisonsDevisManuel(demande, catalogue, T = {}, now = new Date()) {
   return [...new Set(r)];
 }
 
-module.exports = { raisonsDevisManuel, regleAcompte, totaux, controleMarge, prochainNumero, lignesDepuisDemande, estimerLigne, marge, coutLigne, supplementsParPart, totalSupplements, choixDepuisNote };
+module.exports = { estLivraison, verrouLivraison, prixLivraison, raisonsDevisManuel, regleAcompte, totaux, controleMarge, prochainNumero, lignesDepuisDemande, estimerLigne, marge, coutLigne, supplementsParPart, totalSupplements, choixDepuisNote };

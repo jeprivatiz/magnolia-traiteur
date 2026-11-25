@@ -936,14 +936,17 @@
     if (e.target.closest('.k4pop a')) return;
     e.preventDefault(); const on = !m.classList.contains('on'); $$('[data-k4m].on').forEach(x => x.classList.remove('on')); m.classList.toggle('on', on);
   }, true);
+  /* ligne de livraison (même règle que server/devis.js) : hors remise globale, verrouillée sans le droit Administrateur */
+  const estLivraison = l => !!(l && (l.livraison || l.unite === 'km'));
   function tot(d) {
     const L = (d.lignes || []).filter(l => l.type !== 'titre');
     const brut = L.reduce((s, l) => s + Math.round((l.puCents || 0) * (+l.qte || 0)), 0);
-    const remise = Math.min(brut, d.remiseCents || 0);
+    const hors = L.filter(l => !estLivraison(l)).reduce((s, l) => s + Math.round((l.puCents || 0) * (+l.qte || 0)), 0);
+    const remise = Math.min(hors, d.remiseCents || 0);
     const cout = L.reduce((s, l) => s + Math.round((l.coutCents || 0) * (+l.qte || 0)), 0);
-    const ratio = brut ? (brut - remise) / brut : 1;
+    const r = hors ? (hors - remise) / hors : 1, ratio = l => (estLivraison(l) ? 1 : r);
     let ht = 0; const tva = {};
-    for (const l of L) { const t = Math.round((l.puCents || 0) * (+l.qte || 0) * ratio); const h = Math.round(t / (1 + (l.tva ?? 10) / 100)); ht += h; tva[l.tva ?? 10] = (tva[l.tva ?? 10] || 0) + t - h; }
+    for (const l of L) { const t = Math.round((l.puCents || 0) * (+l.qte || 0) * ratio(l)); const h = Math.round(t / (1 + (l.tva ?? 10) / 100)); ht += h; tva[l.tva ?? 10] = (tva[l.tva ?? 10] || 0) + t - h; }
     return { brut, remise, ttc: brut - remise, ht, tva, cout, mg: margeDevis(L, ratio) };
   }
   /* marge du devis : même calcul que le serveur (server/devis.js, marge) — HORS TAXES, interne à l'équipe.
@@ -953,7 +956,7 @@
     for (const l of L) {
       const q = +l.qte || 0; if (!q) continue; const k = 1 + (l.tva ?? 10) / 100;
       if (l.coutCents == null || l.coutCents === '') { manquants.push(String(l.designation || 'Ligne sans nom').replace(/\*\*/g, '')); continue; }
-      const v = Math.round((l.puCents || 0) * q * ratio), a = Math.round(l.coutCents * q);
+      const v = Math.round((l.puCents || 0) * q * ratio(l)), a = Math.round(l.coutCents * q);
       vHt += Math.round(v / k); aHt += Math.round(a / k); aTtc += a;
     }
     const m = vHt - aHt;
@@ -1165,7 +1168,7 @@
     const nombre = v => Math.max(0, parseFloat(String(v || '').replace(',', '.')) || 0);
     const remiseCts = () => {
       if (form.remiseMode.value !== 'pct') return toCents(form.remise.value) || 0;
-      const brut = lignes.filter(l => l.type !== 'titre').reduce((s2, l) => s2 + Math.round((l.puCents || 0) * (+l.qte || 0)), 0);
+      const brut = lignes.filter(l => l.type !== 'titre' && !estLivraison(l)).reduce((s2, l) => s2 + Math.round((l.puCents || 0) * (+l.qte || 0)), 0); /* la livraison n'est jamais remisée */
       return Math.round(brut * Math.min(100, nombre(form.remise.value)) / 100);
     };
     /* draw(false) : seulement les totaux et la marge — pendant la frappe, on ne redessine pas les cases (sinon « 3 » devient « 3,00 » et le curseur saute) */
@@ -1176,6 +1179,14 @@
            <td><input data-f="qte" class="num" value="${esc(l.qte)}" inputmode="decimal"></td><td><select data-f="unite">${[...new Set([l.unite, ...UNITES])].map(u => `<option${u === l.unite ? ' selected' : ''}>${esc(u || '')}</option>`).join('')}</select></td>
            <td><input data-f="puCents" class="num" value="${fromCents(l.puBaseCents ?? l.puCents)}" inputmode="decimal"></td><td class="rem"><span class="remi"><input data-f="remisePct" class="num pct" value="${l.remisePct ? String(l.remisePct).replace('.', ',') : ''}" placeholder="0" inputmode="decimal" aria-label="Remise en %"> %</span>${l.remisePct ? `<small>= ${euros(l.puCents)}</small>` : ''}${l.coutCents != null && l.puCents ? `<small class="mgl ${l.puCents > l.coutCents ? 'pos' : 'neg'}" title="Marge de cette ligne (interne)">marge ${String(Math.round(1000 * (l.puCents - l.coutCents) / l.puCents) / 10).replace('.', ',')} %</small>` : ''}</td><td><input data-f="coutCents" class="num${l.coutCents == null && +l.qte ? ' manq' : ''}" value="${fromCents(achatHt(l.coutCents, l.tva ?? 10))}" inputmode="decimal" placeholder="manquant" title="Prix d’achat HT à l’unité"></td>
            <td><select data-f="tva">${[5.5, 10, 20].map(t => `<option value="${t}"${+l.tva === t ? ' selected' : ''}>${String(t).replace('.', ',')} %</option>`).join('')}</select></td><td class="n">${euros(Math.round((l.puCents || 0) * (+l.qte || 0)))}</td><td><button type="button" class="x" data-del aria-label="Supprimer">×</button></td></tr>`).join('') || '<tr><td colspan="10" class="muted">Aucune ligne : ajoutez une prestation du catalogue ou une ligne libre.</td></tr>';
+      if (cases && !peut('admin')) lignes.forEach((l, i) => { /* 🔒 livraison : seul un administrateur la change, l'offre ou la retire */
+        if (l.type === 'titre' || !estLivraison(l)) return;
+        const tr = body.querySelector(`[data-i="${i}"]`); if (!tr) return;
+        tr.classList.add('liv-lock'); tr.title = '🔒 Ligne de livraison : seul un administrateur peut la modifier ou l’offrir.';
+        tr.querySelectorAll('input, select').forEach(x => { if (x.dataset.f === 'detail' || x.dataset.f === 'designation') return; x.disabled = true; });
+        tr.querySelector('[data-del]')?.replaceWith(Object.assign(document.createElement('span'), { className: 'lock-i', textContent: '🔒' }));
+        const h = tr.querySelector('.h'); if (h) h.textContent = '🔒';
+      });
       const t = tot({ lignes, remiseCents: remiseCts() });
       $('#marge').innerHTML = margeHtml(t);
       $('#totaux').innerHTML = `${t.remise ? `<div><dt>Sous-total</dt><dd>${euros(t.brut)}</dd></div><div><dt>Remise${form.remiseMode.value === 'pct' ? ' ' + String(nombre(form.remise.value)).replace('.', ',') + ' %' : ''}</dt><dd>− ${euros(t.remise)}</dd></div>` : ''}${Object.entries(t.tva).map(([k, v]) => `<div class="sm"><dt>dont TVA ${String(k).replace('.', ',')} %</dt><dd>${euros(v)}</dd></div>`).join('')}<div class="sm"><dt>Total HT</dt><dd>${euros(t.ht)}</dd></div><div class="big"><dt>Total TTC</dt><dd>${euros(t.ttc)}</dd></div>${(() => { const a = regleAcompte(t.ttc, { acomptePct: form.acomptePct.value, evenement: { date: form.ev_date.value }, signature: d.signature }, cache.R?.tarifs); return `<div class="sm"><dt>${a.total ? `À payer à la signature (totalité${a.raison === 'proche' ? ', événement dans moins de ' + a.delai + ' jours' : ''})` : `Acompte ${a.pct} %`}</dt><dd>${euros(a.cents)}</dd></div>`; })()}`;

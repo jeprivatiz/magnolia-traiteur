@@ -16,7 +16,7 @@ const views = require('./views');
 const { preparerAlerte } = require('./relances');
 const STATS = require('./statistiques');
 const ANC = require('./anciens');
-const { raisonsDevisManuel, regleAcompte, totaux, controleMarge, prochainNumero, lignesDepuisDemande, estimerLigne, choixDepuisNote, totalSupplements } = require('./devis');
+const { verrouLivraison, raisonsDevisManuel, regleAcompte, totaux, controleMarge, prochainNumero, lignesDepuisDemande, estimerLigne, choixDepuisNote, totalSupplements } = require('./devis');
 const { rid, sha, esc, euros, limiter, dateFr, slugify, nomPropre, dateNaissance, titreTexte } = require('./util');
 const LIVR = require('../public/js/livraison-paliers');
 const ACHATS = require('./achats');
@@ -1216,6 +1216,11 @@ async function createApp(opts = {}) {
     if (coll === 'produits' && before && !req.ctx.droits.prix && empreintePrix(data) !== empreintePrix(before)) return refus(res, 'prix');
     if (coll === 'devis') {
       if (before && before.statut === 'accepte' && !req.ctx.droits.devisSignes) return res.status(403).json({ error: 'Ce devis est signé : il faut le droit « Modifier un devis signé » pour le changer.' });
+      if (!req.ctx.droits.admin) { /* ligne de livraison : seul un administrateur la change ou l'offre */
+        const v = verrouLivraison(before, data.lignes, (await cat.get()).reglages?.tarifs || {});
+        if (v.erreur) return res.status(403).json({ error: v.erreur });
+        data.lignes = v.lignes;
+      }
       const err = controleMarge(data);
       if (err.length) return res.status(400).json({ error: 'Marge négative bloquée : ' + err.join(' ') });
       data.token = before?.token || data.token;
