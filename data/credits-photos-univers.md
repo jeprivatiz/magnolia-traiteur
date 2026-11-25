@@ -324,4 +324,4 @@ Photos regardées une à une (vraies photos, sans texte ni logo), licence Pexels
 - Bandeau de la page Plateaux de fruits de mer : écailler qui ouvre une huître, Unsplash photo-1564851287887-96031a235bf5 (Louis Hansel, https://unsplash.com/photos/person-chucking-oyster-6BhB8Vo0nuQ, licence Unsplash).
 | Verres à vin | public/site/c/materiel/verres-a-vin.webp | https://www.pexels.com/photo/38556967/ | Pexels |
 | Flûtes à champagne | public/site/c/materiel/flutes-a-champagne.webp (recadrée) | https://www.pexels.com/photo/18573171/ | Pexels |
-| Verres tumbler | public/site/c/materiel/verres-tumbler.webp (recadrée) | https://www.pexels.com/photo/32544231/ | Pexels |
+| Verres tumbler | public/site/c/materiel/verres-tumbler-1.webp, verres-tumbler-2.webp | photos fournies par Jean-Luc (son tumbler) | Magnolia |
