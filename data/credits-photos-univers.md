@@ -316,3 +316,4 @@ Photos regardées une à une (vraies photos, sans texte ni logo), licence Pexels
 - Rhum Trois-Rivières blanc 50° : photo de la bouteille fournie par Jean-Luc (2026-11-25), remplace la photo ti-punch Pexels 36860546.
 - Alcools forts (2026-11-25) : gin Bombay Sapphire = photo fournie par Jean-Luc ; vodka Absolut = Pexels 17722186 ; whiskey Jack Daniel's = Pexels 32995841 (fond crème, faute de photo libre sur fond blanc). Vignette « Les eaux » = ses photos Cristaline plate et gazeuse.
 - Bar à cocktails (2026-11-25) : vidéo Pexels https://www.pexels.com/video/11268027/ (barman qui prépare un cocktail), public/site/v/produits/bar-a-cocktails.mp4.
+- Rosés Minuty Prestige, Marrenon Classique Luberon, Batti Batti : photos de bouteilles fournies par Jean-Luc (2026-11-25), /site/c/cave/rose-*.webp.
