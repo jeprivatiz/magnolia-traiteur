@@ -578,7 +578,7 @@ function allergenesHtml(p) {
 function fichesLiees(c, p) {
   const L = (p.liees || []).map(l => ({ l, x: c.produits.find(y => y.slug === l.slug && y.statut !== 'masque') })).filter(o => o.x);
   if (!L.length) return '';
-  return `<div class="liees">${L.map(({ l, x }) => { const ph = x.photos?.[0]; return `<a class="liee" href="${prodHref(x)}">${img(ph?.src, ph?.alt || titreTexte(x.titre))}<span><b>${esc(l.titre || titreTexte(x.titre))}</b><small>${esc(l.texte || '')}</small><em>Choisir ${icon.arrow}</em></span></a>`; }).join('')}</div>`;
+  return `<div class="liees">${L.map(({ l, x }) => { const ph = x.photos?.find(y => y?.src) || (x.video?.poster ? { src: x.video.poster } : null); return `<a class="liee" href="${prodHref(x)}">${img(ph?.src, ph?.alt || titreTexte(x.titre))}<span><b>${esc(l.titre || titreTexte(x.titre))}</b><small>${esc(l.texte || '')}</small><em>Choisir ${icon.arrow}</em></span></a>`; }).join('')}</div>`;
 }
 /* Autres propositions (Jean-Luc, 2026-11-25) : encadrés choisis dans le back-office pour CE produit (ex. Bar à cocktail →
    « Mobilier pour bar à cocktail »). Le client coche les produits proposés et ils s'ajoutent à sa sélection, chacun sur sa ligne.
