@@ -644,9 +644,23 @@ async function pepsiMaxPhoto(store) {
   await store.set('_migr/cavePepsiMax2', { at: new Date().toISOString() });
 }
 
+/* Jus Alain Milliat : photos des bouteilles fournies par Jean-Luc (2026-11-25) */
+const PHOTOS_JUS = {
+  'jus-de-pomme-alain-milliat-1-l': ['/site/c/cave/jus-pomme-alain-milliat.webp', 'Bouteille de jus de pomme Alain Milliat 1 L'],
+  'jus-d-orange-alain-milliat-1-l': ['/site/c/cave/jus-orange-alain-milliat.webp', 'Bouteille de jus d’orange Alain Milliat 1 L'],
+};
+async function jusPhotos(store) {
+  if (await store.get('_migr/caveJusPhotos1')) return;
+  for (const [slug, [src, alt]] of Object.entries(PHOTOS_JUS)) {
+    const x = await store.get('produits/' + slug);
+    if (x) await store.set('produits/' + slug, { ...x, photos: [{ src, alt }] });
+  }
+  await store.set('_migr/caveJusPhotos1', { at: new Date().toISOString() });
+}
+
 async function initCave(store) {
   await prixCave(store);
-  if (await store.get('_migr/caveCercle')) { await openBarCave(store); await sodasCave(store); await vinsCave(store); await eauxCave(store); await cocaPhotos(store); await cristalineGaz(store); await cristalinePlate(store); await caveBandeauBadoit(store); await barmanSousPhoto(store); await barmanPrix(store); await alcoolsBlanc(store); await vinsRouges2(store); await barCocktailsMin(store); await barCocktailsVideo(store); await barCocktailsTexte(store); await barCocktailsRetablir(store); await valettePrix(store); await minutyCave(store); await rosesCave2(store); const k = await ajoutsCave(store); await metroCave(store); await barmanHeuresSup(store); await rosesPhotos(store); await barmanVideo(store); await openBarVideo(store); await openBarPersonnel(store); await saintTropezPhoto(store); await barsVideos(store); await openBarTextes(store); await pepsiMax(store); await pepsiMaxPhoto(store); return k; }
+  if (await store.get('_migr/caveCercle')) { await openBarCave(store); await sodasCave(store); await vinsCave(store); await eauxCave(store); await cocaPhotos(store); await cristalineGaz(store); await cristalinePlate(store); await caveBandeauBadoit(store); await barmanSousPhoto(store); await barmanPrix(store); await alcoolsBlanc(store); await vinsRouges2(store); await barCocktailsMin(store); await barCocktailsVideo(store); await barCocktailsTexte(store); await barCocktailsRetablir(store); await valettePrix(store); await minutyCave(store); await rosesCave2(store); const k = await ajoutsCave(store); await metroCave(store); await barmanHeuresSup(store); await rosesPhotos(store); await barmanVideo(store); await openBarVideo(store); await openBarPersonnel(store); await saintTropezPhoto(store); await barsVideos(store); await openBarTextes(store); await pepsiMax(store); await pepsiMaxPhoto(store); await jusPhotos(store); return k; }
   const now = new Date().toISOString();
   let n = 0;
   for (const d of await store.list('produits')) {
@@ -702,7 +716,7 @@ async function initCave(store) {
   await valettePrix(store);
   await minutyCave(store);
   await rosesCave2(store);
-  const k = await ajoutsCave(store); await metroCave(store); await barmanHeuresSup(store); await rosesPhotos(store); await barmanVideo(store); await openBarVideo(store); await openBarPersonnel(store); await saintTropezPhoto(store); await barsVideos(store); await openBarTextes(store); await pepsiMax(store); await pepsiMaxPhoto(store); return n + k;
+  const k = await ajoutsCave(store); await metroCave(store); await barmanHeuresSup(store); await rosesPhotos(store); await barmanVideo(store); await openBarVideo(store); await openBarPersonnel(store); await saintTropezPhoto(store); await barsVideos(store); await openBarTextes(store); await pepsiMax(store); await pepsiMaxPhoto(store); await jusPhotos(store); return n + k;
 }
 
 module.exports = { texteBarCocktails, BARMAN, OPEN_BAR_VC, CAVE_SECTIONS, CAVE_PRODUITS, AJOUTS_CAVE, CAVE_GARDEES, INTRO_CAVE, ttc, initCave };
