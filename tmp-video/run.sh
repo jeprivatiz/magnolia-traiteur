@@ -2,7 +2,7 @@
 set -u
 cd "$(dirname "$0")"; mkdir -p src out
 UA="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36"; F=0.8
-for id in 8921570 9003040 9003039 8921835; do
+for id in 5929447 5617252 14058816 7608907; do
   curl -fsSL -A "$UA" -o src/$id.mp4 "https://www.pexels.com/download/video/$id/" || { echo "$id echec"; continue; }
   d=$(ffprobe -v error -show_entries format=duration -of csv=p=0 src/$id.mp4); echo "$id $d" >> out/infos.txt
   T=$(awk "BEGIN{t=$d-0.5; print (t>14?14:t)}")
