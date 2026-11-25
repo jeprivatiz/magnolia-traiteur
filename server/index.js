@@ -191,6 +191,23 @@ async function createApp(opts = {}) {
     if (rb) await store.set('rubriques/boissons', { ...rb, nom: 'La cave de Magnolia', titrePage: rb.titrePage ? 'La cave de Magnolia' : rb.titrePage, chapo: 'Du vin au soft, en passant par les alcools.' });
     await store.set('_migr/caveMagnolia', { at: new Date().toISOString() });
   }
+  /* une seule fois (Jean-Luc, 2026-11-25) : nouvelle règle du Buffet indien, C = prix de la carte du restaurant (TTC).
+     Prix de vente = C × 1,35 (arrondi aux 10 centimes du dessus, comme avant) ; prix d'achat = C × 0,90.
+     C = prix d'achat posé au départ (règle C × 1,30) s'il colle encore au prix de vente, sinon prix de vente ÷ 1,30. */
+  if (!(await store.get('_migr/indien135'))) {
+    let n = 0; const ex = [];
+    for (const { id, data: p } of await store.list('produits')) {
+      if (!p || p.sous !== 'buffet-indien' || p.prixCents == null) continue;
+      const c = p.coutCents != null && Math.abs(Math.ceil(p.coutCents * 1.3 / 10) * 10 - p.prixCents) <= 10 ? p.coutCents : Math.round(p.prixCents / 1.3);
+      const prix = Math.ceil(c * 1.35 / 10) * 10, cout = Math.round(c * 0.9);
+      if (ex.length < 5) ex.push([p.slug, p.prixCents, prix, p.coutCents, cout]);
+      await store.set('produits/' + id, { ...p, prixCents: prix, coutCents: cout, updatedAt: new Date().toISOString() });
+      n++;
+    }
+    cat.invalidate?.();
+    await store.set('_migr/indien135', { at: new Date().toISOString(), fiches: n, exemples: ex });
+    if (n) console.log(`[demarrage] Buffet indien : ${n} fiches passées à carte × 1,35 (achat carte × 0,90)`);
+  }
   /* une seule fois (Jean-Luc, 2026-11-25) : Magnolia loue des FLÛTES à champagne, pas des coupes. La fiche devient « Verres à vin et flûtes à champagne »,
      photo verre à vin + flûte (Pexels 19408256, Luis Felipe Pérez), casiers de 36, location dès 36 verres (1 casier). Prix inchangé, adresse inchangée
      (la fiche Open bar y renvoie). Les textes Google sont vidés pour être réécrits avec le nouveau nom. */
@@ -2146,6 +2163,25 @@ async function createApp(opts = {}) {
     }
     cat.invalidate(); audit(req.ctx, 'fournisseur supprimé', 'produits', nom + ' · ' + fiches + ' fiche(s)');
     res.json({ ok: true, fiches });
+  }));
+  /* mettre un fournisseur sur toute une catégorie (rubrique, ou rubrique › sous-catégorie) ; en option, prix d'achat
+     des fiches qui n'en ont pas = prix de vente ÷ (1 + pct %) — les prix d'achat déjà tapés ne changent jamais */
+  A.post('/actions/fournisseurs/appliquer', sameSite, json, peut('prix'), wrap(async (req, res) => {
+    const nom = String(req.body?.nom || '').trim().slice(0, 80), rubrique = String(req.body?.rubrique || ''), sous = String(req.body?.sous || ''), pct = Number(req.body?.pct) || 0;
+    if (!nom) return res.status(400).json({ error: 'Nom du fournisseur manquant.' });
+    if (!rubrique) return res.status(400).json({ error: 'Catégorie manquante.' });
+    if (pct < 0 || pct >= 1000) return res.status(400).json({ error: 'Pourcentage invalide.' });
+    let fiches = 0, couts = 0;
+    for (const d of await store.list('produits')) {
+      const p0 = d.data; if (p0.rubrique !== rubrique || (sous && p0.sous !== sous)) continue;
+      const { fournisseur, ...p } = p0;
+      const fourn = [nom, ...ACHATS.fournisseursDe(p0).filter(x => x.toLowerCase() !== nom.toLowerCase())];
+      const calc = pct > 0 && p.coutCents == null && p.prixCents != null;
+      await store.set('produits/' + d.id, { ...p, fournisseurs: fourn, ...(calc ? { coutCents: Math.round(p.prixCents / (1 + pct / 100)) } : {}), updatedAt: new Date().toISOString() });
+      fiches++; if (calc) couts++;
+    }
+    cat.invalidate(); audit(req.ctx, 'fournisseur sur une catégorie', 'produits', rubrique + (sous ? ' › ' + sous : '') + ' · ' + fiches + ' fiche(s)');
+    res.json({ ok: true, fiches, couts });
   }));
   A.post('/actions/import-achats/appliquer', sameSite, json, peut('prix'), wrap(async (req, res) => {
     const r = await ACHATS.appliquer(store, req.body?.lignes, { ht: !!req.body?.ht });

@@ -1999,6 +1999,19 @@
     catch (err) { toast(err.message, true); }
   };
   const apresSansMarge = () => {
+    $('[data-fcf]')?.addEventListener('change', e => { const n = $('[data-fcfnew]'); n.hidden = e.target.value !== '__nouveau'; if (!n.hidden) n.focus(); });
+    $('[data-fcok]')?.addEventListener('click', async e => {
+      const [rubrique, sous] = ($('[data-fccat]').value || '|').split('|'), fs = $('[data-fcf]').value;
+      const nom = (fs === '__nouveau' ? $('[data-fcfnew]').value : fs).trim(), pctTxt = $('[data-fcpct]').value.trim(), pct = pctTxt ? +pctTxt.replace(',', '.') : 0;
+      if (!rubrique) return toast('Choisissez une catégorie.', true);
+      if (!nom) return toast('Choisissez ou tapez le fournisseur.', true);
+      if (pctTxt && !(pct > 0 && pct < 1000)) return toast('Le pourcentage doit être un nombre, par exemple 30.', true);
+      const cat = $('[data-fccat]').selectedOptions[0].textContent;
+      if (!confirm(`Mettre le fournisseur « ${nom} » sur ${cat} ?${pct ? `\n\nLes fiches sans prix d’achat recevront : prix de vente ÷ ${(1 + pct / 100).toLocaleString('fr-FR')}.` : ''}`)) return;
+      e.target.disabled = true;
+      try { const r = await api(A + '/actions/fournisseurs/appliquer', { method: 'POST', body: { nom, rubrique, sous, pct } }); cache.produits = null; toast(`✓ « ${nom} » mis sur ${r.fiches} fiche${r.fiches > 1 ? 's' : ''}${r.couts ? ` · prix d’achat calculé sur ${r.couts} fiche${r.couts > 1 ? 's' : ''}` : ''}.`); setTimeout(() => location.reload(), 1200); }
+      catch (err) { toast(err.message, true); e.target.disabled = false; }
+    });
     /* recherche pendant la frappe : nom du produit, accents et majuscules ignorés */
     const sansA = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
     let smCat = '';
@@ -2047,6 +2060,11 @@
     $('.content').addEventListener('change', e => { const s = e.target.closest('[data-smf]'); if (!s) return; const n = $('[data-smfnew]', s.closest('.smrow')); n.hidden = s.value !== '__nouveau'; if (!n.hidden) n.focus(); });
     $('.content').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.closest('.sm-saisie')) { e.preventDefault(); enreg(e.target.closest('.smrow')); } });
   };
+  /* liste des catégories (rubriques et leurs sous-catégories) avec leur nombre de fiches */
+  const fcatOptions = (rubs, prods) => '<option value="">Choisir une catégorie…</option>' + rubs.map(r => {
+    const P = prods.filter(p => p.rubrique === r.slug); if (!P.length) return '';
+    return `<option value="${esc(r.slug)}|">${esc(r.nom)} — toute la rubrique (${P.length})</option>` + (r.sous || []).map(so => { const n = P.filter(p => p.sous === so.slug).length; return n ? `<option value="${esc(r.slug)}|${esc(so.slug)}">${esc(r.nom)} › ${esc(so.nom)} (${n})</option>` : ''; }).join('');
+  }).join('');
   function pageSansMarge(rubs, prods) {
     SMF = trierF(prods.flatMap(x => [...(x.fournisseurs || []), ...(x.fournisseur ? [x.fournisseur] : [])]));
     const L = prods.filter(sansMarge), nomRub = sl => rubs.find(x => x.slug === sl)?.nom || sl || 'Sans rubrique';
@@ -2054,7 +2072,14 @@
     const smCats = [['', L.length, 'Tout'], ...groupes.map(g => [g, L.filter(p => p.rubrique === g).length, nomRub(g)])];
     return page('Catalogue' + pavesCat(prods, 'marge'), `<a class="btn ghost" href="#/catalogue">← Retour au catalogue</a>${peut('prix') ? '<a class="btn" href="#/achats">⬆ Importer les prix d’achat (Excel)</a>' : ''}`, `
       <section class="box smbox"><h2>Produits sans marge <small class="muted">(${L.length})</small></h2><p class="muted">Produits visibles sur le site qui ont un prix de vente mais <b>pas de prix d’achat</b> (ou un prix d’achat supérieur au prix de vente) : leur marge ne peut pas être calculée sur les devis. Tapez le prix d’achat <b>HT</b> dans la case à droite (et le fournisseur si vous voulez), puis <b>Entrée</b> ou ✓ : la fiche est enregistrée et le produit disparaît de la liste. Vous pouvez aussi importer votre tableau Excel.</p></section>
-      ${peut('prix') ? `<section class="box fourn-gest"><h2>Vos fournisseurs <small class="muted" data-fgn>(${SMF.length})</small></h2><p class="muted sm">Classés par ordre alphabétique. Pour supprimer un fournisseur, <b>tapez deux fois dessus</b> (ou sur ×) : il est retiré de la liste et de toutes les fiches qui l’utilisent.</p><div class="fourn-chips" data-fgest>${fgestHtml()}</div></section>` : ''}
+      ${peut('prix') ? `<section class="box fourn-gest"><h2>Vos fournisseurs <small class="muted" data-fgn>(${SMF.length})</small></h2><p class="muted sm">Classés par ordre alphabétique. Pour supprimer un fournisseur, <b>tapez deux fois dessus</b> (ou sur ×) : il est retiré de la liste et de toutes les fiches qui l’utilisent.</p><div class="fourn-chips" data-fgest>${fgestHtml()}</div>
+        <details class="fcat"><summary>➕ Mettre un fournisseur sur toute une catégorie</summary>
+          <p class="muted sm">Par exemple tout le Buffet indien d’un coup. Le fournisseur est ajouté en premier (principal) sur chaque fiche ; les autres fournisseurs de la fiche sont gardés. 🔒 Jamais montré au client.</p>
+          <div class="fcat-row"><label>Catégorie<select data-fccat>${fcatOptions(rubs, prods)}</select></label>
+          <label>Fournisseur<select data-fcf>${smfOptions('')}</select><input data-fcfnew placeholder="Nom du nouveau fournisseur" hidden></label>
+          <label>Prix d’achat des fiches qui n’en ont pas <small>(facultatif)</small><span class="fcat-pct">= prix de vente ÷ (1 + <input data-fcpct inputmode="decimal" placeholder="30" aria-label="Pourcentage ajouté par Magnolia"> %)</span></label></div>
+          <p class="muted sm">Laissez le pourcentage vide pour ne toucher à aucun prix d’achat. Avec 30 %, une fiche vendue 13 € reçoit un prix d’achat de 10 € (même TVA des deux côtés, donc le calcul vaut en HT comme en TTC). Les prix d’achat déjà tapés ne changent jamais.</p>
+          <button type="button" class="btn" data-fcok>Appliquer à la catégorie</button></details></section>` : ''}
       <section class="box sm-rech"><div class="sm-cats" role="tablist">${smCats.map(([g, n, nom]) => `<button type="button" class="btn sm${g ? ' ghost' : ''}" data-smcat="${esc(g)}">${esc(nom)} <b>${n}</b></button>`).join('')}</div><label>🔎 Rechercher un produit sans marge<input type="search" data-smq placeholder="Tapez un nom : colombo, champagne, nappe…" autocomplete="off"></label><p class="muted sm" data-smqn></p></section>
       ${groupes.map(g => `<section class="box sm-acc" data-smrub="${esc(g)}"><h2><button type="button" class="sm-tog" data-smtog aria-expanded="false"><span>${esc(nomRub(g))} <small class="muted">(${L.filter(p => p.rubrique === g).length})</small></span><i aria-hidden="true">▾</i></button></h2><div class="plist smlist">${L.filter(p => p.rubrique === g).map(smLigne).join('')}</div></section>`).join('') || '<section class="box"><p class="ok">✓ Tous les produits visibles ont un prix d’achat.</p></section>'}`);
   }
