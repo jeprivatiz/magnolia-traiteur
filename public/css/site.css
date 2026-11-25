@@ -1308,3 +1308,26 @@ h1 .formule { font-size: .5em; margin-top: .45em; }
   .card-vedette .card-img { flex: none; min-height: 0; aspect-ratio: 4 / 5; }
   .card-vedette .card-b { padding: 20px 18px 22px; }
 }
+
+/* Têtes de rubrique sur téléphone (pages de plus de 20 produits en sections) */
+.rubm-tuiles, .rubm-retour { display: none; }
+@media (max-width: 860px) {
+  [data-rubm]:not(.rubm-cherche) .rubm-tuiles { display: block; margin: 14px 0 8px; }
+  [data-rubm]:not(.rubm-cherche) [data-rubm-bloc] { display: none; }
+  [data-rubm].rubm-ouvert:not(.rubm-cherche) .rubm-tuiles { display: none; }
+  [data-rubm].rubm-ouvert:not(.rubm-cherche) [data-rubm-bloc].rubm-on { display: block; margin-top: 10px; }
+  [data-rubm].rubm-ouvert:not(.rubm-cherche) .shop-bar .rubm-retour { display: inline-flex; }
+  .rubm-q { font-family: var(--serif); font-size: 1.35rem; margin: 0 0 12px; color: inherit; }
+  .rubm-grille { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .rubm-grille.impair .rubm-t:first-child { grid-column: 1 / -1; aspect-ratio: 16 / 9; }
+  .rubm-t { position: relative; aspect-ratio: 1 / 1; border-radius: 16px; overflow: hidden; color: #fff; text-decoration: none; background: #2a332e; isolation: isolate; box-shadow: 0 6px 18px rgba(0, 0, 0, .14); -webkit-tap-highlight-color: transparent; }
+  .rubm-t img, .rubm-t .noimg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: -2; }
+  .rubm-t::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(8, 12, 10, 0) 38%, rgba(8, 12, 10, .85)); z-index: -1; }
+  .rubm-t:active { transform: scale(.98); }
+  .rubm-t span { position: absolute; left: 12px; right: 12px; bottom: 11px; }
+  .rubm-t b { display: block; font-family: var(--serif); font-weight: 500; font-size: 1.12rem; line-height: 1.12; }
+  .rubm-t small { display: block; margin-top: 3px; font-size: .74rem; color: #e9dcc3; }
+  .rubm-retour { align-items: center; gap: 6px; margin: 10px 0 0; padding: 9px 15px; border: 1.5px solid #c9a46a; border-radius: 999px; background: #1d3b2f; color: #f6f1e8; font: 500 .85rem/1.1 var(--sans); cursor: pointer; box-shadow: 0 6px 16px rgba(0, 0, 0, .18); }
+  .rubm-retour.bas { position: static; margin: 22px auto 0; display: none; }
+  [data-rubm]:not(.rubm-cherche) .rubm-on .rubm-retour.bas { display: flex; }
+}

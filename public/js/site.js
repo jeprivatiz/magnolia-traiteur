@@ -739,3 +739,38 @@ document.querySelector('.lsearch')?.addEventListener('submit', e => {
   vids.forEach(v => io.observe(v));
   document.addEventListener('visibilitychange', () => { if (document.hidden) vids.forEach(v => v.pause()); else vues.forEach(joue); });
 })();
+
+/* Têtes de rubrique sur téléphone (Jean-Luc, 2026-11-25) : pages de plus de 20 produits en sections.
+   Les vignettes s'affichent d'abord ; un toucher ouvre #section et ne montre qu'elle ; « Toutes les rubriques »
+   ou le bouton retour du téléphone ramène aux vignettes. Sur ordinateur, le CSS montre tout comme avant. */
+(() => {
+  const zone = document.querySelector('[data-rubm]');
+  if (!zone) return;
+  const blocs = [...zone.querySelectorAll('[data-rubm-bloc]')];
+  const tuiles = zone.querySelector('.rubm-tuiles');
+  const mobile = matchMedia('(max-width: 860px)');
+  let ajoute = false;
+  const haut = el => { if (!mobile.matches || !el) return; const bar = zone.querySelector('.shop-bar'); const y = el.getBoundingClientRect().top + scrollY - (bar ? bar.offsetHeight + parseFloat(getComputedStyle(bar).top || 0) : 80) - 8; scrollTo({ top: Math.max(0, y), behavior: 'auto' }); };
+  const montre = (defil) => {
+    const id = decodeURIComponent(location.hash.slice(1));
+    const b = blocs.find(x => x.id === id);
+    zone.classList.toggle('rubm-ouvert', !!b);
+    blocs.forEach(x => x.classList.toggle('rubm-on', x === b));
+    if (defil) haut(b || tuiles);
+  };
+  zone.addEventListener('click', e => {
+    const go = e.target.closest('[data-rubm-go]');
+    if (go && mobile.matches) { e.preventDefault(); history.pushState(null, '', '#' + go.dataset.rubmGo); ajoute = true; montre(true); return; }
+    if (e.target.closest('[data-rubm-retour]')) {
+      if (ajoute) { ajoute = false; history.back(); return; }
+      history.replaceState(null, '', location.pathname + location.search); montre(true);
+    }
+  });
+  addEventListener('popstate', () => { ajoute = false; montre(true); });
+  addEventListener('hashchange', () => montre(true));
+  /* recherche dans la page : on montre toutes les sections pour voir tous les résultats */
+  const q = zone.querySelector('[data-shop-q]');
+  q?.addEventListener('input', () => zone.classList.toggle('rubm-cherche', !!q.value.trim()));
+  montre(false);
+  if (zone.classList.contains('rubm-ouvert')) requestAnimationFrame(() => haut(blocs.find(x => x.classList.contains('rubm-on'))));
+})();
