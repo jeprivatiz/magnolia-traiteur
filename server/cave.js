@@ -714,9 +714,41 @@ async function eauxBouteilles(store) {
   await store.set('_migr/caveEauxBouteilles1', { at: new Date().toISOString() });
 }
 
+/* Vins rouges : photos des bouteilles fournies par Jean-Luc ; Terre d'Église « Erémi » masqué et remplacé par
+   l'Hermitage de Maison Les Alexandrins (2026-11-25). Prix de l'Hermitage repris de l'Erémi en attendant le sien. */
+const PHOTOS_ROUGES = {
+  'chateau-malijay-mistral-gourmand-rouge': ['rouge-malijay-mistral-gourmand', 'Bouteille de vin rouge Château Malijay'],
+  'jean-des-valanges-pinot-noir-rouge': ['rouge-jean-des-valanges-pinot-noir', 'Bouteille de Jean des Valanges Pinot noir'],
+  'chateau-la-gordonne-verite-du-terroir': ['rouge-la-gordonne-verite-du-terroir', 'Bouteille de Château La Gordonne rouge'],
+  'instant-pinot-noir-2022-rouge': ['rouge-bourgogne-pinot-noir', 'Bouteille de Bourgogne Pinot noir'],
+  'armand-d-artois-cotes-du-rhone-rouge': ['rouge-armand-d-artois', 'Bouteille de Côtes-du-Rhône Armand Dartois'],
+  'jean-degaves-bordeaux-aop-rouge': ['rouge-jean-degaves-bordeaux', 'Bouteille de Bordeaux rouge'],
+  'nuiton-beaunoy-hautes-cotes-de-beaune-grande-cuvee-rouge': ['rouge-nuiton-beaunoy', 'Bouteille de Bourgogne rouge Nuiton-Beaunoy'],
+};
+async function rougesPhotos(store) {
+  if (await store.get('_migr/caveRougesPhotos1')) return;
+  for (const [slug, [f, alt]] of Object.entries(PHOTOS_ROUGES)) {
+    const x = await store.get('produits/' + slug);
+    if (x) await store.set('produits/' + slug, { ...x, photos: [{ src: '/site/c/cave/' + f + '.webp', alt }] });
+  }
+  const e = await store.get('produits/vin-rouge-terre-d-eglise-eremi');
+  if (e) {
+    await store.set('produits/vin-rouge-terre-d-eglise-eremi', { ...e, statut: 'masque', masqueCave: true });
+    const slug = 'maison-les-alexandrins-hermitage-rouge';
+    if (!(await store.get('produits/' + slug))) {
+      const extrait = 'Hermitage rouge AOC de la Maison Les Alexandrins, vallée du Rhône, bouteille de 75 cl.';
+      await store.set('produits/' + slug, { ...e, id: slug, slug, titre: 'Maison Les Alexandrins Hermitage AOC, vin rouge', extrait,
+        description: ['Un grand rouge de la vallée du Rhône, issu de la colline de l’Hermitage : une syrah profonde et élégante, aux notes de fruits noirs et d’épices, pour les belles tables.', 'Bouteille de 75 cl. ' + TIRE],
+        sousPhoto: '', sousPhotoAuto: false, photos: [{ src: '/site/c/cave/rouge-alexandrins-hermitage.webp', alt: 'Bouteille d’Hermitage rouge Maison Les Alexandrins' }],
+        statut: 'visible', masqueCave: false, createdAt: new Date().toISOString() });
+    }
+  }
+  await store.set('_migr/caveRougesPhotos1', { at: new Date().toISOString() });
+}
+
 async function initCave(store) {
   await prixCave(store);
-  if (await store.get('_migr/caveCercle')) { await openBarCave(store); await sodasCave(store); await vinsCave(store); await eauxCave(store); await cocaPhotos(store); await cristalineGaz(store); await cristalinePlate(store); await caveBandeauBadoit(store); await barmanSousPhoto(store); await barmanPrix(store); await alcoolsBlanc(store); await vinsRouges2(store); await barCocktailsMin(store); await barCocktailsVideo(store); await barCocktailsTexte(store); await barCocktailsRetablir(store); await valettePrix(store); await minutyCave(store); await rosesCave2(store); const k = await ajoutsCave(store); await metroCave(store); await barmanHeuresSup(store); await rosesPhotos(store); await barmanVideo(store); await openBarVideo(store); await openBarPersonnel(store); await saintTropezPhoto(store); await barsVideos(store); await openBarTextes(store); await pepsiMax(store); await pepsiMaxPhoto(store); await jusPhotos(store); await pechePhoto(store); await valettePhoto(store); await blancsPhotos(store); await eauxBouteilles(store); return k; }
+  if (await store.get('_migr/caveCercle')) { await openBarCave(store); await sodasCave(store); await vinsCave(store); await eauxCave(store); await cocaPhotos(store); await cristalineGaz(store); await cristalinePlate(store); await caveBandeauBadoit(store); await barmanSousPhoto(store); await barmanPrix(store); await alcoolsBlanc(store); await vinsRouges2(store); await barCocktailsMin(store); await barCocktailsVideo(store); await barCocktailsTexte(store); await barCocktailsRetablir(store); await valettePrix(store); await minutyCave(store); await rosesCave2(store); const k = await ajoutsCave(store); await metroCave(store); await barmanHeuresSup(store); await rosesPhotos(store); await barmanVideo(store); await openBarVideo(store); await openBarPersonnel(store); await saintTropezPhoto(store); await barsVideos(store); await openBarTextes(store); await pepsiMax(store); await pepsiMaxPhoto(store); await jusPhotos(store); await pechePhoto(store); await valettePhoto(store); await blancsPhotos(store); await eauxBouteilles(store); await rougesPhotos(store); return k; }
   const now = new Date().toISOString();
   let n = 0;
   for (const d of await store.list('produits')) {
@@ -772,7 +804,7 @@ async function initCave(store) {
   await valettePrix(store);
   await minutyCave(store);
   await rosesCave2(store);
-  const k = await ajoutsCave(store); await metroCave(store); await barmanHeuresSup(store); await rosesPhotos(store); await barmanVideo(store); await openBarVideo(store); await openBarPersonnel(store); await saintTropezPhoto(store); await barsVideos(store); await openBarTextes(store); await pepsiMax(store); await pepsiMaxPhoto(store); await jusPhotos(store); await pechePhoto(store); await valettePhoto(store); await blancsPhotos(store); await eauxBouteilles(store); return n + k;
+  const k = await ajoutsCave(store); await metroCave(store); await barmanHeuresSup(store); await rosesPhotos(store); await barmanVideo(store); await openBarVideo(store); await openBarPersonnel(store); await saintTropezPhoto(store); await barsVideos(store); await openBarTextes(store); await pepsiMax(store); await pepsiMaxPhoto(store); await jusPhotos(store); await pechePhoto(store); await valettePhoto(store); await blancsPhotos(store); await eauxBouteilles(store); await rougesPhotos(store); return n + k;
 }
 
 module.exports = { texteBarCocktails, BARMAN, OPEN_BAR_VC, CAVE_SECTIONS, CAVE_PRODUITS, AJOUTS_CAVE, CAVE_GARDEES, INTRO_CAVE, ttc, initCave };
