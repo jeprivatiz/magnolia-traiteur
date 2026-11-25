@@ -60,6 +60,7 @@ test('initCave : anciens vins masqués, nos open bars gardés, nouvelles fiches 
   assert.match(docs.get('produits/eau-plate-cristaline-1-5-l').photos[0].src, /cristaline-plate-1-5-l\.webp/);
   assert.equal(docs.get('produits/eau-badoit-50-cl').statut, 'masque');
   assert.equal(docs.get('produits/chateau-minuty-prestige-rose').prixCents, 3590);
+  { const ob = docs.get('produits/open-bar-vins-et-champagnes'); if (ob) { assert.equal(ob.prixCents, 27000); assert.equal(ob.prixAffiche, undefined); assert.equal(ob.groupes[0].titre, 'Heures supplémentaires'); assert.equal(ob.liees.length, 1); } }
   assert.equal(docs.get('produits/barman').video.src, '/site/v/produits/barman.mp4');
   assert.equal(docs.get('produits/chateau-minuty-prestige-rose').photos[0].src, '/site/c/cave/rose-minuty-prestige.webp');
   assert.equal(docs.get('produits/marrenon-luberon-classique-rose').photos[0].src, '/site/c/cave/rose-marrenon-classique.webp');
