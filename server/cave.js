@@ -86,7 +86,19 @@ const CHAMPAGNE = {
 const INTRO_CAVE = ['Notre cave, livrée avec votre commande',
   'Notre champagne de récoltant André Diligent, des vins choisis pour vos buffets et vos repas, des eaux, des softs artisanaux de Paris, des jus de fruits et quelques alcools pour vos cocktails.\nChoisissez une catégorie, ajoutez vos bouteilles à votre sélection : elles arrivent fraîches avec le reste de votre commande. Tous nos prix sont TTC.'];
 
+/* prix donnés par Jean-Luc après coup (2026-11-25) : posés une fois, seulement si la fiche est encore « Sur devis » */
+const PRIX_CAVE = { 'livraison-de-glacons-sac-de-20-kg': 4900 };
+async function prixCave(store) {
+  if (await store.get('_migr/prixCave1')) return;
+  for (const [slug, prixCents] of Object.entries(PRIX_CAVE)) {
+    const x = await store.get('produits/' + slug);
+    if (x && x.prixCents == null) await store.set('produits/' + slug, { ...x, prixCents, prixTexte: null, unite: x.unite || 'sac', min: x.min || 1 });
+  }
+  await store.set('_migr/prixCave1', { at: new Date().toISOString() });
+}
+
 async function initCave(store) {
+  await prixCave(store);
   if (await store.get('_migr/caveCercle')) return 0;
   const now = new Date().toISOString();
   let n = 0;
