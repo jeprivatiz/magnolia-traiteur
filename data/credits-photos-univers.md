@@ -319,3 +319,4 @@ Photos regardées une à une (vraies photos, sans texte ni logo), licence Pexels
 - Rosés Minuty Prestige, Marrenon Classique Luberon, Batti Batti : photos de bouteilles fournies par Jean-Luc (2026-11-25), /site/c/cave/rose-*.webp.
 - Open bar vins et champagnes : vidéo Pexels 6396321 (invités qui trinquent au champagne), /site/v/produits/open-bar-champagne.mp4.
 - Barman : vidéo Pexels 40076771 (barmaid qui prépare un gin tonic), /site/v/produits/barman.mp4.
+- Vidéos Pexels des bars : Bar à shots 9003039, Open bar champagne 7608907, Sangria 5929447, Open bar alcools forts 14058816 (/site/v/produits/).
