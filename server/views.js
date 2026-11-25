@@ -179,7 +179,7 @@ const MENU_TABLE = `<span class="cm-scene" aria-hidden="true"><span class="cm-om
    <nom>.mp4 (H.264, 4:5, sans son) et <nom>.jpg (image d'attente). Chargées et jouées seulement quand la vignette est à l'écran
    (public/js/site.js, « vignettes vidéo ») ; image fixe si l'utilisateur a demandé moins d'animations. Une vignette sans fichier garde sa photo. */
 const VIDEOS_ACCUEIL = {
-  'cocktails-buffets': 'cocktail', boissons: 'boissons', 'traiteur-vegetarien-vegan': 'vegetarien', 'animations-salees': 'burgers',
+  'cocktails-buffets': 'cocktail', boissons: 'boissons', 'traiteur-vegetarien-vegan': 'vegetarien', 'animations-salees': 'barbecue',
   personnel: 'personnel', indispensables: 'photobooth', 'petits-dejeuners': 'petit-dejeuner', douceurs: 'churros',
   'musique-animations': 'dj', lieux: 'peniche', 'grand-large': 'huitres', 'coffrets-plateaux': 'coffrets',
 };

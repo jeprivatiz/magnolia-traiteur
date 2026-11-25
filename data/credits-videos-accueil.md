@@ -9,7 +9,7 @@ Branchement : `VIDEOS_ACCUEIL` dans `server/views.js`, lecture dans `public/js/s
 | Cocktails & buffet français | cocktail | PHOTO https://www.pexels.com/photo/31970812/ (Appetizing Buffet Table with Savory Snacks : buffet nappé, rehausseur, mini pièces salées), animée en zoom lent aller-retour 10 s (aucune vidéo libre de ce genre trouvée) | Newman Photographs |
 | Boissons | boissons | https://www.pexels.com/video/7219888/ (Pouring a Cocktail Drink on a Crystal Glass) | ArtHouse Studio |
 | Traiteur végétarien et vegan | vegetarien | https://www.pexels.com/video/4959964/ (Person Making Salad) | ArtHouse Studio |
-| Animations salées | burgers | https://www.pexels.com/video/37296040/ (Close-up of Burgers Cooking on a Griddle) | Mihman Duğanlı |
+| Animations salées | barbecue | https://www.pexels.com/video/32546598/ (Sizzling Meat on Barbecue Grill with Flames), 25/11/2026 ; remplace les steaks hachés sur plaque (« trop plats, mauvaise qualité ») | Pexels |
 | Personnel de réception | personnel | https://www.pexels.com/video/7608908/ (A Bartender Serving Champagne) | Pavel Danilyuk |
 | Les indispensables | photobooth | https://www.pexels.com/video/6225145/ (A Group of Friends Using Photo Props) | RDNE Stock project |
 | Petits-déjeuners | petit-dejeuner | https://www.pexels.com/video/6466347/ (Maid Hands Serving Coffee) | cottonbro studio |
