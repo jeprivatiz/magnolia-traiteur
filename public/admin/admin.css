@@ -1570,3 +1570,4 @@ input.verrou { background: var(--doux); color: var(--gris); cursor: not-allowed;
 .fcat-row{display:flex;flex-wrap:wrap;gap:12px;margin:8px 0}.fcat-row label{display:flex;flex-direction:column;gap:4px;font-weight:600;font-size:13px}
 .fcat-row select{min-width:240px;min-height:40px}.fcat-pct{display:flex;align-items:center;gap:6px;font-weight:400}.fcat-pct input{width:70px}
 @media (max-width:860px){.fcat-row label,.fcat-row select{width:100%;min-width:0}}
+.vuebox select { font-weight: 600; background: #fffaf0; border-color: var(--or); }

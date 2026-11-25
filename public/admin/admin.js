@@ -1974,7 +1974,7 @@
           <div id="sous"></div><button type="button" class="btn ghost sm" data-addsous>+ Ajouter une spécialité</button></div></div></form></section>
       ${r === 'lieux' ? `<section class="box"><h2>Les lieux de réception <small class="muted">(${nbLieux} visibles sur le site${lieuxL.length > nbLieux ? `, ${lieuxL.length - nbLieux} masqué${lieuxL.length - nbLieux > 1 ? 's' : ''}` : ''})</small></h2><p class="muted">Les lieux ne sont pas des produits : chaque lieu a sa propre fiche (photos, capacité, type de lieu, événements…) dans le menu <b>Lieux</b>.</p><p><a class="btn" href="#/lieux">Gérer les lieux</a></p></section>` : ''}
       <section class="box pliable prodbox" data-pli="prods"${r === 'lieux' ? ' hidden' : ''}><div class="plihead"><h2>Produits à l’unité <small class="muted">(${liste.length})</small></h2><button type="button" class="btn ghost sm plibtn" data-plibtn></button></div><div class="plibody">
-      <div class="row sousfiltre"><label class="pq">Rechercher une prestation<input type="search" data-pq placeholder="Tapez un nom : nems, mafé, paëlla…" autocomplete="off"></label>${(rub.sous || []).length ? `<label>Afficher<select data-sousf><option value="*">Toutes les prestations (${liste.length})</option>${[...rub.sous].sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0)).map(x => `<option value="${esc(x.slug)}">${esc(x.nom)} (${liste.filter(p => p.sous === x.slug).length})</option>`).join('')}<option value="">Sans spécialité (${liste.filter(p => !(rub.sous || []).some(x => x.slug === p.sous)).length})</option></select></label>` : ''}<label>Classement<select data-tri><option value="">Ordre du site</option><option value="az">Ordre alphabétique (A → Z)</option><option value="za">Ordre alphabétique (Z → A)</option><option value="p+">Prix croissant</option><option value="p-">Prix décroissant</option></select></label><label>Visibilité<select data-vis><option value="">Tous les produits (${liste.length})</option><option value="visible">Produits visibles (${liste.filter(p => p.statut !== 'masque').length})</option><option value="masque">Produits masqués (${liste.filter(p => p.statut === 'masque').length})</option></select></label><span class="muted sm" data-pqn></span></div>
+      <div class="row sousfiltre"><label class="pq">Rechercher une prestation<input type="search" data-pq placeholder="Tapez un nom : nems, mafé, paëlla…" autocomplete="off"></label><label class="vuebox">Présentation<select data-vue><option value="cartes">▦ En cartes (Kanban)</option><option value="liste">☰ En liste (prix, marge, fournisseur)</option></select></label>${(rub.sous || []).length ? `<label>Afficher<select data-sousf><option value="*">Toutes les prestations (${liste.length})</option>${[...rub.sous].sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0)).map(x => `<option value="${esc(x.slug)}">${esc(x.nom)} (${liste.filter(p => p.sous === x.slug).length})</option>`).join('')}<option value="">Sans spécialité (${liste.filter(p => !(rub.sous || []).some(x => x.slug === p.sous)).length})</option></select></label>` : ''}<label>Classement<select data-tri><option value="">Ordre du site</option><option value="az">Ordre alphabétique (A → Z)</option><option value="za">Ordre alphabétique (Z → A)</option><option value="p+">Prix croissant</option><option value="p-">Prix décroissant</option></select></label><label>Visibilité<select data-vis><option value="">Tous les produits (${liste.length})</option><option value="visible">Produits visibles (${liste.filter(p => p.statut !== 'masque').length})</option><option value="masque">Produits masqués (${liste.filter(p => p.statut === 'masque').length})</option></select></label><span class="muted sm" data-pqn></span></div>
       <div class="plist" id="plist">${liste.map(prow).join('') || '<p class="muted">Aucune prestation dans cette rubrique.</p>'}</div></div></section></div></div>`);
   }
   /* Pavés vert foncé à droite du titre « Catalogue » : chacun est un lien (même classe .nbcat pour les suivants) */
@@ -2252,10 +2252,10 @@
         toast('✓ Enregistré dans la fiche.');
       } catch (err) { b.disabled = false; toast(err.message, true); }
     };
-    $('#qres').addEventListener('input', e => { const r = e.target.closest('.qrow'); if (r && e.target.matches('[data-qv], [data-qa], [data-qfnew]')) qMaj(r); });
-    $('#qres').addEventListener('change', e => { const s = e.target.closest('[data-qf]'); if (!s) return; const r = s.closest('.qrow'), n = $('[data-qfnew]', r); n.hidden = s.value !== '__nouveau'; if (!n.hidden) n.focus(); qMaj(r); });
-    $('#qres').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.closest('.qedit')) { e.preventDefault(); qEnreg(e.target.closest('.qrow')); } });
-    $('#qres').addEventListener('click', e => { const b = e.target.closest('[data-qok]'); if (b) qEnreg(b.closest('.qrow')); });
+    $('.content').addEventListener('input', e => { const r = e.target.closest('.qrow'); if (r && e.target.matches('[data-qv], [data-qa], [data-qfnew]')) qMaj(r); });
+    $('.content').addEventListener('change', e => { const s = e.target.closest('[data-qf]'); if (!s) return; const r = s.closest('.qrow'), n = $('[data-qfnew]', r); n.hidden = s.value !== '__nouveau'; if (!n.hidden) n.focus(); qMaj(r); });
+    $('.content').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.closest('.qedit')) { e.preventDefault(); qEnreg(e.target.closest('.qrow')); } });
+    $('.content').addEventListener('click', e => { const b = e.target.closest('[data-qok]'); if (b) qEnreg(b.closest('.qrow')); });
     const chercher = () => {
       const brut = $('[data-q]').value, q = sansAccQ(brut).trim();
       try { sessionStorage.setItem('mg-trouve', brut); } catch { /* */ }
@@ -2314,7 +2314,10 @@
       if (tri === 'az') L.sort(nom); else if (tri === 'za') L.sort((a, b) => nom(b, a)); else if (!tri) L.sort(ordreSite);
       else if (tri === 'p+' || tri === 'p-') L.sort((a, b) => (a.prixCents == null) - (b.prixCents == null) || (tri === 'p-' ? -1 : 1) * ((a.prixCents || 0) - (b.prixCents || 0)) || nom(a, b));
       L = masquesALaFin(L);
-      $('#plist').innerHTML = L.map(prow).join('') || '<p class="muted">Aucune prestation ne correspond.</p>';
+      /* présentation en cartes (Kanban) ou en liste avec fournisseur, vente, achat et marge modifiables (Jean-Luc 2026-11-25) */
+      const enListe = $('[data-vue]')?.value === 'liste';
+      $('#plist').className = enListe ? 'qlist' : 'plist';
+      $('#plist').innerHTML = L.map(enListe ? qrow : prow).join('') || '<p class="muted">Aucune prestation ne correspond.</p>';
       $('[data-pqn]').textContent = q || vis ? `${L.length} résultat${L.length > 1 ? 's' : ''}` : '';
     };
     $('[data-sousf]')?.addEventListener('change', filtrer);
@@ -2327,7 +2330,10 @@
       btn.addEventListener('click', () => { const f = !b.classList.contains('ferme'); pose(f); memo(k, f ? '1' : '0'); });
       $('.plihead h2, .plihead h3', b).addEventListener('click', () => btn.click());
     });
-    const triM = memo('tri-prods'); if (triM) { $('[data-tri]').value = triM; filtrer(); }
+    const triM = memo('tri-prods'); if (triM) $('[data-tri]').value = triM;
+    if (memo('vue-prods') === 'liste') $('[data-vue]').value = 'liste';
+    if (triM || memo('vue-prods') === 'liste') filtrer();
+    $('[data-vue]').addEventListener('change', e => { memo('vue-prods', e.target.value); filtrer(); });
     $('[data-tri]').addEventListener('change', e => { memo('tri-prods', e.target.value); filtrer(); });
     $('[data-vis]').addEventListener('change', filtrer);
     $('[data-pq]').addEventListener('input', filtrer);
