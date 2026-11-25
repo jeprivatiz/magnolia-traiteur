@@ -179,9 +179,9 @@ async function openBarCave(store) {
    Prix : environ 4,50 € HT chez les traiteurs → TTC (10 %) + 10 % = 5,50 €. */
 const SODAS_RETIRES = ['paris-cola-33-cl', 'paris-cola-zero-33-cl', 'parismonade-33-cl', 'parismonade-75-cl', 'paris-cola-75-cl'];
 const SODAS_COCA = [
-  { slug: 'coca-cola-1-5-l', titre: 'Coca-Cola (1,5 L)', ordre: 14, photo: [px(35020136), 'Bouteille de Coca-Cola'],
+  { slug: 'coca-cola-1-5-l', titre: 'Coca-Cola (1,5 L)', ordre: 14, photo: ['/site/c/cave/coca-cola-1-5-l.webp', 'Bouteille de Coca-Cola 1,5 L'],
     extrait: 'Coca-Cola original, grande bouteille de 1,5 litre à partager.', description: ['Coca-Cola original, grande bouteille de 1,5 litre à partager.', FRAIS] },
-  { slug: 'coca-cola-zero-1-5-l', titre: 'Coca-Cola Zéro (1,5 L)', ordre: 14.5, photo: [px(19504042), 'Coca-Cola Zéro Sucre bien frais'],
+  { slug: 'coca-cola-zero-1-5-l', titre: 'Coca-Cola Zéro (1,5 L)', ordre: 14.5, photo: ['/site/c/cave/coca-cola-zero-1-5-l.webp', 'Bouteille de Coca-Cola Zéro 1,5 L'],
     extrait: 'Coca-Cola Zéro sucre, grande bouteille de 1,5 litre à partager.', description: ['Coca-Cola Zéro sucre, grande bouteille de 1,5 litre à partager.', FRAIS] },
 ];
 async function sodasCave(store) {
@@ -254,9 +254,19 @@ async function eauxCave(store) {
   await store.set('_migr/caveEaux1', { at: new Date().toISOString() });
 }
 
+/* Photos des Coca-Cola 1,5 L fournies par Jean-Luc (2026-11-25) : posées une fois sur les deux fiches */
+async function cocaPhotos(store) {
+  if (await store.get('_migr/caveCocaPhotos1')) return;
+  for (const x of SODAS_COCA) {
+    const d = await store.get('produits/' + x.slug);
+    if (d) await store.set('produits/' + x.slug, { ...d, photos: [{ src: x.photo[0], alt: x.photo[1] }] });
+  }
+  await store.set('_migr/caveCocaPhotos1', { at: new Date().toISOString() });
+}
+
 async function initCave(store) {
   await prixCave(store);
-  if (await store.get('_migr/caveCercle')) { await openBarCave(store); await sodasCave(store); await vinsCave(store); await eauxCave(store); return ajoutsCave(store); }
+  if (await store.get('_migr/caveCercle')) { await openBarCave(store); await sodasCave(store); await vinsCave(store); await eauxCave(store); await cocaPhotos(store); return ajoutsCave(store); }
   const now = new Date().toISOString();
   let n = 0;
   for (const d of await store.list('produits')) {
@@ -297,6 +307,7 @@ async function initCave(store) {
   await sodasCave(store);
   await vinsCave(store);
   await eauxCave(store);
+  await cocaPhotos(store);
   return n + await ajoutsCave(store);
 }
 
