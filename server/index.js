@@ -2071,7 +2071,7 @@ async function createApp(opts = {}) {
     const vis = await visibles(req), voit = (coll, d) => !vis || vis[coll].has(d.id);
     if (q === 'catalogue') {
       const c = await cat.get(); const rubs = new Map(c.rubriques.map(r => [r.slug, r.nom]));
-      rows = [['Code (ne pas modifier)', 'Prestation', 'Rubrique', 'Prix TTC (€)', 'Par', 'Minimum', 'Coût de revient TTC (€)', 'TVA %', 'Statut (visible / masque)', 'Maison (oui / non)'],
+      rows = [['Code (ne pas modifier)', 'Prestation', 'Rubrique', 'Prix de vente TTC (€)', 'Par', 'Minimum', 'Prix d’achat TTC (€)', 'TVA %', 'Statut (visible / masque)', 'Maison (oui / non)'],
         ...c.produits.map(p => [p.slug, p.titre, rubs.get(p.rubrique) || p.rubrique, eurCsv(p.prixCents), p.unite || '', p.min || '', eurCsv(p.coutCents), p.tva ?? '', p.statut || 'visible', p.maison ? 'oui' : 'non'])];
     } else if (q === 'demandes') {
       rows = [['Réf.', 'Reçue le', 'Type', 'Nom', 'Société', 'E-mail', 'Téléphone', 'Événement', 'Date', 'Invités', 'Code postal', 'Ville', 'Estimé TTC (€)', 'Étape'],
@@ -2091,7 +2091,7 @@ async function createApp(opts = {}) {
         ...docs.flatMap(f => FAC.libelles(f).map(r => [r.date, eurCsv(r.montantCents), r.moyen, f.numero, f.client?.nom, f.devisNumero, [r.libelle, r.note].filter(Boolean).join(' · '), r.par])).sort((a, b) => String(a[0]).localeCompare(String(b[0])))];
     } else if (q === 'devis') {
       const docs = (await store.list(q)).map(d => d.data).filter(d => voit('devis', d));
-      rows = [[q === 'devis' ? 'N° devis' : 'N° facture', 'Client', 'Date', 'Total TTC (€)', 'Total HT (€)', 'Marge (€)', 'Statut'],
+      rows = [[q === 'devis' ? 'N° devis' : 'N° facture', 'Client', 'Date', 'Total TTC (€)', 'Total HT (€)', 'Marge HT (€, lignes avec prix d’achat)', 'Statut'],
         ...docs.map(d => { const t = totaux(d); return [d.numero, d.clientNom || d.client?.nom, String(d.envoyeLe || d.date || d.createdAt || '').slice(0, 10), eurCsv(q === 'factures' ? d.totalCents ?? t.ttcCents : t.ttcCents), eurCsv(t.htCents), eurCsv(t.margeCents), q === 'factures' ? (d.payee ? 'payée' : 'à encaisser') : d.statut]; })];
     } else return res.status(404).json({ error: 'Export inconnu.' });
     audit(req.ctx, 'export Excel', '', q);
