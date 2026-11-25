@@ -60,10 +60,12 @@ test('initCave : anciens vins masqués, nos open bars gardés, nouvelles fiches 
   assert.match(docs.get('produits/eau-plate-cristaline-1-5-l').photos[0].src, /cristaline-plate-1-5-l\.webp/);
   assert.equal(docs.get('produits/eau-badoit-50-cl').statut, 'masque');
   assert.equal(docs.get('produits/chateau-minuty-prestige-rose').prixCents, 3590);
+  assert.equal(docs.get('produits/chateau-minuty-prestige-rose').coutCents, 1548);
+  assert.equal(docs.get('produits/chateau-minuty-prestige-rose').fournisseurs[0], 'Metro');
   assert.equal(docs.get('produits/marrenon-luberon-classique-rose').prixCents, 1908);
-  assert.equal(docs.get('produits/marrenon-luberon-classique-rose').coutCents, 549);
+  assert.equal(docs.get('produits/marrenon-luberon-classique-rose').coutCents, 659);
   assert.equal(docs.get('produits/rose-saint-tropez-cotes-de-provence').prixCents, 1950);
-  assert.equal(docs.get('produits/rose-saint-tropez-cotes-de-provence').coutCents, 569);
+  assert.equal(docs.get('produits/rose-saint-tropez-cotes-de-provence').coutCents, 683);
   assert.equal(docs.get('produits/bar-a-cocktails-4-h-au-cocktail').min, 30);
   assert.equal(docs.get('produits/bar-a-cocktails-4-h-au-cocktail').video.src, '/site/v/produits/bar-a-cocktails.mp4');
   assert.equal(docs.get('produits/nuiton-beaunoy-hautes-cotes-de-beaune-grande-cuvee-rouge').prixCents, 2400);
