@@ -991,8 +991,8 @@
       ${lock ? '' : `<section class="box ia-modif"><h2>✨ Demander à l’IA de modifier ce devis</h2><p class="muted sm">Écrivez ou dictez ce qu’il faut changer, par exemple : « Supprime le DJ et mets une contorsionniste à la place », « passe à 80 invités », « ajoute 2 serveurs pendant 5 h ». L’IA vous montre les changements avant de les appliquer. Vous pouvez toujours modifier les lignes vous-même.</p>
         <textarea id="iam-t" rows="2" placeholder="Ex. : supprime le DJ et mets une contorsionniste à la place"></textarea><div class="row"><button type="button" class="btn aq-btn" data-iam>✨ Proposer la modification</button><button type="button" class="btn ghost sm" data-iam-mic>🎤 Dicter</button><span id="iam-msg" class="muted sm"></span></div><div id="iam-res"></div></section>`}
       <section class="box"><div class="bh"><h2>Lignes du devis</h2><div class="row"><select data-addprod class="wide"><option value="">+ Ajouter une prestation du catalogue…</option>${cat.filter(p => p.statut !== 'masque').sort((a, b) => a.titre.localeCompare(b.titre)).map(p => `<option value="${esc(p.slug)}">${esc(titreTexte(p.titre))} · ${p.prixCents == null ? 'sur devis' : euros(p.prixCents)}</option>`).join('')}${lieuxD.length ? `<optgroup label="Lieux à privatiser (3 photos sur le devis)">${lieuxD.sort((a, b) => a.nom.localeCompare(b.nom)).map(l => `<option value="lieu-${esc(l.slug)}">📍 ${esc(l.nom)}${l.capacite ? ' · ' + l.capacite + ' pers.' : ''}${l.statut === 'masque' ? ' (masqué)' : ''}</option>`).join('')}</optgroup>` : ''}</select><button type="button" class="btn ghost sm" data-addline>+ Ligne libre</button><button type="button" class="btn ghost sm" data-addtitle>+ Titre</button></div></div>
-        <div class="table"><table class="lines"><thead><tr><th></th><th>Désignation</th><th class="n">Qté</th><th>Unité</th><th class="n">PU TTC</th><th class="n" title="Prix d’achat HT à l’unité — interne, jamais montré au client">Achat HT 🔒</th><th>TVA</th><th class="n">Total TTC</th><th></th></tr></thead><tbody id="lines"></tbody></table></div>
-        <div class="totbox"><div class="g2"><label>Remise TTC (€)<input name="remise" value="${fromCents(d.remiseCents || 0)}" inputmode="decimal"></label></div><dl id="totaux"></dl></div><div class="mg-box" id="marge"></div></section>
+        <div class="table"><table class="lines"><thead><tr><th></th><th>Désignation</th><th class="n">Qté</th><th>Unité</th><th class="n">PU TTC</th><th class="n" title="Réduction sur cette ligne, en % — le client voit le prix barré et le prix remisé">Remise</th><th class="n" title="Prix d’achat HT à l’unité — interne, jamais montré au client">Achat HT 🔒</th><th>TVA</th><th class="n">Total TTC</th><th></th></tr></thead><tbody id="lines"></tbody></table></div>
+        <div class="totbox"><div class="g2"><label>Remise sur le total du devis<span class="remg"><input name="remise" value="${d.remisePct ? String(d.remisePct).replace('.', ',') : fromCents(d.remiseCents || 0)}" inputmode="decimal" placeholder="0"><select name="remiseMode" aria-label="Remise en euros ou en pourcentage"><option value="eur">€ TTC</option><option value="pct"${d.remisePct ? ' selected' : ''}>%</option></select></span><small class="muted">Pour une remise sur un seul produit : colonne « Remise » de la ligne. La marge 💰 ci-dessous se met à jour pendant que vous tapez. 🔒 Le client voit la remise, jamais la marge.</small></label></div><dl id="totaux"></dl></div><div class="mg-box" id="marge"></div></section>
       <section class="box"><label>Conditions particulières<textarea name="conditions" rows="2">${esc(d.conditions || '')}</textarea></label></section>
       <div class="actions sticky"><button class="btn" type="submit">Enregistrer</button><button class="btn ghost" type="button" data-voir>👁 Voir le devis</button><span class="muted" id="dirty"></span></div>
       </form>
@@ -1040,26 +1040,39 @@
       if (p && p.coutCents != null && (p.prixCents == null || l.puCents === p.prixCents)) l.coutCents = p.coutCents;
     }
     const body = $('#lines');
+    /* remise sur le total : en € TTC, ou en % du sous-total (recalculée quand les lignes changent) */
+    const nombre = v => Math.max(0, parseFloat(String(v || '').replace(',', '.')) || 0);
+    const remiseCts = () => {
+      if (form.remiseMode.value !== 'pct') return toCents(form.remise.value) || 0;
+      const brut = lignes.filter(l => l.type !== 'titre').reduce((s2, l) => s2 + Math.round((l.puCents || 0) * (+l.qte || 0)), 0);
+      return Math.round(brut * Math.min(100, nombre(form.remise.value)) / 100);
+    };
     const draw = () => {
       body.innerHTML = lignes.map((l, i) => l.type === 'titre'
-        ? `<tr class="t" data-i="${i}"><td class="h">⋮⋮</td><td colspan="7"><input data-f="designation" value="${esc(l.designation)}" placeholder="Titre de section"></td><td><button type="button" class="x" data-del>×</button></td></tr>`
+        ? `<tr class="t" data-i="${i}"><td class="h">⋮⋮</td><td colspan="8"><input data-f="designation" value="${esc(l.designation)}" placeholder="Titre de section"></td><td><button type="button" class="x" data-del>×</button></td></tr>`
         : `<tr data-i="${i}" class="${l.coutCents && l.puCents < l.coutCents ? 'neg' : ''}"><td class="h" title="Déplacer">⋮⋮</td><td><input data-f="designation" value="${esc(l.designation)}"><input data-f="detail" class="sub" value="${esc(l.detail || '')}" placeholder="Détail (facultatif)"></td>
            <td><input data-f="qte" class="num" value="${esc(l.qte)}" inputmode="decimal"></td><td><select data-f="unite">${[...new Set([l.unite, ...UNITES])].map(u => `<option${u === l.unite ? ' selected' : ''}>${esc(u || '')}</option>`).join('')}</select></td>
-           <td><input data-f="puCents" class="num" value="${fromCents(l.puCents)}" inputmode="decimal"></td><td><input data-f="coutCents" class="num${l.coutCents == null && +l.qte ? ' manq' : ''}" value="${fromCents(achatHt(l.coutCents, l.tva ?? 10))}" inputmode="decimal" placeholder="manquant" title="Prix d’achat HT à l’unité"></td>
-           <td><select data-f="tva">${[5.5, 10, 20].map(t => `<option value="${t}"${+l.tva === t ? ' selected' : ''}>${String(t).replace('.', ',')} %</option>`).join('')}</select></td><td class="n">${euros(Math.round((l.puCents || 0) * (+l.qte || 0)))}</td><td><button type="button" class="x" data-del aria-label="Supprimer">×</button></td></tr>`).join('') || '<tr><td colspan="9" class="muted">Aucune ligne : ajoutez une prestation du catalogue ou une ligne libre.</td></tr>';
-      const t = tot({ lignes, remiseCents: toCents(form.remise.value) || 0 });
+           <td><input data-f="puCents" class="num" value="${fromCents(l.puBaseCents ?? l.puCents)}" inputmode="decimal"></td><td class="rem"><span class="remi"><input data-f="remisePct" class="num pct" value="${l.remisePct ? String(l.remisePct).replace('.', ',') : ''}" placeholder="0" inputmode="decimal" aria-label="Remise en %"> %</span>${l.remisePct ? `<small>= ${euros(l.puCents)}</small>` : ''}${l.coutCents != null && l.puCents ? `<small class="mgl ${l.puCents > l.coutCents ? 'pos' : 'neg'}" title="Marge de cette ligne (interne)">marge ${String(Math.round(1000 * (l.puCents - l.coutCents) / l.puCents) / 10).replace('.', ',')} %</small>` : ''}</td><td><input data-f="coutCents" class="num${l.coutCents == null && +l.qte ? ' manq' : ''}" value="${fromCents(achatHt(l.coutCents, l.tva ?? 10))}" inputmode="decimal" placeholder="manquant" title="Prix d’achat HT à l’unité"></td>
+           <td><select data-f="tva">${[5.5, 10, 20].map(t => `<option value="${t}"${+l.tva === t ? ' selected' : ''}>${String(t).replace('.', ',')} %</option>`).join('')}</select></td><td class="n">${euros(Math.round((l.puCents || 0) * (+l.qte || 0)))}</td><td><button type="button" class="x" data-del aria-label="Supprimer">×</button></td></tr>`).join('') || '<tr><td colspan="10" class="muted">Aucune ligne : ajoutez une prestation du catalogue ou une ligne libre.</td></tr>';
+      const t = tot({ lignes, remiseCents: remiseCts() });
       $('#marge').innerHTML = margeHtml(t);
-      $('#totaux').innerHTML = `${t.remise ? `<div><dt>Sous-total</dt><dd>${euros(t.brut)}</dd></div><div><dt>Remise</dt><dd>− ${euros(t.remise)}</dd></div>` : ''}${Object.entries(t.tva).map(([k, v]) => `<div class="sm"><dt>dont TVA ${String(k).replace('.', ',')} %</dt><dd>${euros(v)}</dd></div>`).join('')}<div class="sm"><dt>Total HT</dt><dd>${euros(t.ht)}</dd></div><div class="big"><dt>Total TTC</dt><dd>${euros(t.ttc)}</dd></div>${(() => { const a = regleAcompte(t.ttc, { acomptePct: form.acomptePct.value, evenement: { date: form.ev_date.value }, signature: d.signature }, cache.R?.tarifs); return `<div class="sm"><dt>${a.total ? `À payer à la signature (totalité${a.raison === 'proche' ? ', événement dans moins de ' + a.delai + ' jours' : ''})` : `Acompte ${a.pct} %`}</dt><dd>${euros(a.cents)}</dd></div>`; })()}`;
+      $('#totaux').innerHTML = `${t.remise ? `<div><dt>Sous-total</dt><dd>${euros(t.brut)}</dd></div><div><dt>Remise${form.remiseMode.value === 'pct' ? ' ' + String(nombre(form.remise.value)).replace('.', ',') + ' %' : ''}</dt><dd>− ${euros(t.remise)}</dd></div>` : ''}${Object.entries(t.tva).map(([k, v]) => `<div class="sm"><dt>dont TVA ${String(k).replace('.', ',')} %</dt><dd>${euros(v)}</dd></div>`).join('')}<div class="sm"><dt>Total HT</dt><dd>${euros(t.ht)}</dd></div><div class="big"><dt>Total TTC</dt><dd>${euros(t.ttc)}</dd></div>${(() => { const a = regleAcompte(t.ttc, { acomptePct: form.acomptePct.value, evenement: { date: form.ev_date.value }, signature: d.signature }, cache.R?.tarifs); return `<div class="sm"><dt>${a.total ? `À payer à la signature (totalité${a.raison === 'proche' ? ', événement dans moins de ' + a.delai + ' jours' : ''})` : `Acompte ${a.pct} %`}</dt><dd>${euros(a.cents)}</dd></div>`; })()}`;
     };
     draw();
     const dirty = () => { $('#dirty').textContent = 'Modifications non enregistrées'; };
     body.addEventListener('input', e => {
       const tr = e.target.closest('[data-i]'); const l = lignes[+tr.dataset.i]; const f = e.target.dataset.f;
       if (!f) return;
-      l[f] = f === 'coutCents' ? achatTtc(toCents(e.target.value), l.tva ?? 10) : f === 'puCents' ? toCents(e.target.value) : f === 'tva' ? +e.target.value : f === 'qte' ? parseFloat(String(e.target.value).replace(',', '.')) || 0 : e.target.value;
-      const cell = tr.children[7]; if (cell && l.type !== 'titre') cell.textContent = euros(Math.round((l.puCents || 0) * (+l.qte || 0)));
+      /* remise sur une ligne : le prix tapé reste le prix de base (puBaseCents), puCents = prix remisé utilisé partout (totaux, marge, factures) */
+      if (f === 'remisePct') {
+        const pc = Math.min(100, nombre(e.target.value));
+        if (pc) { if (l.puBaseCents == null) l.puBaseCents = l.puCents || 0; l.remisePct = pc; l.puCents = Math.round(l.puBaseCents * (1 - pc / 100)); }
+        else { if (l.puBaseCents != null) l.puCents = l.puBaseCents; delete l.puBaseCents; delete l.remisePct; }
+      } else if (f === 'puCents' && l.remisePct) { l.puBaseCents = toCents(e.target.value) || 0; l.puCents = Math.round(l.puBaseCents * (1 - l.remisePct / 100)); }
+      else l[f] = f === 'coutCents' ? achatTtc(toCents(e.target.value), l.tva ?? 10) : f === 'puCents' ? toCents(e.target.value) : f === 'tva' ? +e.target.value : f === 'qte' ? parseFloat(String(e.target.value).replace(',', '.')) || 0 : e.target.value;
+      const cell = tr.children[8]; if (cell && l.type !== 'titre') cell.textContent = euros(Math.round((l.puCents || 0) * (+l.qte || 0)));
       tr.classList.toggle('neg', !!(l.coutCents && l.puCents < l.coutCents));
-      const t = tot({ lignes, remiseCents: toCents(form.remise.value) || 0 }); draw.totOnly ? 0 : 0; $('#totaux').innerHTML = ''; draw(); dirty();
+      const t = tot({ lignes, remiseCents: remiseCts() }); draw.totOnly ? 0 : 0; $('#totaux').innerHTML = ''; draw(); dirty();
       const again = $(`[data-i="${tr.dataset.i}"] [data-f="${f}"]`); if (again && again.tagName === 'INPUT') { again.focus(); again.setSelectionRange(again.value.length, again.value.length); }
       void t;
     });
@@ -1075,6 +1088,7 @@
       from = null; draw();
     });
     form.remise.addEventListener('input', () => { draw(); dirty(); });
+    form.remiseMode.addEventListener('change', () => { draw(); dirty(); form.remise.focus(); });
     form.acomptePct.addEventListener('change', draw);
     form.ev_date.addEventListener('change', draw);
     $('[data-addline]').addEventListener('click', () => { lignes.push({ designation: 'Nouvelle ligne', qte: 1, unite: 'forfait', puCents: 0, coutCents: null, tva: 10 }); draw(); dirty(); });
@@ -1095,13 +1109,13 @@
         const consigne = iamT.value.trim(); if (consigne.length < 3) { iamMsg.innerHTML = '<span class="err">Écrivez d’abord ce que l’IA doit changer.</span>'; return; }
         const b = $('[data-iam]'); b.disabled = true; iamMsg.textContent = 'L’IA prépare la modification… (quelques secondes)'; iamRes.innerHTML = '';
         try {
-          const r = await api(A + '/ia/modifier-devis', { method: 'POST', body: { consigne, lignes, remiseCents: toCents(form.remise.value) || 0, evenement: { type: form.ev_type.value, date: form.ev_date.value, invites: +form.ev_invites.value || null, lieu: form.ev_lieu.value } } });
+          const r = await api(A + '/ia/modifier-devis', { method: 'POST', body: { consigne, lignes, remiseCents: remiseCts(), evenement: { type: form.ev_type.value, date: form.ev_date.value, invites: +form.ev_invites.value || null, lieu: form.ev_lieu.value } } });
           iamMsg.textContent = '';
-          const avant = tot({ lignes, remiseCents: toCents(form.remise.value) || 0 }).ttc, apres = tot({ lignes: r.lignes, remiseCents: r.remiseCents }).ttc;
+          const avant = tot({ lignes, remiseCents: remiseCts() }).ttc, apres = tot({ lignes: r.lignes, remiseCents: r.remiseCents }).ttc;
           const ico = { ajoute: '＋', retire: '−', modifie: '✎' };
           iamRes.innerHTML = `<div class="iam-prop">${r.explication ? `<p><b>${esc(r.explication)}</b></p>` : ''}${r.changements.length ? `<ul class="iam-ch">${r.changements.map(x => `<li class="c-${x.type}"><span>${ico[x.type]}</span>${esc(x.texte)}</li>`).join('')}</ul><p>Total TTC : ${euros(avant)} → <b>${euros(apres)}</b></p><div class="row"><button type="button" class="btn" data-iam-ok>✓ Appliquer</button><button type="button" class="btn ghost" data-iam-no>Annuler</button></div>` : '<p class="muted">Aucun changement proposé. Reformulez votre demande.</p>'}</div>`;
           $('[data-iam-ok]')?.addEventListener('click', () => {
-            lignes = r.lignes; form.remise.value = fromCents(r.remiseCents || 0);
+            lignes = r.lignes; if (r.remiseCents !== remiseCts()) { form.remiseMode.value = 'eur'; form.remise.value = fromCents(r.remiseCents || 0); }
             if (r.invites) form.ev_invites.value = r.invites;
             iamRes.innerHTML = ''; iamT.value = ''; draw(); dirty();
             toast('Modification appliquée : vérifiez les lignes, puis cliquez sur Enregistrer.');
@@ -1116,7 +1130,7 @@
     const enregistrer = async () => {
       const f = Object.fromEntries(new FormData(form));
       const cl = cache.clients.find(c => c.id === f.clientId);
-      const next = { ...d, clientId: f.clientId || null, clientNom: cl?.nom || '', evenement: { type: f.ev_type, date: f.ev_date, invites: +f.ev_invites || null, lieu: f.ev_lieu }, validiteJusquau: f.validiteJusquau, titre: String(f.titre || '').trim(), acomptePct: f.acomptePct === '' ? null : +f.acomptePct, commercial: (() => { const x = [...(cache.R?.alertes?.personnes || []), d.commercial || {}].find(p => p.nom && p.nom === f.commercial); return x ? { nom: x.nom, tel: x.tel || '', email: x.email || '' } : null; })(), lienPaiement: f.lienPaiement, intro: f.intro, conditions: f.conditions, remiseCents: toCents(f.remise) || 0, lignes };
+      const next = { ...d, clientId: f.clientId || null, clientNom: cl?.nom || '', evenement: { type: f.ev_type, date: f.ev_date, invites: +f.ev_invites || null, lieu: f.ev_lieu }, validiteJusquau: f.validiteJusquau, titre: String(f.titre || '').trim(), acomptePct: f.acomptePct === '' ? null : +f.acomptePct, commercial: (() => { const x = [...(cache.R?.alertes?.personnes || []), d.commercial || {}].find(p => p.nom && p.nom === f.commercial); return x ? { nom: x.nom, tel: x.tel || '', email: x.email || '' } : null; })(), lienPaiement: f.lienPaiement, intro: f.intro, conditions: f.conditions, remiseCents: remiseCts(), remisePct: form.remiseMode.value === 'pct' && nombre(f.remise) ? Math.min(100, nombre(f.remise)) : null, lignes };
       await api(`${A}/devis/${id}`, { method: 'PUT', body: next }); cache.devis = next; $('#dirty').textContent = '';
     };
     form.addEventListener('submit', async e => {

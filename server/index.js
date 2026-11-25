@@ -1451,7 +1451,7 @@ async function createApp(opts = {}) {
     const id = 'v_' + rid(8), token = rid(18);
     const numero = await prochainNumero(store, 'devis');
     const copie = { id, numero, token, clientId: src.clientId || null, clientNom: src.clientNom || '', demandeId: src.demandeId || null, statut: 'brouillon',
-      evenement: { ...(src.evenement || {}) }, lignes: (src.lignes || []).map(l => ({ ...l })), remiseCents: src.remiseCents || 0, acomptePct: src.acomptePct ?? null,
+      evenement: { ...(src.evenement || {}) }, lignes: (src.lignes || []).map(l => ({ ...l })), remiseCents: src.remiseCents || 0, remisePct: src.remisePct ?? null, acomptePct: src.acomptePct ?? null,
       commercial: src.commercial, titre: src.titre || '', intro: src.intro || '', conditions: src.conditions || '', lienPaiement: src.lienPaiement || '', copieDe: src.numero,
       validiteJusquau: new Date(Date.now() + (T.validiteDevisJours || 15) * 86400e3).toISOString().slice(0, 10), createdAt: new Date().toISOString(), creePar: req.ctx.name };
     await store.set('devis/' + id, copie);
@@ -1643,7 +1643,7 @@ async function createApp(opts = {}) {
     const id = 'f_' + rid(8), token = rid(18);
     const numero = await prochainNumero(store, 'facture');
     const f = FAC.resume({ id, numero, token, type, devisId: d.id, devisNumero: d.numero, clientId: d.clientId, client: { nom: cl?.nom || d.clientNom || '', societe: cl?.societe || '', email: cl?.email || '', tel: cl?.tel || '', adresse: [cl?.adresse, [cl?.cp, cl?.ville].filter(Boolean).join(' ')].filter(Boolean).join('\n') },
-      objet: `${d.evenement?.type || 'Événement'} du ${dateFr(d.evenement?.date)}`, evenementDate: d.evenement?.date || '', commercial: d.commercial?.nom || '', date: new Date().toISOString().slice(0, 10), lignes, remiseCents, dejaRegleCents, reglements: [], payee: false, createdAt: new Date().toISOString(), creePar: ctx.name });
+      objet: `${d.evenement?.type || 'Événement'} du ${dateFr(d.evenement?.date)}`, evenementDate: d.evenement?.date || '', commercial: d.commercial?.nom || '', date: new Date().toISOString().slice(0, 10), lignes, remiseCents, remisePct: remiseCents ? d.remisePct ?? null : null, dejaRegleCents, reglements: [], payee: false, createdAt: new Date().toISOString(), creePar: ctx.name });
     await store.set('factures/' + id, f);
     await store.set('_facturetoken/' + sha(token), { id });
     audit(ctx, 'facture créée', 'factures/' + id, numero);

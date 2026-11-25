@@ -1750,3 +1750,10 @@ body.avec-psbar .content { padding-bottom: 120px; }
 .st-plus { display: flex; justify-content: center; margin-top: 10px; }
 @media (min-width: 1001px) { .st-prods { display: grid; grid-template-columns: 1fr 1fr; column-gap: 18px; } }
 .st-prods .st-rt b { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.25; }
+
+/* remises du devis (ligne et total) */
+.lines td.rem{white-space:nowrap;text-align:right}.lines td.rem .remi{display:inline-flex;align-items:center;gap:3px}
+.lines input.pct{width:52px}.lines td.rem small{display:block;font-size:11px;color:var(--bo-soft)}
+.lines td.rem .mgl.pos{color:var(--ok)}.lines td.rem .mgl.neg{color:var(--ko);font-weight:600}
+.remg{display:flex;gap:6px;align-items:center}.remg input{flex:1;min-width:0}.remg select{width:90px}
+.totbox label>small{display:block;font-weight:400;margin-top:4px;font-size:12px}

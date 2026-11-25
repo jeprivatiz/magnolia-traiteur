@@ -55,7 +55,7 @@ function totaux(doc) {
   const coutCents = lignes.reduce((s, l) => s + Math.round((l.coutCents || 0) * (Number(l.qte) || 0)), 0);
   const ttcCents = brutCents - remiseCents;
   const m = marge(doc);
-  return { brutCents, remiseCents, ttcCents, htCents, tva, coutCents, margeCents: m.margeHtCents, marge: m };
+  return { brutCents, remiseCents, remisePct: remiseCents && doc.remisePct ? Number(doc.remisePct) : null, ttcCents, htCents, tva, coutCents, margeCents: m.margeHtCents, marge: m };
 }
 
 /* Marge d'un devis (Jean-Luc, 2026-11-25) — INTERNE, jamais montrée au client.

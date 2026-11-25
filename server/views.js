@@ -934,11 +934,11 @@ function espace(c, { client, demandes, devis, factures }) {
 
 function devisLignesHtml(d) {
   return `<table class="tab"><thead><tr><th>Désignation</th><th class="n">Qté</th><th class="n">PU TTC</th><th class="n">Total TTC</th></tr></thead><tbody>
-  ${(d.lignes || []).map(l => l.type === 'titre' ? `<tr class="t"><td colspan="4">${esc(l.designation)}</td></tr>` : `<tr><td>${titreHtml(l.designation)}${l.detail ? `<small>${esc(l.detail)}</small>` : ''}</td><td class="n">${esc(l.qte)} ${esc(l.unite || '')}</td><td class="n">${esc(euros(l.puCents))}</td><td class="n">${esc(euros(Math.round(l.puCents * l.qte)))}</td></tr>`).join('')}
+  ${(d.lignes || []).map(l => l.type === 'titre' ? `<tr class="t"><td colspan="4">${esc(l.designation)}</td></tr>` : `<tr><td>${titreHtml(l.designation)}${l.detail ? `<small>${esc(l.detail)}</small>` : ''}${l.remisePct && l.puBaseCents > l.puCents ? `<small class="rem">Remise ${esc(String(l.remisePct).replace('.', ','))} %</small>` : ''}</td><td class="n">${esc(l.qte)} ${esc(l.unite || '')}</td><td class="n">${l.remisePct && l.puBaseCents > l.puCents ? `<s>${esc(euros(l.puBaseCents))}</s><br>` : ''}${esc(euros(l.puCents))}</td><td class="n">${esc(euros(Math.round(l.puCents * l.qte)))}</td></tr>`).join('')}
   </tbody></table>`;
 }
 function totauxHtml(t) {
-  return `<dl class="totaux">${t.remiseCents ? `<div><dt>Sous-total</dt><dd>${euros(t.brutCents)}</dd></div><div><dt>Remise</dt><dd>− ${euros(t.remiseCents)}</dd></div>` : ''}
+  return `<dl class="totaux">${t.remiseCents ? `<div><dt>Sous-total</dt><dd>${euros(t.brutCents)}</dd></div><div><dt>Remise${t.remisePct ? ' ' + String(t.remisePct).replace('.', ',') + ' %' : ''}</dt><dd>− ${euros(t.remiseCents)}</dd></div>` : ''}
   ${Object.entries(t.tva).filter(([, v]) => v).map(([taux, v]) => `<div class="sm"><dt>dont TVA ${String(taux).replace(".", ",")} %</dt><dd>${euros(v)}</dd></div>`).join('')}
   <div class="sm"><dt>Total HT</dt><dd>${euros(t.htCents)}</dd></div><div class="tot"><dt>Total TTC</dt><dd>${euros(t.ttcCents)}</dd></div></dl>`;
 }
