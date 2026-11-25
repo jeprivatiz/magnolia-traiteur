@@ -1606,8 +1606,17 @@ async function initSousRubriques(store, { log = console } = {}) {
     const sm = await store.get('rubriques/saveurs-du-monde');
     if (sm) await store.set('rubriques/saveurs-du-monde', { ...sm, sous: (sm.sous || []).map(x => x.slug === 'specialites-japonaises' ? { ...x, ...vid(x.slug) } : x) });
     const cb = await store.get('rubriques/cocktails-buffets');
-    if (cb) await store.set('rubriques/cocktails-buffets', { ...cb, ...vid('cocktails-buffets') });
+    if (cb) await store.set('rubriques/cocktails-buffets', { ...cb, bandeauVideo: '/site/v/bandeaux/cocktails-buffets-2.mp4', bandeauPoster: '/site/v/bandeaux/cocktails-buffets-2.jpg' });
     await store.set('site/reglages', { ...(await store.get('site/reglages')), bandeauxVideos3: true });
+  }
+  /* Cocktails & buffets (Jean-Luc, 2026-11-25) : plan des petits fours (tomates-mozza, fromage) retiré, « trop bas de
+     gamme ». Nouvelle vidéo : invités en tenue avec un verre devant le buffet, puis cocktail du soir en smoking. Une fois. */
+  const RBc = await store.get('site/reglages');
+  if (RBc && !RBc.bandeauxVideos4) {
+    const cb = await store.get('rubriques/cocktails-buffets');
+    if (cb && (!cb.bandeauVideo || cb.bandeauVideo === '/site/v/bandeaux/cocktails-buffets.mp4'))
+      await store.set('rubriques/cocktails-buffets', { ...cb, bandeauVideo: '/site/v/bandeaux/cocktails-buffets-2.mp4', bandeauPoster: '/site/v/bandeaux/cocktails-buffets-2.jpg' });
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), bandeauxVideos4: true });
   }
 }
 

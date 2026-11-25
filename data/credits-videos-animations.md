@@ -38,4 +38,4 @@ Non trouvé en vidéo libre correcte : meule de parmesan flambée (Pexels, Pixab
 | La carte Magnolia | Chef qui dépose des framboises une à une sur une assiette (gros plan) | https://www.pexels.com/video/39877475/ |
 | Buffet antillais | Accras qui dorent dans l'huile, puis grand repas de famille (montage en fondu ; aucune vraie vidéo libre de buffet antillais trouvée) | https://www.pexels.com/video/37670884/ + https://www.pexels.com/video/4298650/ |
 | Spécialités japonaises | Chef qui pose le saumon sur le maki puis le tranche (montage) | https://www.pexels.com/video/8901982/ + https://www.pexels.com/video/8901980/ |
-| Cocktails & buffets | Petits fours pris sur le buffet, invités avec un verre, cocktail du soir en smoking (montage) | https://www.pexels.com/video/6760602/ + https://www.pexels.com/video/6761146/ + https://www.pexels.com/video/12350362/ |
+| Cocktails & buffets | Invités avec un verre devant le buffet, puis cocktail du soir en smoking (montage ; plan des petits fours retiré le 25/11) | https://www.pexels.com/video/6761146/ + https://www.pexels.com/video/12350362/ |
