@@ -322,3 +322,6 @@ Photos regardées une à une (vraies photos, sans texte ni logo), licence Pexels
 - Vidéos Pexels des bars : Bar à shots 9003039, Open bar champagne 7608907, Sangria 5929447, Open bar alcools forts 14058816 (/site/v/produits/).
 - 2026-11-25 : tarama = photo du tarama de cabillaud (même bol blanc) retournée et recolorée en tarama blanc ; crevettes roses = Pexels 14387795 (bol blanc) détourée ; Gillardeau n° 3 sans la glace (détourage SAM).
 - Bandeau de la page Plateaux de fruits de mer : écailler qui ouvre une huître, Unsplash photo-1564851287887-96031a235bf5 (Louis Hansel, https://unsplash.com/photos/person-chucking-oyster-6BhB8Vo0nuQ, licence Unsplash).
+| Verres à vin | public/site/c/materiel/verres-a-vin.webp | https://www.pexels.com/photo/38556967/ | Pexels |
+| Flûtes à champagne | public/site/c/materiel/flutes-a-champagne.webp (recadrée) | https://www.pexels.com/photo/18573171/ | Pexels |
+| Verres tumbler | public/site/c/materiel/verres-tumbler.webp (recadrée) | https://www.pexels.com/photo/32544231/ | Pexels |
