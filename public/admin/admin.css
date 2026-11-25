@@ -1397,3 +1397,5 @@ input.verrou { background: var(--doux); color: var(--gris); cursor: not-allowed;
 .da-box p{margin:6px 0 0}
 .da-why{display:block;margin-top:6px;color:#8a6a2f;font-size:12px;max-width:260px;white-space:normal}
 .ia-pill{background:#fbf3df;color:#8a6a2f;border:1px solid #e6cf97}
+.da-sms{margin-top:10px;align-items:flex-end;gap:10px}
+.da-sms label{flex:1;max-width:460px}

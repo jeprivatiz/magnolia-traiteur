@@ -790,7 +790,7 @@ async function createApp(opts = {}) {
 
   A.get('/site', wrap(async (req, res) => res.json((await store.get('site/reglages')) || {})));
   /* chaque partie des réglages a son droit : tarifs = « Modifier les prix », coordonnées et banque = « Mon entreprise », alertes = « Gérer l'équipe » */
-  const GARDE_SITE = { tarifs: 'prix', alertes: 'equipe', devisAuto: 'equipe', entreprise: 'entreprise', paiement: 'entreprise', adresse: 'entreprise', telephone: 'entreprise', email: 'entreprise' };
+  const GARDE_SITE = { tarifs: 'prix', alertes: 'equipe', devisAuto: 'equipe', devisAutoSms: 'equipe', entreprise: 'entreprise', paiement: 'entreprise', adresse: 'entreprise', telephone: 'entreprise', email: 'entreprise' };
   const stable = v => JSON.stringify(v, (k, x) => x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => a.localeCompare(b))) : x);
   A.put('/site', sameSite, json, wrap(async (req, res) => {
     const before = (await store.get('site/reglages')) || {};
@@ -1360,6 +1360,7 @@ async function createApp(opts = {}) {
      au minimum, choix faits, date, invités, adresse, téléphone) → devis créé et envoyé tout de suite, quel que soit le montant ;
      l'équipe est prévenue pour rappeler le client. Sinon la demande reste dans « Demandes de devis », avec la raison. ---------- */
   const IA_CTX = { uid: 'ia', name: 'IA', email: '' };
+  const DEVIS_AUTO_SMS = '06 58 22 69 69';
   async function devisAutomatique(demande) {
     const c = await cat.get(), R = c.reglages;
     const auto = { essaye: new Date().toISOString() };
@@ -1386,6 +1387,12 @@ async function createApp(opts = {}) {
     alerterEquipe(`✨ Devis ${d.numero} envoyé par l’IA à ${ct.nom} : à rappeler`,
       `<p>La demande <b>${esc(demande.ref)}</b> était complète : l’IA a créé le devis <b>${esc(d.numero)}</b> (${euros(ttcCents)} TTC) et l’a envoyé tout de suite au client, par e-mail${cl.tel ? ' et SMS' : ''}.</p><p><b>Merci de rappeler le client</b> : <b>${esc(ct.nom)}</b> ${esc(ct.societe || '')} · <a href="tel:${esc(ct.tel)}">${esc(ct.tel)}</a> · ${esc(ct.email)}</p><p>${esc(e.type)} · ${esc(dateFr(e.date))} · ${e.invites} invités · ${esc([e.cp, e.ville].filter(Boolean).join(' '))}</p>${demande.message ? `<p>Message du client : « ${esc(demande.message)} »</p>` : ''}<p><a href="${SITE}/admin#/devis/${id}">Ouvrir le devis</a> · <a href="${lien}">Voir ce que voit le client</a></p>`,
       `Magnolia : devis ${d.numero} (${euros(ttcCents)}) envoyé par l'IA à ${ct.nom}, ${e.invites} pers. le ${dateFr(e.date)}. Rappelez le client : ${ct.tel}`).catch(() => {});
+    /* SMS d'avertissement (Jean-Luc, 2026-11-25) : chaque devis parti tout seul est signalé à ce numéro (modifiable dans Demandes de devis) */
+    const deja = new Set(String(R.alertes?.sms || '').split(/[,;]+/).map(x => x.replace(/\D/g, '').slice(-9)).filter(Boolean));
+    for (const t of String(R.devisAutoSms ?? DEVIS_AUTO_SMS).split(/[,;]+/).map(x => x.trim()).filter(Boolean)) {
+      if (deja.has(t.replace(/\D/g, '').slice(-9))) continue; /* déjà prévenu par les alertes de l'équipe */
+      await brevo.sendSms({ to: t, lien: false, content: `Magnolia Traiteur : demande de devis reçue sur le site, devis envoyé par l'IA. ${ct.nom}, ${euros(ttcCents)} TTC, ${e.invites} pers. le ${dateFr(e.date)}. Tél. client : ${ct.tel}` }).catch(() => {});
+    }
     return { ...auto, envoye: true, devisId: id, numero: d.numero, ttcCents, raisons: [] };
   }
 
