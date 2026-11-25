@@ -299,3 +299,12 @@ Catégories et fiches de la page /boissons (server/cave.js). Photos Pexels (lice
 - Les photos du site du traiteur d'origine n'ont pas été reprises (droits d'auteur).
 - Rhum Trois-Rivières (ajouté le 2026-11-25) : Pexels 36860546 (ti-punch, pas de photo libre de la bouteille).
 - Coca-Cola 1,5 L : Pexels 35020136 ; Coca-Cola Zéro : Pexels 19504042 ; fiche Barman : Pexels 5531479 (2026-11-25).
+
+## Buffet libanais, « Nos buffets » sans vidéo (2026-11-25)
+Photos regardées une à une (vraies photos, sans texte ni logo), licence Pexels (usage commercial libre).
+- buffet-libanais-8-mezzes-au-choix : Pexels 25907496 (https://www.pexels.com/photo/25907496/), Pexels 28241695 (https://www.pexels.com/photo/28241695/), Pexels 21856002 (https://www.pexels.com/photo/21856002/)
+- buffet-libanais-plat-seul : Pexels 15781023 (https://www.pexels.com/photo/15781023/), Pexels 32986482 (https://www.pexels.com/photo/32986482/), Pexels 30307766 (https://www.pexels.com/photo/30307766/)
+- buffet-libanais-6-mezzes-1-plat : Pexels 23025180 (https://www.pexels.com/photo/23025180/), Pexels 6419720 (https://www.pexels.com/photo/6419720/), Pexels 28241712 (https://www.pexels.com/photo/28241712/)
+- buffet-libanais-6-mezzes-1-plat-1-dessert : Pexels 36443669 (https://www.pexels.com/photo/36443669/), Pexels 38947725 (https://www.pexels.com/photo/38947725/), Pexels 23025183 (https://www.pexels.com/photo/23025183/)
+- buffet-libanais-8-mezzes-1-plat : Pexels 8183709 (https://www.pexels.com/photo/8183709/), Pexels 28241720 (https://www.pexels.com/photo/28241720/), Pexels 25907496 (https://www.pexels.com/photo/25907496/)
+- buffet-libanais-8-mezzes-1-plat-1-dessert : Pexels 36287931 (https://www.pexels.com/photo/36287931/), Pexels 38947724 (https://www.pexels.com/photo/38947724/), Pexels 19386650 (https://www.pexels.com/photo/19386650/)
