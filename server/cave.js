@@ -358,9 +358,31 @@ async function alcoolsBlanc(store) {
   await store.set('_migr/caveAlcools1', { at: new Date().toISOString() });
 }
 
+/* 4 vins rouges ajoutés par Jean-Luc (2026-11-25), à ses prix TTC. Photos d'ambiance libres en attendant ses photos de bouteilles
+   (les photos des sites marchands ne sont pas reprises : droits). Noms dictés : « Terre d'Église Erémi » et « Armand d'Artois » à confirmer. */
+const VINS_ROUGES_2 = [
+  ['vin-rouge-terre-d-eglise-eremi', 'Terre d’Église « Erémi », vin rouge', 1550, 27.1, 'Vin rouge Terre d’Église, cuvée Erémi, bouteille de 75 cl.', px(9550790), 'Verre de vin rouge'],
+  ['armand-d-artois-cotes-du-rhone-rouge', 'Armand d’Artois Côtes-du-Rhône, vin rouge', 1650, 27.2, 'Côtes-du-Rhône rouge Armand d’Artois, bouteille de 75 cl.', px(33993981), 'Bouteille de vin rouge'],
+  ['jean-degaves-bordeaux-aop-rouge', 'Jean Degaves Bordeaux AOP, vin rouge', 1550, 27.3, 'Bordeaux rouge AOP Jean Degaves, bouteille de 75 cl.', px(10226064), 'Bouteille de vin rouge sur une table'],
+  ['nuiton-beaunoy-hautes-cotes-de-beaune-grande-cuvee-rouge', 'Nuiton-Beaunoy Bourgogne Hautes-Côtes de Beaune « Grande Cuvée », vin rouge', 2400, 27.4, 'Bourgogne Hautes-Côtes de Beaune Grande Cuvée de la cave Nuiton-Beaunoy, bouteille de 75 cl.', px(8473211), 'Bouteille et verre de vin rouge, grappe de raisin'],
+];
+async function vinsRouges2(store) {
+  if (await store.get('_migr/caveVins2')) return;
+  const now = new Date().toISOString();
+  for (const [slug, titre, prixCents, ordre, extrait, src, alt] of VINS_ROUGES_2) {
+    if (await store.get('produits/' + slug)) continue;
+    await store.set('produits/' + slug, {
+      id: slug, slug, rubrique: 'boissons', autresRubriques: [], sous: '', autresSous: [], rangement: 'vins-rouges', titre, prixCents, coutCents: null, prixTexte: null,
+      unite: 'bouteille', min: 1, minimumTexte: null, extrait, description: [extrait, TIRE], sections: [], details: [], photos: [{ src, alt }], video: null,
+      groupes: [], variantes: [], regles: {}, ordre, statut: 'visible', maison: false, tva: 20, allergenes: ['Sulfites'], aCompleter: false, createdAt: now,
+    });
+  }
+  await store.set('_migr/caveVins2', { at: now });
+}
+
 async function initCave(store) {
   await prixCave(store);
-  if (await store.get('_migr/caveCercle')) { await openBarCave(store); await sodasCave(store); await vinsCave(store); await eauxCave(store); await cocaPhotos(store); await cristalineGaz(store); await cristalinePlate(store); await caveBandeauBadoit(store); await barmanSousPhoto(store); await barmanPrix(store); await alcoolsBlanc(store); return ajoutsCave(store); }
+  if (await store.get('_migr/caveCercle')) { await openBarCave(store); await sodasCave(store); await vinsCave(store); await eauxCave(store); await cocaPhotos(store); await cristalineGaz(store); await cristalinePlate(store); await caveBandeauBadoit(store); await barmanSousPhoto(store); await barmanPrix(store); await alcoolsBlanc(store); await vinsRouges2(store); return ajoutsCave(store); }
   const now = new Date().toISOString();
   let n = 0;
   for (const d of await store.list('produits')) {
@@ -408,6 +430,7 @@ async function initCave(store) {
   await barmanSousPhoto(store);
   await barmanPrix(store);
   await alcoolsBlanc(store);
+  await vinsRouges2(store);
   return n + await ajoutsCave(store);
 }
 
