@@ -455,9 +455,58 @@ async function valettePrix(store) {
   await store.set('_migr/caveValette2', { at: new Date().toISOString() });
 }
 
+/* Château Minuty Prestige rosé (Jean-Luc, 2026-11-25) : vente 35,90 € TTC, achat 12,90 € HT ; descriptif reformulé d'après la présentation du domaine */
+async function minutyCave(store) {
+  if (await store.get('_migr/caveMinuty1')) return;
+  if (!(await store.get('produits/chateau-minuty-prestige-rose'))) await store.set('produits/chateau-minuty-prestige-rose', {
+    id: 'chateau-minuty-prestige-rose', slug: 'chateau-minuty-prestige-rose', rubrique: 'boissons', autresRubriques: [], sous: '', autresSous: [], rangement: 'vins-roses',
+    titre: 'Château Minuty « Prestige » rosé, Côtes de Provence AOP', prixCents: 3590, coutCents: 1290, prixTexte: null, unite: 'bouteille', min: 1, minimumTexte: null,
+    extrait: 'Le grand rosé de Provence du Château Minuty, sur la presqu’île de Saint-Tropez. Bouteille de 75 cl.',
+    description: [
+      'Château Minuty est un domaine familial de la presqu’île de Saint-Tropez, devenu l’une des grandes références du rosé de Provence. La cuvée Prestige assemble surtout grenache et cinsault, cueillis à la fraîcheur du matin.',
+      'Sa robe est rose très pâle, aux reflets pétale de rose. Le nez est fin et frais, sur les agrumes, la pêche blanche et les petits fruits rouges. La bouche est ample et élégante, avec une belle fraîcheur et une finale saline.',
+      'Il est parfait à l’apéritif, avec les poissons grillés, les crustacés, la cuisine méditerranéenne et les buffets d’été. À servir bien frais, entre 8 et 10 °C.',
+      'Bouteille de 75 cl. ' + TIRE,
+    ],
+    sections: [], details: [], photos: [{ src: px(15006642), alt: 'Verre et bouteille de vin rosé' }], video: null, groupes: [], variantes: [], regles: {},
+    ordre: 32.6, statut: 'visible', maison: false, tva: 20, allergenes: ['Sulfites'], aCompleter: false, createdAt: new Date().toISOString(),
+  });
+  await store.set('_migr/caveMinuty1', { at: new Date().toISOString() });
+}
+
+/* Rosés ajoutés par Jean-Luc (2026-11-25) : prix de vente TTC et prix d'achat HT (marge calculée par le back-office) */
+function nouveauRose(slug, titre, prixCents, coutCents, extrait, description, photo, alt, ordre) {
+  return {
+    id: slug, slug, rubrique: 'boissons', autresRubriques: [], sous: '', autresSous: [], rangement: 'vins-roses',
+    titre, prixCents, coutCents, prixTexte: null, unite: 'bouteille', min: 1, minimumTexte: null, extrait,
+    description: [...description, 'Bouteille de 75 cl. ' + TIRE],
+    sections: [], details: [], photos: [{ src: px(photo), alt }], video: null, groupes: [], variantes: [], regles: {},
+    ordre, statut: 'visible', maison: false, tva: 20, allergenes: ['Sulfites'], aCompleter: false, createdAt: new Date().toISOString(),
+  };
+}
+const ROSES_2 = [
+  nouveauRose('marrenon-luberon-classique-rose', 'Marrenon « Classique » rosé, Luberon AOP', 1908, 549,
+    'Un rosé du Luberon frais et fruité, signé Marrenon. Bouteille de 75 cl.',
+    ['Marrenon réunit les vignerons du Luberon, entre Provence et vallée du Rhône. La cuvée Classique assemble grenache, cinsault et syrah, nés sur des coteaux ensoleillés et rafraîchis par l’altitude.',
+     'Sa robe est rose pâle et brillante. Le nez s’ouvre sur les petits fruits rouges, la groseille et une touche d’agrumes. La bouche est fraîche, ronde et gourmande, avec une finale légère et désaltérante.',
+     'Il accompagne l’apéritif, les salades, les grillades, la cuisine provençale et les buffets d’été. À servir bien frais, entre 8 et 10 °C.'],
+    15006643, 'Bouteille de vin rosé et verre', 32.7),
+  nouveauRose('rose-saint-tropez-cotes-de-provence', 'Rosé « Saint-Tropez », Côtes de Provence AOP', 1950, 569,
+    'Un rosé de Provence élaboré autour du golfe de Saint-Tropez. Bouteille de 75 cl.',
+    ['Un Côtes de Provence AOP né sur les terroirs du golfe de Saint-Tropez, entre mer et massif des Maures. Il assemble les cépages provençaux, grenache, cinsault et syrah.',
+     'Sa robe est rose clair aux reflets saumonés. Le nez est frais et fruité, sur la pêche, les agrumes et les fruits rouges. La bouche est vive et élégante, avec une jolie finale minérale.',
+     'Il est idéal à l’apéritif, avec les poissons, les fruits de mer, les grillades et la cuisine du soleil. À servir bien frais, entre 8 et 10 °C.'],
+    15006642, 'Verre et bouteille de vin rosé', 32.8),
+];
+async function rosesCave2(store) {
+  if (await store.get('_migr/caveRoses2')) return;
+  for (const r of ROSES_2) if (!(await store.get('produits/' + r.slug))) await store.set('produits/' + r.slug, r);
+  await store.set('_migr/caveRoses2', { at: new Date().toISOString() });
+}
+
 async function initCave(store) {
   await prixCave(store);
-  if (await store.get('_migr/caveCercle')) { await openBarCave(store); await sodasCave(store); await vinsCave(store); await eauxCave(store); await cocaPhotos(store); await cristalineGaz(store); await cristalinePlate(store); await caveBandeauBadoit(store); await barmanSousPhoto(store); await barmanPrix(store); await alcoolsBlanc(store); await vinsRouges2(store); await barCocktailsMin(store); await barCocktailsVideo(store); await barCocktailsTexte(store); await barCocktailsRetablir(store); await valettePrix(store); return ajoutsCave(store); }
+  if (await store.get('_migr/caveCercle')) { await openBarCave(store); await sodasCave(store); await vinsCave(store); await eauxCave(store); await cocaPhotos(store); await cristalineGaz(store); await cristalinePlate(store); await caveBandeauBadoit(store); await barmanSousPhoto(store); await barmanPrix(store); await alcoolsBlanc(store); await vinsRouges2(store); await barCocktailsMin(store); await barCocktailsVideo(store); await barCocktailsTexte(store); await barCocktailsRetablir(store); await valettePrix(store); await minutyCave(store); await rosesCave2(store); return ajoutsCave(store); }
   const now = new Date().toISOString();
   let n = 0;
   for (const d of await store.list('produits')) {
@@ -511,6 +560,8 @@ async function initCave(store) {
   await barCocktailsTexte(store);
   await barCocktailsRetablir(store);
   await valettePrix(store);
+  await minutyCave(store);
+  await rosesCave2(store);
   return n + await ajoutsCave(store);
 }
 
