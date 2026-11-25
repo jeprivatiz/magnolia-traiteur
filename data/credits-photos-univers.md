@@ -314,3 +314,4 @@ Photos regardées une à une (vraies photos, sans texte ni logo), licence Pexels
 - Cristaline plate 1,5 L : photo fournie par Jean-Luc (2026-11-25), remplace Pexels 13055851 ; photos Cristaline cadrées sur l'étiquette.
 - Bandeau vidéo de La cave de Magnolia (2026-11-25), montage public/site/v/bandeaux/cave-champagne.mp4 : vidéos Pexels https://www.pexels.com/video/8915180/ (on sert le champagne dans des flûtes) et https://www.pexels.com/video/8765009/ (flûte remplie à la lueur des bougies).
 - Rhum Trois-Rivières blanc 50° : photo de la bouteille fournie par Jean-Luc (2026-11-25), remplace la photo ti-punch Pexels 36860546.
+- Alcools forts (2026-11-25) : gin Bombay Sapphire = photo fournie par Jean-Luc ; vodka Absolut = Pexels 17722186 ; whiskey Jack Daniel's = Pexels 32995841 (fond crème, faute de photo libre sur fond blanc). Vignette « Les eaux » = ses photos Cristaline plate et gazeuse.

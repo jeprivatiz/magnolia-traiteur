@@ -338,9 +338,29 @@ async function barmanSousPhoto(store) {
   await store.set('_migr/barmanSousPhoto1', { at: new Date().toISOString() });
 }
 
+/* Alcools forts (Jean-Luc, 2026-11-25) : bouteilles sur fond clair ; gin Bombay Sapphire à 37,90 € avec sa photo ; Havana Club retiré.
+   Vignette « Les eaux » : ses deux Cristaline (plate et gazeuse) côte à côte. */
+const PHOTOS_ALCOOLS = {
+  'gin-bombay-sapphire-70-cl': ['/site/c/cave/gin-bombay-sapphire.webp', 'Bouteille de gin Bombay Sapphire'],
+  'vodka-absolut-70-cl': ['/site/c/cave/vodka-absolut.webp', 'Bouteille de vodka Absolut'],
+  'whisky-jack-daniels-70-cl': ['/site/c/cave/whisky-jack-daniels.webp', 'Bouteille de whiskey Jack Daniel’s Old No. 7'],
+};
+async function alcoolsBlanc(store) {
+  if (await store.get('_migr/caveAlcools1')) return;
+  for (const [slug, [src, alt]] of Object.entries(PHOTOS_ALCOOLS)) {
+    const x = await store.get('produits/' + slug);
+    if (x) await store.set('produits/' + slug, { ...x, photos: [{ src, alt }], ...(slug.startsWith('gin-') ? { prixCents: 3790 } : {}) });
+  }
+  const h = await store.get('produits/rhum-havana-club-especial-70-cl');
+  if (h && h.statut !== 'masque') await store.set('produits/rhum-havana-club-especial-70-cl', { ...h, statut: 'masque', masqueCave: true });
+  const rb = await store.get('rubriques/boissons');
+  if (rb) await store.set('rubriques/boissons', { ...rb, photosSections: { ...(rb.photosSections || {}), eaux: '/site/c/cave/vignette-eaux-cristaline.webp' } });
+  await store.set('_migr/caveAlcools1', { at: new Date().toISOString() });
+}
+
 async function initCave(store) {
   await prixCave(store);
-  if (await store.get('_migr/caveCercle')) { await openBarCave(store); await sodasCave(store); await vinsCave(store); await eauxCave(store); await cocaPhotos(store); await cristalineGaz(store); await cristalinePlate(store); await caveBandeauBadoit(store); await barmanSousPhoto(store); await barmanPrix(store); return ajoutsCave(store); }
+  if (await store.get('_migr/caveCercle')) { await openBarCave(store); await sodasCave(store); await vinsCave(store); await eauxCave(store); await cocaPhotos(store); await cristalineGaz(store); await cristalinePlate(store); await caveBandeauBadoit(store); await barmanSousPhoto(store); await barmanPrix(store); await alcoolsBlanc(store); return ajoutsCave(store); }
   const now = new Date().toISOString();
   let n = 0;
   for (const d of await store.list('produits')) {
@@ -387,6 +407,7 @@ async function initCave(store) {
   await caveBandeauBadoit(store);
   await barmanSousPhoto(store);
   await barmanPrix(store);
+  await alcoolsBlanc(store);
   return n + await ajoutsCave(store);
 }
 

@@ -58,6 +58,8 @@ test('initCave : anciens vins masqués, nos open bars gardés, nouvelles fiches 
   assert.equal(docs.get('produits/eau-petillante-1-5-l').prixCents, 220);
   assert.match(docs.get('produits/eau-plate-cristaline-1-5-l').photos[0].src, /cristaline-plate-1-5-l\.webp/);
   assert.equal(docs.get('produits/eau-badoit-50-cl').statut, 'masque');
+  assert.equal(docs.get('produits/gin-bombay-sapphire-70-cl').prixCents, 3790);
+  assert.equal(docs.get('produits/rhum-havana-club-especial-70-cl').statut, 'masque');
   assert.equal(docs.get('produits/barman').sousPhoto[0], 'Prévoyez environ un barman pour 30 à 40 invités. À vous de faire le calcul.');
   assert.ok(![...docs.values()].some(d => JSON.stringify(d).includes('Livré frais')));
   assert.equal(docs.get('produits/jomo-the-vert-menthe-citron-35-cl').statut, 'masque');
