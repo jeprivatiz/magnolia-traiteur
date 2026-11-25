@@ -51,7 +51,7 @@ test('initCave : anciens vins masqués, nos open bars gardés, nouvelles fiches 
   assert.equal(bm.unite, 'barman');
   /* 3 barmans, 6 heures : 3 × (270 + 2 × 39) = 1 044 € */
   assert.equal((bm.prixCents + bm.groupes[0].options.find(o => o.id === '6h').supCents) * 3, 104400);
-  assert.equal(docs.get('produits/bordeaux-rose-manoir-de-la-valette').prixCents, 1650);
+  assert.equal(docs.get('produits/bordeaux-rose-manoir-de-la-valette').prixCents, 1668);
   assert.equal(docs.get('produits/chateau-la-gordonne-verite-du-terroir').prixCents, 1790);
   assert.equal(docs.get('produits/eau-vittel-1-l').statut, 'masque');
   assert.equal(docs.get('produits/eau-plate-cristaline-1-5-l').prixCents, 250);

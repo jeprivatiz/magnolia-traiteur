@@ -437,9 +437,27 @@ async function barCocktailsRetablir(store) {
   await store.set('_migr/barCocktailsRetablir2', { at: new Date().toISOString() });
 }
 
+/* Bordeaux rosé Manoir de la Valette (Jean-Luc, 2026-11-25) : 16,68 € TTC et petit descriptif du vin */
+const VALETTE = {
+  prixCents: 1668,
+  extrait: 'Bordeaux rosé AOP du Manoir de la Valette : un rosé frais et fruité, bouteille de 75 cl.',
+  description: [
+    'Un Bordeaux rosé AOP du Manoir de la Valette, à la robe rose pâle et lumineuse.',
+    'Au nez, des notes gourmandes de petits fruits rouges, fraise et framboise. En bouche, il est frais, souple et fruité, avec une finale nette et désaltérante.',
+    'Il accompagne l’apéritif, les buffets, les salades composées, les grillades et toute la cuisine d’été. À servir bien frais, entre 8 et 10 °C.',
+    'Bouteille de 75 cl. ' + TIRE,
+  ],
+};
+async function valettePrix(store) {
+  if (await store.get('_migr/caveValette2')) return;
+  const x = await store.get('produits/bordeaux-rose-manoir-de-la-valette');
+  if (x) await store.set('produits/bordeaux-rose-manoir-de-la-valette', { ...x, ...VALETTE, statut: 'visible' });
+  await store.set('_migr/caveValette2', { at: new Date().toISOString() });
+}
+
 async function initCave(store) {
   await prixCave(store);
-  if (await store.get('_migr/caveCercle')) { await openBarCave(store); await sodasCave(store); await vinsCave(store); await eauxCave(store); await cocaPhotos(store); await cristalineGaz(store); await cristalinePlate(store); await caveBandeauBadoit(store); await barmanSousPhoto(store); await barmanPrix(store); await alcoolsBlanc(store); await vinsRouges2(store); await barCocktailsMin(store); await barCocktailsVideo(store); await barCocktailsTexte(store); await barCocktailsRetablir(store); return ajoutsCave(store); }
+  if (await store.get('_migr/caveCercle')) { await openBarCave(store); await sodasCave(store); await vinsCave(store); await eauxCave(store); await cocaPhotos(store); await cristalineGaz(store); await cristalinePlate(store); await caveBandeauBadoit(store); await barmanSousPhoto(store); await barmanPrix(store); await alcoolsBlanc(store); await vinsRouges2(store); await barCocktailsMin(store); await barCocktailsVideo(store); await barCocktailsTexte(store); await barCocktailsRetablir(store); await valettePrix(store); return ajoutsCave(store); }
   const now = new Date().toISOString();
   let n = 0;
   for (const d of await store.list('produits')) {
@@ -492,6 +510,7 @@ async function initCave(store) {
   await barCocktailsVideo(store);
   await barCocktailsTexte(store);
   await barCocktailsRetablir(store);
+  await valettePrix(store);
   return n + await ajoutsCave(store);
 }
 
