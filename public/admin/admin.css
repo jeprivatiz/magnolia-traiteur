@@ -1445,3 +1445,11 @@ input.verrou { background: var(--doux); color: var(--gris); cursor: not-allowed;
 .fchip.princ { border-color: var(--or); background: color-mix(in srgb, var(--or) 14%, var(--carte, #fff)); font-weight: 600; }
 .fchip button { border: 0; background: transparent; cursor: pointer; font-size: 1.05rem; line-height: 1; color: var(--gris); padding: 0 4px; } .fchip button:hover { color: var(--rouge, #b3261e); }
 .fourn-add { gap: 8px; } .fourn-add select { min-width: 240px; } .fourn-add input { min-width: 220px; }
+/* écran d'import des prix d'achat : colonnes resserrées (Jean-Luc, 2026-11-25) — n'hérite pas des largeurs des lignes de devis */
+.lines.ach td, .lines.ach th { min-width: 0; width: auto; }
+.lines.ach td:nth-child(1), .lines.ach th:nth-child(1) { width: 34px; }
+.lines.ach td:nth-child(2), .lines.ach th:nth-child(2) { width: 52px; white-space: nowrap; }
+.lines.ach td:nth-child(3) { width: 34%; }
+.lines.ach td:nth-child(4), .lines.ach th:nth-child(4) { width: 110px; white-space: nowrap; }
+.lines.ach td:nth-child(5) { width: 16%; }
+.lines.ach td:nth-child(6) { width: 34%; }
