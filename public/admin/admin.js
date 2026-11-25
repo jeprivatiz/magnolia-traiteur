@@ -1958,7 +1958,8 @@
     const liste = masquesALaFin(prods.filter(p => p.rubrique === r).sort(ordreSite));
     const rub = rubs.find(x => x.slug === r) || {};
     const titreCat = 'Catalogue' + pavesCat(prods, 'produits');
-    return page(titreCat, `<input type="search" placeholder="Rechercher dans tout le catalogue…" data-q>`, `
+    return page(titreCat, '', `
+      <div class="trouve"><label for="trouveQ">🔍 Trouver un produit <small>dans toutes les rubriques</small></label><input id="trouveQ" type="search" data-q placeholder="Tapez un nom : boudin, nems, champagne, serveur…" autocomplete="off"></div><div id="qres" hidden></div>
       <div class="catg"><nav class="rubs">${rubs.map(x => `<a href="#/catalogue?r=${x.slug}" class="${x.slug === r ? 'on' : ''}${x.statut === 'masque' ? ' hid' : ''}">${esc(x.nom)}<small>${nbRub(x.slug)}</small></a>`).join('')}<button class="lnk" data-newrub>+ Nouvelle rubrique</button></nav>
       <div><section class="box rubbox"><div class="bh"><h2>${esc(rub.nom || '')}</h2><a class="btn voir-site" href="/${esc(r)}?apercu=1" target="_blank">👁 Voir la présentation sur le site</a>${r === 'lieux' ? `<a class="btn" href="#/lieux">Gérer les ${nbLieux} lieux</a>` : `<button class="btn" data-new="${esc(r)}">+ Créer dans « ${esc(rub.nom || '')} »</button>`}</div>
         <form id="rf" class="g3"><label>Nom<input name="nom" value="${esc(rub.nom || '')}"></label><label>Accroche (sur la vignette)<input name="accroche" value="${esc(rub.accroche || '')}" placeholder="ex. Le monde entier à votre table"></label><label>Statut<select name="statut"><option value="visible">Visible</option><option value="masque"${rub.statut === 'masque' ? ' selected' : ''}>Masquée</option></select></label>
@@ -2161,10 +2162,21 @@
   catalogue.after = () => {
     if (new URLSearchParams(location.hash.split('?')[1] || '').get('masques')) return apresMasques();
     if (new URLSearchParams(location.hash.split('?')[1] || '').get('sansmarge')) return apresSansMarge();
-    $('[data-q]').addEventListener('input', e => {
-      const q = e.target.value.toLowerCase().trim(); if (cache.catR === 'lieux') $('.prodbox').hidden = !q;
-      $('#plist').innerHTML = masquesALaFin(q ? cache.produits.filter(p => (p.titre + ' ' + (p.extrait || '')).toLowerCase().includes(q)) : cache.produits.filter(p => p.rubrique === cache.catR).sort(ordreSite)).map(prow).join('') || '<p class="muted">Aucun résultat.</p>';
-    });
+    /* 🔍 Trouver un produit : toutes les rubriques, sans accents ni majuscules, tous les mots tapés ; la recherche est gardée au retour d'une fiche */
+    const sansAccQ = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const nomRubQ = p => { const r = (cache.rubriques || []).find(x => x.slug === p.rubrique); const so = (r?.sous || []).find(x => x.slug === p.sous); return (r?.nom || p.rubrique || '') + (so ? ' › ' + so.nom : ''); };
+    const qrow = p => `<a class="qrow${p.statut === 'masque' ? ' hid' : ''}" href="#/catalogue/${esc(p.id || p.slug)}">${p.photos?.[0]?.src ? `<img src="${esc(p.photos[0].src)}" alt="" loading="lazy">` : '<span class="ph0"></span>'}<span class="qtx"><b>${titreHtml(p.titre)}</b><small>${p.prixCents == null ? 'Sur devis' : euros(p.prixCents) + (p.unite ? ' / ' + esc(p.unite) : '')}${p.min > 1 ? ' · min. ' + p.min : ''}</small><span class="qrub">📂 ${esc(nomRubQ(p))}</span></span><span class="pill ${p.statut === 'masque' ? 'd-refuse' : 'd-accepte'}">${p.statut === 'masque' ? 'Masqué' : 'Visible'}</span><span class="btn sm">✏ Ouvrir la fiche</span></a>`;
+    const chercher = () => {
+      const brut = $('[data-q]').value, q = sansAccQ(brut).trim();
+      try { sessionStorage.setItem('mg-trouve', brut); } catch { /* */ }
+      $('.catg').hidden = !!q; $('#qres').hidden = !q;
+      if (!q) return;
+      const mots = q.split(/\s+/);
+      const L = masquesALaFin(cache.produits.filter(p => { const t = sansAccQ(titreTexte(p.titre) + ' ' + p.slug + ' ' + (p.extrait || '')); return mots.every(m => t.includes(m)); }).sort((a, b) => String(titreTexte(a.titre)).localeCompare(String(titreTexte(b.titre)), 'fr', { sensitivity: 'base' })));
+      $('#qres').innerHTML = `<p class="qnb">${L.length ? `<b>${L.length}</b> produit${L.length > 1 ? 's' : ''} trouvé${L.length > 1 ? 's' : ''} pour « ${esc(brut.trim())} » — cliquez pour ouvrir la fiche` : `Aucun produit ne contient « ${esc(brut.trim())} ». Essayez un seul mot, ou une autre orthographe.`}</p><div class="qlist">${L.map(qrow).join('')}</div>`;
+    };
+    $('[data-q]').addEventListener('input', chercher);
+    try { const m = sessionStorage.getItem('mg-trouve'); if (m) { $('[data-q]').value = m; chercher(); } } catch { /* */ }
     $('[data-new]')?.addEventListener('click', async e => {
       const titre = prompt('Nom de la nouvelle prestation ?'); if (!titre) return;
       const r = await api(A + '/produits', { method: 'POST', body: { titre, rubrique: e.target.dataset.new, prixCents: null, unite: 'personne', min: 1, statut: 'masque', tva: (cache.rubriques.find(x => x.slug === e.target.dataset.new) || {}).tva || 10 } });
