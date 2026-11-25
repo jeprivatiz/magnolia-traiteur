@@ -1999,6 +1999,16 @@
     catch (err) { toast(err.message, true); }
   };
   const apresSansMarge = () => {
+    $('[data-acok]')?.addEventListener('click', async e => {
+      const [rubrique, sous] = ($('[data-accat]').value || '|').split('|'), pct = +String($('[data-acpct]').value).replace(',', '.').trim(), remplacer = $('[data-acrempl]').checked;
+      if (!rubrique) return toast('Choisissez une catégorie.', true);
+      if (!(pct > 0 && pct < 100)) return toast('Tapez le pourcentage, par exemple 40.', true);
+      const cat = $('[data-accat]').selectedOptions[0].textContent;
+      if (!confirm(`Calculer le prix d’achat de ${cat} ?\n\nPrix d’achat HT = prix de vente HT − ${String(pct).replace('.', ',')} %.${remplacer ? '\nLes prix d’achat déjà tapés seront remplacés.' : '\nSeules les fiches sans prix d’achat sont touchées.'}`)) return;
+      e.target.disabled = true;
+      try { const r = await api(A + '/actions/achats/categorie', { method: 'POST', body: { rubrique, sous, pct, remplacer } }); cache.produits = null; toast(`✓ Prix d’achat calculé sur ${r.fiches} fiche${r.fiches > 1 ? 's' : ''}.`); setTimeout(() => location.reload(), 1200); }
+      catch (err) { toast(err.message, true); e.target.disabled = false; }
+    });
     $('[data-fcf]')?.addEventListener('change', e => { const n = $('[data-fcfnew]'); n.hidden = e.target.value !== '__nouveau'; if (!n.hidden) n.focus(); });
     $('[data-fcok]')?.addEventListener('click', async e => {
       const [rubrique, sous] = ($('[data-fccat]').value || '|').split('|'), fs = $('[data-fcf]').value;
@@ -2079,7 +2089,14 @@
           <label>Fournisseur<select data-fcf>${smfOptions('')}</select><input data-fcfnew placeholder="Nom du nouveau fournisseur" hidden></label>
           <label>Prix d’achat des fiches qui n’en ont pas <small>(facultatif)</small><span class="fcat-pct">= prix de vente ÷ (1 + <input data-fcpct inputmode="decimal" placeholder="30" aria-label="Pourcentage ajouté par Magnolia"> %)</span></label></div>
           <p class="muted sm">Laissez le pourcentage vide pour ne toucher à aucun prix d’achat. Avec 30 %, une fiche vendue 13 € reçoit un prix d’achat de 10 € (même TVA des deux côtés, donc le calcul vaut en HT comme en TTC). Les prix d’achat déjà tapés ne changent jamais.</p>
-          <button type="button" class="btn" data-fcok>Appliquer à la catégorie</button></details></section>` : ''}
+          <button type="button" class="btn" data-fcok>Appliquer à la catégorie</button></details>
+        <details class="fcat"><summary>🧮 Calculer le prix d’achat de toute une catégorie</summary>
+          <p class="muted sm">Le prix d’achat est calculé à partir du prix de vente de chaque fiche. Les prix de vente ne changent pas. 🔒 Jamais montré au client.</p>
+          <div class="fcat-row"><label>Catégorie<select data-accat>${fcatOptions(rubs, prods)}</select></label>
+          <label>Calcul<span class="fcat-pct">Prix d’achat HT = prix de vente HT − <input data-acpct inputmode="decimal" placeholder="40" aria-label="Pourcentage retiré"> %</span></label></div>
+          <label class="chk"><input type="checkbox" data-acrempl checked> Remplacer aussi les prix d’achat déjà tapés dans ces fiches</label>
+          <p class="muted sm">Exemple avec 40 % : une fiche vendue 22,00 € TTC (20,00 € HT) reçoit un prix d’achat de 12,00 € HT.</p>
+          <button type="button" class="btn" data-acok>Calculer sur la catégorie</button></details></section>` : ''}
       <section class="box sm-rech"><div class="sm-cats" role="tablist">${smCats.map(([g, n, nom]) => `<button type="button" class="btn sm${g ? ' ghost' : ''}" data-smcat="${esc(g)}">${esc(nom)} <b>${n}</b></button>`).join('')}</div><label>🔎 Rechercher un produit sans marge<input type="search" data-smq placeholder="Tapez un nom : colombo, champagne, nappe…" autocomplete="off"></label><p class="muted sm" data-smqn></p></section>
       ${groupes.map(g => `<section class="box sm-acc" data-smrub="${esc(g)}"><h2><button type="button" class="sm-tog" data-smtog aria-expanded="false"><span>${esc(nomRub(g))} <small class="muted">(${L.filter(p => p.rubrique === g).length})</small></span><i aria-hidden="true">▾</i></button></h2><div class="plist smlist">${L.filter(p => p.rubrique === g).map(smLigne).join('')}</div></section>`).join('') || '<section class="box"><p class="ok">✓ Tous les produits visibles ont un prix d’achat.</p></section>'}`);
   }
