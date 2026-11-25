@@ -190,6 +190,30 @@ async function createApp(opts = {}) {
     if (rb) await store.set('rubriques/boissons', { ...rb, nom: 'La cave de Magnolia', titrePage: rb.titrePage ? 'La cave de Magnolia' : rb.titrePage, chapo: 'Du vin au soft, en passant par les alcools.' });
     await store.set('_migr/caveMagnolia', { at: new Date().toISOString() });
   }
+  /* une seule fois (Jean-Luc, 2026-11-25) : Magnolia loue des FLÛTES à champagne, pas des coupes. La fiche devient « Verres à vin et flûtes à champagne »,
+     photo verre à vin + flûte (Pexels 19408256, Luis Felipe Pérez), casiers de 36, location dès 36 verres (1 casier). Prix inchangé, adresse inchangée
+     (la fiche Open bar y renvoie). Les textes Google sont vidés pour être réécrits avec le nouveau nom. */
+  if (!(await store.get('_migr/verresFlutes'))) {
+    const SLUG = 'verres-en-verre-vin-coupes-a-champagne';
+    for (const { id, data: p } of await store.list('produits')) {
+      if (!p || (p.slug !== SLUG && id !== SLUG)) continue;
+      const q = { ...p,
+        titre: 'Verres à vin et flûtes à champagne',
+        extrait: 'Verres à vin et flûtes à champagne en verre, loués par casiers de 36.',
+        description: ['Verres à vin et flûtes à champagne en verre, loués par casiers de 36.'],
+        sousPhoto: ['Verres à vin et flûtes à champagne en verre, loués en casiers de 36 pour servir vos invités avec élégance lors d’un vin d’honneur, d’un cocktail ou d’un dîner. La location se fait à partir de 36 verres, soit un casier.'],
+        sousPhotoAuto: false,
+        min: 36, unite: p.unite || 'verre', minimumTexte: null,
+        photos: [{ src: '/site/c/materiel/verres-vin-flutes.webp', alt: 'Un verre à vin et une flûte à champagne sur une table de réception' }],
+        sections: [{ note: null, apres: null, titre: 'Caractéristiques', paragraphes: [], items: ['Verres à vin et flûtes à champagne en verre', 'Conditionnement : casier de 36 verres', 'Location à partir de 36 verres (1 casier)'] }],
+        details: (p.details || []).map(d => /minimum de commande/i.test(d) ? 'Location à partir de 36 verres (1 casier). Hors frais de livraison.' : d),
+        seoTitre: '', seoDescription: '' };
+      delete q.seoAuto;
+      if (!q.details.some(d => /36 verres/.test(d))) q.details.unshift('Location à partir de 36 verres (1 casier). Hors frais de livraison.');
+      await store.set('produits/' + id, q);
+    }
+    await store.set('_migr/verresFlutes', { at: new Date().toISOString() });
+  }
   /* La cave de Magnolia refaite (Jean-Luc, 2026-11-25) : catégories avec photo, boissons reprises d'une carte de traiteur, champagne André Diligent en grand (server/cave.js) */
   { const n = await require('./cave').initCave(store); if (n) console.log(`[demarrage] La cave de Magnolia : ${n} boissons créées`); }
 
