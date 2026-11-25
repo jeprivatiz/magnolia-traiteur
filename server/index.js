@@ -14,7 +14,7 @@ const { createCatalogue } = require('./catalogue');
 const { seed, importerAvisAncienSite, initSousRubriques } = require('./seed');
 const views = require('./views');
 const { preparerAlerte } = require('./relances');
-const { raisonsDevisManuel, regleAcompte, totaux, controleMarge, prochainNumero, lignesDepuisDemande, estimerLigne } = require('./devis');
+const { raisonsDevisManuel, regleAcompte, totaux, controleMarge, prochainNumero, lignesDepuisDemande, estimerLigne, choixDepuisNote, totalSupplements } = require('./devis');
 const { rid, sha, esc, euros, limiter, dateFr, slugify, nomPropre, dateNaissance, titreTexte } = require('./util');
 const ACHATS = require('./achats');
 const { creerImportClients, normTel, departementDe } = require('./import-clients');
@@ -456,7 +456,7 @@ async function createApp(opts = {}) {
       for (const g of p?.groupes || []) { const ids = (l.choix?.[g.id] || []).filter(id => (g.options || []).some(o => o.id === String(id).replace(/:\d+$/, ''))).slice(0, 30); if (ids.length) choix[g.id] = ids; }
       return {
         slug: p ? p.slug : s(l.slug, 120), titre: p ? p.titre : s(l.titre, 160), rubrique: p?.rubrique || s(l.rubrique, 60), unite: p?.unite || s(l.unite, 40),
-        qte: est.qte, prixCents: p?.prixCents ?? null, supCents: est.supCents, totalCents: est.totalCents, surDevis: est.surDevis,
+        qte: est.qte, prixCents: p?.prixCents ?? null, supCents: est.supCents, supplements: est.supplements, totalCents: est.totalCents, surDevis: est.surDevis,
         variante: (p?.variantes || []).includes(l.variante) ? l.variante : '', choix, resume: s(l.resume, 400), note: s(l.note, 500),
         personnel: l.personnel?.nb ? { nb: Math.min(50, Math.max(1, +l.personnel.nb | 0)), heures: Math.min(24, Math.max(T.personnel?.minHeures || 4, +l.personnel.heures | 0)) } : null,
         pack: l.pack?.id && (T.packs || []).some(x => x.id === l.pack.id) ? { id: l.pack.id, nb: Math.max(1, +l.pack.nb | 0) } : null,
@@ -1234,8 +1234,10 @@ async function createApp(opts = {}) {
       await store.set('clients/' + clientId, { id: clientId, nom, email: f.email, tel: f.tel, societe: f.societe, adresse: f.adresse, notes: '', creeLe: now, derniereActivite: now, source: 'téléphone (IA)' });
       if (f.email) await store.set('_clientemail/' + sha(f.email), { id: clientId });
     }
-    const lignes = articles.map(a => ({ slug: a.slug, titre: a.titre, rubrique: a.rubrique, unite: a.unite, qte: a.qte, prixCents: a.prixCents, supCents: 0,
-      totalCents: (a.prixCents || 0) * a.qte, surDevis: a.prixCents == null, variante: '', choix: {}, resume: '', note: a.note, personnel: null, pack: null }));
+    /* plats à supplément (coq roussi + 5 € la part) retrouvés dans la note de l'IA : ligne « Supplément » sur le devis */
+    const lignes = articles.map(a => { const p = c.bySlug.get(a.slug), choix = choixDepuisNote(a.note, p, a.qte), est = estimerLigne({ qte: a.qte, choix }, p, T);
+      return { slug: a.slug, titre: a.titre, rubrique: a.rubrique, unite: a.unite, qte: a.qte, prixCents: a.prixCents, supCents: 0, supplements: est.supplements,
+        totalCents: (a.prixCents || 0) * a.qte + totalSupplements(est.supplements), surDevis: a.prixCents == null, variante: '', choix, resume: '', note: a.note, personnel: null, pack: null }; });
     if (f.serveurs) lignes[0].personnel = { nb: f.serveurs, heures: Math.max(T.personnel?.minHeures || 4, +f.heures || 0) };
     if (f.vaisselle && (T.packs || []).some(x => x.id === f.vaisselle)) lignes[0].pack = { id: f.vaisselle, nb: +f.invites || lignes[0].qte };
     const km = Math.min(2000, Math.max(0, Math.round(+req.body?.km || 0)));

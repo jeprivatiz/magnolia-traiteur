@@ -1,6 +1,41 @@
 'use strict';
 /* Calculs des devis et factures. Tous les prix sont saisis et affichés TTC ; la TVA est déduite ligne par ligne. */
-const { avecPortion } = require('./util');
+const { avecPortion, norm, titreTexte } = require('./util');
+
+/* Suppléments « par part » (Jean-Luc, 2026-11-25 : coq roussi + 5 € TTC la part dans les buffets antillais).
+   Une option d'un groupe « en portions » (mode quantites) qui a un supplément ne change pas le prix par personne :
+   elle s'ajoute à part, en bas, « Supplément coq roussi : 15 parts × 5 € ». Renvoie [{ id, label, n, puCents, coutCents }]. */
+function supplementsParPart(l, p) {
+  const out = [];
+  for (const g of p?.groupes || []) {
+    if (g.mode !== 'quantites') continue;
+    for (const id of l.choix?.[g.id] || []) {
+      const [oid, n] = String(id).split(':'); const o = (g.options || []).find(x => x.id === oid);
+      const nb = Math.max(0, Math.round(+n || 0));
+      if (o?.supCents && nb) out.push({ id: o.id, label: o.label, n: nb, puCents: o.supCents, coutCents: o.coutCents ?? null });
+    }
+  }
+  return out;
+}
+const totalSupplements = s => (s || []).reduce((t, x) => t + x.n * x.puCents, 0);
+
+/* l'IA (devis préparé au téléphone) ne coche pas les portions : on retrouve dans sa note les plats à supplément
+   (« plats : colombo de poulet × 20, coq roussi × 20 ») ; sans nombre, toutes les parts de la ligne. */
+function choixDepuisNote(note, p, qte) {
+  const choix = {}, txt = ' ' + norm(note).replace(/[’']/g, ' ') + ' ';
+  for (const g of p?.groupes || []) {
+    if (g.mode !== 'quantites') continue;
+    for (const o of g.options || []) {
+      if (!o.supCents) continue;
+      const lab = norm(o.label).replace(/[’']/g, ' ').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      if (!new RegExp('\\b' + lab + '\\b').test(txt)) continue;
+      const m = new RegExp(lab + '\\s*(?:[×x:(]\\s*)(\\d+)').exec(txt) || new RegExp('(\\d+)\\s*(?:parts?|portions?)?\\s*(?:de\\s+|du\\s+)?' + lab).exec(txt);
+      const n = Math.min(qte, m ? +m[1] : qte);
+      if (n > 0) (choix[g.id] = choix[g.id] || []).push(o.id + ':' + n);
+    }
+  }
+  return choix;
+}
 
 function totaux(doc) {
   const lignes = (doc.lignes || []).filter(l => l.type !== 'titre');
@@ -56,6 +91,7 @@ function coutLigne(l, p) {
     for (const id of l.choix?.[g.id] || []) {
       const [oid, n] = String(id).split(':'); const o = (g.options || []).find(x => x.id === oid);
       if (!o) continue;
+      if (g.mode === 'quantites' && o.supCents) continue; /* supplément par part : prix d'achat sur sa propre ligne */
       if (o.coutCents == null) { if (o.supCents) return null; continue; }
       cout += n ? Math.round(o.coutCents * n / qte) : o.coutCents;
     }
@@ -110,6 +146,9 @@ function lignesDepuisDemande(demande, catalogue, tarifs = {}) {
       puCents: (l.prixCents ?? p?.prixCents ?? 0) + (l.supCents || 0), coutCents: coutLigne(l, p),
       tva: p?.tva ?? 10, produit: l.slug,
     });
+    for (const x of supplementsParPart(l, p)) {
+      out.push({ designation: 'Supplément ' + x.label.toLowerCase(), detail: `${titreTexte(l.titre)} · ${x.n} part${x.n > 1 ? 's' : ''} × ${(x.puCents / 100).toLocaleString('fr-FR')} € TTC`, qte: x.n, unite: 'part', puCents: x.puCents, coutCents: x.coutCents, tva: p?.tva ?? 10, supplement: x.id });
+    }
     if (l.personnel?.nb) {
       out.push({ designation: tarifs.personnel?.label || 'Personnel de service', detail: `${l.personnel.nb} pers. × ${l.personnel.heures} h`, qte: l.personnel.nb * l.personnel.heures, unite: 'heure', puCents: tarifs.personnel?.heureCents || 4188, coutCents: null, tva: 20 });
     }
@@ -132,12 +171,14 @@ function estimerLigne(l, p, tarifs = {}) {
   let sup = 0;
   for (const g of p?.groupes || []) {
     const choisis = (l.choix?.[g.id] || []);
-    for (const id of choisis) { const [oid, n] = String(id).split(':'); const o = (g.options || []).find(x => x.id === oid); if (o?.supCents) sup += n ? Math.round(o.supCents * n / qte) : o.supCents; }
+    if (g.mode === 'quantites') continue; /* suppléments par part : comptés à part */
+    for (const id of choisis) { const [oid] = String(id).split(':'); const o = (g.options || []).find(x => x.id === oid); if (o?.supCents) sup += o.supCents; }
   }
-  let total = base == null ? 0 : (base + sup) * qte;
+  const supplements = supplementsParPart(l, p);
+  let total = base == null ? 0 : (base + sup) * qte + totalSupplements(supplements);
   if (l.personnel?.nb) total += (tarifs.personnel?.heureCents || 4188) * l.personnel.nb * Math.max(tarifs.personnel?.minHeures || 4, l.personnel.heures || 0);
   if (l.pack?.id) { const pk = (tarifs.packs || []).find(x => x.id === l.pack.id); if (pk) total += pk.prixCents * (l.pack.nb || qte); }
-  return { qte, supCents: sup, totalCents: total, surDevis: base == null };
+  return { qte, supCents: sup, supplements, totalCents: total, surDevis: base == null };
 }
 
 /* Envoi automatique du devis (Jean-Luc, 2026-11-24) : une demande du site part toute seule, devis compris,
@@ -174,4 +215,4 @@ function raisonsDevisManuel(demande, catalogue, T = {}, now = new Date()) {
   return [...new Set(r)];
 }
 
-module.exports = { raisonsDevisManuel, regleAcompte, totaux, controleMarge, prochainNumero, lignesDepuisDemande, estimerLigne, marge, coutLigne };
+module.exports = { raisonsDevisManuel, regleAcompte, totaux, controleMarge, prochainNumero, lignesDepuisDemande, estimerLigne, marge, coutLigne, supplementsParPart, totalSupplements, choixDepuisNote };
