@@ -231,7 +231,7 @@ async function vinsCave(store) {
    par l'eau pétillante 1,5 L que Magnolia propose déjà (ancien site, page « Nos boissons sans alcool »), au même prix. */
 const EAUX_RETIREES = ['eau-evian-50-cl', 'eau-vittel-1-l', 'perrier-fines-bulles-1-l'];
 const EAUX_NOUVELLES = [
-  { slug: 'eau-plate-cristaline-1-5-l', titre: 'Eau plate Cristaline (1,5 L)', ordre: 10, photo: [px(13055851), 'Bouteilles d’eau plate'],
+  { slug: 'eau-plate-cristaline-1-5-l', titre: 'Eau plate Cristaline (1,5 L)', ordre: 10, photo: ['/site/c/cave/cristaline-plate-1-5-l.webp', 'Bouteille d’eau plate Cristaline 1,5 L'],
     extrait: 'Eau de source plate Cristaline, bouteille de 1,5 litre, vendue à l’unité.', description: ['Eau de source plate Cristaline, bouteille de 1,5 litre, vendue à l’unité.', FRAIS] },
   { slug: 'eau-petillante-1-5-l', titre: 'Eau gazeuse Cristaline (1,5 L)', ordre: 10.5, prix: 220, photo: ['/site/c/cave/cristaline-gazeifiee-1-5-l.webp', 'Bouteille de Cristaline gazéifiée 1,5 L'],
     extrait: 'Eau de source gazéifiée Cristaline, bouteille de 1,5 litre, vendue à l’unité.', description: ['Eau de source gazéifiée Cristaline, bouteille de 1,5 litre, vendue à l’unité.', FRAIS] },
@@ -272,9 +272,19 @@ async function cristalineGaz(store) {
   await store.set('_migr/caveCristalineGaz1', { at: new Date().toISOString() });
 }
 
+/* Photo de la Cristaline plate fournie par Jean-Luc (2026-11-25), cadrée sur l'étiquette ; la gazeuse recadrée de même */
+async function cristalinePlate(store) {
+  if (await store.get('_migr/caveCristalinePlate1')) return;
+  for (const x of EAUX_NOUVELLES) {
+    const d = await store.get('produits/' + x.slug);
+    if (d) await store.set('produits/' + x.slug, { ...d, photos: [{ src: x.photo[0] + '?v=2', alt: x.photo[1] }] });
+  }
+  await store.set('_migr/caveCristalinePlate1', { at: new Date().toISOString() });
+}
+
 async function initCave(store) {
   await prixCave(store);
-  if (await store.get('_migr/caveCercle')) { await openBarCave(store); await sodasCave(store); await vinsCave(store); await eauxCave(store); await cocaPhotos(store); await cristalineGaz(store); return ajoutsCave(store); }
+  if (await store.get('_migr/caveCercle')) { await openBarCave(store); await sodasCave(store); await vinsCave(store); await eauxCave(store); await cocaPhotos(store); await cristalineGaz(store); await cristalinePlate(store); return ajoutsCave(store); }
   const now = new Date().toISOString();
   let n = 0;
   for (const d of await store.list('produits')) {
@@ -317,6 +327,7 @@ async function initCave(store) {
   await eauxCave(store);
   await cocaPhotos(store);
   await cristalineGaz(store);
+  await cristalinePlate(store);
   return n + await ajoutsCave(store);
 }
 

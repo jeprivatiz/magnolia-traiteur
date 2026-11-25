@@ -51,5 +51,6 @@ test('initCave : anciens vins masqués, nos open bars gardés, nouvelles fiches 
   assert.equal(docs.get('produits/eau-plate-cristaline-1-5-l').prixCents, 250);
   assert.equal(docs.get('produits/coca-cola-1-5-l').photos[0].src, '/site/c/cave/coca-cola-1-5-l.webp');
   assert.equal(docs.get('produits/eau-petillante-1-5-l').prixCents, 220);
+  assert.match(docs.get('produits/eau-plate-cristaline-1-5-l').photos[0].src, /cristaline-plate-1-5-l\.webp/);
   assert.equal(await initCave(store), 0);
 });

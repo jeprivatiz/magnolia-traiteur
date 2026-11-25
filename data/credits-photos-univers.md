@@ -311,3 +311,4 @@ Photos regardées une à une (vraies photos, sans texte ni logo), licence Pexels
 - Eau plate Cristaline 1,5 L : Pexels 13055851 ; eau pétillante 1,5 L : Pexels 31699476 (2026-11-25).
 - Coca-Cola 1,5 L et Coca-Cola Zéro 1,5 L : photos fournies par Jean-Luc (2026-11-25), remplacent les photos Pexels.
 - Cristaline gazéifiée 1,5 L : photo fournie par Jean-Luc (2026-11-25), remplace Pexels 31699476.
+- Cristaline plate 1,5 L : photo fournie par Jean-Luc (2026-11-25), remplace Pexels 13055851 ; photos Cristaline cadrées sur l'étiquette.
