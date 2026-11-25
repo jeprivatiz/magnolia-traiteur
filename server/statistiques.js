@@ -47,7 +47,7 @@ function statistiques({ rubriques = [], produits = [], devis = [], lieux = [], m
   };
 
   const vide = () => ({ venteHtCents: 0, margeHtCents: 0, venteConnueHtCents: 0, devis: new Set(), serie: mois.map(m => ({ mois: m, venteHtCents: 0, margeHtCents: 0 })) });
-  const acc = new Map(), accSous = new Map(), total = vide(), autres = vide();
+  const acc = new Map(), accSous = new Map(), accProd = new Map(), total = vide(), autres = vide();
   const get = (map, k) => { if (!map.has(k)) map.set(k, vide()); return map.get(k); };
   const ajoute = (a, i, id, v, m) => {
     a.venteHtCents += v; a.devis.add(id); a.serie[i].venteHtCents += v;
@@ -75,11 +75,12 @@ function statistiques({ rubriques = [], produits = [], devis = [], lieux = [], m
       else if (String(l.produit || '').startsWith('lieu-') || /^privatisation · /i.test(l.designation || '')) cible = { rubs: ['lieux'] };
       else {
         const p = produitDeLigne(l);
-        if (p) cible = { rubs: [...new Set([p.rubrique, ...(p.autresRubriques || [])])], sous: p.sous ? p.rubrique + '/' + p.sous : null };
+        if (p) cible = { rubs: [...new Set([p.rubrique, ...(p.autresRubriques || [])])], sous: p.sous ? p.rubrique + '/' + p.sous : null, prod: p.slug };
         else if (/^personnel\b/i.test(l.designation || '') && l.unite === 'heure') cible = { rubs: ['personnel'] };
       }
       if (!l.supplement) dernier = cible;
       ajoute(total, i, d.id, vHt, mHt);
+      if (cible?.prod) ajoute(get(accProd, cible.prod), i, d.id, vHt, mHt);
       const rs = (cible?.rubs || []).filter(r => rubDe.has(r));
       if (!rs.length) { ajoute(autres, i, d.id, vHt, mHt); continue; }
       for (const r of rs) ajoute(get(acc, r), i, d.id, vHt, mHt);
@@ -112,6 +113,16 @@ function statistiques({ rubriques = [], produits = [], devis = [], lieux = [], m
     total: ventes(total),
     autres: ventes(autres),
     catalogueTotal: margeCatalogue(produits),
+    /* meilleurs produits : chaque produit visible avec sa marge du catalogue (%) et ce qu'il a vendu sur 12 mois */
+    produits: produits.filter(p => visible(p) && (aMarge(p) || accProd.has(p.slug))).map(p => {
+      const v = accProd.get(p.slug), r = rubDe.get(p.rubrique);
+      return {
+        slug: p.slug, titre: String(p.titre || '').replace(/\*\*/g, ''), rubrique: r ? (p.sous && (r.sous || []).find(x => x.slug === p.sous) ? String(r.sous.find(x => x.slug === p.sous).nom || '').split(' · ')[0] : r.nom) : '',
+        photo: (p.photos || [])[0]?.src || (typeof p.photos?.[0] === 'string' ? p.photos[0] : '') || '', prixCents: p.prixCents ?? null, unite: p.unite || '',
+        pct: aMarge(p) ? Math.round(1000 * (p.prixCents - p.coutCents) / p.prixCents) / 10 : null,
+        venteHtCents: v ? v.venteHtCents : 0, margeHtCents: v ? v.margeHtCents : 0, devis: v ? v.devis.size : 0,
+      };
+    }),
   };
 }
 
