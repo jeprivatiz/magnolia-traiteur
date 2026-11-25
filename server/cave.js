@@ -129,12 +129,16 @@ async function ajoutsCave(store) {
    La quantité = le nombre de barmans (1 à 5) ; la durée se choisit dans la liste (4 h incluses, + 39 € par heure en plus).
    Total = barmans × (270 + 39 × heures supplémentaires). */
 const BARMAN_FORFAIT = 27000, BARMAN_HEURE_SUP = 3900;
+/* choix des heures supplémentaires (Jean-Luc, 2026-11-25) : 4 h comprises, puis 39 € TTC par heure en plus et par barman */
+const BARMAN_HEURES = { id: 'duree', titre: 'Heures supplémentaires', radio: true, max: 1, exact: true,
+  aide: 'Le forfait comprend 4 heures de service. Choisissez ici les heures en plus : 39 € TTC l’heure, par barman.',
+  options: [4, 5, 6, 7, 8, 9, 10, 11, 12].map(h => { const n = h - 4, s = n > 1 ? 's' : ''; return { id: h + 'h',
+    label: n === 0 ? 'Aucune · 4 heures (forfait)' : `${n} heure${s} supplémentaire${s} · ${h} heures au total (+${n * 39} €)`, supCents: n * BARMAN_HEURE_SUP }; }) };
 const BARMAN_PRIX = {
   prixCents: BARMAN_FORFAIT, unite: 'barman', min: 1, minimumTexte: null,
   description: ['Nos barmans tiennent votre bar pendant toute la durée de l’événement : ils servent vos invités, ouvrent les bouteilles, gardent le bar propre et rangé.',
     '270 € TTC par barman pour 4 heures de service, puis 39 € TTC par heure supplémentaire. Comptez un barman pour 30 à 40 invités, jusqu’à 5 barmans : indiquez le nombre de barmans, puis la durée.'],
-  groupes: [{ id: 'duree', titre: 'Durée de service', radio: true, max: 1, exact: true, aide: '4 heures comprises dans le forfait ; chaque heure en plus : 39 € TTC par barman.',
-    options: [4, 5, 6, 7, 8, 9, 10, 11, 12].map(h => ({ id: h + 'h', label: h === 4 ? '4 heures (forfait)' : `${h} heures (4 h + ${h - 4} h supplémentaire${h > 5 ? 's' : ''})`, supCents: (h - 4) * BARMAN_HEURE_SUP })) }],
+  groupes: [BARMAN_HEURES],
   regles: {},
 };
 const BARMAN = {
@@ -144,6 +148,13 @@ const BARMAN = {
   sections: [], details: [], photos: [{ src: px(5531479), alt: 'Barman qui sert un cocktail au bar' }], video: null,
   variantes: [], ordre: 5, statut: 'visible', maison: true, tva: 20, allergenes: [], aCompleter: false, ...BARMAN_PRIX,
 };
+/* remet le choix des heures supplémentaires sur la fiche en ligne, sans toucher aux textes tapés dans le back-office */
+async function barmanHeuresSup(store) {
+  if (await store.get('_migr/barmanHeuresSup1')) return;
+  const x = await store.get('produits/barman');
+  if (x) await store.set('produits/barman', { ...x, prixCents: BARMAN_FORFAIT, unite: 'barman', min: 1, groupes: [BARMAN_HEURES, ...(x.groupes || []).filter(g => g.id !== 'duree')] });
+  await store.set('_migr/barmanHeuresSup1', { at: new Date().toISOString() });
+}
 async function barmanPrix(store) {
   if (await store.get('_migr/barmanPrix2')) return;
   const x = await store.get('produits/barman');
@@ -518,7 +529,7 @@ async function metroCave(store) {
 
 async function initCave(store) {
   await prixCave(store);
-  if (await store.get('_migr/caveCercle')) { await openBarCave(store); await sodasCave(store); await vinsCave(store); await eauxCave(store); await cocaPhotos(store); await cristalineGaz(store); await cristalinePlate(store); await caveBandeauBadoit(store); await barmanSousPhoto(store); await barmanPrix(store); await alcoolsBlanc(store); await vinsRouges2(store); await barCocktailsMin(store); await barCocktailsVideo(store); await barCocktailsTexte(store); await barCocktailsRetablir(store); await valettePrix(store); await minutyCave(store); await rosesCave2(store); const k = await ajoutsCave(store); await metroCave(store); return k; }
+  if (await store.get('_migr/caveCercle')) { await openBarCave(store); await sodasCave(store); await vinsCave(store); await eauxCave(store); await cocaPhotos(store); await cristalineGaz(store); await cristalinePlate(store); await caveBandeauBadoit(store); await barmanSousPhoto(store); await barmanPrix(store); await alcoolsBlanc(store); await vinsRouges2(store); await barCocktailsMin(store); await barCocktailsVideo(store); await barCocktailsTexte(store); await barCocktailsRetablir(store); await valettePrix(store); await minutyCave(store); await rosesCave2(store); const k = await ajoutsCave(store); await metroCave(store); await barmanHeuresSup(store); return k; }
   const now = new Date().toISOString();
   let n = 0;
   for (const d of await store.list('produits')) {
@@ -574,7 +585,7 @@ async function initCave(store) {
   await valettePrix(store);
   await minutyCave(store);
   await rosesCave2(store);
-  const k = await ajoutsCave(store); await metroCave(store); return n + k;
+  const k = await ajoutsCave(store); await metroCave(store); await barmanHeuresSup(store); return n + k;
 }
 
 module.exports = { texteBarCocktails, BARMAN, OPEN_BAR_VC, CAVE_SECTIONS, CAVE_PRODUITS, AJOUTS_CAVE, CAVE_GARDEES, INTRO_CAVE, ttc, initCave };
