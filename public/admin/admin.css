@@ -1433,3 +1433,15 @@ input.verrou { background: var(--doux); color: var(--gris); cursor: not-allowed;
 .lines input.manq { background: #fff4dc; border-color: #e0b45a; } .lines input.manq::placeholder { color: #a8782a; }
 .pf-marge { margin: 4px 0 10px; font-size: .92rem; } .pf-marge.pos b { color: var(--vert-ok, #1f7a45); } .pf-marge.neg { color: var(--rouge, #b3261e); } .pf-marge.manq { color: #8a5a00; }
 .pf-marge small { color: var(--gris); }
+.smpill { background: #fff1d6 !important; color: #8a5a00 !important; }
+.smbox { border: 2px solid var(--or); }
+.ach-res .pill { font-size: .9rem; } .ach-p { background: #fff1d6; color: #8a5a00; }
+.lines.ach td { vertical-align: middle; } .lines.ach .wide { min-width: 240px; width: 100%; }
+.ach-e { font-size: .78rem; font-weight: 600; } .ach-e.ok { color: var(--vert-ok, #1f7a45); } .ach-e.proche, .ach-e.douteux { color: #8a5a00; } .ach-e.manq { color: var(--rouge, #b3261e); }
+.lines.ach tr.st-introuvable td, .lines.ach tr.st-douteux td { background: #fff8ec; }
+.fourn { margin: 6px 0 12px; } .fourn-lab { display: block; font-weight: 600; font-size: .9rem; margin-bottom: 6px; } .fourn-lab small { font-weight: 400; color: var(--gris); }
+.fourn-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.fchip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 6px 5px 12px; border-radius: 999px; background: var(--doux, #f3efe6); border: 1px solid var(--ligne); font-size: .9rem; }
+.fchip.princ { border-color: var(--or); background: color-mix(in srgb, var(--or) 14%, var(--carte, #fff)); font-weight: 600; }
+.fchip button { border: 0; background: transparent; cursor: pointer; font-size: 1.05rem; line-height: 1; color: var(--gris); padding: 0 4px; } .fchip button:hover { color: var(--rouge, #b3261e); }
+.fourn-add { gap: 8px; } .fourn-add select { min-width: 240px; } .fourn-add input { min-width: 220px; }

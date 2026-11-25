@@ -71,7 +71,7 @@
   let session = null, cache = {};
   /* droits détaillés du compte connecté (Équipe & activité) ; « Administrateur » a tout */
   const peut = k => !!session?.droits?.[k];
-  const DROIT_ECRAN = { factures: 'factures', catalogue: 'produits', lieux: 'produits', site: 'site', avis: 'site', medias: 'site', entreprise: 'entreprise', outils: ['outils', 'fichiers'] };
+  const DROIT_ECRAN = { factures: 'factures', catalogue: 'produits', achats: 'prix', lieux: 'produits', site: 'site', avis: 'site', medias: 'site', entreprise: 'entreprise', outils: ['outils', 'fichiers'] };
   const voitEcran = r => { const d = DROIT_ECRAN[r]; return !d || [].concat(d).some(peut); };
 
   /* ---------- structure ---------- */
@@ -134,13 +134,13 @@
     }
     if (!session) return login();
     const [route, id, sub] = location.hash.replace(/^#\/?/, '').split('?')[0].split('/');
-    const views = { '': dashboard, demandes, suivi, devis, factures, agenda, clients, catalogue, produit, lieux, lieu, site, avis, medias, entreprise, equipe, outils };
+    const views = { '': dashboard, demandes, suivi, devis, factures, agenda, clients, catalogue, produit, achats, lieux, lieu, site, avis, medias, entreprise, equipe, outils };
     let fn = route === 'catalogue' && id ? produit : route === 'lieux' && id ? lieu : views[route] || dashboard;
     if (!voitEcran(route)) fn = sansAcces;
     if (!peut('toutes') && typeof SV !== 'undefined') { SV.o = ''; mem.set('mg_commercial', ''); } /* « seulement ses opportunités » : pas de filtre sur un autre commercial */
     if (CRM.includes(route)) mem.set('mg_crm_last', route);
     if (!cache.nouvelles && cache.nouvelles !== 0) api(A + '/demandes').then(l => { cache.nouvelles = l.filter(d => aTraiter(d, cache.devisL || [])).length; $$('#side .chip[data-tab=demandes] span, #side .crm-btn span').forEach(x => { x.textContent = cache.nouvelles || ''; }); }).catch(() => {});
-    app.innerHTML = shell('<p class="muted">Chargement…</p>', route === 'produit' ? 'catalogue' : route);
+    app.innerHTML = shell('<p class="muted">Chargement…</p>', route === 'produit' || route === 'achats' ? 'catalogue' : route);
     bindShell();
     try {
       const html = await fn(id, sub);
@@ -1894,6 +1894,7 @@
     const nbRub = slug => slug === 'lieux' ? nbLieux : prods.filter(p => p.rubrique === slug).length;
     cache.rubriques = rubs.sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0)); cache.produits = prods;
     if (new URLSearchParams(location.hash.split('?')[1] || '').get('masques')) return pageMasques(rubs, prods);
+    if (new URLSearchParams(location.hash.split('?')[1] || '').get('sansmarge')) return pageSansMarge(rubs, prods);
     const r = new URLSearchParams(location.hash.split('?')[1] || '').get('r') || cache.catR || rubs[0]?.slug;
     cache.catR = r;
     const liste = prods.filter(p => p.rubrique === r).sort((a, b) => (b.maison ? 1 : 0) - (a.maison ? 1 : 0) || (a.ordre ?? 0) - (b.ordre ?? 0));
@@ -1919,10 +1920,18 @@
   }
   /* Pavés vert foncé à droite du titre « Catalogue » : chacun est un lien (même classe .nbcat pour les suivants) */
   const pavesCat = (prods, actif) => {
-    const nbVis = prods.filter(p => p.statut !== 'masque').length, nbMasq = prods.length - nbVis, s = n => n > 1 ? 's' : '';
+    const nbVis = prods.filter(p => p.statut !== 'masque').length, nbMasq = prods.length - nbVis, nbSM = prods.filter(sansMarge).length, s = n => n > 1 ? 's' : '';
     const pave = (k, href, n, mot, titre) => `<a class="nbcat${actif === k ? ' on' : ''}" data-pave="${k}" href="${href}" title="${titre}"><b>${n.toLocaleString('fr-FR')}</b><small>${mot}</small></a>`;
-    return `<span class="nbpaves">${pave('produits', '#/catalogue', nbVis, 'produit' + s(nbVis), `${nbVis} produit${s(nbVis)} visible${s(nbVis)} sur le site · ${prods.length} au total`)}${pave('masques', '#/catalogue?masques=1', nbMasq, 'masqué' + s(nbMasq), `Voir les ${nbMasq} fiche${s(nbMasq)} masquée${s(nbMasq)} et pourquoi`)}</span>`;
+    return `<span class="nbpaves">${pave('produits', '#/catalogue', nbVis, 'produit' + s(nbVis), `${nbVis} produit${s(nbVis)} visible${s(nbVis)} sur le site · ${prods.length} au total`)}${pave('masques', '#/catalogue?masques=1', nbMasq, 'masqué' + s(nbMasq), `Voir les ${nbMasq} fiche${s(nbMasq)} masquée${s(nbMasq)} et pourquoi`)}${pave('marge', '#/catalogue?sansmarge=1', nbSM, 'sans marge', `${nbSM} produit${s(nbSM)} visible${s(nbSM)} sans prix d’achat : leur marge ne peut pas être calculée`)}</span>`;
   };
+  /* produits sans marge (Jean-Luc, 2026-11-25) : visibles, avec un prix de vente, mais sans prix d'achat (ou vendus à perte) */
+  function pageSansMarge(rubs, prods) {
+    const L = prods.filter(sansMarge), nomRub = sl => rubs.find(x => x.slug === sl)?.nom || sl || 'Sans rubrique';
+    const groupes = [...new Set(L.map(p => p.rubrique))].sort((a, b) => rubs.findIndex(x => x.slug === a) - rubs.findIndex(x => x.slug === b));
+    return page('Catalogue' + pavesCat(prods, 'marge'), `<a class="btn ghost" href="#/catalogue">← Retour au catalogue</a>${peut('prix') ? '<a class="btn" href="#/achats">⬆ Importer les prix d’achat (Excel)</a>' : ''}`, `
+      <section class="box smbox"><h2>Produits sans marge <small class="muted">(${L.length})</small></h2><p class="muted">Produits visibles sur le site qui ont un prix de vente mais <b>pas de prix d’achat</b> (ou un prix d’achat supérieur au prix de vente) : leur marge ne peut pas être calculée sur les devis. Cliquez sur un produit pour remplir son prix d’achat et ses fournisseurs, ou importez votre tableau Excel.</p></section>
+      ${groupes.map(g => `<section class="box"><h2>${esc(nomRub(g))} <small class="muted">(${L.filter(p => p.rubrique === g).length})</small></h2><div class="plist">${L.filter(p => p.rubrique === g).map(prow).join('')}</div></section>`).join('') || '<section class="box"><p class="ok">✓ Tous les produits visibles ont un prix d’achat.</p></section>'}`);
+  }
   /* Fiches masquées de tout le catalogue (clic sur « + N masqués ») : raison du masquage, Modifier, Rendre visible */
   const raisonMasque = (p, prods) => {
     if (p.fusionneDans) { const g = prods.find(x => (x.id || x.slug) === p.fusionneDans || x.slug === p.fusionneDans); return { k: 'doublon', t: `Doublon : regroupé avec « ${g ? titreTexte(g.titre) : p.fusionneDans} »` }; }
@@ -1962,10 +1971,68 @@
       } catch (err) { b.disabled = false; toast(err.message, true); }
     });
   };
+  /* ---------- import des prix d'achat et fournisseurs (Excel de Jean-Luc) ---------- */
+  async function achats() {
+    return page('Importer les prix d’achat', '<a class="btn ghost" href="#/catalogue?sansmarge=1">← Produits sans marge</a>', `
+      <section class="box"><h2>1. Votre fichier Excel</h2>
+        <p>Un tableau avec <b>une ligne par produit</b> et ces colonnes (dans n’importe quel ordre) : <b>Produit</b> (le nom), <b>Prix d’achat</b>, <b>Fournisseur</b>. La première ligne contient les titres.</p>
+        <div class="g2"><label>Les prix d’achat du fichier sont<select id="ach-ht"><option value="">TTC (comme sur le site)</option><option value="1">HT (convertis en TTC avec la TVA de chaque fiche)</option></select></label></div>
+        <label class="imp-drop" id="achDrop"><input type="file" id="achFile" accept=".xlsx,.csv,.txt" hidden><b>📄 Cliquez ici ou glissez le fichier</b><small>Excel (.xlsx) ou CSV · rien n’est enregistré avant votre validation</small></label>
+        <p class="muted sm">🔒 Prix d’achat et fournisseurs restent internes : jamais montrés aux clients (site, devis, e-mails).</p></section>
+      <section class="box" id="achRes" hidden></section>`);
+  }
+  achats.after = () => {
+    let L = [];
+    const etiq = { exact: ['ok', '✓ Trouvé'], proche: ['proche', '≈ Nom proche, à vérifier'], douteux: ['douteux', '? Peu sûr, à vérifier'], introuvable: ['manq', '✗ Introuvable'] };
+    const dessiner = () => {
+      const n = k => L.filter(x => x.statut === k).length, coches = L.filter(x => x.coche && x.slug).length;
+      $('#achRes').hidden = false;
+      $('#achRes').innerHTML = `<div class="bh"><h2>2. Vérifiez le rapprochement <small class="muted">(${L.length} lignes)</small></h2></div>
+        <p class="ach-res"><span class="pill d-accepte">${n('exact')} trouvés</span> <span class="pill ach-p">${n('proche') + n('douteux')} à vérifier</span> <span class="pill d-refuse">${n('introuvable')} introuvables</span></p>
+        <div class="row"><button type="button" class="btn ghost sm" data-achtout="proche">Cocher aussi les ${n('proche')} « nom proche »</button><button type="button" class="btn ghost sm" data-achtout="">Tout décocher</button><label class="chk sm"><input type="checkbox" data-achmasq${L.masq ? ' checked' : ''}> Masquer les introuvables</label></div>
+        <p class="muted sm">Les lignes cochées seront enregistrées. Pour une ligne « à vérifier » ou « introuvable », choisissez la bonne fiche dans la liste (tapez pour chercher), ou laissez décoché.</p>
+        <div class="table"><table class="lines ach"><thead><tr><th></th><th>Ligne</th><th>Dans votre fichier</th><th class="n">Prix d’achat <small>(fichier)</small></th><th>Fournisseur</th><th>Fiche du catalogue</th></tr></thead><tbody>${L.map((x, i) => `<tr class="st-${x.statut}"${L.masq && x.statut === 'introuvable' ? ' hidden' : ''}><td><input type="checkbox" data-ck="${i}"${x.coche ? ' checked' : ''}${x.slug ? '' : ' disabled'}></td><td class="muted">${x.ligne}</td><td><b>${esc(x.nom)}</b><br><small class="ach-e ${etiq[x.statut][0]}">${etiq[x.statut][1]}</small>${x.alerte ? `<br><small class="ach-e manq">⚠ ${esc(x.alerte)}</small>` : ''}${x.doublon ? `<br><small class="ach-e proche">⚠ ${x.doublon} lignes visent cette fiche : la dernière cochée l’emporte</small>` : ''}</td><td class="n">${x.achatIllisible ? '<span class="neg">illisible</span>' : x.achatCents == null ? '—' : euros(x.achatCents)}</td><td>${esc(x.fournisseur || '—')}</td>
+          <td><input list="ach-dl" data-fi="${i}" value="${esc(x.slug ? titreTexte((cache.produits.find(p => p.slug === x.slug) || {}).titre || x.titre || '') : '')}" placeholder="Choisir une fiche…" class="wide">${(() => { const p = x.slug && cache.produits.find(y => y.slug === x.slug); return p ? `<small class="muted">sur le site : ${p.prixCents == null ? 'sur devis' : euros(p.prixCents) + ' TTC' + (p.unite ? ' / ' + esc(p.unite) : '')}</small>` : ''; })()}</td></tr>`).join('')}</tbody></table></div>
+        <datalist id="ach-dl">${cache.produits.map(p => `<option value="${esc(titreTexte(p.titre))}">`).join('')}</datalist>
+        <div class="actions sticky"><button class="btn" data-achok${coches ? '' : ' disabled'}>Enregistrer ${coches} fiche${coches > 1 ? 's' : ''}</button><span class="muted sm">Fiches déjà remplies : le prix d’achat et le fournisseur du fichier remplacent les anciens.</span></div>`;
+    };
+    const envoyer = async f => {
+      if (!f) return; const fd = new FormData(); fd.append('fichier', f);
+      $('#achDrop b').textContent = '⏳ Lecture de « ' + f.name + ' »…';
+      try {
+        if (!cache.produits) cache.produits = await api(A + '/produits');
+        const r = await api(A + '/actions/import-achats/analyser', { method: 'POST', form: fd });
+        L = r.lignes.map(x => ({ ...x, coche: x.statut === 'exact' && !x.achatIllisible && !x.alerte }));
+        if (r.ht) { $('#ach-ht').value = '1'; toast('Les prix de votre fichier sont hors taxes (comparés aux prix du site) : ils seront convertis en TTC.'); }
+        dessiner(); $('#achRes').scrollIntoView({ behavior: 'smooth' });
+      } catch (e) { toast(e.message, true); }
+      $('#achDrop b').textContent = '📄 Cliquez ici ou glissez un autre fichier';
+    };
+    $('#achFile').addEventListener('change', e => envoyer(e.target.files[0]));
+    const dz = $('#achDrop'); dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('on'); }); dz.addEventListener('dragleave', () => dz.classList.remove('on'));
+    dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('on'); envoyer(e.dataTransfer.files[0]); });
+    $('#achRes').addEventListener('change', e => {
+      const ck = e.target.dataset.ck, fi = e.target.dataset.fi;
+      if (ck != null) { L[+ck].coche = e.target.checked; dessiner(); }
+      if (fi != null) { const p = cache.produits.find(x => titreTexte(x.titre) === e.target.value.trim()); const x = L[+fi]; if (p) { x.slug = p.slug; x.titre = p.titre; x.coche = !x.achatIllisible; } else { x.slug = null; x.coche = false; } dessiner(); }
+    });
+    $('#achRes').addEventListener('click', async e => {
+      const t = e.target.closest('[data-achtout]');
+      if (t) { for (const x of L) x.coche = t.dataset.achtout ? (x.coche || (x.statut === 'proche' && !x.alerte && !x.achatIllisible)) : false; dessiner(); return; }
+      if (e.target.closest('[data-achmasq]')) { L.masq = e.target.checked; dessiner(); return; }
+      if (!e.target.closest('[data-achok]')) return;
+      const lignes = L.filter(x => x.coche && x.slug).map(x => ({ slug: x.slug, nom: x.nom, achatCents: x.achatIllisible ? null : x.achatCents, fournisseur: x.fournisseur, tva: x.tvaFichier }));
+      try { const r = await api(A + '/actions/import-achats/appliquer', { method: 'POST', body: { lignes, ht: !!$('#ach-ht').value } }); cache.produits = null; toast(`✓ ${r.maj} fiche${r.maj > 1 ? 's' : ''} mise${r.maj > 1 ? 's' : ''} à jour.${r.erreurs.length ? ' ' + r.erreurs.join(' ') : ''}`, !!r.erreurs.length); location.hash = '#/catalogue?sansmarge=1'; }
+      catch (err) { toast(err.message, true); }
+    });
+  };
   const LIEUX_CARTE = [['espagne', 'Espagne'], ['portugal', 'Portugal'], ['italie', 'Italie'], ['grece', 'Grèce'], ['france', 'France'], ['liban', 'Liban'], ['turquie', 'Turquie'], ['maghreb', 'Maghreb (Maroc, Algérie, Tunisie)'], ['maroc', 'Maroc'], ['algerie', 'Algérie'], ['tunisie', 'Tunisie'], ['afrique', 'Afrique (tout le continent)'], ['senegal', 'Sénégal'], ['cote-d-ivoire', 'Côte d’Ivoire'], ['cameroun', 'Cameroun'], ['congo', 'Congo'], ['antilles', 'Antilles'], ['reunion', 'La Réunion'], ['polynesie', 'Polynésie'], ['mexique', 'Mexique'], ['bresil', 'Brésil'], ['perou', 'Pérou'], ['argentine', 'Argentine'], ['etats-unis', 'États-Unis'], ['inde', 'Inde'], ['chine', 'Chine'], ['japon', 'Japon'], ['coree', 'Corée'], ['vietnam', 'Vietnam'], ['thailande', 'Thaïlande']];
-  const prow = p => `<a class="prow${p.statut === 'masque' ? ' hid' : ''}" href="#/catalogue/${p.id || p.slug}">${p.photos?.[0]?.src ? `<img src="${esc(p.photos[0].src)}" alt="" loading="lazy">` : '<span class="ph0"></span>'}<span><b>${titreHtml(p.titre)}</b><small>${p.prixCents == null ? 'Sur devis' : euros(p.prixCents) + (p.unite ? ' / ' + esc(p.unite) : '')}${p.min > 1 ? ' · min. ' + p.min : ''}</small></span><span class="pill ${p.statut === 'masque' ? 'd-refuse' : 'd-accepte'}">${p.statut === 'masque' ? 'Masqué' : 'Visible'}</span>${p.maison ? '<span class="pill">Maison</span>' : ''}${p.sous ? `<span class="pill">${esc(((cache.rubriques || []).find(r => r.slug === p.rubrique)?.sous || []).find(x => x.slug === p.sous)?.nom || '')}</span>` : ''}</a>`;
+  const fournisseursConnus = () => [...new Set((cache.produits || []).flatMap(x => [...(x.fournisseurs || []), ...(x.fournisseur ? [x.fournisseur] : [])]).map(x => String(x).trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fr'));
+  const sansMarge = p => p.statut !== 'masque' && p.prixCents != null && (p.coutCents == null || p.coutCents >= p.prixCents);
+  const prow = p => `<a class="prow${p.statut === 'masque' ? ' hid' : ''}" href="#/catalogue/${p.id || p.slug}">${p.photos?.[0]?.src ? `<img src="${esc(p.photos[0].src)}" alt="" loading="lazy">` : '<span class="ph0"></span>'}<span><b>${titreHtml(p.titre)}</b><small>${p.prixCents == null ? 'Sur devis' : euros(p.prixCents) + (p.unite ? ' / ' + esc(p.unite) : '')}${p.min > 1 ? ' · min. ' + p.min : ''}</small></span><span class="pill ${p.statut === 'masque' ? 'd-refuse' : 'd-accepte'}">${p.statut === 'masque' ? 'Masqué' : 'Visible'}</span>${p.maison ? '<span class="pill">Maison</span>' : ''}${sansMarge(p) ? `<span class="pill smpill">${p.coutCents == null ? 'Prix d’achat manquant' : 'Vendu à perte'}</span>` : ''}${p.sous ? `<span class="pill">${esc(((cache.rubriques || []).find(r => r.slug === p.rubrique)?.sous || []).find(x => x.slug === p.sous)?.nom || '')}</span>` : ''}</a>`;
   catalogue.after = () => {
     if (new URLSearchParams(location.hash.split('?')[1] || '').get('masques')) return apresMasques();
+    if (new URLSearchParams(location.hash.split('?')[1] || '').get('sansmarge')) return;
     $('[data-q]').addEventListener('input', e => {
       const q = e.target.value.toLowerCase().trim(); if (cache.catR === 'lieux') $('.prodbox').hidden = !q;
       $('#plist').innerHTML = (q ? cache.produits.filter(p => (p.titre + ' ' + (p.extrait || '')).toLowerCase().includes(q)) : cache.produits.filter(p => p.rubrique === cache.catR)).map(prow).join('') || '<p class="muted">Aucun résultat.</p>';
@@ -2128,8 +2195,8 @@
 
 
   async function produit(id) {
-    const [p, rubs] = await Promise.all([api(A + '/produits/' + id), cache.rubriques || api(A + '/rubriques')]);
-    cache.rubriques = rubs; cache.p = p;
+    const [p, rubs, prods] = await Promise.all([api(A + '/produits/' + id), cache.rubriques || api(A + '/rubriques'), cache.produits || api(A + '/produits').catch(() => [])]);
+    cache.rubriques = rubs; cache.p = p; cache.produits = prods;
     const sec = s => `${s.titre || ''}\n${(s.items || []).join('\n')}${(s.paragraphes || []).length ? '\n' + s.paragraphes.map(x => '> ' + x).join('\n') : ''}${s.note ? '\n# ' + s.note : ''}${s.apres ? '\n## ' + s.apres : ''}`;
     return page(titreHtml(p.titre), `<a class="btn ghost" href="#/catalogue?r=${esc(p.rubrique)}">← Catalogue</a><a class="btn voir-site" href="/${esc(p.rubrique)}/${esc(p.slug)}?apercu=1" target="_blank">👁 Voir la présentation sur le site</a>`, `
       <form id="pf">
@@ -2154,6 +2221,9 @@
           <div class="g2 prix-va"><label>Prix de vente TTC (€) <small>prix payé par le client · vide = « Sur devis »</small><input name="prix" value="${fromCents(p.prixCents)}" inputmode="decimal"${peut('prix') ? '' : ' readonly class="verrou"'}></label>
           <label>Prix d’achat TTC (€) <small>🔒 interne : jamais montré au client · sert à la marge des devis</small><input name="cout" value="${fromCents(p.coutCents)}" inputmode="decimal" placeholder="à remplir"${peut('prix') ? '' : ' readonly class="verrou"'}></label></div>
           <p class="pf-marge" data-pfmarge></p>
+          <div class="fourn" data-fourn><span class="fourn-lab">Fournisseurs <small>🔒 interne : d’où vient le produit, jamais montré au client · le premier est le principal</small></span>
+            <div class="fourn-chips" data-fchips></div>
+            ${peut('prix') ? `<div class="row fourn-add"><select data-fsel><option value="">+ Ajouter un fournisseur…</option>${fournisseursConnus().map(x => `<option>${esc(x)}</option>`).join('')}<option value="__nouveau">✚ Nouveau fournisseur…</option></select><input data-fnew placeholder="Nom du nouveau fournisseur" hidden><button type="button" class="btn sm" data-fok hidden>Ajouter</button></div>` : ''}</div>
           <div class="g2"><label>Par<select name="unite">${[...new Set([p.unite || '', ...UNITES])].map(u => `<option${u === (p.unite || '') ? ' selected' : ''}>${esc(u)}</option>`).join('')}</select></label>
           <label>Contenu <small>ex. « 4 brochettes », vide = rien d’affiché</small><input name="contenuPortion" value="${esc(p.contenuPortion || '')}" placeholder="4 brochettes"></label></div>
           <div class="g2"><label>Minimum<select name="min">${[...new Set([1, 2, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30, 40, 50, p.min || 1])].sort((a, b) => a - b).map(n => `<option${n === (p.min || 1) ? ' selected' : ''}>${n}</option>`).join('')}</select></label></div>
@@ -2191,6 +2261,15 @@
       el.className = 'pf-marge ' + (m < 0 ? 'neg' : 'pos');
       el.innerHTML = `💰 Marge : <b>${euros(m)} HT</b> par ${esc(form.unite.value || 'unité')} · <b>${String(pc).replace('.', ',')} %</b> <small>(hors taxes, TVA ${String(form.tva.value).replace('.', ',')} % retirée de la vente et de l’achat)</small>`;
     };
+    /* fournisseurs : liste déroulante des fournisseurs déjà connus + « Nouveau fournisseur… » ; plusieurs par produit */
+    var fourn = [...new Set([...(p.fournisseurs || []), ...(p.fournisseur ? [p.fournisseur] : [])])];
+    const fChips = () => { const el = $('[data-fchips]'); if (el) el.innerHTML = fourn.map((x, i) => `<span class="fchip${i ? '' : ' princ'}">${i ? '' : '★ '}${esc(x)}${peut('prix') ? `<button type="button" data-fdel="${i}" aria-label="Retirer ${esc(x)}">×</button>` : ''}</span>`).join('') || '<span class="muted sm">Aucun fournisseur.</span>'; };
+    const fAjout = v => { v = String(v || '').trim(); if (!v || fourn.some(x => x.toLowerCase() === v.toLowerCase())) return; fourn.push(v); fChips(); $('#dirty').textContent = 'Modifications non enregistrées'; };
+    fChips();
+    $('[data-fsel]')?.addEventListener('change', e => { const v = e.target.value; e.target.value = ''; if (v === '__nouveau') { $('[data-fnew]').hidden = $('[data-fok]').hidden = false; $('[data-fnew]').focus(); } else fAjout(v); });
+    $('[data-fok]')?.addEventListener('click', () => { fAjout($('[data-fnew]').value); $('[data-fnew]').value = ''; $('[data-fnew]').hidden = $('[data-fok]').hidden = true; });
+    $('[data-fnew]')?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('[data-fok]').click(); } });
+    $('[data-fchips]')?.addEventListener('click', e => { const b = e.target.closest('[data-fdel]'); if (!b) return; fourn.splice(+b.dataset.fdel, 1); fChips(); $('#dirty').textContent = 'Modifications non enregistrées'; });
     pfMarge(); ['prix', 'cout'].forEach(n => form[n].addEventListener('input', pfMarge)); ['tva', 'unite'].forEach(n => form[n].addEventListener('change', pfMarge));
     let photos = (p.photos || []).map(x => ({ ...x }));
     const ajout = `<label class="gal-ajout" data-drop><input type="file" accept="image/*,.heic,.heif" multiple hidden data-multi><span class="ga-plus">+</span><b>Ajouter des photos</b><span>Cliquez ou glissez vos photos ici</span><span class="ga-tel">Sur iPhone : Photothèque ou appareil photo</span></label>
@@ -2334,7 +2413,7 @@
         return { ...old, variantes: gv && gv.length && gv.length < vars.length ? gv : null, id: old.id || 'g' + gi, titre, max: +max || null, exact: mode === 'exact', facultatif: fac === 'facultatif', options: b.slice(1).map((o, oi) => { const [label, sup, achat] = o.split('|').map(x => x.trim()); const oo = (old.options || []).find(x => x.label === label) || {}; return { ...oo, id: oo.id || 'o' + oi + '-' + label.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-').slice(0, 30), label, supCents: toCents(sup) || 0, coutCents: achat ? toCents(achat) : null }; }) };
       });
       const next = { ...p, titre: f.get('titre'), rubrique: f.get('rubrique'), sous: f.get('rubrique') === p.rubrique ? (f.get('sous') ?? p.sous ?? '') : '', autresSous: f.get('rubrique') === p.rubrique ? f.getAll('autresSous').filter(x => x !== f.get('sous')) : [], rangement: f.get('rangement') ?? p.rangement ?? '', statut: f.get('statut'), maison: !!f.get('maison'), extrait: f.get('extrait'), seoTitre: String(f.get('seoTitre') || '').trim(), seoDescription: String(f.get('seoDescription') || '').replace(/\s+/g, ' ').trim(), description: lignesNettes(f.get('description')), sousPhoto: lignesSousPhoto(f.get('sousPhoto')),
-        prixCents: toCents(f.get('prix')), unite: f.get('unite'), contenuPortion: String(f.get('contenuPortion') || '').trim(), min: +f.get('min') || 1, minimumTexte: '', prixTexte: '', coutCents: toCents(f.get('cout')), tva: +f.get('tva'),
+        prixCents: toCents(f.get('prix')), unite: f.get('unite'), contenuPortion: String(f.get('contenuPortion') || '').trim(), min: +f.get('min') || 1, minimumTexte: '', prixTexte: '', coutCents: toCents(f.get('cout')), fournisseurs: fourn.slice(), fournisseur: undefined, tva: +f.get('tva'),
         regles: { ...(p.regles || {}), personnel: f.get('r_personnel') ? (p.regles?.personnel || 'service') : null, packs: !!f.get('r_packs') },
         variantes: String(f.get('variantes')).split('\n').map(x => x.trim()).filter(Boolean), photos: photos.filter(x => !x.envoi).map(({ src, alt }) => ({ src, alt })), video: f.get('video') ? { src: f.get('video'), poster: f.get('poster') || '' } : null,
         sections, details: String(f.get('details')).split('\n').map(x => x.trim()).filter(Boolean), groupes, allergenes: f.getAll('al'), allergenesAuto: false };

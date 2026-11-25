@@ -16,6 +16,7 @@ const views = require('./views');
 const { preparerAlerte } = require('./relances');
 const { raisonsDevisManuel, regleAcompte, totaux, controleMarge, prochainNumero, lignesDepuisDemande, estimerLigne } = require('./devis');
 const { rid, sha, esc, euros, limiter, dateFr, slugify, nomPropre, dateNaissance, titreTexte } = require('./util');
+const ACHATS = require('./achats');
 const { creerImportClients, normTel, departementDe } = require('./import-clients');
 const IA = require('./ia');
 const SEO = require('./seo');
@@ -2119,6 +2120,18 @@ async function createApp(opts = {}) {
     cat.invalidate();
     audit(req.ctx, 'catalogue mis à jour par fichier', 'produits', maj + ' prestation(s)');
     res.json({ ok: true, maj, erreurs });
+  }));
+  /* prix d'achat et fournisseurs depuis l'Excel de Jean-Luc : 1) analyse et rapprochement par nom, 2) application des lignes cochées */
+  A.post('/actions/import-achats/analyser', sameSite, peut('prix'), multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } }).single('fichier'), wrap(async (req, res) => {
+    if (!req.file) return res.status(400).json({ error: 'Aucun fichier reçu.' });
+    const prods = (await store.list('produits')).map(d => d.data);
+    try { res.json(ACHATS.analyser(req.file.buffer, req.file.originalname, prods)); } catch (e) { res.status(400).json({ error: e.message }); }
+  }));
+  A.post('/actions/import-achats/appliquer', sameSite, json, peut('prix'), wrap(async (req, res) => {
+    const r = await ACHATS.appliquer(store, req.body?.lignes, { ht: !!req.body?.ht });
+    cat.invalidate();
+    audit(req.ctx, 'prix d’achat et fournisseurs importés', 'produits', r.maj + ' fiche(s)');
+    res.json({ ok: true, ...r });
   }));
   A.get('/actions/journal', wrap(async (req, res) => {
     const rows = (await store.list('_audit')).map(d => d.data).sort((a, b) => a.n - b.n);
