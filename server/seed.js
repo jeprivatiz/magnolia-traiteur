@@ -1711,6 +1711,75 @@ async function initSousRubriques(store, { log = console } = {}) {
       await store.set('produits/stand-a-burgers', { ...p, video: { src: '/site/v/animations/burgers-2.mp4', poster: '/site/v/animations/burgers-2.jpg' } });
     await store.set('site/reglages', { ...(await store.get('site/reglages')), burgerVideo2: true });
   }
+
+  /* Mini pâtés antillais (morue, bœuf, porc) : 2,90 € TTC la pièce, et non 3,90 € la portion (Jean-Luc, 2026-11-25).
+     Vendus à la pièce, minimum 5 (règle des produits à l'unité) ; plus aucune mention de portion dans la fiche. Une fois. */
+  const RMp = await store.get('site/reglages');
+  if (RMp && !RMp.miniPatesPiece) {
+    const piece = t => String(t ?? '').replace(/\s*\(minimum \d+ portions?\)/ig, '').replace(/\bportions?\b/ig, m => /s$/i.test(m) ? 'pièces' : 'pièce');
+    const vendu = t => /pièce/i.test(t) ? t : t.replace(/^(Mini pâtés antillais [^:,.]+?)(\s*[:,])/, '$1, vendus à la pièce$2');
+    for (const { id, data: p } of await store.list('produits')) {
+      if (!/^mini p[âa]t[ée]s? antillais/i.test(p.titre || '')) continue;
+      const seo = {}; /* textes Google posés automatiquement avec l'ancien prix : vidés, ils sont refaits au démarrage */
+      if (p.seoAuto) {
+        if (p.seoTitre === p.seoAuto.titre) seo.seoTitre = '';
+        if (p.seoDescription === p.seoAuto.description) seo.seoDescription = '';
+        seo.seoAuto = null;
+      }
+      await store.set('produits/' + id, { ...p, ...seo, prixCents: 290, prixTexte: '2,90 € TTC', unite: 'pièce', min: 5, minimumTexte: 'Minimum de commande : 5 pièces',
+        titre: piece(p.titre), extrait: vendu(piece(p.extrait)), description: (p.description || []).map((l, i) => i ? piece(l) : vendu(piece(l))),
+        ...(p.sousPhoto ? { sousPhoto: Array.isArray(p.sousPhoto) ? p.sousPhoto.map(piece) : piece(p.sousPhoto) } : {}), photos: (p.photos || []).map(ph => ({ ...ph, alt: piece(ph.alt) })) });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), miniPatesPiece: true });
+  }
+
+  /* Buffet antillais (Jean-Luc, 2026-11-25) : l'assiette créole est une entrée, sans « minim 6 portions » dans son nom ;
+     nouveaux prix TTC des plats et accompagnements à l'unité, à la portion. Une fois ; modifiable ensuite au back-office. */
+  const RAp = await store.get('site/reglages');
+  if (RAp && !RAp.antillaisPrix1) {
+    const sans = t => String(t ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z]+/g, ' ').trim();
+    const PRIX = [[/^colombo de poulet$/, 1990], [/^colombo de porc$/, 1990], [/^cuisses? de poulet grillees?$/, 1490], [/^cuisses? de poulet boucanes?$/, 1590],
+      [/^fricassee? de chatrou[sx]?$/, 1990], [/^coq roussi$/, 2190], [/^rougail saucisses?$/, 1990], [/^colombo de cabri$/, 2190],
+      [/^vivaneau a la creme de curcuma$/, 2300], [/^vivaneau au court bouillon$/, 2390], [/^dombres? aux crevettes$/, 1490],
+      /* accompagnements (même jour) ; « Riz aux légumes, c'est bon » : la fiche courte garde son prix */
+      [/^riz nature$/, 290], [/^gratin de bananes? plantains?$/, 500], [/^gratin de christophines?/, 690], [/^gratin de patates? douces?/, 790],
+      [/^gratin d igname$/, 690], [/^haricots rouges$/, 390], [/^mini brochettes? de banane$/, 490], [/^riz aux legumes courgettes/, 490]];
+    const euros = c => (c / 100).toFixed(2).replace('.', ',') + ' € TTC';
+    const sansSeoAuto = p => p.seoAuto ? { ...(p.seoTitre === p.seoAuto.titre ? { seoTitre: '' } : {}), ...(p.seoDescription === p.seoAuto.description ? { seoDescription: '' } : {}), seoAuto: null } : {};
+    for (const { id, data: p } of await store.list('produits')) {
+      if (p.sous !== 'buffet-antillais' && !(p.autresSous || []).includes('buffet-antillais')) continue;
+      const t = sans(p.titre);
+      if (/^assiette creole/.test(t)) {
+        const net = x => String(x ?? '').replace(/\s*\(minim(?:um)? \d+ portions?\)/ig, '');
+        await store.set('produits/' + id, { ...p, ...sansSeoAuto(p), titre: net(p.titre), rangement: 'entrees', min: 5, minimumTexte: 'Minimum de commande : 5 portions',
+          photos: (p.photos || []).map(ph => ({ ...ph, alt: net(ph.alt) })) });
+        continue;
+      }
+      const x = PRIX.find(([re]) => re.test(t));
+      if (!x || !['plats', 'accompagnements'].includes(rangementDe(p))) continue;
+      await store.set('produits/' + id, { ...p, ...sansSeoAuto(p), prixCents: x[1], prixTexte: euros(x[1]), unite: p.unite || 'portion', aCompleter: false });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), antillaisPrix1: true });
+  }
+
+  /* Buffet antillais, « Produits divers à l'unité » (Jean-Luc, 2026-11-25) : les plateaux de mini wraps et de mini club
+     sandwichs ne s'affichent plus sur cette page (ils restent sur le buffet africain et dans Coffrets & plateaux) ; le grand
+     pack traiteur de la page est masqué (le pack est proposé dans le panier) ; l'animation sorbet coco passe aux desserts.
+     Le coffret antillais et le piment restent. Rien n'est effacé. Une fois. */
+  const RAd = await store.get('site/reglages');
+  if (RAd && !RAd.antillaisDivers1) {
+    const sans = t => String(t ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    for (const { id, data: p } of await store.list('produits')) {
+      const t = sans(p.titre), ici = p.sous === 'buffet-antillais', aussi = (p.autresSous || []).includes('buffet-antillais');
+      if (!ici && !aussi) continue;
+      if (/^plateau de (48 mini wraps|80 mini club)/.test(t)) {
+        if (aussi) await store.set('produits/' + id, { ...p, autresSous: p.autresSous.filter(x => x !== 'buffet-antillais') });
+        else if (p.statut !== 'masque') await store.set('produits/' + id, { ...p, statut: 'masque' });
+      } else if (ici && /^grand pack traiteur/.test(t)) await store.set('produits/' + id, { ...p, statut: 'masque' });
+      else if (ici && /^animation sorbet coco/.test(t)) await store.set('produits/' + id, { ...p, rangement: 'desserts' });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), antillaisDivers1: true });
+  }
 }
 
 /* [fiche gardée, doublons…] : mêmes produit, prix et minimum */
