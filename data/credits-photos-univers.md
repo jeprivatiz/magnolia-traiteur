@@ -298,6 +298,7 @@ Catégories et fiches de la page /boissons (server/cave.js). Photos Pexels (lice
 - Fiches : Evian 8101056, Badoit 18212879, Vittel 31107362, Perrier 3023667, Paris Cola 4113667, Paris Cola Zéro 33469209, Paris Cola 75 cl 8879626, Parismonade 33 cl 5836998, Parismonade 75 cl 12900901, jus d'orange 8679601, jus de pomme 36794069, jus de pêche 10673227, JOMO gingembre 16411715, JOMO thé vert 25328043, JOMO thé blanc 36305566, vins rouges 33993981 / 9550790 / 10226064, vins blancs 8472736 / 5895443 / 39852931, rosé 15006643, Jack Daniel's 27393241, Bombay Sapphire 7851381, Havana Club 19562093, Absolut 17722186, tire-bouchon 8296228.
 - Les photos du site du traiteur d'origine n'ont pas été reprises (droits d'auteur).
 - Rhum Trois-Rivières (ajouté le 2026-11-25) : Pexels 36860546 (ti-punch, pas de photo libre de la bouteille).
+- Coca-Cola 1,5 L : Pexels 35020136 ; Coca-Cola Zéro : Pexels 19504042 ; fiche Barman : Pexels 5531479 (2026-11-25).
 
 ## Buffet libanais, « Nos buffets » sans vidéo (2026-11-25)
 Photos regardées une à une (vraies photos, sans texte ni logo), licence Pexels (usage commercial libre).
