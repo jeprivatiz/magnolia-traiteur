@@ -1466,6 +1466,54 @@ async function initSousRubriques(store, { log = console } = {}) {
     if (rp) await store.set('rubriques/personnel', { ...rp, bandeauPhoto: '/site/c/personnel-bandeau-serveur.webp', bandeauVideo: '' });
     await store.set('site/reglages', { ...(await store.get('site/reglages')), personnelBandeau1: true });
   }
+  /* Mobilier et matériel à la location (Jean-Luc, 2026-11-25) : la rubrique regroupe TOUT ce qui se loue sur le site (tables,
+     chaises, nappes, tente, vaisselle, étuve, chafing dish, tireuse, sono, écrans, jeux, photobooth…). Les produits restent aussi
+     dans leur rubrique d'origine (autresRubriques) ; leur section sur cette page est propre à la rubrique (rangements[slug]).
+     Bandeau : tables rondes et chaises dorées en cours d'installation, Pexels 36151430. Une fois : tout reste modifiable au
+     back-office (fiche produit › « Aussi dans ces rubriques »). La vignette de l'accueil (photo, vidéo) n'est pas touchée. */
+  const RLoc = await store.get('site/reglages');
+  if (RLoc && !RLoc.mobilierLocation1) {
+    const SLUG = 'mobilier-a-la-location';
+    const LOCATION = {
+      mobilier: ['stand-pour-bar-a-cocktails', 'tente-de-reception-4-4-m', 'tables-rectangulaires-2-m-0-60-m', 'table-rectangulaire-200-60-cm-6-a-8-personnes', 'mange-debout', 'chaise-pliante-de-luxe-en-velours-bordeaux', 'nappage-170-250-cm', 'nappe-rectangulaire-170-250-cm'],
+      'arts-table': ['vaisselle-complete', 'grand-pack-traiteur-vaisselle-en-dur', 'set-de-vaisselle-complet-par-personne', 'set-de-vaisselle-sans-verrerie-par-personne', 'set-de-vaisselle-dessert-par-personne', 'verres-en-verre-vin-coupes-a-champagne', 'verres-reutilisables-eco-responsables'],
+      materiel: ['materiel-traiteur', 'etuve-chauffante-ventilee-10-niveaux', 'bain-marie-chafing-dish-premier-modele', 'cuiseur-a-riz-professionnel', 'four-a-pizza', 'notre-tireuse-a-bieres'],
+      location: ['candy-bar-a-la-location', 'sorbetiere-a-l-ancienne-location-seule', 'animation-pop-corn'],
+      'son-lumiere': ['enceinte-bose-s1-pro', 'ecran-videoprojecteur', 'videoprojecteur-xgimi', 'ecran-led'],
+      jeux: ['puissance-4-geant', 'baby-foot-bonzini-b90', 'air-hockey', 'billard', 'table-de-ping-pong', 'cible-de-flechettes-electronique', 'taureau-mecanique', 'chateau-gonflable-crocodile-petit-format', 'chateau-gonflable-crocodile-grand-format'],
+      souvenirs: ['notre-photo-booth', 'photobooth-borne-photo-avec-impressions', 'videobooth-a-360', 'livre-d-or-audio-telephone-a-messages'],
+      divers: ['decoration'],
+    };
+    const TEXTES = {
+      nom: 'Mobilier et matériel à la location', titrePage: 'Mobilier et matériel à la location',
+      chapo: 'Tables, chaises, nappes, tente, vaisselle, chafing dish, étuve, sono, jeux et photobooth : tout se loue chez Magnolia, livré et repris.',
+      introTitre: 'Tout le matériel de votre réception, au même endroit',
+      introTexte: 'Tables pliantes, chaises, mange-debout, nappes, tente de réception, vaisselle et verres, chafing dish, étuve chauffante, cuiseur à riz, tireuse à bières, enceintes, écrans, jeux, photobooth : retrouvez ici tout ce que Magnolia propose à la location.\nNous livrons le matériel avec votre commande traiteur ou seul, nous l’installons si besoin, puis nous le reprenons après l’événement : vous n’avez rien à transporter ni à laver.\nAjoutez ce qu’il vous faut à votre sélection : nous vous envoyons un devis clair, en euros TTC, livraison comprise.',
+      seoTitre: 'Location mobilier et matériel de réception | Magnolia',
+      seoDescription: 'Location de tables, chaises, nappes, tente, vaisselle, chafing dish, étuve, sono, jeux et photobooth : livré, installé et repris par Magnolia.',
+    };
+    let r = await store.get('rubriques/' + SLUG);
+    if (!r) {
+      const rubs = (await store.list('rubriques')).map(x => x.data);
+      const lieux = rubs.find(x => x.slug === 'lieux');
+      r = { slug: SLUG, ordre: lieux ? (lieux.ordre ?? 99) - 0.5 : rubs.length + 1, photo: '', photoAccueil: '', accroche: '', statut: 'visible', tva: 20 };
+    }
+    await store.set('rubriques/' + SLUG, { ...r, ...TEXTES, parSections: true,
+      bandeauPhoto: r.bandeauPhoto || PX(36151430).replace('w=1600', 'w=2400'), bandeauPosition: r.bandeauPosition || '50% 60%',
+      ordreSections: ['mobilier', 'arts-table', 'materiel', 'location', 'son-lumiere', 'jeux', 'souvenirs', 'divers'],
+      titresSections: { mobilier: 'Tables, chaises, tente & nappes', 'arts-table': 'Vaisselle & verres', materiel: 'Matériel de cuisine & de service', location: 'Machines & stands gourmands', 'son-lumiere': 'Son, image & lumière', jeux: 'Jeux & loisirs', souvenirs: 'Photos & souvenirs', divers: 'Et aussi' } });
+    let ordre = 0;
+    for (const [k, slugs] of Object.entries(LOCATION)) for (const slug of slugs) {
+      ordre++;
+      const p = await store.get('produits/' + slug);
+      if (!p) continue;
+      const ici = p.rubrique === SLUG;
+      await store.set('produits/' + slug, { ...p,
+        autresRubriques: ici ? (p.autresRubriques || []) : [...new Set([...(p.autresRubriques || []), SLUG])],
+        rangements: { ...(p.rangements || {}), [SLUG]: k }, ...(ici ? { rangement: k, ordre } : {}) });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), mobilierLocation1: true });
+  }
   /* Paella party : nouvelle photo de bandeau (Jean-Luc, 2026-11-24) : paella géante servie au buffet, centrée sur le plat.
      Pexels 22880517 (Gleb Zhizhikin), recadrée sans le panneau à droite. Une fois : modifiable ensuite au back-office. */
   const RPae = await store.get('site/reglages');
