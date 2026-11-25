@@ -1016,6 +1016,7 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('site/reglages', { ...(await store.get('site/reglages')), fruitsDeMerBlanc: true });
   }
 
+
   /* « Cocktails & buffets français » + paragraphe de présentation (Jean-Luc, 2026-11-22). Une fois : modifiable ensuite dans le back-office. */
   const RCb = await store.get('site/reglages');
   if (RCb && !RCb.cocktailsFrancais) {
@@ -1605,6 +1606,22 @@ async function initSousRubriques(store, { log = console } = {}) {
       await store.set('rubriques/' + slug, { ...r, photoAccueil: photo, ...(r.bandeauPhoto !== undefined || slug === 'grand-large' ? { bandeauPhoto: photo, bandeauVideo: '' } : {}) });
     }
     await store.set('site/reglages', { ...(await store.get('site/reglages')), vignettesFaites: [...faites, ...nouvelles] });
+  }
+
+  /* Retouches de Jean-Luc (2026-11-25) : tarama dans un bol blanc, crevettes roses dans un bol, Gillardeau sans la glace ;
+     bandeau de la page = un écailler qui ouvre une huître (Unsplash, Louis Hansel). Une fois, seulement si rien n'a été changé depuis. */
+  const RFm2 = await store.get('site/reglages');
+  if (RFm2 && !RFm2.fruitsDeMerBlanc2) {
+    const B = '/site/c/seafood30/blanc/';
+    const v2 = { [B + 'tarama.webp']: B + 'tarama-v2.webp', [B + 'crevettes-roses.webp']: B + 'crevettes-roses-v2.webp', [B + 'gillardeau.webp']: B + 'gillardeau-v2.webp' };
+    for (const { id, data: pr } of await store.list('produits')) {
+      const avant = pr.photos || [];
+      const ph = avant.map(x => v2[x.src] ? { ...x, src: v2[x.src] } : x);
+      if (JSON.stringify(ph) !== JSON.stringify(avant)) await store.set('produits/' + id, { ...pr, photos: ph });
+    }
+    const gl = await store.get('rubriques/grand-large');
+    if (gl && (!gl.bandeauPhoto || gl.bandeauPhoto === pexels(39143859)) && !gl.bandeauVideo) await store.set('rubriques/grand-large', { ...gl, bandeauPhoto: '/site/c/seafood30/bandeau-ecailler.webp', bandeauPosition: '80% 45%' /* le geste de l'écailler est à droite de la photo */ });
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), fruitsDeMerBlanc2: true });
   }
 
   /* page Zone de livraison (Jean-Luc, 2026-11-22) : départ exact avenue de Norvège et livraison offerte dès 700 € TTC.
