@@ -1307,6 +1307,7 @@ h1 .formule { font-size: .5em; margin-top: .45em; }
   .card-vedette { flex-direction: column; }
   .card-vedette .card-img { flex: none; min-height: 0; aspect-ratio: 4 / 5; }
   .card-vedette .card-b { padding: 20px 18px 22px; }
+}
 
 /* Têtes de rubrique sur téléphone (pages de plus de 20 produits en sections) */
 .rubm-tuiles, .rubm-retour { display: none; }
