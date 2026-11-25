@@ -1370,3 +1370,7 @@ h1 .formule { font-size: .5em; margin-top: .45em; }
 .prop-i .qty.sm { flex: none; } .prop-i .qty.sm button { width: 30px; height: 30px; } .prop-i .qty.sm input { width: 44px; }
 .prop-i.lien { justify-content: flex-start; } .prop-i.lien .prop-t { flex: 1; } .prop-i.lien em { font-style: normal; font-size: .78rem; letter-spacing: .06em; text-transform: uppercase; color: var(--or); font-weight: 600; white-space: nowrap; }
 @media (max-width: 520px) { .prop-i { flex-wrap: wrap; } .prop-c { flex: 1 1 100%; } .prop-i img, .prop-i .ph { width: 48px; height: 48px; } .prop-i .qty.sm { margin-left: auto; } .prop-i.lien { flex-wrap: nowrap; } }
+
+/* remise sur une ligne du devis : prix barré + mention */
+.tab td small.rem { color: #a8322a; font-weight: 600; }
+.tab td s { color: var(--gris); font-size: .85em; }
