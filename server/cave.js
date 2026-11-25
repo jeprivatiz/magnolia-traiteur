@@ -558,9 +558,28 @@ async function openBarVideo(store) {
   await store.set('_migr/openBarVideo1', { at: new Date().toISOString() });
 }
 
+/* Open bar vins et champagnes (Jean-Luc, 2026-11-25) : le prix = seulement le personnel (barmans + heures supplémentaires, tarifs de la fiche Barman) ;
+   les bouteilles consommées sont facturées le lendemain, chèque de caution rendu après paiement */
+const OPEN_BAR_PERSONNEL = {
+  prixCents: BARMAN_FORFAIT, prixTexte: null, unite: 'barman', min: 1, minimumTexte: null, groupes: [BARMAN_HEURES],
+  description: [
+    'Mise en place d’un open bar vins et champagnes pour toute la durée de votre événement.',
+    'Le prix ci-dessous correspond au personnel : 270 € TTC par barman pour 4 heures de service, puis 39 € TTC par heure supplémentaire. Comptez un barman pour 30 à 40 invités : choisissez le nombre de barmans, puis les heures supplémentaires.',
+    'Les bouteilles ne sont pas comprises dans ce prix : vous ne payez que celles que vous aurez consommées, après un minimum de consommation demandé. Elles sont comptées avant le début de votre événement et un inventaire est fait à la fin, tout cela en votre présence.',
+    'Un chèque de caution sera demandé pour cette prestation et restitué après le paiement des bouteilles. Une facture des bouteilles consommées vous sera envoyée le lendemain de la prestation pour règlement.',
+  ],
+  liees: [OPEN_BAR_VC.liees.find(l => l.slug.startsWith('verres'))],
+};
+async function openBarPersonnel(store) {
+  if (await store.get('_migr/openBarPersonnel1')) return;
+  const x = await store.get('produits/open-bar-vins-et-champagnes');
+  if (x) { const { prixAffiche, ...y } = x; await store.set('produits/open-bar-vins-et-champagnes', { ...y, ...OPEN_BAR_PERSONNEL }); }
+  await store.set('_migr/openBarPersonnel1', { at: new Date().toISOString() });
+}
+
 async function initCave(store) {
   await prixCave(store);
-  if (await store.get('_migr/caveCercle')) { await openBarCave(store); await sodasCave(store); await vinsCave(store); await eauxCave(store); await cocaPhotos(store); await cristalineGaz(store); await cristalinePlate(store); await caveBandeauBadoit(store); await barmanSousPhoto(store); await barmanPrix(store); await alcoolsBlanc(store); await vinsRouges2(store); await barCocktailsMin(store); await barCocktailsVideo(store); await barCocktailsTexte(store); await barCocktailsRetablir(store); await valettePrix(store); await minutyCave(store); await rosesCave2(store); const k = await ajoutsCave(store); await metroCave(store); await barmanHeuresSup(store); await rosesPhotos(store); await barmanVideo(store); await openBarVideo(store); return k; }
+  if (await store.get('_migr/caveCercle')) { await openBarCave(store); await sodasCave(store); await vinsCave(store); await eauxCave(store); await cocaPhotos(store); await cristalineGaz(store); await cristalinePlate(store); await caveBandeauBadoit(store); await barmanSousPhoto(store); await barmanPrix(store); await alcoolsBlanc(store); await vinsRouges2(store); await barCocktailsMin(store); await barCocktailsVideo(store); await barCocktailsTexte(store); await barCocktailsRetablir(store); await valettePrix(store); await minutyCave(store); await rosesCave2(store); const k = await ajoutsCave(store); await metroCave(store); await barmanHeuresSup(store); await rosesPhotos(store); await barmanVideo(store); await openBarVideo(store); await openBarPersonnel(store); return k; }
   const now = new Date().toISOString();
   let n = 0;
   for (const d of await store.list('produits')) {
@@ -616,7 +635,7 @@ async function initCave(store) {
   await valettePrix(store);
   await minutyCave(store);
   await rosesCave2(store);
-  const k = await ajoutsCave(store); await metroCave(store); await barmanHeuresSup(store); await rosesPhotos(store); await barmanVideo(store); await openBarVideo(store); return n + k;
+  const k = await ajoutsCave(store); await metroCave(store); await barmanHeuresSup(store); await rosesPhotos(store); await barmanVideo(store); await openBarVideo(store); await openBarPersonnel(store); return n + k;
 }
 
 module.exports = { texteBarCocktails, BARMAN, OPEN_BAR_VC, CAVE_SECTIONS, CAVE_PRODUITS, AJOUTS_CAVE, CAVE_GARDEES, INTRO_CAVE, ttc, initCave };
