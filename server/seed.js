@@ -1044,6 +1044,20 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('site/reglages', { ...(await store.get('site/reglages')), chinoisSansDivers: true });
   }
 
+  /* Coq roussi + 5 € TTC la part (Jean-Luc, 2026-11-25) : plus cher que les autres plats, il est compté en supplément
+     dans les formules du Buffet antillais (ligne « Supplément coq roussi » en bas du total et sur le devis).
+     Une fois ; modifiable ensuite dans la fiche (« Coq roussi | 5 » dans « Choix proposés au client »). */
+  const RCq = await store.get('site/reglages');
+  if (RCq && !RCq.coqRoussiSupp) {
+    for (const { id, data: p } of await store.list('produits')) {
+      if (!/^buffet-antillais/.test(p.slug || id) || !(p.groupes || []).length) continue;
+      let ok = false;
+      const groupes = p.groupes.map(g => ({ ...g, options: (g.options || []).map(o => /^coq roussi$/i.test(String(o.label || '').trim()) && !o.supCents ? (ok = true, { ...o, supCents: 500 }) : o) }));
+      if (ok) await store.set('produits/' + id, { ...p, groupes });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), coqRoussiSupp: true });
+  }
+
   /* Musique & animations et Les indispensables en rubriques (Jean-Luc, 2026-11-25) : plus de 20 produits, donc des têtes
      de rubrique sur téléphone. Une fois ; chaque fiche reste modifiable (liste « Section » de la fiche). */
   const RMi = await store.get('site/reglages');

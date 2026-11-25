@@ -57,11 +57,11 @@ function catalogueCompact(c) {
   const rub = new Map((c.rubriques || []).map(r => [r.slug, r]));
   const visibles = (c.produits || []).filter(p => p.statut !== 'masque' && rub.get(p.rubrique)?.statut !== 'masque');
   const lignes = visibles.map(p => {
-    const choix = (p.groupes || []).flatMap(g => (g.options || []).map(o => o.label)).filter(Boolean);
+    const choix = (p.groupes || []).flatMap(g => (g.options || []).map(o => o.label && (o.supCents && g.mode === 'quantites' ? `${o.label} (supplément + ${euro(o.supCents)} TTC la part)` : o.label))).filter(Boolean);
     return [p.slug, p.titre, rub.get(p.rubrique)?.nom || p.rubrique,
       p.prixCents == null ? 'prix à confirmer' : euro(p.prixCents) + ' TTC / ' + (p.unite || 'unité'),
       'min ' + (p.min || 1),
-      choix.length ? 'au choix : ' + choix.slice(0, 12).join(', ') + (choix.length > 12 ? '…' : '') : ''].filter(Boolean).join(' | ');
+      choix.length ? 'au choix : ' + [...new Set([...choix.slice(0, 12), ...choix.filter(x => x.includes('supplément'))])].join(', ') + (choix.length > 12 ? '…' : '') : ''].filter(Boolean).join(' | ');
   });
   return { visibles, texte: lignes.join('\n') };
 }
@@ -73,7 +73,7 @@ Règles :
 - Quantité : pour une prestation « par personne », mets le nombre d'invités ; pour une prestation à la pièce ou à la portion, une quantité raisonnable pour le nombre d'invités ; JAMAIS moins que le minimum indiqué.
 - Ne propose pas le personnel, la livraison ni la vaisselle (déjà gérés à part : personnel ${euro(tarifs.personnel?.heureCents || 4188)} TTC/h, livraison ${euro(tarifs.kmCents || 100)} TTC/km aller-retour).
 - Si le client donne un budget, respecte-le autant que possible.
-- note : les choix du client pour cette prestation (ex. « entrées : accras, boudins »), sinon "".
+- note : les choix du client pour cette prestation (ex. « entrées : accras, boudins »), sinon "". Pour un plat « supplément … la part » (ex. coq roussi), écris le nombre de parts : « plats : colombo de poulet × 20, coq roussi × 20 » (le supplément est ajouté tout seul sur le devis).
 - pourquoi : raison courte en français (12 mots maximum).
 Réponds UNIQUEMENT avec un tableau JSON, sans texte autour : [{"slug":"identifiant","qte":nombre,"note":"","pourquoi":""}] (20 lignes maximum).
 

@@ -323,7 +323,7 @@
       const max = g.max || opts.length;
       html += `<fieldset class="conf-g" data-g="${esc(g.id)}"${(g.variantes || []).length && (P.variantes || []).length ? ` data-var="${esc(JSON.stringify(g.variantes))}"` : ''} data-max="${max}" data-exact="${g.exact ? 1 : 0}"><legend>${esc(g.titre || 'Vos choix')} <small>${g.radio ? '' : g.mode === 'quantites' ? `${g.minParVariete || 1} portions minimum par ${esc(g.singulier || 'choix')}` : g.exact ? `${max} au choix` : max < opts.length ? `jusqu’à ${max} au choix` : 'au choix'}${g.facultatif ? ' · facultatif' : ''}</small></legend>
         ${g.aide ? `<p class="small">${esc(g.aide)}</p>` : ''}
-        ${g.mode === 'quantites' ? `<p class="gstat" data-gstat aria-live="polite"></p><div class="opts-q">${opts.map(o => `<div class="optq" data-optq>${o.photos?.[0] ? `<img src="${esc(o.photos[0])}" alt="" loading="lazy">` : ''}<span>${esc(o.label)}${o.supCents ? `<small>+ ${euros(o.supCents)} / portion</small>` : ''}<small class="optq-why" data-why></small></span><span class="optq-c"><button type="button" data-om="-1" aria-label="Moins : ${esc(o.label)}">−</button><input type="number" min="0" step="1" inputmode="numeric" value="0" data-oq="${esc(o.id)}" data-lab="${esc(o.label)}" data-sup="${o.supCents || 0}" aria-label="Portions : ${esc(o.label)}"><button type="button" data-om="1" aria-label="Plus : ${esc(o.label)}">+</button></span></div>`).join('')}</div>` : g.radio ? `<div class="opts-r">${opts.map((o, k) => `<label class="opt-r"><input type="radio" name="r_${esc(g.id)}" value="${esc(o.id)}" data-sup="${o.supCents || 0}"${k === 0 ? ' checked' : ''}><span>${esc(o.label)}</span></label>`).join('')}</div>` : `<div class="opts">${opts.map(o => `<label class="opt"><input type="checkbox" value="${esc(o.id)}" data-sup="${o.supCents || 0}">${o.photos?.[0] ? `<img src="${esc(o.photos[0])}" alt="" loading="lazy">` : ''}<span>${esc(o.label)}${o.supCents ? `<small>+ ${euros(o.supCents)}</small>` : ''}${o.supDevis ? '<small>sur devis</small>' : ''}</span></label>`).join('')}</div>`}</fieldset>`;
+        ${g.mode === 'quantites' ? `<p class="gstat" data-gstat aria-live="polite"></p><div class="opts-q">${opts.map(o => `<div class="optq" data-optq>${o.photos?.[0] ? `<img src="${esc(o.photos[0])}" alt="" loading="lazy">` : ''}<span>${esc(o.label)}${o.supCents ? `<small class="optq-sup" title="Supplément de ${euros(o.supCents)} TTC par part">+ ${euros(o.supCents)} / part</small>` : ''}<small class="optq-why" data-why></small></span><span class="optq-c"><button type="button" data-om="-1" aria-label="Moins : ${esc(o.label)}">−</button><input type="number" min="0" step="1" inputmode="numeric" value="0" data-oq="${esc(o.id)}" data-lab="${esc(o.label)}" data-sup="${o.supCents || 0}" aria-label="Portions : ${esc(o.label)}"><button type="button" data-om="1" aria-label="Plus : ${esc(o.label)}">+</button></span></div>`).join('')}</div>` : g.radio ? `<div class="opts-r">${opts.map((o, k) => `<label class="opt-r"><input type="radio" name="r_${esc(g.id)}" value="${esc(o.id)}" data-sup="${o.supCents || 0}"${k === 0 ? ' checked' : ''}><span>${esc(o.label)}</span></label>`).join('')}</div>` : `<div class="opts">${opts.map(o => `<label class="opt"><input type="checkbox" value="${esc(o.id)}" data-sup="${o.supCents || 0}">${o.photos?.[0] ? `<img src="${esc(o.photos[0])}" alt="" loading="lazy">` : ''}<span>${esc(o.label)}${o.supCents ? `<small>+ ${euros(o.supCents)}</small>` : ''}${o.supDevis ? '<small>sur devis</small>' : ''}</span></label>`).join('')}</div>`}</fieldset>`;
     }
     if (R.personnel && T.personnel) html += `<details class="conf-x"><summary>Personnel de service <small>facultatif · ${euros(T.personnel.heureCents)} TTC / heure</small></summary><p class="small">${T.personnel.minHeures} heures minimum par personne. Le personnel s’ajoute sur une ligne à part.</p><div class="f2"><label>Personnes<select name="pers_nb"><option value="0">Aucune</option>${[1, 2, 3, 4, 5, 6, 8, 10].map(n => `<option>${n}</option>`).join('')}</select></label><label>Heures<select name="pers_h">${[4, 5, 6, 7, 8, 9, 10, 12].map(n => `<option>${n}</option>`).join('')}</select></label></div></details>`;
     if (R.packs && (T.packs || []).length) html += `<details class="conf-x"><summary>Pack traiteur <small>facultatif · vaisselle, nappage</small></summary>${T.packs.map(pk => `<label class="radio"><input type="radio" name="pack" value="${esc(pk.id)}"><span><b>${esc(pk.label)}</b> · ${euros(pk.prixCents)} TTC / pers.<small>${esc(pk.detail)}</small></span></label>`).join('')}<label class="radio"><input type="radio" name="pack" value="" checked><span>Pas de pack</span></label></details>`;
@@ -333,15 +333,15 @@
     const q = form.qte;
     const read = () => {
       const qte = q ? Math.max(P.min || 1, +q.value || 0) : 1;
-      let sup = 0; const choix = {}, labels = [];
-      $$('[data-g]', form).forEach(fs => { if (fs.hidden) return; if ($('[data-oq]', fs)) { const q2 = $$('[data-oq]', fs).filter(i => +i.value > 0); if (q2.length) choix[fs.dataset.g] = q2.map(i => i.dataset.oq + ':' + Math.round(+i.value)); q2.forEach(i => { labels.push(`${i.dataset.lab} × ${Math.round(+i.value)}`); if (+i.dataset.sup) sup += Math.round(+i.dataset.sup * Math.round(+i.value) / qte); }); return; } const ids = $$('input:checked', fs).map(i => { sup += +i.dataset.sup; labels.push(i.parentElement.querySelector('span').firstChild.textContent); return i.value; }); if (ids.length) choix[fs.dataset.g] = ids; });
+      let sup = 0; const choix = {}, labels = [], supps = [];
+      $$('[data-g]', form).forEach(fs => { if (fs.hidden) return; if ($('[data-oq]', fs)) { const q2 = $$('[data-oq]', fs).filter(i => +i.value > 0); if (q2.length) choix[fs.dataset.g] = q2.map(i => i.dataset.oq + ':' + Math.round(+i.value)); q2.forEach(i => { labels.push(`${i.dataset.lab} × ${Math.round(+i.value)}`); if (+i.dataset.sup) supps.push({ id: i.dataset.oq, label: i.dataset.lab, n: Math.round(+i.value), puCents: +i.dataset.sup }); }); return; } const ids = $$('input:checked', fs).map(i => { sup += +i.dataset.sup; labels.push(i.parentElement.querySelector('span').firstChild.textContent); return i.value; }); if (ids.length) choix[fs.dataset.g] = ids; });
       const persNb = +(form.pers_nb?.value || 0), persH = +(form.pers_h?.value || 4);
       const pack = form.querySelector('[name=pack]:checked')?.value || '';
-      let total = P.prixCents == null ? null : (P.prixCents + sup) * qte;
+      let total = P.prixCents == null ? null : (P.prixCents + sup) * qte + supps.reduce((t, x) => t + x.n * x.puCents, 0);
       if (total != null && persNb) total += T.personnel.heureCents * persNb * persH;
       const pk = (T.packs || []).find(x => x.id === pack);
       if (total != null && pk) total += pk.prixCents * qte;
-      return { qte, sup, choix, labels, persNb, persH, pack, total, variante: form.variante?.value || '', note: form.note?.value.trim() || '' };
+      return { qte, sup, supps, choix, labels, persNb, persH, pack, total, variante: form.variante?.value || '', note: form.note?.value.trim() || '' };
     };
     /* plats à choisir en portions (règle de Jean-Luc) : le total des portions = le nombre de personnes,
        au moins « minParVariete » portions (5) pour chaque plat choisi, donc au plus floor(personnes / 5) plats différents */
@@ -391,6 +391,10 @@
       const r = read();
       const t = $('[data-conf-total]', form);
       if (t) t.textContent = r.total == null ? (P.prixAffiche || 'Sur devis') : euros(r.total);
+      /* suppléments par part (coq roussi + 5 €) : une ligne chacun, juste au-dessus du total */
+      let sp = $('[data-conf-supp]', form);
+      if (!sp && t) { sp = document.createElement('div'); sp.className = 'conf-supp'; sp.dataset.confSupp = ''; t.closest('.conf-tot').before(sp); }
+      if (sp) { sp.hidden = !r.supps.length; sp.innerHTML = r.supps.map(x => `<p><span>Supplément ${esc(x.label.toLowerCase())}<small>${x.n} part${x.n > 1 ? 's' : ''} × ${euros(x.puCents)}</small></span><b>+ ${euros(x.n * x.puCents)}</b></p>`).join(''); }
       const u = $('[data-unit]', form); if (u) u.textContent = plur(P.unite || '', r.qte);
       $$('[data-g]', form).forEach(fs => {
         if ($('[data-oq]', fs)) return portions(fs, r.qte);
@@ -424,7 +428,7 @@
         if (!g.facultatif && n === 0) { toast('Choisissez au moins une option : ' + (g.titre || '')); fs.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
         if (g.exact && n !== +fs.dataset.max) { toast(`Choisissez exactement ${fs.dataset.max} options : ${g.titre || ''}`); fs.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
       }
-      sel.add({ slug: P.slug, titre: P.titre, photo: P.photo, rubrique: P.rubrique, unite: P.unite, min: P.min, prixCents: P.prixCents, qte: r.qte, variante: r.variante, choix: r.choix, supCents: r.sup, resume: r.labels.join(', '), note: r.note, personnel: r.persNb ? { nb: r.persNb, heures: r.persH } : null, pack: r.pack ? { id: r.pack, nb: r.qte } : null, lieu: !!P.lieu });
+      sel.add({ slug: P.slug, titre: P.titre, photo: P.photo, rubrique: P.rubrique, unite: P.unite, min: P.min, prixCents: P.prixCents, qte: r.qte, variante: r.variante, choix: r.choix, supCents: r.sup, supplements: r.supps, resume: r.labels.join(', '), note: r.note, personnel: r.persNb ? { nb: r.persNb, heures: r.persH } : null, pack: r.pack ? { id: r.pack, nb: r.qte } : null, lieu: !!P.lieu });
       if (go === 'devis') location.href = '/ma-selection';
       else toast('Ajouté à votre sélection.', ['Voir ma sélection', '/ma-selection']);
     });
@@ -482,7 +486,7 @@
     let km = 0;
     const lineTotal = l => {
       if (l.prixCents == null) return null;
-      let t = (l.prixCents + (l.supCents || 0)) * l.qte;
+      let t = (l.prixCents + (l.supCents || 0)) * l.qte + (l.supplements || []).reduce((s, x) => s + x.n * x.puCents, 0);
       if (l.personnel) t += (T.personnel?.heureCents || 0) * l.personnel.nb * l.personnel.heures;
       const pk = (T.packs || []).find(x => x.id === l.pack?.id); if (pk) t += pk.prixCents * (l.pack.nb || l.qte);
       return t;
@@ -498,7 +502,7 @@
           return `<article class="sel-i" data-k="${l.key}">
             ${l.photo ? `<img src="${esc(l.photo)}" alt="">` : '<span class="noimg"></span>'}
             <div class="sel-c"><p class="eyebrow">${esc(l.rubrique || '')}</p><h3>${titreHtml(l.titre)}${l.variante ? ` <small>· ${esc(l.variante)}</small>` : ''}</h3>
-            ${l.resume ? `<p class="small">${esc(l.resume)}</p>` : ''}
+            ${l.resume ? `<p class="small">${esc(l.resume)}</p>` : ''}${(l.supplements || []).map(x => `<p class="small sel-supp">+ Supplément ${esc(x.label.toLowerCase())} : ${x.n} part${x.n > 1 ? 's' : ''} × ${euros(x.puCents)} = <b>${euros(x.n * x.puCents)}</b></p>`).join('')}
             ${l.personnel ? `<p class="small">+ Personnel : ${l.personnel.nb} pers. × ${l.personnel.heures} h</p>` : ''}${pk ? `<p class="small">+ ${esc(pk.label)}</p>` : ''}${l.note ? `<p class="small">Note : ${esc(l.note)}</p>` : ''}
             <div class="sel-a">${l.lieu ? '' : `<div class="qty sm"><button type="button" data-d="-1" aria-label="Moins">−</button><input type="number" value="${l.qte}" min="${l.min || 1}" data-qte aria-label="Quantité"><button type="button" data-d="1" aria-label="Plus">+</button></div><span class="small">${esc(l.unite || '')}</span>`}
             <button type="button" class="lnk" data-del>Retirer</button></div></div>

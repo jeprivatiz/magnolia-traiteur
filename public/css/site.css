@@ -1341,3 +1341,13 @@ h1 .formule { font-size: .5em; margin-top: .45em; }
 .liee small { display: block; font-size: .88rem; line-height: 1.4; opacity: .85; margin: 2px 0 4px; }
 .liee em { font-style: normal; font-size: .8rem; letter-spacing: .08em; text-transform: uppercase; color: var(--or); font-weight: 600; display: inline-flex; align-items: center; gap: .4em; }
 .liee em svg { width: 14px; height: 14px; }
+
+/* suppléments par part (coq roussi + 5 € TTC la part, Jean-Luc 2026-11-25) */
+.optq span small.optq-sup { display: inline-block; margin-top: 3px; padding: 1px 8px; border-radius: 999px; background: color-mix(in srgb, var(--or) 18%, transparent); color: var(--encre); font-weight: 600; font-size: .74rem; white-space: nowrap; }
+.conf-supp { margin-top: 18px; padding: 10px 14px; border-radius: 10px; background: color-mix(in srgb, var(--or) 12%, var(--carte)); border: 1px solid color-mix(in srgb, var(--or) 45%, transparent); }
+.conf-supp p { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin: 0; }
+.conf-supp p + p { margin-top: 6px; }
+.conf-supp span { font-weight: 600; color: var(--encre); }
+.conf-supp span small { display: block; font-weight: 400; font-size: .8rem; color: var(--gris); }
+.conf-supp b { white-space: nowrap; color: var(--encre); font-size: 1.05rem; }
+.sel-supp b { color: var(--encre); }
