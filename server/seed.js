@@ -1874,7 +1874,6 @@ const INTROS_RUBRIQUES = {
 const PHOTOS_SANS_BROCHURE = {
   'pizzaiolo-a-domicile': [38539266, 'Pizzaiolo devant son four à bois'],
   'champagne-andre-diligent': [2259243, 'Bouteille de champagne dans un seau à glace'],
-  'la-cave-de-magnolia': [11851422, 'Bouteilles de vin et verres'],
   'pack-softs-en-individuel': [7414290, 'Bouteilles de jus et de sodas individuelles'],
   'plateau-de-20-mini-cheeseburgers': [18354206, 'Plateau de mini-burgers'],
   'jeux-de-lumiere': [33539320, 'Jeux de lumière colorés sur une piste de danse'],

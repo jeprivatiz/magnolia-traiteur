@@ -179,6 +179,17 @@ async function createApp(opts = {}) {
     }
     await store.set('_migr/sansHotGulab', { at: new Date().toISOString() });
   }
+  /* une seule fois (demande de Jean-Luc, 2026-11-25) : la fiche « La cave de Magnolia » (Vins rouges, blancs et rosés, « Sur devis ») est retirée du catalogue,
+     et c'est la page Boissons qui prend ce nom, avec le sous-titre « Du vin au soft, en passant par les alcools. » (l'adresse /boissons ne change pas). */
+  if (!(await store.get('_migr/caveMagnolia'))) {
+    const net = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+    for (const { id, data: p } of await store.list('produits')) {
+      if (p && (p.slug === 'la-cave-de-magnolia' || id === 'la-cave-de-magnolia' || (p.rubrique === 'boissons' && net(p.titre) === 'la cave de magnolia'))) await store.delete('produits/' + id);
+    }
+    const rb = await store.get('rubriques/boissons');
+    if (rb) await store.set('rubriques/boissons', { ...rb, nom: 'La cave de Magnolia', titrePage: rb.titrePage ? 'La cave de Magnolia' : rb.titrePage, chapo: 'Du vin au soft, en passant par les alcools.' });
+    await store.set('_migr/caveMagnolia', { at: new Date().toISOString() });
+  }
 
   /* ---------- titres et descriptions « dans Google » (Jean-Luc, 2026-11-24) ----------
      À chaque démarrage : les cases vides des produits, rubriques et spécialités sont remplies (jamais un texte tapé à la main).
