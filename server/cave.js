@@ -702,14 +702,14 @@ async function blancsPhotos(store) {
   await store.set('_migr/caveBlancsPhotos1', { at: new Date().toISOString() });
 }
 
-/* Eaux Cristaline : bouteille entière, droite et centrée sur fond blanc comme les autres bouteilles (Jean-Luc, 2026-11-25) */
+/* Eaux Cristaline : bouteille entière, droite et centrée sur fond blanc comme les autres bouteilles ; gazeuse à 2,50 € TTC (Jean-Luc, 2026-11-25) */
 async function eauxBouteilles(store) {
   if (await store.get('_migr/caveEauxBouteilles1')) return;
   for (const [slug, src, alt] of [
     ['eau-plate-cristaline-1-5-l', '/site/c/cave/cristaline-plate-bouteille.webp', 'Bouteille d’eau plate Cristaline 1,5 L'],
     ['eau-petillante-1-5-l', '/site/c/cave/cristaline-gazeuse-bouteille.webp', 'Bouteille de Cristaline gazéifiée 1,5 L']]) {
     const x = await store.get('produits/' + slug);
-    if (x) await store.set('produits/' + slug, { ...x, photos: [{ src, alt }] });
+    if (x) await store.set('produits/' + slug, { ...x, photos: [{ src, alt }], ...(slug === 'eau-petillante-1-5-l' ? { prixCents: 250 } : {}) });
   }
   await store.set('_migr/caveEauxBouteilles1', { at: new Date().toISOString() });
 }
