@@ -1351,3 +1351,17 @@ h1 .formule { font-size: .5em; margin-top: .45em; }
 .conf-supp span small { display: block; font-weight: 400; font-size: .8rem; color: var(--gris); }
 .conf-supp b { white-space: nowrap; color: var(--encre); font-size: 1.05rem; }
 .sel-supp b { color: var(--encre); }
+
+/* autres propositions d'une fiche (ex. Bar à cocktail → Mobilier pour bar à cocktail, Jean-Luc 2026-11-25) */
+.conf-prop { border-color: color-mix(in srgb, var(--or) 55%, var(--ligne)); }
+.conf-prop summary { font-weight: 600; }
+.props-l { display: grid; gap: 8px; margin-top: 10px; }
+.prop-i { display: flex; align-items: center; gap: 10px; padding: 8px; border: 1px solid var(--ligne); border-radius: 10px; background: var(--fond, #fff); text-decoration: none; color: inherit; transition: border-color .2s, background .2s; }
+.prop-i.on { border-color: var(--or); background: color-mix(in srgb, var(--or) 10%, var(--carte)); }
+.prop-c { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; cursor: pointer; margin: 0; }
+.prop-c input { width: 20px; height: 20px; accent-color: var(--vert, #1d3b2f); flex: none; }
+.prop-i img, .prop-i .ph { width: 56px; height: 56px; object-fit: cover; border-radius: 8px; flex: none; background: var(--ligne); }
+.prop-t { min-width: 0; } .prop-t b { display: block; font-weight: 600; font-size: .95rem; line-height: 1.25; } .prop-t small { display: block; color: var(--gris); font-size: .82rem; margin-top: 2px; }
+.prop-i .qty.sm { flex: none; } .prop-i .qty.sm button { width: 30px; height: 30px; } .prop-i .qty.sm input { width: 44px; }
+.prop-i.lien { justify-content: flex-start; } .prop-i.lien .prop-t { flex: 1; } .prop-i.lien em { font-style: normal; font-size: .78rem; letter-spacing: .06em; text-transform: uppercase; color: var(--or); font-weight: 600; white-space: nowrap; }
+@media (max-width: 520px) { .prop-i { flex-wrap: wrap; } .prop-c { flex: 1 1 100%; } .prop-i img, .prop-i .ph { width: 48px; height: 48px; } .prop-i .qty.sm { margin-left: auto; } .prop-i.lien { flex-wrap: nowrap; } }

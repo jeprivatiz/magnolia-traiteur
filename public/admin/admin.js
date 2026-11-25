@@ -69,7 +69,7 @@
   document.addEventListener('focusout', e => { const i = e.target; if (!i.matches || !String(i.value || "").trim()) return; if (i.matches("input[data-nomclient]")) i.value = nomPropre(i.value); else if (i.matches("input[data-prenom]")) i.value = majPrenom(i.value.trim()); else if (i.matches("input[data-nomfam]")) i.value = i.value.trim().toLocaleUpperCase("fr-FR"); });
   const STATUTS = { demande: 'Demande', devis_envoye: 'Devis envoyé', relance: 'Relance', accord: 'Accord', reserve: 'Réservé', refuse: 'Refusé', termine: 'Terminé' };
   const DSTAT = { brouillon: 'Brouillon', envoye: 'Envoyé', accepte: 'Signé', refuse: 'Refusé' };
-  const UNITES = ['personne', 'pièce', 'portion', 'plateau', 'coffret', 'corbeille', 'gâteau', 'forfait', 'prestation', 'heure', 'location', 'bouteille', 'lot de 6', 'conditionnement', 'litre', 'table', 'chaise', 'km', 'unité'];
+  const UNITES = ['personne', 'pièce', 'portion', 'plateau', 'coffret', 'corbeille', 'gâteau', 'forfait', 'prestation', 'heure', 'location', 'bouteille', 'cocktail', 'lot de 6', 'conditionnement', 'litre', 'table', 'chaise', 'km', 'unité'];
   const ALLERGENES = ['Gluten', 'Crustacés', 'Œufs', 'Poissons', 'Arachides', 'Soja', 'Lait', 'Fruits à coque', 'Céleri', 'Moutarde', 'Sésame', 'Sulfites', 'Lupin', 'Mollusques'];
   let session = null, cache = {};
   /* droits détaillés du compte connecté (Équipe & activité) ; « Administrateur » a tout */
@@ -2351,6 +2351,9 @@
           <div class="g2"><label>TVA<select name="tva">${[5.5, 10, 20].map(t => `<option value="${t}"${+(p.tva ?? 10) === t ? ' selected' : ''}>${String(t).replace('.', ',')} %</option>`).join('')}</select></label></div>
           <label class="chk"><input type="checkbox" name="r_personnel" ${p.regles?.personnel ? 'checked' : ''}> Proposer le personnel de service</label>
           <label class="chk"><input type="checkbox" name="r_packs" ${p.regles?.packs ? 'checked' : ''}> Proposer les packs traiteur</label>
+          <div class="props" data-props><span class="fourn-lab">Autres propositions pour ce produit <small>ex. sur « Bar à cocktail » : « Mobilier pour bar à cocktail ». Choisissez des produits du catalogue : sur la page de ce produit, le client peut les ajouter à sa sélection en un clic. Elles ne concernent que ce produit.</small></span>
+            <div data-props-list></div>
+            <button type="button" class="btn ghost sm" data-props-add>+ Ajouter une proposition</button></div>
           <label>Variantes (une par ligne, ex. « Entrée & plat »)<textarea name="variantes" rows="2">${esc((p.variantes || []).join('\n'))}</textarea></label>
         </section>
       </div>
@@ -2382,6 +2385,43 @@
       el.className = 'pf-marge ' + (m < 0 ? 'neg' : 'pos');
       el.innerHTML = `💰 Marge : <b>${euros(m)} HT</b> par ${esc(form.unite.value || 'unité')} · <b>${String(pc).replace('.', ',')} %</b> <small>(hors taxes, TVA ${String(form.tva.value).replace('.', ',')} % retirée de la vente et de l’achat)</small>`;
     };
+    /* autres propositions (Jean-Luc, 2026-11-25) : encadrés créés à la demande, propres à ce produit,
+       chacun avec un titre (« Mobilier pour bar à cocktail ») et des produits du catalogue choisis par recherche */
+    const props = (p.propositions || []).map(b => ({ titre: b.titre || '', slugs: [...(b.slugs || [])] }));
+    const tousP = () => (cache.produits || []).filter(x => x.slug !== p.slug);
+    const nrm = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const sale = () => { $('#dirty').textContent = 'Modifications non enregistrées'; };
+    const pNom = x => String(x.titre || '').replace(/\s+[—–]\s+/, ' · ');
+    const pPrix = x => (x.prixCents == null ? esc(x.prixAffiche || 'Sur devis') : euros(x.prixCents) + ' TTC / ' + esc(x.unite || 'unité'));
+    const pLigne = sl => { const x = tousP().find(y => y.slug === sl); return `<span class="pchip${x && x.statut === 'masque' ? ' masq' : ''}">${x?.photos?.[0]?.src ? `<img src="${esc(x.photos[0].src)}" alt="">` : ''}<span>${esc(x ? pNom(x) : sl + ' (introuvable)')}${x ? `<small>${pPrix(x)}${x.statut === 'masque' ? ' · masqué : non affiché' : ''}</small>` : ''}</span><button type="button" data-pdel="${esc(sl)}" aria-label="Retirer">×</button></span>`; };
+    const pDraw = () => {
+      const el = $('[data-props-list]'); if (!el) return;
+      el.innerHTML = props.map((b, i) => `<div class="prop-b" data-pb="${i}"><div class="prop-h"><input data-ptitre value="${esc(b.titre)}" placeholder="Titre, ex. Mobilier pour bar à cocktail" aria-label="Titre de la proposition"><button type="button" class="btn ghost sm" data-pbdel title="Retirer cette proposition">🗑 Retirer</button></div>
+        <div class="pchips">${b.slugs.map(pLigne).join('') || '<span class="muted sm">Aucun produit pour l’instant : cherchez-le ci-dessous.</span>'}</div>
+        <div class="prop-q"><input type="search" data-pq placeholder="🔍 Chercher un produit du catalogue à proposer…" autocomplete="off"><div class="prop-res" data-pres hidden></div></div></div>`).join('');
+    };
+    pDraw();
+    $('[data-props-add]')?.addEventListener('click', () => { props.push({ titre: '', slugs: [] }); pDraw(); sale(); $$('[data-ptitre]').pop()?.focus(); });
+    const pBox = $('[data-props-list]');
+    pBox?.addEventListener('input', e => {
+      const b = e.target.closest('[data-pb]'); if (!b) return; const i = +b.dataset.pb;
+      if (e.target.matches('[data-ptitre]')) { props[i].titre = e.target.value; sale(); return; }
+      if (e.target.matches('[data-pq]')) {
+        const res = $('[data-pres]', b), mots = nrm(e.target.value).split(/\s+/).filter(Boolean);
+        if (!mots.length) { res.hidden = true; return; }
+        const L = tousP().filter(x => !props[i].slugs.includes(x.slug) && mots.every(m => nrm(x.titre + ' ' + x.slug).includes(m))).slice(0, 10);
+        res.innerHTML = L.map(x => `<button type="button" data-padd="${esc(x.slug)}">${x.photos?.[0]?.src ? `<img src="${esc(x.photos[0].src)}" alt="">` : '<span class="ph0"></span>'}<span>${esc(pNom(x))}<small>${pPrix(x)}${x.statut === 'masque' ? ' · masqué' : ''}</small></span></button>`).join('') || '<p class="muted sm">Aucun produit trouvé. Créez-le d’abord dans le catalogue, puis revenez le choisir ici.</p>';
+        res.hidden = false;
+      }
+    });
+    pBox?.addEventListener('click', e => {
+      const b = e.target.closest('[data-pb]'); if (!b) return; const i = +b.dataset.pb;
+      const add = e.target.closest('[data-padd]'), del = e.target.closest('[data-pdel]');
+      if (add) { props[i].slugs.push(add.dataset.padd); pDraw(); sale(); $(`[data-pb="${i}"] [data-pq]`)?.focus(); }
+      else if (del) { props[i].slugs = props[i].slugs.filter(x => x !== del.dataset.pdel); pDraw(); sale(); }
+      else if (e.target.closest('[data-pbdel]')) { if (props[i].slugs.length && !confirm('Retirer cette proposition de la fiche ?')) return; props.splice(i, 1); pDraw(); sale(); }
+    });
+    pBox?.addEventListener('keydown', e => { if (e.target.matches('[data-pq]') && e.key === 'Enter') { e.preventDefault(); $('[data-padd]', e.target.closest('[data-pb]'))?.click(); } });
     /* fournisseurs : liste déroulante des fournisseurs déjà connus + « Nouveau fournisseur… » ; plusieurs par produit */
     var fourn = [...new Set([...(p.fournisseurs || []), ...(p.fournisseur ? [p.fournisseur] : [])])];
     const fChips = () => { const el = $('[data-fchips]'); if (el) el.innerHTML = fourn.map((x, i) => `<span class="fchip${i ? '' : ' princ'}">${i ? '' : '★ '}${esc(x)}${peut('prix') ? `<button type="button" data-fdel="${i}" aria-label="Retirer ${esc(x)}">×</button>` : ''}</span>`).join('') || '<span class="muted sm">Aucun fournisseur.</span>'; };
@@ -2546,6 +2586,7 @@
       const next = { ...p, titre: f.get('titre'), rubrique: f.get('rubrique'), sous: f.get('rubrique') === p.rubrique ? (f.get('sous') ?? p.sous ?? '') : '', autresSous: f.get('rubrique') === p.rubrique ? f.getAll('autresSous').filter(x => x !== f.get('sous')) : [], rangement: f.get('rangement') ?? p.rangement ?? '', statut: f.get('statut'), maison: !!f.get('maison'), extrait: f.get('extrait'), seoTitre: String(f.get('seoTitre') || '').trim(), seoDescription: String(f.get('seoDescription') || '').replace(/\s+/g, ' ').trim(), description: lignesNettes(f.get('description')), sousPhoto: lignesSousPhoto(f.get('sousPhoto')),
         prixCents: toCents(f.get('prix')), unite: f.get('unite'), contenuPortion: String(f.get('contenuPortion') || '').trim(), min: +f.get('min') || 1, minimumTexte: '', prixTexte: '', coutCents: achatTtc(toCents(f.get('cout')), +f.get('tva')), fournisseurs: fourn.slice(), fournisseur: undefined, tva: +f.get('tva'),
         regles: { ...(p.regles || {}), personnel: f.get('r_personnel') ? (p.regles?.personnel || 'service') : null, packs: !!f.get('r_packs') },
+        propositions: props.map(b => ({ titre: String(b.titre || '').trim(), slugs: b.slugs.slice() })).filter(b => b.slugs.length),
         variantes: String(f.get('variantes')).split('\n').map(x => x.trim()).filter(Boolean), photos: photos.filter(x => !x.envoi).map(({ src, alt }) => ({ src, alt })), video: f.get('video') ? { src: f.get('video'), poster: f.get('poster') || '' } : null,
         sections, details: String(f.get('details')).split('\n').map(x => x.trim()).filter(Boolean), groupes, allergenes: f.getAll('al'), allergenesAuto: false };
       try { await api(`${A}/produits/${id}`, { method: 'PUT', body: next }); cache.p = next; cache.produits = null; $('#dirty').textContent = ''; toast('Enregistré : visible sur le site immédiatement.'); }
