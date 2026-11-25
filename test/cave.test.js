@@ -70,3 +70,11 @@ test('initCave : anciens vins masqués, nos open bars gardés, nouvelles fiches 
   assert.equal(docs.get('rubriques/boissons').titresSections.sodas, 'Sodas');
   assert.equal(await initCave(store), 0);
 });
+
+test('bar à cocktails : le texte commence par « Notre barman prépare devant vos invités »', () => {
+  const { texteBarCocktails: f } = require('../server/cave');
+  assert.equal(f('Un barman prépare devant les invités trois cocktails choisis parmi cinq, ou des créations à la demande, pendant 4 heures. Le nombre de cocktails est fixé à l’avance.'),
+    'Notre barman prépare devant vos invités trois cocktails choisis parmi cinq, ou des créations à la demande. Le nombre de cocktails est fixé à l’avance.');
+  assert.equal(f('Pendant 4 heures, un barman prépare devant vos invités trois cocktails. La durée minimum pour un barman est de 4h.'),
+    'Notre barman prépare devant vos invités trois cocktails. La durée minimum pour un barman est de 4h.');
+});

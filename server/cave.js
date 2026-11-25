@@ -405,9 +405,26 @@ async function barCocktailsVideo(store) {
   await store.set('_migr/barCocktailsVideo1', { at: new Date().toISOString() });
 }
 
+/* Bar à cocktails (Jean-Luc, 2026-11-25) : les textes commencent par « Notre barman prépare devant vos invités… » ;
+   les 4 heures ne sont citées que comme durée globale (stand, service, rangement), le service lui-même dure 2 h 30 à 3 h. */
+function texteBarCocktails(t) {
+  return String(t)
+    .replace(/^\s*Pendant 4 ?h(?:eures)?\s*,\s*un barman prépare devant (?:vos|les) invités/i, 'Notre barman prépare devant vos invités')
+    .replace(/^\s*Un barman prépare devant (?:vos|les) invités/i, 'Notre barman prépare devant vos invités')
+    .replace(/\s*,\s*pendant 4 ?h(?:eures)?(?=[.,])/i, '');
+}
+async function barCocktailsTexte(store) {
+  if (await store.get('_migr/barCocktailsTexte1')) return;
+  const x = await store.get('produits/bar-a-cocktails-4-h-au-cocktail');
+  if (x) await store.set('produits/bar-a-cocktails-4-h-au-cocktail', { ...x,
+    extrait: x.extrait ? texteBarCocktails(x.extrait) : x.extrait,
+    description: (x.description || []).map(texteBarCocktails), sousPhoto: (x.sousPhoto || []).map(texteBarCocktails) });
+  await store.set('_migr/barCocktailsTexte1', { at: new Date().toISOString() });
+}
+
 async function initCave(store) {
   await prixCave(store);
-  if (await store.get('_migr/caveCercle')) { await openBarCave(store); await sodasCave(store); await vinsCave(store); await eauxCave(store); await cocaPhotos(store); await cristalineGaz(store); await cristalinePlate(store); await caveBandeauBadoit(store); await barmanSousPhoto(store); await barmanPrix(store); await alcoolsBlanc(store); await vinsRouges2(store); await barCocktailsMin(store); await barCocktailsVideo(store); return ajoutsCave(store); }
+  if (await store.get('_migr/caveCercle')) { await openBarCave(store); await sodasCave(store); await vinsCave(store); await eauxCave(store); await cocaPhotos(store); await cristalineGaz(store); await cristalinePlate(store); await caveBandeauBadoit(store); await barmanSousPhoto(store); await barmanPrix(store); await alcoolsBlanc(store); await vinsRouges2(store); await barCocktailsMin(store); await barCocktailsVideo(store); await barCocktailsTexte(store); return ajoutsCave(store); }
   const now = new Date().toISOString();
   let n = 0;
   for (const d of await store.list('produits')) {
@@ -458,7 +475,8 @@ async function initCave(store) {
   await vinsRouges2(store);
   await barCocktailsMin(store);
   await barCocktailsVideo(store);
+  await barCocktailsTexte(store);
   return n + await ajoutsCave(store);
 }
 
-module.exports = { BARMAN, OPEN_BAR_VC, CAVE_SECTIONS, CAVE_PRODUITS, AJOUTS_CAVE, CAVE_GARDEES, INTRO_CAVE, ttc, initCave };
+module.exports = { texteBarCocktails, BARMAN, OPEN_BAR_VC, CAVE_SECTIONS, CAVE_PRODUITS, AJOUTS_CAVE, CAVE_GARDEES, INTRO_CAVE, ttc, initCave };
