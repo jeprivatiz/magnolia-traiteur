@@ -1606,3 +1606,4 @@ body.avec-psbar .content { padding-bottom: 120px; }
 .lp-r > span { font-size: .85rem; color: #5b5f57; align-self: center; }
 .lp-fin { grid-template-columns: 1fr 2fr; background: #eef4ef; border-color: #cfe0d4; }
 @media (max-width: 640px) { .lp-r, .lp-fin { grid-template-columns: 1fr 1fr; } .lp-r > span { grid-column: 1 / -1; } }
+.nbmoy { cursor: default; } .nbmoy:hover { transform: none; box-shadow: none; }

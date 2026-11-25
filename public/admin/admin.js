@@ -1979,10 +1979,18 @@
       <div class="plist" id="plist">${liste.map(prowSel).join('') || '<p class="muted">Aucune prestation dans cette rubrique.</p>'}</div></div></section></div></div>`);
   }
   /* Pavés vert foncé à droite du titre « Catalogue » : chacun est un lien (même classe .nbcat pour les suivants) */
+  /* marge moyenne (Jean-Luc 2026-11-25) : moyenne simple des marges en % du prix de vente HT des produits visibles qui ont une marge
+     (prix de vente et prix d'achat, achat inférieur à la vente) ; masqués et « sans marge » exclus. Même TVA sur vente et achat : % HT = (vente − achat) / vente */
+  const paveMoy = prods => {
+    const L = prods.filter(p => p.statut !== 'masque' && p.prixCents > 0 && p.coutCents != null && p.coutCents < p.prixCents);
+    if (!L.length) return '';
+    const moy = L.reduce((t, p) => t + (p.prixCents - p.coutCents) / p.prixCents, 0) / L.length * 100;
+    return `<span class="nbcat nbmoy" data-pave="moyenne" title="Marge moyenne sur ${L.length} produit${L.length > 1 ? 's' : ''} visible${L.length > 1 ? 's' : ''} avec prix d’achat (masqués et sans marge non comptés), en % du prix de vente HT"><b>${moy.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %</b><small>marge moyenne</small></span>`;
+  };
   const pavesCat = (prods, actif) => {
     const nbVis = prods.filter(p => p.statut !== 'masque').length, nbMasq = prods.length - nbVis, nbSM = prods.filter(sansMarge).length, s = n => n > 1 ? 's' : '';
     const pave = (k, href, n, mot, titre) => `<a class="nbcat${actif === k ? ' on' : ''}" data-pave="${k}" href="${href}" title="${titre}"><b>${n.toLocaleString('fr-FR')}</b><small>${mot}</small></a>`;
-    return `<span class="nbpaves">${pave('produits', '#/catalogue', nbVis, 'produit' + s(nbVis), `${nbVis} produit${s(nbVis)} visible${s(nbVis)} sur le site · ${prods.length} au total`)}${pave('masques', '#/catalogue?masques=1', nbMasq, 'masqué' + s(nbMasq), `Voir les ${nbMasq} fiche${s(nbMasq)} masquée${s(nbMasq)} et pourquoi`)}${pave('marge', '#/catalogue?sansmarge=1', nbSM, 'sans marge', `${nbSM} produit${s(nbSM)} visible${s(nbSM)} sans prix d’achat : leur marge ne peut pas être calculée`)}</span>`;
+    return `<span class="nbpaves">${pave('produits', '#/catalogue', nbVis, 'produit' + s(nbVis), `${nbVis} produit${s(nbVis)} visible${s(nbVis)} sur le site · ${prods.length} au total`)}${pave('masques', '#/catalogue?masques=1', nbMasq, 'masqué' + s(nbMasq), `Voir les ${nbMasq} fiche${s(nbMasq)} masquée${s(nbMasq)} et pourquoi`)}${pave('marge', '#/catalogue?sansmarge=1', nbSM, 'sans marge', `${nbSM} produit${s(nbSM)} visible${s(nbSM)} sans prix d’achat : leur marge ne peut pas être calculée`)}${paveMoy(prods)}</span>`;
   };
   /* produits sans marge (Jean-Luc, 2026-11-25) : visibles, avec un prix de vente, mais sans prix d'achat (ou vendus à perte) */
   /* ligne de la liste « sans marge » : la fiche (lien) + saisie directe du prix d'achat et du fournisseur (Jean-Luc, 2026-11-25) */
@@ -2320,6 +2328,7 @@
         const next = { ...p, prixCents: v, coutCents: achatTtc(a, p.tva ?? 10), fournisseurs: fourn, fournisseur: undefined };
         await api(`${A}/produits/${id}`, { method: 'PUT', body: next });
         const c = qProd(row); if (c) Object.assign(c, { prixCents: next.prixCents, coutCents: next.coutCents, fournisseurs: fourn, fournisseur: undefined });
+        { const pm = $('[data-pave="moyenne"]'); if (pm) pm.outerHTML = paveMoy(cache.produits || []); }
         row.classList.remove('qmod'); row.classList.add('qsave'); setTimeout(() => row.classList.remove('qsave'), 1200);
         b.hidden = true; b.disabled = false;
         if (fs.value === '__nouveau') { fs.insertAdjacentHTML('afterbegin', `<option>${esc(f)}</option>`); fs.value = f; fn.hidden = true; fn.value = ''; }
