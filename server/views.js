@@ -163,7 +163,7 @@ function universListe(c) {
   /* un univers à spécialités (Saveurs du monde) est remplacé par ses spécialités : Paëlla party, Buffet libanais… (un seul clic pour le client) */
   const l = c.rubriques.filter(r => r.statut !== 'masque').flatMap(r => r.slug === 'lieux' ? [lieux]
     : sousVisibles(r).length ? sousVisibles(r).map(x => ({ slug: r.slug + '/' + x.slug, nom: String(x.nom || '').split(' · ')[0], href: `/${r.slug}/${x.slug}`, photo: x.photo, prods: prodsDeSous(c, r, x.slug) }))
-    : [{ slug: r.slug, nom: r.nom, href: rubHref(r), photo: r.photoAccueil || r.photo, prods: c.byRub.get(r.slug) || [] }]);
+    : [{ slug: r.slug, nom: r.nom, href: rubHref(r), photo: r.photoAccueil || r.photo || r.bandeauPhoto, prods: c.byRub.get(r.slug) || [] }]);
   return l.some(u => u.slug === 'lieux') ? l : [...l, lieux];
 }
 /* Vignette « La carte Magnolia » : sur une table ronde de mariage, un menu en carton se relève, s'ouvre sur
@@ -194,6 +194,7 @@ function videoAccueil(slug) {
 }
 function univers(c) {
   /* vignette vidéo = la vidéo seule, son image d'attente vient de la vidéo (pas de photo dessous, Jean-Luc 2026-11-24) */
+  /* vignette sans photo d'accueil : la photo du bandeau de la rubrique (Mobilier et matériel à la location, Jean-Luc 2026-11-25) ; une vidéo d'accueil passe toujours devant */
   /* la vignette Lieux prend la place de la rubrique « lieux » (ordre du back-office) */
   const vLieux = videoAccueil('lieux');
   const lieux = `<a class="tile" href="/lieux">${vLieux || img(c.lieux[0]?.photos?.[0], '')}<span class="tile-t"><b>Lieux de réception</b><small>${c.lieux.filter(l => l.statut !== 'masque').length} lieux à privatiser</small></span></a>`;
@@ -202,7 +203,7 @@ function univers(c) {
   const globe = r => { const ids = sousVisibles(r).map(x => (lieuDe(x)?.[2] || []).map(String)).filter(g => g.length).concat([['250']]); // un groupe de pays par spécialité (France en dernier)
     return `<a class="tile vg" href="${rubHref(r)}" data-vg='${esc(JSON.stringify(ids))}'>${img('/site/c/paysages/antilles.webp', '')}<canvas aria-hidden="true"></canvas><span class="tile-t"><b>${esc(r.nom)}</b><small>${esc(r.accroche || 'Dix traiteurs, une seule maison')}</small></span></a>`; };
   return rubs.map(r => r.slug === 'lieux' ? lieux : r.slug === 'saveurs-du-monde' ? globe(r) : `<a class="tile" href="${rubHref(r)}">
-    ${r.slug === 'carte-magnolia' ? img(r.photoAccueil || r.photo, '') + MENU_TABLE : videoAccueil(r.slug) || img(r.photoAccueil || r.photo, '')}<span class="tile-t"><b>${esc(r.nom).replace(/^(Plateaux?) (?=de fruits de mer)/i, '$1<br class="br-m"> ')}</b>${r.accroche ? `<small>${esc(r.accroche)}</small>` : `<small>${c.byRub.get(r.slug)?.length || 0} prestations</small>`}</span></a>`).join('')
+    ${r.slug === 'carte-magnolia' ? img(r.photoAccueil || r.photo, '') + MENU_TABLE : videoAccueil(r.slug) || img(r.photoAccueil || r.photo || r.bandeauPhoto, '')}<span class="tile-t"><b>${esc(r.nom).replace(/^(Plateaux?) (?=de fruits de mer)/i, '$1<br class="br-m"> ')}</b>${r.accroche ? `<small>${esc(r.accroche)}</small>` : `<small>${c.byRub.get(r.slug)?.length || 0} prestations</small>`}</span></a>`).join('')
     + (rubs.some(r => r.slug === 'lieux') ? '' : lieux);
 }
 
