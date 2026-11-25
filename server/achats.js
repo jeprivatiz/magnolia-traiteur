@@ -60,9 +60,11 @@ function analyser(buffer, nomFichier, produits) {
     let ex = code && index.find(x => x.s === code);
     if (!ex) { const n = net(nom); const ids = index.filter(x => x.n === n); if (ids.length === 1) ex = ids[0]; else if (ids.length > 1) ex = ids.find(x => x.p.statut !== 'masque') || ids[0]; }
     if (ex) { out.push({ ...r, statut: 'exact', slug: ex.p.slug, titre: ex.p.titre, score: 1 }); continue; }
-    const cands = index.map(x => ({ x, sc: ressemblance(nom, x.p.titre) })).filter(c => c.sc >= 0.5).sort((a, b) => b.sc - a.sc || (a.x.p.statut === 'masque') - (b.x.p.statut === 'masque')).slice(0, 5);
+    /* même prix de vente que sur le site (fichier HT × TVA, ou TTC) : indice fort quand le nom a été réécrit */
+    const memePrix = p => r.venteFichierCents > 0 && p.prixCents > 0 && [1, 1 + (r.tvaFichier ?? p.tva ?? 10) / 100].some(k => Math.abs(r.venteFichierCents * k - p.prixCents) <= Math.max(5, p.prixCents * 0.01));
+    const cands = index.map(x => { const sc0 = ressemblance(nom, x.p.titre), mp = sc0 >= 0.3 && memePrix(x.p); return { x, sc: Math.min(0.99, sc0 + (mp ? 0.3 : 0)), mp }; }).filter(c => c.sc >= 0.5).sort((a, b) => b.sc - a.sc || (a.x.p.statut === 'masque') - (b.x.p.statut === 'masque')).slice(0, 5);
     if (!cands.length) { out.push({ ...r, statut: 'introuvable', propositions: [] }); continue; }
-    out.push({ ...r, statut: cands[0].sc >= 0.75 ? 'proche' : 'douteux', slug: cands[0].x.p.slug, titre: cands[0].x.p.titre, score: Math.round(cands[0].sc * 100) / 100, propositions: cands.map(c => ({ slug: c.x.p.slug, titre: c.x.p.titre })) });
+    out.push({ ...r, statut: cands[0].sc >= 0.75 ? 'proche' : 'douteux', slug: cands[0].x.p.slug, titre: cands[0].x.p.titre, score: Math.round(cands[0].sc * 100) / 100, memePrix: cands[0].mp || undefined, propositions: cands.map(c => ({ slug: c.x.p.slug, titre: c.x.p.titre })) });
   }
   /* les prix du fichier sont-ils HT ? (prix de vente du fichier × TVA ≈ prix du site sur les fiches trouvées) */
   const P = new Map(produits.map(p => [p.slug, p]));

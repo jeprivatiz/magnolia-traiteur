@@ -50,7 +50,7 @@ test('import appliqué (HT → TTC), fournisseur sur la fiche, jamais sur la pag
     const ap = await call('/api/admin/actions/import-achats/appliquer', { method: 'POST', body: { ht: true, lignes: [{ slug: l.slug, achatCents: l.achatCents, fournisseur: l.fournisseur }] } });
     assert.equal(ap.j.maj, 1);
     const apres = (await call('/api/admin/produits/' + p.slug)).j;
-    assert.equal(apres.coutCents, 220, '2 € HT à 10 % = 2,20 € TTC'); assert.equal(apres.fournisseur, 'Fournisseur Secret Zéphyr');
+    assert.equal(apres.coutCents, 220, '2 € HT à 10 % = 2,20 € TTC'); assert.deepEqual(apres.fournisseurs, ['Fournisseur Secret Zéphyr']);
     const page = await fetch(`${base}/${p.rubrique}/${p.slug}`).then(r => r.text());
     assert.doesNotMatch(page, /Secret Zéphyr|fournisseur/i);
     const rech = await fetch(`${base}/api/recherche?q=${encodeURIComponent(p.titre.slice(0, 6))}`).then(r => r.text());

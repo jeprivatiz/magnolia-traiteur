@@ -341,10 +341,28 @@ details[open] summary { margin-bottom: 12px; }
 .toast.bad { background: var(--rouge); }
 @media (max-width: 900px) { .toast { bottom: max(80px, calc(env(safe-area-inset-bottom) + 70px)); } }
 @media print { .side, .mtop, .actions { display: none !important; } .bo { display: block; } .box { box-shadow: none; break-inside: avoid; } }
-.nbcat { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; vertical-align: middle; margin-right: 12px; padding: 4px 12px 5px; min-width: 64px; border-radius: 10px; background: var(--vert); color: #f6f3ec; border: 2px solid var(--or); font-family: var(--sans); line-height: 1; cursor: help; }
+.nbpaves { display: inline-flex; flex-wrap: wrap; gap: 10px; vertical-align: middle; margin-left: 18px; }
+.nbcat { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; padding: 4px 12px 5px; min-width: 72px; border-radius: 10px; background: var(--vert); color: #f6f3ec; border: 2px solid var(--or); font-family: var(--sans); line-height: 1; text-decoration: none; transition: transform .15s, box-shadow .15s; }
+.nbcat:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(20, 30, 25, .18); }
+.nbcat.on { box-shadow: 0 0 0 3px rgba(176, 138, 79, .35); }
 .nbcat b { font-size: 1.25rem; font-weight: 600; color: var(--or-2); }
-.nbcat small { font-size: .62rem; text-transform: uppercase; letter-spacing: .08em; margin-top: 3px; }
-.nbmasq { font-family: var(--sans); font-size: .8rem; font-weight: 400; color: var(--gris); margin-left: 10px; vertical-align: middle; }
+.nbcat small { font-size: .62rem; text-transform: uppercase; letter-spacing: .08em; margin-top: 3px; color: #f6f3ec; }
+.mfil { gap: 6px; margin-top: 8px; }
+.mfil .on { background: var(--vert); color: #fff; }
+.mlist { display: grid; gap: 8px; }
+.mrow { display: flex; gap: 12px; align-items: center; background: var(--fond); border: 1px solid var(--ligne); border-radius: 10px; padding: 8px; flex-wrap: wrap; }
+.mrow[hidden], .mgrp[hidden] { display: none; }
+.mrow img, .mrow .ph0 { width: 64px; height: 64px; border-radius: 7px; object-fit: cover; flex: none; background: var(--doux); opacity: .75; }
+.mrow.mok { border-color: var(--vert-ok); background: #eef6f0; }
+.mrow.mok img { opacity: 1; }
+.mtx { flex: 1 1 220px; min-width: 0; }
+.mtx b { display: block; font-weight: 500; }
+.mtx small { display: block; color: var(--gris); }
+.mwhy { display: inline-block; margin-top: 4px; font-style: normal; font-size: .78rem; padding: 2px 9px; border-radius: 999px; background: var(--doux); color: var(--texte); }
+.mw-doublon { background: #f3e8d4; color: #7a5a1f; }
+.mw-cave { background: #e6eef5; color: #2f5677; }
+.mw-chinois { background: #f6e3df; color: #8a3a2a; }
+.mact { display: flex; gap: 6px; flex-wrap: wrap; }
 .ph h1 .pill { font-family: var(--sans); font-size: .8rem; vertical-align: middle; margin-left: 6px; }
 .kcol[data-col=demande] { --c: var(--or); } .kcol[data-col=devis_envoye] { --c: var(--bleu); } .kcol[data-col=relance] { --c: var(--orange); }
 .kcol[data-col=accord] { --c: var(--violet); } .kcol[data-col=reserve] { --c: var(--vert-ok); } .kcol[data-col=refuse] { --c: var(--rouge); }
@@ -1421,3 +1439,9 @@ input.verrou { background: var(--doux); color: var(--gris); cursor: not-allowed;
 .lines.ach td { vertical-align: middle; } .lines.ach .wide { min-width: 240px; width: 100%; }
 .ach-e { font-size: .78rem; font-weight: 600; } .ach-e.ok { color: var(--vert-ok, #1f7a45); } .ach-e.proche, .ach-e.douteux { color: #8a5a00; } .ach-e.manq { color: var(--rouge, #b3261e); }
 .lines.ach tr.st-introuvable td, .lines.ach tr.st-douteux td { background: #fff8ec; }
+.fourn { margin: 6px 0 12px; } .fourn-lab { display: block; font-weight: 600; font-size: .9rem; margin-bottom: 6px; } .fourn-lab small { font-weight: 400; color: var(--gris); }
+.fourn-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.fchip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 6px 5px 12px; border-radius: 999px; background: var(--doux, #f3efe6); border: 1px solid var(--ligne); font-size: .9rem; }
+.fchip.princ { border-color: var(--or); background: color-mix(in srgb, var(--or) 14%, var(--carte, #fff)); font-weight: 600; }
+.fchip button { border: 0; background: transparent; cursor: pointer; font-size: 1.05rem; line-height: 1; color: var(--gris); padding: 0 4px; } .fchip button:hover { color: var(--rouge, #b3261e); }
+.fourn-add { gap: 8px; } .fourn-add select { min-width: 240px; } .fourn-add input { min-width: 220px; }
