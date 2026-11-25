@@ -347,7 +347,10 @@ const CARTE_INDIEN = [
 const AMBIANCE_INDIEN = ['menu-client-1', 'menu-client-2', 'menu-client-3', 'menu-client-4', 'plat-seul-client-1', 'plat-seul-client-2', 'plat-seul-client-3'].map(n => N + n + '.webp.webp');
 const RANGEMENTS = [['buffets', 'Nos buffets'], ['mezzes-froids', 'Nos mezzés froids à l’unité'], ['mezzes-chauds', 'Nos mezzés chauds à l’unité'], ['entrees', 'Nos entrées à l’unité'], ['plats', 'Nos plats à l’unité'], ['accompagnements', 'Nos accompagnements à l’unité'], ['fromages', 'Nos fromages'], ['desserts', 'Nos desserts à l’unité'], ['divers', 'Produits divers à l’unité'], ['animations', 'Nos animations'], ['corbeilles', 'Nos corbeilles de fruits'], ['pieces-montees', 'Nos pièces montées'], ['location', 'En location'],
   /* La cave de Magnolia (server/cave.js) */
-  ['champagne', 'Notre champagne'], ['eaux', 'Les eaux'], ['sodas', 'Sodas & limonades'], ['jus', 'Jus de fruits & thés glacés'], ['vins-rouges', 'Vins rouges'], ['vins-blancs', 'Vins blancs'], ['vins-roses', 'Vin rosé'], ['alcools-forts', 'Alcools forts'], ['bars', 'Open bars & cocktails'], ['accessoires', 'Accessoires']];
+  ['champagne', 'Notre champagne'], ['eaux', 'Les eaux'], ['sodas', 'Sodas & limonades'], ['jus', 'Jus de fruits & thés glacés'], ['vins-rouges', 'Vins rouges'], ['vins-blancs', 'Vins blancs'], ['vins-roses', 'Vin rosé'], ['alcools-forts', 'Alcools forts'], ['bars', 'Open bars & cocktails'], ['accessoires', 'Accessoires'],
+  /* Musique & animations et Les indispensables en rubriques (Jean-Luc, 2026-11-25) */
+  ['musique-live', 'Musique & DJ'], ['son-lumiere', 'Son, lumière & écrans'], ['spectacles', 'Artistes & spectacles'], ['jeux', 'Jeux & animations'], ['enfants', 'Pour les enfants'], ['souvenirs', 'Photos & souvenirs'],
+  ['arts-table', 'Vaisselle & verres'], ['mobilier', 'Tables, chaises & nappes'], ['materiel', 'Matériel de cuisine']];
 /* « Riz oriental : + 1,50 € HT/personne. » → « Riz oriental » (supplément d'un menu, pas un nom de plat) */
 const SUPPL = /\s*:\s*\+\s*[\d.,]+\s*€.*$/;
 /* accompagnements (riz, gratins, alloco…) : demande de Jean-Luc du 2026-11-22 */
@@ -996,6 +999,34 @@ async function initSousRubriques(store, { log = console } = {}) {
       if (chg) await store.set('produits/' + id, { ...p, groupes });
     }
     await store.set('site/reglages', { ...(await store.get('site/reglages')), buffetsPortions: true });
+  }
+
+  /* Musique & animations et Les indispensables en rubriques (Jean-Luc, 2026-11-25) : plus de 20 produits, donc des têtes
+     de rubrique sur téléphone. Une fois ; chaque fiche reste modifiable (liste « Section » de la fiche). */
+  const RMi = await store.get('site/reglages');
+  if (RMi && !RMi.musiqueIndispSections) {
+    const sans = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const RUBS = {
+      'musique-animations': { ordre: ['musique-live', 'son-lumiere', 'spectacles', 'jeux', 'enfants', 'souvenirs', 'divers'], titres: { divers: 'Et aussi' },
+        k: t => /enfant|gonflable|hermine/.test(t) ? 'enfants' : /booth|livre d.or/.test(t) ? 'souvenirs'
+          : /lumiere|ecran|projecteur|enceinte|sonorisation/.test(t) ? 'son-lumiere'
+          : /dj|live band|saxo|pianiste|chanteu|guitare|jazz|flaming|musicien|violon/.test(t) ? 'musique-live'
+          : /casino|blind test|karaoke|escape|puissance|taureau|baby|hockey|billard|ping|flechette|jeu/.test(t) ? 'jeux'
+          : /drag|magicien|faux serveur|mentaliste|caricatur|ventriloque|contorsion|bonne aventure|spectacle|artiste/.test(t) ? 'spectacles' : 'divers' },
+      'indispensables': { ordre: ['arts-table', 'mobilier', 'materiel', 'divers'], titres: { divers: 'Et aussi' },
+        k: t => /vaisselle|verre|pack/.test(t) ? 'arts-table' : /table|nappe|nappage|chaise|mange-debout|tente/.test(t) ? 'mobilier'
+          : /materiel|etuve|bain-marie|chafing|cuiseur|four|tireuse/.test(t) ? 'materiel' : 'divers' }
+    };
+    for (const [slug, R] of Object.entries(RUBS)) {
+      const r = await store.get('rubriques/' + slug);
+      if (!r) continue;
+      await store.set('rubriques/' + slug, { ...r, parSections: true, ordreSections: R.ordre, titresSections: { ...R.titres, ...(r.titresSections || {}) } });
+      for (const { id, data: p } of await store.list('produits')) {
+        if (p.rubrique !== slug) continue;
+        await store.set('produits/' + id, { ...p, rangement: R.k(sans(p.titre)) });
+      }
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), musiqueIndispSections: true });
   }
 
   /* Animations sucrées & desserts en sections (Jean-Luc, 2026-11-24) : Nos animations, Nos corbeilles de fruits, Nos pièces montées,
