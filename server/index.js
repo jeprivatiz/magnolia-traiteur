@@ -240,6 +240,13 @@ async function createApp(opts = {}) {
     }
     await store.set('_migr/verresFlutes', { at: new Date().toISOString() });
   }
+  /* une seule fois (Jean-Luc, 2026-11-25) : chaise pliante de luxe en velours bordeaux = sa propre photo (rangs de chaises dans un salon doré, piano à queue), à la place de l'ancienne */
+  if (!(await store.get('_migr/chaiseVeloursPhoto'))) {
+    const SLUG = 'chaise-pliante-de-luxe-en-velours-bordeaux';
+    const p = await store.get('produits/' + SLUG);
+    if (p) await store.set('produits/' + SLUG, { ...p, photos: [{ src: '/site/c/materiel/chaises-velours-bordeaux-salon.webp', alt: 'Chaises pliantes en velours bordeaux installées en rangs dans un salon doré, devant un piano à queue' }, ...(p.photos || []).slice(1)] });
+    await store.set('_migr/chaiseVeloursPhoto', { at: new Date().toISOString() });
+  }
   /* une seule fois (Jean-Luc, 2026-11-25) : photo du verre à bière 50 cl = sa propre photo (verre en polypropylène givré), détourée sur fond blanc */
   if (!(await store.get('_migr/gobeletBierePhoto'))) {
     const SLUG = 'gobelet-reutilisable-a-biere-50-cl';
