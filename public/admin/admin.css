@@ -1403,3 +1403,15 @@ input.verrou { background: var(--doux); color: var(--gris); cursor: not-allowed;
 .ia-pill{background:#fbf3df;color:#8a6a2f;border:1px solid #e6cf97}
 .da-sms{margin-top:10px;align-items:flex-end;gap:10px}
 .da-sms label{flex:1;max-width:460px}
+
+/* Marge des devis et des fiches (interne, Jean-Luc 2026-11-25) */
+.mg-box { margin-top: 16px; padding: 14px 16px; border: 1px solid var(--or); border-radius: 12px; background: color-mix(in srgb, var(--or) 9%, var(--carte, #fff)); }
+.mg-box h3 { margin: 0 0 8px; font-size: 1.05rem; } .mg-box h3 small { font-weight: 400; color: var(--gris); font-size: .8rem; margin-left: 6px; }
+.mg-box dl { margin: 0; max-width: 460px; } .mg-box dl div { display: flex; justify-content: space-between; gap: 20px; padding: 3px 0; font-variant-numeric: tabular-nums; }
+.mg-box dt { color: var(--gris); } .mg-box dd { margin: 0; font-weight: 500; } .mg-box dd small { color: var(--gris); font-weight: 400; }
+.mg-box .big { border-top: 1px solid var(--ligne); margin-top: 6px; padding-top: 8px; font-size: 1.15rem; } .mg-box .big dt { color: var(--texte); font-weight: 600; }
+.mg-box .pos dd { color: var(--vert-ok, #1f7a45); font-weight: 700; } .mg-box .neg dd { color: var(--rouge, #b3261e); font-weight: 700; }
+.mg-box p { margin: 8px 0 0; } .mg-manq { color: #8a5a00; font-size: .9rem; } .mg-manq small { color: var(--gris); }
+.lines input.manq { background: #fff4dc; border-color: #e0b45a; } .lines input.manq::placeholder { color: #a8782a; }
+.pf-marge { margin: 4px 0 10px; font-size: .92rem; } .pf-marge.pos b { color: var(--vert-ok, #1f7a45); } .pf-marge.neg { color: var(--rouge, #b3261e); } .pf-marge.manq { color: #8a5a00; }
+.pf-marge small { color: var(--gris); }

@@ -18,7 +18,49 @@ function totaux(doc) {
   }
   const coutCents = lignes.reduce((s, l) => s + Math.round((l.coutCents || 0) * (Number(l.qte) || 0)), 0);
   const ttcCents = brutCents - remiseCents;
-  return { brutCents, remiseCents, ttcCents, htCents, tva, coutCents, margeCents: ttcCents - coutCents };
+  const m = marge(doc);
+  return { brutCents, remiseCents, ttcCents, htCents, tva, coutCents, margeCents: m.margeHtCents, marge: m };
+}
+
+/* Marge d'un devis (Jean-Luc, 2026-11-25) — INTERNE, jamais montrée au client.
+   Prix de vente et prix d'achat sont saisis TTC ; la marge est calculée HORS TAXES (la TVA n'est pas un gain) :
+   vente HT (après remise) − achat HT, avec le taux de TVA de la ligne pour les deux.
+   Une ligne sans prix d'achat n'est PAS comptée à 0 : elle est listée « prix d'achat manquant » et laissée hors du calcul. */
+function marge(doc) {
+  const lignes = (doc.lignes || []).filter(l => l.type !== 'titre');
+  const brut = lignes.reduce((s, l) => s + Math.round((l.puCents || 0) * (Number(l.qte) || 0)), 0);
+  const remise = Math.min(brut, Math.max(0, Math.round(doc.remiseCents || 0)));
+  const ratio = brut ? (brut - remise) / brut : 1;
+  let venteHtCents = 0, achatHtCents = 0, achatTtcCents = 0, venteTtcCents = 0;
+  const manquants = [];
+  for (const l of lignes) {
+    const qte = Number(l.qte) || 0;
+    if (!qte) continue;
+    const taux = Number(l.tva ?? 10);
+    if (l.coutCents == null || l.coutCents === '') { manquants.push(String(l.designation || 'Ligne sans nom').replace(/\*\*/g, '')); continue; }
+    const vTtc = Math.round((l.puCents || 0) * qte * ratio), aTtc = Math.round(l.coutCents * qte);
+    venteTtcCents += vTtc; achatTtcCents += aTtc;
+    venteHtCents += Math.round(vTtc / (1 + taux / 100)); achatHtCents += Math.round(aTtc / (1 + taux / 100));
+  }
+  const margeHtCents = venteHtCents - achatHtCents;
+  return { venteHtCents, venteTtcCents, achatHtCents, achatTtcCents, margeHtCents, pct: venteHtCents ? Math.round(1000 * margeHtCents / venteHtCents) / 10 : null, manquants, connu: lignes.length > manquants.length };
+}
+
+/* prix d'achat d'une ligne venant du site : prix d'achat de la fiche + prix d'achat des options payantes choisies.
+   null (= « prix d'achat manquant ») si la fiche n'en a pas, ou si une option avec supplément n'a pas le sien. */
+function coutLigne(l, p) {
+  if (!p || p.coutCents == null) return null;
+  const qte = Math.max(1, Number(l.qte) || 1);
+  let cout = p.coutCents;
+  for (const g of p.groupes || []) {
+    for (const id of l.choix?.[g.id] || []) {
+      const [oid, n] = String(id).split(':'); const o = (g.options || []).find(x => x.id === oid);
+      if (!o) continue;
+      if (o.coutCents == null) { if (o.supCents) return null; continue; }
+      cout += n ? Math.round(o.coutCents * n / qte) : o.coutCents;
+    }
+  }
+  return cout;
 }
 
 /* marge négative bloquée : une ligne vendue sous son coût, ou un total sous le coût total */
@@ -65,7 +107,7 @@ function lignesDepuisDemande(demande, catalogue, tarifs = {}) {
       designation: avecPortion(l.titre) + (l.variante ? ' · ' + l.variante : ''),
       detail: [l.resume, l.note ? 'Note : ' + l.note : ''].filter(Boolean).join(' — '),
       qte: Number(l.qte) || 1, unite: l.unite || p?.unite || '',
-      puCents: (l.prixCents ?? p?.prixCents ?? 0) + (l.supCents || 0), coutCents: p?.coutCents ?? null,
+      puCents: (l.prixCents ?? p?.prixCents ?? 0) + (l.supCents || 0), coutCents: coutLigne(l, p),
       tva: p?.tva ?? 10, produit: l.slug,
     });
     if (l.personnel?.nb) {
@@ -132,4 +174,4 @@ function raisonsDevisManuel(demande, catalogue, T = {}, now = new Date()) {
   return [...new Set(r)];
 }
 
-module.exports = { raisonsDevisManuel, regleAcompte, totaux, controleMarge, prochainNumero, lignesDepuisDemande, estimerLigne };
+module.exports = { raisonsDevisManuel, regleAcompte, totaux, controleMarge, prochainNumero, lignesDepuisDemande, estimerLigne, marge, coutLigne };
