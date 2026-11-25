@@ -1543,3 +1543,14 @@ input.verrou { background: var(--doux); color: var(--gris); cursor: not-allowed;
 .qtx small { display: block; color: var(--gris); }
 .qrub { display: inline-block; margin-top: 4px; font-size: .78rem; padding: 2px 9px; border-radius: 999px; background: var(--doux); color: var(--texte); }
 .catg[hidden], #qres[hidden] { display: none; }
+.qchif { display: grid; grid-template-columns: minmax(110px, 1.3fr) repeat(3, minmax(92px, 1fr)); gap: 6px; flex: 2 1 460px; }
+.qc { display: flex; flex-direction: column; justify-content: center; min-height: 46px; padding: 4px 10px; border-radius: 8px; background: var(--fond); border: 1px solid var(--ligne); min-width: 0; }
+.qc small { font-size: .66rem; text-transform: uppercase; letter-spacing: .05em; color: var(--gris); }
+.qc b { font-weight: 600; font-size: .92rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qc b i { font-style: normal; font-weight: 500; font-size: .8rem; margin-left: 4px; }
+.qc-f b { white-space: normal; font-weight: 500; font-size: .85rem; }
+.qc-pos { background: #eef6f0; border-color: #cfe3d6; } .qc-pos b { color: var(--vert-ok); }
+.qc-neg { background: #fbeeea; border-color: #ecc9bf; } .qc-neg b { color: var(--rouge); }
+@media (max-width: 700px) { .qchif { grid-template-columns: 1fr 1fr; flex-basis: 100%; } }
+.qc-pos b, .qc-neg b { white-space: normal; }
+.qc b i { white-space: nowrap; }

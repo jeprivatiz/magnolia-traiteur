@@ -2165,7 +2165,15 @@
     /* 🔍 Trouver un produit : toutes les rubriques, sans accents ni majuscules, tous les mots tapés ; la recherche est gardée au retour d'une fiche */
     const sansAccQ = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     const nomRubQ = p => { const r = (cache.rubriques || []).find(x => x.slug === p.rubrique); const so = (r?.sous || []).find(x => x.slug === p.sous); return (r?.nom || p.rubrique || '') + (so ? ' › ' + so.nom : ''); };
-    const qrow = p => `<a class="qrow${p.statut === 'masque' ? ' hid' : ''}" href="#/catalogue/${esc(p.id || p.slug)}">${p.photos?.[0]?.src ? `<img src="${esc(p.photos[0].src)}" alt="" loading="lazy">` : '<span class="ph0"></span>'}<span class="qtx"><b>${titreHtml(p.titre)}</b><small>${p.prixCents == null ? 'Sur devis' : euros(p.prixCents) + (p.unite ? ' / ' + esc(p.unite) : '')}${p.min > 1 ? ' · min. ' + p.min : ''}</small><span class="qrub">📂 ${esc(nomRubQ(p))}</span></span><span class="pill ${p.statut === 'masque' ? 'd-refuse' : 'd-accepte'}">${p.statut === 'masque' ? 'Masqué' : 'Visible'}</span><span class="btn sm">✏ Ouvrir la fiche</span></a>`;
+    /* chiffres visibles directement sur chaque résultat (Jean-Luc 2026-11-25) : fournisseur(s), prix de vente TTC, achat HT, marge HT € et % ; case vide si la donnée manque */
+    const qchif = p => {
+      const k = 1 + (+p.tva || 10) / 100, f = [...new Set([...(p.fournisseurs || []), ...(p.fournisseur ? [p.fournisseur] : [])])].filter(Boolean);
+      const vHt = p.prixCents == null ? null : Math.round(p.prixCents / k), aHt = achatHt(p.coutCents, p.tva);
+      const m = vHt != null && aHt != null ? vHt - aHt : null, pc = m != null && vHt ? Math.round(1000 * m / vHt) / 10 : null;
+      const c = (lab, val, cls = '') => `<span class="qc${cls}"><small>${lab}</small><b>${val}</b></span>`;
+      return `<span class="qchif">${c('Fournisseur', esc(f.join(', ')), ' qc-f')}${c('Vente TTC', p.prixCents == null ? '' : euros(p.prixCents))}${c('Achat HT', aHt == null ? '' : euros(aHt))}${c('Marge HT', m == null ? '' : `${euros(m)} <i>${String(pc).replace('.', ',')} %</i>`, m == null ? '' : m < 0 ? ' qc-neg' : ' qc-pos')}</span>`;
+    };
+    const qrow = p => `<a class="qrow${p.statut === 'masque' ? ' hid' : ''}" href="#/catalogue/${esc(p.id || p.slug)}">${p.photos?.[0]?.src ? `<img src="${esc(p.photos[0].src)}" alt="" loading="lazy">` : '<span class="ph0"></span>'}<span class="qtx"><b>${titreHtml(p.titre)}</b><small>${p.prixCents == null ? 'Sur devis' : euros(p.prixCents) + (p.unite ? ' / ' + esc(p.unite) : '')}${p.min > 1 ? ' · min. ' + p.min : ''}</small><span class="qrub">📂 ${esc(nomRubQ(p))}</span></span>${qchif(p)}<span class="pill ${p.statut === 'masque' ? 'd-refuse' : 'd-accepte'}">${p.statut === 'masque' ? 'Masqué' : 'Visible'}</span><span class="btn sm">✏ Ouvrir la fiche</span></a>`;
     const chercher = () => {
       const brut = $('[data-q]').value, q = sansAccQ(brut).trim();
       try { sessionStorage.setItem('mg-trouve', brut); } catch { /* */ }
