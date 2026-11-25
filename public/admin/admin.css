@@ -1467,3 +1467,8 @@ input.verrou { background: var(--doux); color: var(--gris); cursor: not-allowed;
 .smlist .prow b { white-space: normal; }
 .smlist .prow small { white-space: nowrap; }
 @media (max-width: 860px) { .smlist .smrow { gap: 6px; padding-bottom: 14px; border-bottom: 2px solid var(--or); } .smlist .prow { flex-wrap: wrap; } }
+
+.sm-saisie select[data-smf] { width: 200px; min-height: 40px; } .sm-saisie [data-smfnew] { width: 190px; }
+@media (max-width: 860px) { .sm-saisie { flex-wrap: wrap; } .sm-saisie select[data-smf] { flex: 1; width: auto; } }
+
+.fourn-gest .fchip { cursor: pointer; user-select: none; -webkit-user-select: none; touch-action: manipulation; }
