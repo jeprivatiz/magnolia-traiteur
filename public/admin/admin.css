@@ -1856,3 +1856,4 @@ body.avec-psbar .content { padding-bottom: 120px; }
 tr.liv-lock { background: #f4efe4; }
 tr.liv-lock input:disabled, tr.liv-lock select:disabled { background: #ece4d3; color: #4a4a42; opacity: 1; cursor: not-allowed; }
 tr.liv-lock .lock-i { display: inline-block; padding: 0 6px; }
+tr.liv-lock td input.num:disabled, tr.liv-lock td input.pct:disabled { background: #ece4d3; border-color: #ddd0b6; color: #4a4a42; -webkit-text-fill-color: #4a4a42; }

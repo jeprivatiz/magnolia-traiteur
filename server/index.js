@@ -16,7 +16,7 @@ const views = require('./views');
 const { preparerAlerte } = require('./relances');
 const STATS = require('./statistiques');
 const ANC = require('./anciens');
-const { verrouLivraison, raisonsDevisManuel, regleAcompte, totaux, controleMarge, prochainNumero, lignesDepuisDemande, estimerLigne, choixDepuisNote, totalSupplements } = require('./devis');
+const { verrouLivraison, verrouPersonnel, marquerPersonnel, raisonsDevisManuel, regleAcompte, totaux, controleMarge, prochainNumero, lignesDepuisDemande, estimerLigne, choixDepuisNote, totalSupplements } = require('./devis');
 const { rid, sha, esc, euros, limiter, dateFr, slugify, nomPropre, dateNaissance, titreTexte } = require('./util');
 const LIVR = require('../public/js/livraison-paliers');
 const ACHATS = require('./achats');
@@ -1216,10 +1216,12 @@ async function createApp(opts = {}) {
     if (coll === 'produits' && before && !req.ctx.droits.prix && empreintePrix(data) !== empreintePrix(before)) return refus(res, 'prix');
     if (coll === 'devis') {
       if (before && before.statut === 'accepte' && !req.ctx.droits.devisSignes) return res.status(403).json({ error: 'Ce devis est signé : il faut le droit « Modifier un devis signé » pour le changer.' });
-      if (!req.ctx.droits.admin) { /* ligne de livraison : seul un administrateur la change ou l'offre */
-        const v = verrouLivraison(before, data.lignes, (await cat.get()).reglages?.tarifs || {});
+      const cDev = await cat.get();
+      if (Array.isArray(data.lignes)) data.lignes = marquerPersonnel(data.lignes, cDev);
+      if (Array.isArray(data.lignes) && !req.ctx.droits.admin) { /* livraison et personnel : seul un administrateur change leur prix ou les offre */
+        const v = verrouLivraison(before, data.lignes, cDev.reglages?.tarifs || {});
         if (v.erreur) return res.status(403).json({ error: v.erreur });
-        data.lignes = v.lignes;
+        data.lignes = verrouPersonnel(before, v.lignes, cDev, cDev.reglages?.tarifs || {});
       }
       const err = controleMarge(data);
       if (err.length) return res.status(400).json({ error: 'Marge négative bloquée : ' + err.join(' ') });

@@ -938,13 +938,16 @@
   }, true);
   /* ligne de livraison (même règle que server/devis.js) : hors remise globale, verrouillée sans le droit Administrateur */
   const estLivraison = l => !!(l && (l.livraison || l.unite === 'km'));
+  /* ligne de personnel (serveurs, barman, maître d'hôtel, régisseur…) : prix et remise réservés à l'administrateur, hors remise globale */
+  const estPersonnel = l => !!(l && l.type !== 'titre' && (l.personnel === true || (l.produit && (cache.produits || []).some(p => p.slug === l.produit && (p.rubrique === 'personnel' || (p.autresRubriques || []).includes('personnel'))))));
+  const horsRemise = l => estLivraison(l) || estPersonnel(l);
   function tot(d) {
     const L = (d.lignes || []).filter(l => l.type !== 'titre');
     const brut = L.reduce((s, l) => s + Math.round((l.puCents || 0) * (+l.qte || 0)), 0);
-    const hors = L.filter(l => !estLivraison(l)).reduce((s, l) => s + Math.round((l.puCents || 0) * (+l.qte || 0)), 0);
+    const hors = L.filter(l => !horsRemise(l)).reduce((s, l) => s + Math.round((l.puCents || 0) * (+l.qte || 0)), 0);
     const remise = Math.min(hors, d.remiseCents || 0);
     const cout = L.reduce((s, l) => s + Math.round((l.coutCents || 0) * (+l.qte || 0)), 0);
-    const r = hors ? (hors - remise) / hors : 1, ratio = l => (estLivraison(l) ? 1 : r);
+    const r = hors ? (hors - remise) / hors : 1, ratio = l => (horsRemise(l) ? 1 : r);
     let ht = 0; const tva = {};
     for (const l of L) { const t = Math.round((l.puCents || 0) * (+l.qte || 0) * ratio(l)); const h = Math.round(t / (1 + (l.tva ?? 10) / 100)); ht += h; tva[l.tva ?? 10] = (tva[l.tva ?? 10] || 0) + t - h; }
     return { brut, remise, ttc: brut - remise, ht, tva, cout, mg: margeDevis(L, ratio) };
@@ -1116,7 +1119,7 @@
         <textarea id="iam-t" rows="2" placeholder="Ex. : supprime le DJ et mets une contorsionniste à la place"></textarea><div class="row"><button type="button" class="btn aq-btn" data-iam>✨ Proposer la modification</button><button type="button" class="btn ghost sm" data-iam-mic>🎤 Dicter</button><span id="iam-msg" class="muted sm"></span></div><div id="iam-res"></div></section>`}
       <section class="box"><div class="bh"><h2>Lignes du devis</h2><div class="row"><select data-addprod class="wide"><option value="">+ Ajouter une prestation du catalogue…</option>${cat.filter(p => p.statut !== 'masque').sort((a, b) => a.titre.localeCompare(b.titre)).map(p => `<option value="${esc(p.slug)}">${esc(titreTexte(p.titre))} · ${p.prixCents == null ? 'sur devis' : euros(p.prixCents)}</option>`).join('')}${lieuxD.length ? `<optgroup label="Lieux à privatiser (3 photos sur le devis)">${lieuxD.sort((a, b) => a.nom.localeCompare(b.nom)).map(l => `<option value="lieu-${esc(l.slug)}">📍 ${esc(l.nom)}${l.capacite ? ' · ' + l.capacite + ' pers.' : ''}${l.statut === 'masque' ? ' (masqué)' : ''}</option>`).join('')}</optgroup>` : ''}</select><button type="button" class="btn ghost sm" data-addline>+ Ligne libre</button><button type="button" class="btn ghost sm" data-addtitle>+ Titre</button></div></div>
         <div class="table"><table class="lines"><thead><tr><th></th><th>Désignation</th><th class="n">Qté</th><th>Unité</th><th class="n">PU TTC</th><th class="n" title="Réduction sur cette ligne, en % — le client voit le prix barré et le prix remisé">Remise</th><th class="n" title="Prix d’achat HT à l’unité — interne, jamais montré au client">Achat HT 🔒</th><th>TVA</th><th class="n">Total TTC</th><th></th></tr></thead><tbody id="lines"></tbody></table></div>
-        <div class="totbox"><div class="g2"><label>Remise sur le total du devis<span class="remg"><input name="remise" value="${d.remisePct ? String(d.remisePct).replace('.', ',') : fromCents(d.remiseCents || 0)}" inputmode="decimal" placeholder="0"><select name="remiseMode" aria-label="Remise en euros ou en pourcentage"><option value="eur">€ TTC</option><option value="pct"${d.remisePct ? ' selected' : ''}>%</option></select></span><small class="muted">Pour une remise sur un seul produit : colonne « Remise » de la ligne. La marge 💰 ci-dessous se met à jour pendant que vous tapez. 🔒 Le client voit la remise, jamais la marge.</small></label></div><dl id="totaux"></dl></div><div class="mg-box" id="marge"></div>${lock ? '' : '<div class="anc-comp" id="ancComp" hidden></div>'}</section>
+        <div class="totbox"><div class="g2"><label>Remise sur le total du devis<span class="remg"><input name="remise" value="${d.remisePct ? String(d.remisePct).replace('.', ',') : fromCents(d.remiseCents || 0)}" inputmode="decimal" placeholder="0"><select name="remiseMode" aria-label="Remise en euros ou en pourcentage"><option value="eur">€ TTC</option><option value="pct"${d.remisePct ? ' selected' : ''}>%</option></select></span><small class="muted">Pour une remise sur un seul produit : colonne « Remise » de la ligne. La remise sur le total ne s’applique ni à la livraison ni au personnel. La marge 💰 ci-dessous se met à jour pendant que vous tapez. 🔒 Le client voit la remise, jamais la marge.</small></label></div><dl id="totaux"></dl></div><div class="mg-box" id="marge"></div>${lock ? '' : '<div class="anc-comp" id="ancComp" hidden></div>'}</section>
       <section class="box"><label>Conditions particulières<textarea name="conditions" rows="2">${esc(d.conditions || '')}</textarea></label></section>
       <div class="actions sticky"><button class="btn" type="submit">Enregistrer</button><button class="btn ghost" type="button" data-voir>👁 Voir le devis</button><span class="muted" id="dirty"></span></div>
       </form>
@@ -1168,7 +1171,7 @@
     const nombre = v => Math.max(0, parseFloat(String(v || '').replace(',', '.')) || 0);
     const remiseCts = () => {
       if (form.remiseMode.value !== 'pct') return toCents(form.remise.value) || 0;
-      const brut = lignes.filter(l => l.type !== 'titre' && !estLivraison(l)).reduce((s2, l) => s2 + Math.round((l.puCents || 0) * (+l.qte || 0)), 0); /* la livraison n'est jamais remisée */
+      const brut = lignes.filter(l => l.type !== 'titre' && !horsRemise(l)).reduce((s2, l) => s2 + Math.round((l.puCents || 0) * (+l.qte || 0)), 0); /* la livraison n'est jamais remisée */
       return Math.round(brut * Math.min(100, nombre(form.remise.value)) / 100);
     };
     /* draw(false) : seulement les totaux et la marge — pendant la frappe, on ne redessine pas les cases (sinon « 3 » devient « 3,00 » et le curseur saute) */
@@ -1180,8 +1183,14 @@
            <td><input data-f="puCents" class="num" value="${fromCents(l.puBaseCents ?? l.puCents)}" inputmode="decimal"></td><td class="rem"><span class="remi"><input data-f="remisePct" class="num pct" value="${l.remisePct ? String(l.remisePct).replace('.', ',') : ''}" placeholder="0" inputmode="decimal" aria-label="Remise en %"> %</span>${l.remisePct ? `<small>= ${euros(l.puCents)}</small>` : ''}${l.coutCents != null && l.puCents ? `<small class="mgl ${l.puCents > l.coutCents ? 'pos' : 'neg'}" title="Marge de cette ligne (interne)">marge ${String(Math.round(1000 * (l.puCents - l.coutCents) / l.puCents) / 10).replace('.', ',')} %</small>` : ''}</td><td><input data-f="coutCents" class="num${l.coutCents == null && +l.qte ? ' manq' : ''}" value="${fromCents(achatHt(l.coutCents, l.tva ?? 10))}" inputmode="decimal" placeholder="manquant" title="Prix d’achat HT à l’unité"></td>
            <td><select data-f="tva">${[5.5, 10, 20].map(t => `<option value="${t}"${+l.tva === t ? ' selected' : ''}>${String(t).replace('.', ',')} %</option>`).join('')}</select></td><td class="n">${euros(Math.round((l.puCents || 0) * (+l.qte || 0)))}</td><td><button type="button" class="x" data-del aria-label="Supprimer">×</button></td></tr>`).join('') || '<tr><td colspan="10" class="muted">Aucune ligne : ajoutez une prestation du catalogue ou une ligne libre.</td></tr>';
       if (cases && !peut('admin')) lignes.forEach((l, i) => { /* 🔒 livraison : seul un administrateur la change, l'offre ou la retire */
-        if (l.type === 'titre' || !estLivraison(l)) return;
+        if (l.type === 'titre') return;
         const tr = body.querySelector(`[data-i="${i}"]`); if (!tr) return;
+        if (estPersonnel(l) && !estLivraison(l)) { /* 🔒 personnel : prix, remise, achat et TVA bloqués ; le nombre de personnes × heures reste libre */
+          tr.classList.add('liv-lock'); tr.title = '🔒 Personnel : seul un administrateur peut changer le prix ou faire une remise. Vous pouvez changer la quantité.';
+          tr.querySelectorAll('[data-f="puCents"], [data-f="remisePct"], [data-f="coutCents"], [data-f="tva"], [data-f="unite"]').forEach(x => { x.disabled = true; });
+          return;
+        }
+        if (!estLivraison(l)) return;
         tr.classList.add('liv-lock'); tr.title = '🔒 Ligne de livraison : seul un administrateur peut la modifier ou l’offrir.';
         tr.querySelectorAll('input, select').forEach(x => { if (x.dataset.f === 'detail' || x.dataset.f === 'designation') return; x.disabled = true; });
         tr.querySelector('[data-del]')?.replaceWith(Object.assign(document.createElement('span'), { className: 'lock-i', textContent: '🔒' }));
@@ -1238,7 +1247,7 @@
       const lv = (cache.lieuxDevis || []).find(x => 'lieu-' + x.slug === e.target.value);
       if (lv) { const pr = /(\d[\d\s]*)/.exec(String(lv.prixTexte || '').replace(/\u202f/g, ' ')); lignes.push({ designation: 'Privatisation · ' + lv.nom, detail: [lv.ville, lv.capacite ? 'jusqu’à ' + lv.capacite + ' personnes' : ''].filter(Boolean).join(' · '), qte: 1, unite: 'forfait', puCents: pr ? +pr[1].replace(/\s/g, '') * 100 : 0, coutCents: null, tva: 20, produit: 'lieu-' + lv.slug }); e.target.value = ''; draw(); dirty(); toast('Lieu ajouté : ses 3 photos apparaîtront sur le devis du client.'); return; }
       const p = cache.produits.find(x => x.slug === e.target.value); if (!p) return;
-      lignes.push({ designation: avecPortion(p.titre), detail: '', qte: p.min || 1, unite: p.unite || 'unité', puCents: p.prixCents || 0, coutCents: p.coutCents ?? null, tva: p.tva ?? 10, produit: p.slug });
+      lignes.push({ designation: avecPortion(p.titre), detail: '', qte: p.min || 1, unite: p.unite || 'unité', puCents: p.prixCents || 0, coutCents: p.coutCents ?? null, tva: p.tva ?? 10, produit: p.slug, ...(p.rubrique === 'personnel' || (p.autresRubriques || []).includes('personnel') ? { personnel: true } : {}) });
       e.target.value = ''; draw(); dirty();
     });
     form.addEventListener('input', e => { if (!e.target.closest('#lines, .ia-modif')) dirty(); });
