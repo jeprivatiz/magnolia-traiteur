@@ -6,7 +6,7 @@
 const DROITS = [
   { k: 'admin', nom: 'Administrateur', aide: 'Peut tout faire, y compris gérer l’équipe et les droits de chacun.' },
   { k: 'toutes', nom: 'Voir toutes les opportunités', aide: 'Sinon, la personne ne voit que ses propres demandes, devis et factures, plus les nouvelles demandes du site que personne n’a encore prises.' },
-  { k: 'produits', nom: 'Gérer les produits', aide: 'Catalogue, rubriques et lieux : créer, modifier, masquer des fiches et leurs photos.' },
+  { k: 'produits', nom: 'Gérer les produits', aide: 'Catalogue, rubriques et lieux : créer, modifier, masquer, supprimer des fiches et leurs photos.' },
   { k: 'prix', nom: 'Modifier les prix', aide: 'Prix de vente et coûts de revient du catalogue, tarifs de livraison, de personnel et de vaisselle.' },
   { k: 'fichiers', nom: 'Imports et exports de fichiers', aide: 'Télécharger les fichiers Excel, importer des clients, mettre le catalogue à jour par fichier.' },
   { k: 'diffusion', nom: 'Envois groupés e-mail et SMS', aide: 'Envoyer un e-mail ou un SMS à plusieurs clients d’un coup.' },

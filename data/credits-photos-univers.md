@@ -205,7 +205,7 @@ Photos Pexels : licence Pexels (usage commercial libre, sans attribution obligat
 | Mange-debout | public/site/c/materiel/mange-debout.webp | https://www.flickr.com/photos/74708580@N00/4466169977 (glasseyes view) | CC BY-SA 2.0 |
 | Nappe rectangulaire 170 × 250 cm | public/site/c/materiel/nappe-rectangulaire.webp | https://www.pexels.com/photo/8112784/ | Pexels |
 | Chaise pliante de luxe en velours bordeaux | public/site/c/materiel/chaise-velours.webp (recadrée) | https://www.pexels.com/photo/35560665/ | Pexels |
-| Verres en verre (vin, coupes à champagne) | public/site/c/materiel/verres-vin-coupes.webp | https://www.pexels.com/photo/29157921/ | Pexels |
+| Verres à vin et flûtes à champagne | public/site/c/materiel/verres-vin-flutes.webp | https://www.pexels.com/photo/19408256/ (Luis Felipe Pérez) | Pexels |
 | Verres réutilisables éco-responsables | public/site/c/materiel/verres-reutilisables.webp (recadrée) | https://www.flickr.com/photos/36976328@N04/54546620525 (re:publica) | CC BY-SA 2.0 |
 | Set de vaisselle complet | public/site/c/materiel/set-complet.webp | https://www.pexels.com/photo/291767/ | Pexels |
 | Set de vaisselle sans verrerie | public/site/c/materiel/set-sans-verrerie.webp | https://www.pexels.com/photo/18977894/ | Pexels |
@@ -258,8 +258,8 @@ public/site/c/douceurs/ à sa demande ; le nom du partenaire n'apparaît jamais 
 | Corbeilles spécial fête 3 / 5 / 7 kg | Pexels 1171170, 1132047, 27583257 |
 | Corbeilles exotiques 3 / 5 / 7 / 9 kg | Pexels 21998617, 1300975, 6146103, 37223904 |
 | Macarons 36 / 72 pièces | Pexels 1346345, 239578 |
-| Fraisier, framboisine, tarte chocolat, craqueline, croquant caramel, gâteau chocolat | laromainville.fr (partenaire) |
-| Pièces montées Romantica, Bella Rosa, Élégance, croquembouche, pyramide de macarons | laromainville.fr (partenaire) |
+| Fraisier, framboisine, tarte chocolat, craqueline, croquant caramel, gâteau chocolat | laromainville.fr (partenaire) ; petit rond en chocolat effacé sur framboisine, tarte, craqueline, croquant caramel (2026-11-25) |
+| Pièces montées Romantica, Bella Rosa, Élégance, croquembouche, pyramide de macarons | laromainville.fr (partenaire) ; macaron « R » du sommet de la pyramide effacé (2026-11-25) |
 | Bandeau « Personnel de réception » (serveur avec plateau, Andrea Piacquadio) | https://www.pexels.com/photo/waiter-with-tray-working-in-stylish-restaurant-3769740/ | 24/11/2026 (demande directe : ancienne photo floue) |
 | Fiche « pizzaiolo-personnel » (pizzaïolo qui lance la pâte, Canan Ataklı, recadrée) | https://www.pexels.com/photo/chef-tossing-pizza-dough-in-rustic-kitchen-setting-28857295/ | 24/11/2026 (demande directe) |
 | Fiche « regisseur » (homme en costume qui accueille des invités, Kampus Production) | https://www.pexels.com/photo/man-in-black-suit-giving-a-couple-a-tour-8815825/ | 24/11/2026 (demande directe) |
@@ -274,3 +274,49 @@ Photos et textes repris de corbeillesparis.fr (partenaire de Magnolia, à la dem
 |---|---|---|
 | Table ronde dressée pour un mariage (public/site/c/accueil/table-ronde-mariage.webp), recadrée en portrait ; carton imprimé remplacé par un bouquet d'hortensias, logos des tasses et numéro de table effacés | https://www.pexels.com/photo/round-dining-table-2306282/ (licence Pexels) | 24/11/2026 |
 | Fiche « regisseur » v2 (homme en smoking aux côtés d’invités élégants, Ron Lach, recadrée) | https://www.pexels.com/photo/five-people-in-the-restaurant-8921562/ | 24/11/2026 (demande directe : la v1 faisait visite d’appartement) |
+
+## Buffet antillais — formules et boudin à la crevette (2026-11-24)
+- Entrée + plat ou plat + dessert : bas de sa photo buffet-equipe-colombo (colombo, haricots rouges, gratins), recadrée en public/site/c/antilles-menus/buffet-colombo-chafing.webp.
+- Entrées seules, formule complète et galeries : photos de Jean-Luc déjà dans le site (public/site/c/antilles-unit, antilles-menus, antilles-site).
+- Boudin à la crevette : photo de son site magnoliatraiteur.fr (wp-content/uploads/2026/04/boudin-a-la-crevette.jpg), copie public/site/c/antilles-unit/boudin-a-la-crevette.webp.
+
+## Bloc « Comment commander » (2026-11-24)
+
+| Photo | Source | Date |
+|---|---|---|
+| Femme à son bureau qui compose sa commande sur son ordinateur (public/site/c/accueil/commande-en-ligne-bureau-2.webp), recadrée en portrait. Remplace la v1 (Pexels 6969797, carte bancaire en main, retirée : la section dit « Sans paiement en ligne ») | https://www.pexels.com/photo/portrait-of-brown-haired-woman-working-on-laptop-in-office-10041233/ (licence Pexels) | 24/11/2026 |
+| Femme à son bureau qui commande en ligne, carte bancaire en main (public/site/c/accueil/commande-en-ligne-bureau.webp), recadrée en portrait | https://www.pexels.com/photo/a-woman-doing-her-shopping-online-6969797/ (Tima Miroshnichenko, licence Pexels) | 24/11/2026 |
+
+## Fruits de mer sur fond blanc (2026-11-24)
+
+Les 21 photos de la page Plateau de fruits de mer (public/site/c/seafood30/blanc/) sont les photos déjà en place, détourées (rembg, modèles BiRefNet / IS-Net, sans IA générative) et posées sur fond blanc, centrées, 1200 × 1200. Exceptions : crevettes roses = Pexels 566344 (licence Pexels) détourée ; bulots = ancienne photo sans l’étiquette « Marée du jour ».
+
+## La cave de Magnolia (2026-11-25)
+Catégories et fiches de la page /boissons (server/cave.js). Photos Pexels (licence libre, pexels.com/license), regardées une à une :
+- Notre champagne : photo de la brochure Magnolia (public/site/c/cave/andre-diligent-seau.webp, recadrée de la page 26).
+- Catégories : eaux 31107362, sodas 12738761, jus 8679338, vins rouges 29436323, vins blancs 20848541, rosé 15006642, alcools forts 40025139, open bars 5531479, accessoires 8473124.
+- Fiches : Evian 8101056, Badoit 18212879, Vittel 31107362, Perrier 3023667, Paris Cola 4113667, Paris Cola Zéro 33469209, Paris Cola 75 cl 8879626, Parismonade 33 cl 5836998, Parismonade 75 cl 12900901, jus d'orange 8679601, jus de pomme 36794069, jus de pêche 10673227, JOMO gingembre 16411715, JOMO thé vert 25328043, JOMO thé blanc 36305566, vins rouges 33993981 / 9550790 / 10226064, vins blancs 8472736 / 5895443 / 39852931, rosé 15006643, Jack Daniel's 27393241, Bombay Sapphire 7851381, Havana Club 19562093, Absolut 17722186, tire-bouchon 8296228.
+- Les photos du site du traiteur d'origine n'ont pas été reprises (droits d'auteur).
+- Rhum Trois-Rivières (ajouté le 2026-11-25) : Pexels 36860546 (ti-punch, pas de photo libre de la bouteille).
+- Coca-Cola 1,5 L : Pexels 35020136 ; Coca-Cola Zéro : Pexels 19504042 ; fiche Barman : Pexels 5531479 (2026-11-25).
+
+## Buffet libanais, « Nos buffets » sans vidéo (2026-11-25)
+Photos regardées une à une (vraies photos, sans texte ni logo), licence Pexels (usage commercial libre).
+- buffet-libanais-8-mezzes-au-choix : Pexels 25907496 (https://www.pexels.com/photo/25907496/), Pexels 28241695 (https://www.pexels.com/photo/28241695/), Pexels 21856002 (https://www.pexels.com/photo/21856002/)
+- buffet-libanais-plat-seul : Pexels 15781023 (https://www.pexels.com/photo/15781023/), Pexels 32986482 (https://www.pexels.com/photo/32986482/), Pexels 30307766 (https://www.pexels.com/photo/30307766/)
+- buffet-libanais-6-mezzes-1-plat : Pexels 23025180 (https://www.pexels.com/photo/23025180/), Pexels 6419720 (https://www.pexels.com/photo/6419720/), Pexels 28241712 (https://www.pexels.com/photo/28241712/)
+- buffet-libanais-6-mezzes-1-plat-1-dessert : Pexels 36443669 (https://www.pexels.com/photo/36443669/), Pexels 38947725 (https://www.pexels.com/photo/38947725/), Pexels 23025183 (https://www.pexels.com/photo/23025183/)
+- buffet-libanais-8-mezzes-1-plat : Pexels 8183709 (https://www.pexels.com/photo/8183709/), Pexels 28241720 (https://www.pexels.com/photo/28241720/), Pexels 25907496 (https://www.pexels.com/photo/25907496/)
+- buffet-libanais-8-mezzes-1-plat-1-dessert : Pexels 36287931 (https://www.pexels.com/photo/36287931/), Pexels 38947724 (https://www.pexels.com/photo/38947724/), Pexels 19386650 (https://www.pexels.com/photo/19386650/)
+- Eau plate Cristaline 1,5 L : Pexels 13055851 ; eau pétillante 1,5 L : Pexels 31699476 (2026-11-25).
+- Coca-Cola 1,5 L et Coca-Cola Zéro 1,5 L : photos fournies par Jean-Luc (2026-11-25), remplacent les photos Pexels.
+- Cristaline gazéifiée 1,5 L : photo fournie par Jean-Luc (2026-11-25), remplace Pexels 31699476.
+- Cristaline plate 1,5 L : photo fournie par Jean-Luc (2026-11-25), remplace Pexels 13055851 ; photos Cristaline cadrées sur l'étiquette.
+- Bandeau vidéo de La cave de Magnolia (2026-11-25), montage public/site/v/bandeaux/cave-champagne.mp4 : vidéos Pexels https://www.pexels.com/video/8915180/ (on sert le champagne dans des flûtes) et https://www.pexels.com/video/8765009/ (flûte remplie à la lueur des bougies).
+- Rhum Trois-Rivières blanc 50° : photo de la bouteille fournie par Jean-Luc (2026-11-25), remplace la photo ti-punch Pexels 36860546.
+- Alcools forts (2026-11-25) : gin Bombay Sapphire = photo fournie par Jean-Luc ; vodka Absolut = Pexels 17722186 ; whiskey Jack Daniel's = Pexels 32995841 (fond crème, faute de photo libre sur fond blanc). Vignette « Les eaux » = ses photos Cristaline plate et gazeuse.
+- Bar à cocktails (2026-11-25) : vidéo Pexels https://www.pexels.com/video/11268027/ (barman qui prépare un cocktail), public/site/v/produits/bar-a-cocktails.mp4.
+- Rosés Minuty Prestige, Marrenon Classique Luberon, Batti Batti : photos de bouteilles fournies par Jean-Luc (2026-11-25), /site/c/cave/rose-*.webp.
+- Open bar vins et champagnes : vidéo Pexels 6396321 (invités qui trinquent au champagne), /site/v/produits/open-bar-champagne.mp4.
+- Barman : vidéo Pexels 40076771 (barmaid qui prépare un gin tonic), /site/v/produits/barman.mp4.
+- Vidéos Pexels des bars : Bar à shots 9003039, Open bar champagne 7608907, Sangria 5929447, Open bar alcools forts 14058816 (/site/v/produits/).

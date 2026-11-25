@@ -14,8 +14,9 @@ const { createCatalogue } = require('./catalogue');
 const { seed, importerAvisAncienSite, initSousRubriques } = require('./seed');
 const views = require('./views');
 const { preparerAlerte } = require('./relances');
-const { regleAcompte, totaux, controleMarge, prochainNumero, lignesDepuisDemande, estimerLigne } = require('./devis');
+const { raisonsDevisManuel, regleAcompte, totaux, controleMarge, prochainNumero, lignesDepuisDemande, estimerLigne, choixDepuisNote, totalSupplements } = require('./devis');
 const { rid, sha, esc, euros, limiter, dateFr, slugify, nomPropre, dateNaissance, titreTexte } = require('./util');
+const ACHATS = require('./achats');
 const { creerImportClients, normTel, departementDe } = require('./import-clients');
 const IA = require('./ia');
 const SEO = require('./seo');
@@ -59,6 +60,14 @@ async function createApp(opts = {}) {
   const log = opts.log || console;
   const store = opts.store || createStore(env);
   await store.init();
+  /* produits supprimés au back-office (Jean-Luc 2026-11-25) : une pierre tombale _produitsSupprimes/<id> empêche qu'une
+     reprise de démarrage, une tâche de fond ou un vieil onglet du back-office ne recrée la fiche */
+  const produitsSupprimes = new Set((await store.list('_produitsSupprimes')).map(d => d.id));
+  if (!store._gardeSupprimes) {
+    const setBrut = store.set.bind(store);
+    store.set = async (p, data) => { if (typeof p === 'string' && p.startsWith('produits/') && produitsSupprimes.has(p.slice(9))) return; return setBrut(p, data); };
+    store._gardeSupprimes = true;
+  }
   await seed(store, { log });
   await importerAvisAncienSite(store, { log });
   await initSousRubriques(store, { log });
@@ -166,6 +175,82 @@ async function createApp(opts = {}) {
     for (const { id, data: c } of await store.list('clients')) if ((c.journal || []).some(j => j.par === 'Manager')) await store.set('clients/' + id, { ...c, journal: parMaj(c.journal) });
     await store.set('_migr/nomManager', { at: new Date().toISOString() });
   }
+  /* une seule fois (demande de Jean-Luc, 2026-11-24) : « Hot Gulab Jamun » faisait doublon avec « Gulab Jamun » (même plat, même prix, même photo).
+     On retire la fiche à l'unité et le choix « Hot Gulab Jamun » des formules du Buffet indien ; on garde « Gulab Jamun ». */
+  if (!(await store.get('_migr/sansHotGulab'))) {
+    const net = t => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+    const estHot = t => /^hot gulab jamun\b/.test(net(t));
+    for (const { id, data: p } of await store.list('produits')) {
+      if (!p) continue;
+      if (estHot(p.titre)) { await store.delete('produits/' + id); continue; }
+      if ((p.groupes || []).some(g => (g.options || []).some(o => o.id === 'hot-gulab-jamun' || estHot(o.label))))
+        await store.set('produits/' + id, { ...p, groupes: p.groupes.map(g => ({ ...g, options: (g.options || []).filter(o => !(o.id === 'hot-gulab-jamun' || estHot(o.label))) })) });
+    }
+    await store.set('_migr/sansHotGulab', { at: new Date().toISOString() });
+  }
+  /* une seule fois (demande de Jean-Luc, 2026-11-25) : la fiche « La cave de Magnolia » (Vins rouges, blancs et rosés, « Sur devis ») est retirée du catalogue,
+     et c'est la page Boissons qui prend ce nom, avec le sous-titre « Du vin au soft, en passant par les alcools. » (l'adresse /boissons ne change pas). */
+  if (!(await store.get('_migr/caveMagnolia'))) {
+    const net = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+    for (const { id, data: p } of await store.list('produits')) {
+      if (p && (p.slug === 'la-cave-de-magnolia' || id === 'la-cave-de-magnolia' || (p.rubrique === 'boissons' && net(p.titre) === 'la cave de magnolia'))) await store.delete('produits/' + id);
+    }
+    const rb = await store.get('rubriques/boissons');
+    if (rb) await store.set('rubriques/boissons', { ...rb, nom: 'La cave de Magnolia', titrePage: rb.titrePage ? 'La cave de Magnolia' : rb.titrePage, chapo: 'Du vin au soft, en passant par les alcools.' });
+    await store.set('_migr/caveMagnolia', { at: new Date().toISOString() });
+  }
+  /* une seule fois (Jean-Luc, 2026-11-25) : nouvelle règle du Buffet indien, C = prix de la carte du restaurant (TTC).
+     Prix de vente = C × 1,35 (arrondi aux 10 centimes du dessus, comme avant) ; prix d'achat = C × 0,90.
+     C = prix d'achat posé au départ (règle C × 1,30) s'il colle encore au prix de vente, sinon prix de vente ÷ 1,30. */
+  if (!(await store.get('_migr/indien135'))) {
+    let n = 0; const ex = [];
+    for (const { id, data: p } of await store.list('produits')) {
+      if (!p || p.sous !== 'buffet-indien' || p.prixCents == null) continue;
+      const c = p.coutCents != null && Math.abs(Math.ceil(p.coutCents * 1.3 / 10) * 10 - p.prixCents) <= 10 ? p.coutCents : Math.round(p.prixCents / 1.3);
+      const prix = Math.ceil(c * 1.35 / 10) * 10, cout = Math.round(c * 0.9);
+      if (ex.length < 5) ex.push([p.slug, p.prixCents, prix, p.coutCents, cout]);
+      await store.set('produits/' + id, { ...p, prixCents: prix, coutCents: cout, updatedAt: new Date().toISOString() });
+      n++;
+    }
+    cat.invalidate?.();
+    await store.set('_migr/indien135', { at: new Date().toISOString(), fiches: n, exemples: ex });
+    if (n) console.log(`[demarrage] Buffet indien : ${n} fiches passées à carte × 1,35 (achat carte × 0,90)`);
+  }
+  /* une seule fois (Jean-Luc, 2026-11-25) : Magnolia loue des FLÛTES à champagne, pas des coupes. La fiche devient « Verres à vin et flûtes à champagne »,
+     photo verre à vin + flûte (Pexels 19408256, Luis Felipe Pérez), casiers de 36, location dès 36 verres (1 casier). Prix inchangé, adresse inchangée
+     (la fiche Open bar y renvoie). Les textes Google sont vidés pour être réécrits avec le nouveau nom. */
+  if (!(await store.get('_migr/verresFlutes'))) {
+    const SLUG = 'verres-en-verre-vin-coupes-a-champagne';
+    for (const { id, data: p } of await store.list('produits')) {
+      if (!p || (p.slug !== SLUG && id !== SLUG)) continue;
+      const q = { ...p,
+        titre: 'Verres à vin et flûtes à champagne',
+        extrait: 'Verres à vin et flûtes à champagne en verre, loués par casiers de 36.',
+        description: ['Verres à vin et flûtes à champagne en verre, loués par casiers de 36.'],
+        sousPhoto: ['Verres à vin et flûtes à champagne en verre, loués en casiers de 36 pour servir vos invités avec élégance lors d’un vin d’honneur, d’un cocktail ou d’un dîner. La location se fait à partir de 36 verres, soit un casier.'],
+        sousPhotoAuto: false,
+        min: 36, unite: p.unite || 'verre', minimumTexte: null,
+        photos: [{ src: '/site/c/materiel/verres-vin-flutes.webp', alt: 'Un verre à vin et une flûte à champagne sur une table de réception' }],
+        sections: [{ note: null, apres: null, titre: 'Caractéristiques', paragraphes: [], items: ['Verres à vin et flûtes à champagne en verre', 'Conditionnement : casier de 36 verres', 'Location à partir de 36 verres (1 casier)'] }],
+        details: (p.details || []).map(d => /minimum de commande/i.test(d) ? 'Location à partir de 36 verres (1 casier). Hors frais de livraison.' : d),
+        seoTitre: '', seoDescription: '' };
+      delete q.seoAuto;
+      if (!q.details.some(d => /36 verres/.test(d))) q.details.unshift('Location à partir de 36 verres (1 casier). Hors frais de livraison.');
+      await store.set('produits/' + id, q);
+    }
+    await store.set('_migr/verresFlutes', { at: new Date().toISOString() });
+  }
+  /* une seule fois (Jean-Luc, 2026-11-25) : photo du verre à bière 50 cl = sa propre photo (verre en polypropylène givré), détourée sur fond blanc */
+  if (!(await store.get('_migr/gobeletBierePhoto'))) {
+    const SLUG = 'gobelet-reutilisable-a-biere-50-cl';
+    for (const { id, data: p } of await store.list('produits')) {
+      if (!p || (p.slug !== SLUG && id !== SLUG)) continue;
+      await store.set('produits/' + id, { ...p, photos: [{ src: '/site/c/materiel/gobelet-biere-50cl.webp', alt: 'Verre à bière 50 cl en polypropylène givré, sur fond blanc' }] });
+    }
+    await store.set('_migr/gobeletBierePhoto', { at: new Date().toISOString() });
+  }
+  /* La cave de Magnolia refaite (Jean-Luc, 2026-11-25) : catégories avec photo, boissons reprises d'une carte de traiteur, champagne André Diligent en grand (server/cave.js) */
+  { const n = await require('./cave').initCave(store); if (n) console.log(`[demarrage] La cave de Magnolia : ${n} boissons créées`); }
 
   /* ---------- titres et descriptions « dans Google » (Jean-Luc, 2026-11-24) ----------
      À chaque démarrage : les cases vides des produits, rubriques et spécialités sont remplies (jamais un texte tapé à la main).
@@ -405,7 +490,7 @@ async function createApp(opts = {}) {
       for (const g of p?.groupes || []) { const ids = (l.choix?.[g.id] || []).filter(id => (g.options || []).some(o => o.id === String(id).replace(/:\d+$/, ''))).slice(0, 30); if (ids.length) choix[g.id] = ids; }
       return {
         slug: p ? p.slug : s(l.slug, 120), titre: p ? p.titre : s(l.titre, 160), rubrique: p?.rubrique || s(l.rubrique, 60), unite: p?.unite || s(l.unite, 40),
-        qte: est.qte, prixCents: p?.prixCents ?? null, supCents: est.supCents, totalCents: est.totalCents, surDevis: est.surDevis,
+        qte: est.qte, prixCents: p?.prixCents ?? null, supCents: est.supCents, supplements: est.supplements, totalCents: est.totalCents, surDevis: est.surDevis,
         variante: (p?.variantes || []).includes(l.variante) ? l.variante : '', choix, resume: s(l.resume, 400), note: s(l.note, 500),
         personnel: l.personnel?.nb ? { nb: Math.min(50, Math.max(1, +l.personnel.nb | 0)), heures: Math.min(24, Math.max(T.personnel?.minHeures || 4, +l.personnel.heures | 0)) } : null,
         pack: l.pack?.id && (T.packs || []).some(x => x.id === l.pack.id) ? { id: l.pack.id, nb: Math.max(1, +l.pack.nb | 0) } : null,
@@ -430,11 +515,19 @@ async function createApp(opts = {}) {
     await store.set('demandes/' + id, demande);
     const lien = await lienEspace(clientId);
     const R = c.reglages;
+    let auto = null;
+    if (demande.type === 'devis') {
+      try { auto = await devisAutomatique(demande); }
+      catch (e) { console.error('devis automatique', e); auto = { essaye: new Date().toISOString(), envoye: false, raisons: ['erreur pendant la préparation automatique'] }; }
+      const d0 = (await store.get('demandes/' + id)) || demande;
+      await store.set('demandes/' + id, { ...d0, devisAuto: auto });
+    }
+    if (auto?.envoye) return res.json({ ok: true, ref, totalEstimeCents: auto.ttcCents, devisEnvoye: true, espace: nouveau ? lien.replace(SITE, '') : '/espace-client' });
     const recap = lignes.map(l => `<li>${esc(titreTexte(l.titre))}${l.variante ? ' · ' + esc(l.variante) : ''} — ${l.qte} ${esc(l.unite || '')}${l.surDevis ? ' (sur devis)' : ' · ' + euros(l.totalCents)}</li>`).join('');
     brevo.sendEmail({ to: contact.email, name: contact.nom, subject: `Magnolia Traiteur : votre demande ${ref} est bien reçue`, replyTo: R.email,
       html: `<p>Bonjour ${esc(contact.nom.split(' ')[0])},</p><p>Merci pour votre demande${demande.evenement.date ? ' pour le ' + esc(dateFr(demande.evenement.date)) : ''}. Notre équipe vérifie les disponibilités et revient vers vous rapidement avec votre devis.</p>${recap ? `<ul>${recap}</ul><p>Total estimé : <b>${euros(demande.totalEstimeCents)} TTC</b> (à confirmer).</p>` : ''}<p>Suivez votre demande dans votre espace : <a href="${lien}">Mon espace Magnolia</a></p><p>À très vite,<br>L’équipe Magnolia Traiteur<br>${esc(R.telephone)}</p>`,
       text: `Merci pour votre demande ${ref}. Votre espace : ${lien}` }).catch(() => {});
-    alerterEquipe(`Nouvelle ${demande.type === 'contact' ? 'question' : 'demande de devis'} ${ref} : ${contact.nom}`, `<p><b>${esc(contact.nom)}</b> ${esc(contact.societe)} · ${esc(contact.email)} · ${esc(contact.tel)}</p><p>${esc(demande.evenement.type)} · ${esc(dateFr(demande.evenement.date))} · ${demande.evenement.invites} invités · ${esc(demande.evenement.ville)}</p><ul>${recap}</ul><p>${esc(demande.message)}</p><p><a href="${SITE}/admin#/demandes/${id}">Ouvrir dans le back-office</a></p>`, `Magnolia : nouvelle demande ${ref} de ${contact.nom}, ${demande.evenement.invites} pers. le ${demande.evenement.date}`).catch(() => {});
+    alerterEquipe(`Nouvelle ${demande.type === 'contact' ? 'question' : 'demande de devis'} ${ref} : ${contact.nom}`, `<p><b>${esc(contact.nom)}</b> ${esc(contact.societe)} · ${esc(contact.email)} · ${esc(contact.tel)}</p><p>${esc(demande.evenement.type)} · ${esc(dateFr(demande.evenement.date))} · ${demande.evenement.invites} invités · ${esc(demande.evenement.ville)}</p><ul>${recap}</ul><p>${esc(demande.message)}</p>${auto?.raisons?.length ? `<p><b>Devis à préparer à la main :</b> ${esc(auto.raisons.join(' ; '))}.</p>` : ''}<p><a href="${SITE}/admin#/demandes/${id}">Ouvrir dans le back-office</a></p>`, `Magnolia : nouvelle demande ${ref} de ${contact.nom}, ${demande.evenement.invites} pers. le ${demande.evenement.date}`).catch(() => {});
     /* le lien direct vers l'espace n'est rendu qu'à un nouveau client ; un client connu le reçoit par e-mail */
     res.json({ ok: true, ref, totalEstimeCents: demande.totalEstimeCents, espace: nouveau ? lien.replace(SITE, '') : '/espace-client' });
   }));
@@ -756,7 +849,7 @@ async function createApp(opts = {}) {
 
   A.get('/site', wrap(async (req, res) => res.json((await store.get('site/reglages')) || {})));
   /* chaque partie des réglages a son droit : tarifs = « Modifier les prix », coordonnées et banque = « Mon entreprise », alertes = « Gérer l'équipe » */
-  const GARDE_SITE = { tarifs: 'prix', alertes: 'equipe', entreprise: 'entreprise', paiement: 'entreprise', adresse: 'entreprise', telephone: 'entreprise', email: 'entreprise' };
+  const GARDE_SITE = { tarifs: 'prix', alertes: 'equipe', devisAuto: 'equipe', devisAutoSms: 'equipe', entreprise: 'entreprise', paiement: 'entreprise', adresse: 'entreprise', telephone: 'entreprise', email: 'entreprise' };
   const stable = v => JSON.stringify(v, (k, x) => x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => a.localeCompare(b))) : x);
   A.put('/site', sameSite, json, wrap(async (req, res) => {
     const before = (await store.get('site/reglages')) || {};
@@ -897,6 +990,45 @@ async function createApp(opts = {}) {
 
   /* effacer des contacts cochés (Jean-Luc, 2026-11-24) : jamais un contact qui a une demande, un devis ou une facture ;
      chaque effacement est gardé dans _effacements/<id> pour pouvoir tout remettre */
+  /* supprimer des produits cochés dans le catalogue (Jean-Luc 2026-11-25) : fiches gardées dans un lot pour « Annuler »,
+     pierre tombale pour qu'elles ne reviennent jamais (redémarrage, reprises) ; retirées des incontournables de l'accueil */
+  A.post('/actions/produits/supprimer', sameSite, json, peut('produits'), wrap(async (req, res) => {
+    const ids = [...new Set((Array.isArray(req.body?.ids) ? req.body.ids : []).map(String).filter(x => /^[A-Za-z0-9_-]{1,120}$/.test(x)))].slice(0, 5000);
+    if (!ids.length) return res.status(400).json({ error: 'Aucun produit coché.' });
+    const lot = 'ps_' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '_' + rid(5).replace(/[^A-Za-z0-9]/g, 'x');
+    const at = new Date().toISOString(), par = req.ctx.name || req.ctx.email || '';
+    const fiches = [];
+    for (const id of ids) {
+      const p = await store.get('produits/' + id);
+      if (!p) continue;
+      fiches.push({ id, data: p });
+      await store.set('_produitsSupprimes/' + id, { id, at, par, lot, titre: p.titre || '' });
+      produitsSupprimes.add(id);
+      await store.delete('produits/' + id);
+    }
+    if (!fiches.length) return res.status(404).json({ error: 'Ces produits n’existent plus.' });
+    await store.set('_effacementsProduits/' + lot, { id: lot, at, par, statut: 'supprimé', fiches });
+    const reg = await store.get('site/reglages');
+    const inc = reg?.accueil?.incontournables;
+    if (Array.isArray(inc) && inc.some(s => produitsSupprimes.has(s))) await store.set('site/reglages', { ...reg, accueil: { ...reg.accueil, incontournables: inc.filter(s => !produitsSupprimes.has(s)) } });
+    cat.invalidate();
+    audit(req.ctx, 'produits supprimés', '_effacementsProduits/' + lot, fiches.map(f => f.data.titre || f.id).join(', ').slice(0, 500));
+    await store.flush?.();
+    res.json({ ok: true, lot, supprimes: fiches.length });
+  }));
+  A.post('/actions/produits/supprimer/:lot/remettre', sameSite, peut('produits'), wrap(async (req, res) => {
+    const lot = String(req.params.lot), doc = await store.get('_effacementsProduits/' + lot);
+    if (!doc || doc.statut !== 'supprimé') return res.status(404).json({ error: 'Rien à remettre.' });
+    let remis = 0;
+    for (const { id, data } of doc.fiches || []) {
+      produitsSupprimes.delete(id); await store.delete('_produitsSupprimes/' + id);
+      if (!(await store.get('produits/' + id))) { await store.set('produits/' + id, data); remis++; }
+    }
+    await store.set('_effacementsProduits/' + lot, { ...doc, statut: 'remis', remisLe: new Date().toISOString() });
+    cat.invalidate(); audit(req.ctx, 'produits remis', '_effacementsProduits/' + lot, remis + ' fiche(s)');
+    await store.flush?.();
+    res.json({ ok: true, remis });
+  }));
   A.post('/actions/effacer-clients', sameSite, peut('effacerContacts'), json, wrap(async (req, res) => {
     const ids = [...new Set((Array.isArray(req.body?.ids) ? req.body.ids : []).map(String).filter(x => /^[A-Za-z0-9_-]{1,120}$/.test(x)))].slice(0, 100000);
     if (!ids.length) return res.status(400).json({ error: 'Aucun contact coché.' });
@@ -962,6 +1094,7 @@ async function createApp(opts = {}) {
   A.put('/:coll/:id', sameSite, json, wrap(async (req, res, next) => {
     const { coll, id } = req.params;
     if (!COLLECTIONS.includes(coll) || !/^[A-Za-z0-9_-]{1,120}$/.test(id)) return next();
+    if (coll === 'produits' && produitsSupprimes.has(id)) return res.status(410).json({ error: 'Ce produit a été supprimé du catalogue. Rechargez la page.' });
     const before = await store.get(coll + '/' + id);
     if (before && !(await voitDoc(req, coll, id))) return res.status(404).json({ error: 'Introuvable : ce dossier est suivi par un autre commercial.' });
     let data = { ...(req.body || {}) };
@@ -1015,7 +1148,7 @@ async function createApp(opts = {}) {
     const { coll } = req.params;
     if (!COLLECTIONS.includes(coll) || ['devis', 'factures', 'demandes'].includes(coll)) return next();
     let id = coll === 'produits' || coll === 'lieux' ? slugify(req.body?.titre || req.body?.nom) : coll === 'rubriques' ? slugify(req.body?.nom) : coll.slice(0, 1) + '_' + rid(7);
-    if (await store.get(coll + '/' + id)) id = id + '-' + rid(3).toLowerCase().replace(/[^a-z0-9]/g, 'x');
+    if (await store.get(coll + '/' + id) || (coll === 'produits' && produitsSupprimes.has(id))) id = id + '-' + rid(3).toLowerCase().replace(/[^a-z0-9]/g, 'x');
     const data = { ...(req.body || {}), createdAt: new Date().toISOString() };
     if (coll === 'produits' && !req.ctx.droits.prix) for (const k of Object.keys(data)) if (/prix|cout/i.test(k)) delete data[k]; /* nouvelle fiche sans prix : « Sur devis » */
     if (coll === 'clients' && typeof data.nom === 'string') data.nom = nomPropre(data.nom); if (coll === 'clients') data.id = id;
@@ -1175,8 +1308,10 @@ async function createApp(opts = {}) {
       await store.set('clients/' + clientId, { id: clientId, nom, email: f.email, tel: f.tel, societe: f.societe, adresse: f.adresse, notes: '', creeLe: now, derniereActivite: now, source: 'téléphone (IA)' });
       if (f.email) await store.set('_clientemail/' + sha(f.email), { id: clientId });
     }
-    const lignes = articles.map(a => ({ slug: a.slug, titre: a.titre, rubrique: a.rubrique, unite: a.unite, qte: a.qte, prixCents: a.prixCents, supCents: 0,
-      totalCents: (a.prixCents || 0) * a.qte, surDevis: a.prixCents == null, variante: '', choix: {}, resume: '', note: a.note, personnel: null, pack: null }));
+    /* plats à supplément (coq roussi + 5 € la part) retrouvés dans la note de l'IA : ligne « Supplément » sur le devis */
+    const lignes = articles.map(a => { const p = c.bySlug.get(a.slug), choix = choixDepuisNote(a.note, p, a.qte), est = estimerLigne({ qte: a.qte, choix }, p, T);
+      return { slug: a.slug, titre: a.titre, rubrique: a.rubrique, unite: a.unite, qte: a.qte, prixCents: a.prixCents, supCents: 0, supplements: est.supplements,
+        totalCents: (a.prixCents || 0) * a.qte + totalSupplements(est.supplements), surDevis: a.prixCents == null, variante: '', choix, resume: '', note: a.note, personnel: null, pack: null }; });
     if (f.serveurs) lignes[0].personnel = { nb: f.serveurs, heures: Math.max(T.personnel?.minHeures || 4, +f.heures || 0) };
     if (f.vaisselle && (T.packs || []).some(x => x.id === f.vaisselle)) lignes[0].pack = { id: f.vaisselle, nb: +f.invites || lignes[0].qte };
     const km = Math.min(2000, Math.max(0, Math.round(+req.body?.km || 0)));
@@ -1292,6 +1427,23 @@ async function createApp(opts = {}) {
     }
     res.json({ ok: true, nb: liste.length, test: !brevo.live });
   }));
+  /* envoi d'un devis au client (bouton « Envoyer le devis », ou envoi automatique par l'IA) */
+  async function envoyerDevis(d, { canaux = ['email'], message = '', par = '', ia = false } = {}) {
+    const cl = await store.get('clients/' + d.clientId);
+    const c = await cat.get(); const R = c.reglages;
+    const lien = `${SITE}/devis/${d.token}`;
+    const t = totaux(d);
+    const now = new Date().toISOString();
+    const msg = s(message, 2000);
+    if (canaux.includes('email')) await brevo.sendEmail({ to: cl.email, name: cl.nom, replyTo: R.email, subject: `Votre devis Magnolia Traiteur ${d.numero}`,
+      html: `<p>Bonjour ${esc((cl.nom || '').split(' ')[0])},</p>${msg ? `<p>${esc(msg).replace(/\n/g, '<br>')}</p>` : `<p>Voici votre devis pour votre ${esc(String(d.evenement?.type || 'événement').toLowerCase())}${d.evenement?.date ? ' du ' + esc(dateFr(d.evenement.date)) : ''} : <b>${euros(t.ttcCents)} TTC</b>.</p>`}${lieuxMailHtml(c, d)}<p><a href="${lien}" style="background:#1d3b2f;color:#fff;padding:12px 20px;text-decoration:none;border-radius:4px;display:inline-block">Consulter et signer mon devis</a></p><p>Il est valable jusqu’au ${esc(dateFr(d.validiteJusquau))}.</p><p>L’équipe Magnolia Traiteur<br>${esc(R.telephone)}</p>`,
+      text: `Votre devis ${d.numero} : ${lien}` });
+    if (canaux.includes('sms') && cl.tel) await brevo.sendSms({ to: cl.tel, content: `Magnolia Traiteur : votre devis ${d.numero} (${euros(t.ttcCents)} TTC) est prêt. Consultez-le et signez en ligne : ${lien}` });
+    const envoi = { at: now, canaux, par: ia ? 'IA' : par, ...(ia ? { ia: true } : {}) };
+    await store.set('devis/' + d.id, { ...d, statut: d.statut === 'accepte' ? 'accepte' : 'envoye', envoyeLe: d.envoyeLe || now, envois: [...(d.envois || []), envoi] });
+    if (d.demandeId) await changerStatut(d.demandeId, 'devis_envoye', ia ? 'IA (envoi automatique)' : par);
+    return { lien, ttcCents: t.ttcCents };
+  }
   A.post('/actions/envoyer-devis/:id', sameSite, json, wrap(async (req, res) => {
     const d = await store.get('devis/' + req.params.id);
     if (!d) return res.status(404).json({ error: 'Devis introuvable.' });
@@ -1300,21 +1452,50 @@ async function createApp(opts = {}) {
     if (!(d.lignes || []).length) return res.status(400).json({ error: 'Le devis est vide.' });
     const cl = await store.get('clients/' + d.clientId);
     if (!cl?.email) return res.status(400).json({ error: 'Ce devis n’a pas de client avec un e-mail.' });
-    const c = await cat.get(); const R = c.reglages;
-    const lien = `${SITE}/devis/${d.token}`;
-    const t = totaux(d);
-    const now = new Date().toISOString();
-    const canaux = req.body?.canaux || ['email'];
-    const msg = s(req.body?.message, 2000);
-    if (canaux.includes('email')) await brevo.sendEmail({ to: cl.email, name: cl.nom, replyTo: R.email, subject: `Votre devis Magnolia Traiteur ${d.numero}`,
-      html: `<p>Bonjour ${esc((cl.nom || '').split(' ')[0])},</p>${msg ? `<p>${esc(msg).replace(/\n/g, '<br>')}</p>` : `<p>Voici votre devis pour votre ${esc(String(d.evenement?.type || 'événement').toLowerCase())}${d.evenement?.date ? ' du ' + esc(dateFr(d.evenement.date)) : ''} : <b>${euros(t.ttcCents)} TTC</b>.</p>`}${lieuxMailHtml(c, d)}<p><a href="${lien}" style="background:#1d3b2f;color:#fff;padding:12px 20px;text-decoration:none;border-radius:4px;display:inline-block">Consulter et signer mon devis</a></p><p>Il est valable jusqu’au ${esc(dateFr(d.validiteJusquau))}.</p><p>L’équipe Magnolia Traiteur<br>${esc(R.telephone)}</p>`,
-      text: `Votre devis ${d.numero} : ${lien}` });
-    if (canaux.includes('sms') && cl.tel) await brevo.sendSms({ to: cl.tel, content: `Magnolia Traiteur : votre devis ${d.numero} (${euros(t.ttcCents)} TTC) est prêt. Consultez-le et signez en ligne : ${lien}` });
-    await store.set('devis/' + d.id, { ...d, statut: d.statut === 'accepte' ? 'accepte' : 'envoye', envoyeLe: d.envoyeLe || now, envois: [...(d.envois || []), { at: now, canaux, par: req.ctx.name }] });
-    if (d.demandeId) await changerStatut(d.demandeId, 'devis_envoye', req.ctx.name);
+    const { lien } = await envoyerDevis(d, { canaux: req.body?.canaux || ['email'], message: req.body?.message, par: req.ctx.name });
     audit(req.ctx, 'devis envoyé', 'devis/' + d.id, d.numero);
     res.json({ ok: true, lien, test: !brevo.live });
   }));
+
+  /* ---------- envoi automatique (Jean-Luc, 2026-11-24) : demande du site complète (produits du catalogue avec prix, quantités
+     au minimum, choix faits, date, invités, adresse, téléphone) → devis créé et envoyé tout de suite, quel que soit le montant ;
+     l'équipe est prévenue pour rappeler le client. Sinon la demande reste dans « Demandes de devis », avec la raison. ---------- */
+  const IA_CTX = { uid: 'ia', name: 'IA', email: '' };
+  const DEVIS_AUTO_SMS = '06 58 22 69 69';
+  async function devisAutomatique(demande) {
+    const c = await cat.get(), R = c.reglages;
+    const auto = { essaye: new Date().toISOString() };
+    if (R.devisAuto === false) return { ...auto, envoye: false, raisons: ['envoi automatique désactivé dans le back-office'] };
+    const raisons = raisonsDevisManuel(demande, c, R.tarifs || {});
+    if (raisons.length) return { ...auto, envoye: false, raisons };
+    const cl = await store.get('clients/' + demande.clientId);
+    if (!cl?.email) return { ...auto, envoye: false, raisons: ['fiche client sans e-mail'] };
+    /* la demande passe tout de suite dans « Suivi client », sans commercial : l'équipe choisit qui rappelle */
+    await store.set('demandes/' + demande.id, { ...demande, priseEnCharge: { at: auto.essaye, par: '', quoi: 'devis envoyé par l’IA', ia: true } });
+    const id = await devisDepuisDemande({ ...demande, priseEnCharge: true }, IA_CTX, { commercial: null, auto: true,
+      intro: `Madame, Monsieur, merci pour votre demande. Voici notre proposition pour votre ${String(demande.evenement?.type || 'événement').toLowerCase()}, établie aussitôt à partir de votre sélection.` });
+    const d = await store.get('devis/' + id);
+    const err = controleMarge(d);
+    if (err.length || !(d.lignes || []).length) {
+      await store.set('demandes/' + demande.id, { ...demande });
+      return { ...auto, envoye: false, devisId: id, raisons: err.length ? err : ['devis vide'] };
+    }
+    const prenom = (cl.nom || '').split(' ')[0];
+    const { lien, ttcCents } = await envoyerDevis(d, { canaux: ['email', ...(cl.tel ? ['sms'] : [])], ia: true,
+      message: `Merci pour votre demande${demande.evenement?.date ? ' pour le ' + dateFr(demande.evenement.date) : ''}. Votre devis est prêt : ${euros(totaux(d).ttcCents)} TTC. Vous pouvez le consulter et le signer en ligne dès maintenant.\nUn conseiller Magnolia vous appelle très vite pour vérifier les détails avec vous${prenom ? ', ' + prenom : ''}.` });
+    audit(IA_CTX, 'devis envoyé automatiquement', 'devis/' + id, d.numero);
+    const ct = demande.contact || {}, e = demande.evenement || {};
+    alerterEquipe(`✨ Devis ${d.numero} envoyé par l’IA à ${ct.nom} : à rappeler`,
+      `<p>La demande <b>${esc(demande.ref)}</b> était complète : l’IA a créé le devis <b>${esc(d.numero)}</b> (${euros(ttcCents)} TTC) et l’a envoyé tout de suite au client, par e-mail${cl.tel ? ' et SMS' : ''}.</p><p><b>Merci de rappeler le client</b> : <b>${esc(ct.nom)}</b> ${esc(ct.societe || '')} · <a href="tel:${esc(ct.tel)}">${esc(ct.tel)}</a> · ${esc(ct.email)}</p><p>${esc(e.type)} · ${esc(dateFr(e.date))} · ${e.invites} invités · ${esc([e.cp, e.ville].filter(Boolean).join(' '))}</p>${demande.message ? `<p>Message du client : « ${esc(demande.message)} »</p>` : ''}<p><a href="${SITE}/admin#/devis/${id}">Ouvrir le devis</a> · <a href="${lien}">Voir ce que voit le client</a></p>`,
+      `Magnolia : devis ${d.numero} (${euros(ttcCents)}) envoyé par l'IA à ${ct.nom}, ${e.invites} pers. le ${dateFr(e.date)}. Rappelez le client : ${ct.tel}`).catch(() => {});
+    /* SMS d'avertissement (Jean-Luc, 2026-11-25) : chaque devis parti tout seul est signalé à ce numéro (modifiable dans Demandes de devis) */
+    const deja = new Set(String(R.alertes?.sms || '').split(/[,;]+/).map(x => x.replace(/\D/g, '').slice(-9)).filter(Boolean));
+    for (const t of String(R.devisAutoSms ?? DEVIS_AUTO_SMS).split(/[,;]+/).map(x => x.trim()).filter(Boolean)) {
+      if (deja.has(t.replace(/\D/g, '').slice(-9))) continue; /* déjà prévenu par les alertes de l'équipe */
+      await brevo.sendSms({ to: t, lien: false, content: `Magnolia Traiteur : demande de devis reçue sur le site, devis envoyé par l'IA. ${ct.nom}, ${euros(ttcCents)} TTC, ${e.invites} pers. le ${dateFr(e.date)}. Tél. client : ${ct.tel}` }).catch(() => {});
+    }
+    return { ...auto, envoye: true, devisId: id, numero: d.numero, ttcCents, raisons: [] };
+  }
 
   A.post('/actions/relancer/:id', sameSite, json, wrap(async (req, res) => {
     const d = await store.get('devis/' + req.params.id);
@@ -1640,8 +1821,8 @@ async function createApp(opts = {}) {
     const lies = []; /* envois déjà montrés : on ne répète pas l'e-mail correspondant */
     for (const d of devisL) {
       const t = totaux(d), num = d.numero || '';
-      add(d.createdAt, 'devis', `Devis ${num} préparé`, { montantCents: t.ttcCents, par: d.commercial?.nom || '', lien: '#/devis/' + d.id, statutDevis: d.statut });
-      for (const x of d.envois || []) { add(x.at, 'envoi', `Devis ${num} envoyé`, { detail: 'par ' + (x.canaux || ['email']).map(k => k === 'sms' ? 'SMS' : 'e-mail').join(' et '), montantCents: t.ttcCents, par: x.par, lien: d.token ? '/devis/' + d.token : '' }); lies.push([x.at, num]); }
+      add(d.createdAt, 'devis', `Devis ${num} préparé${d.auto ? ' par l’IA' : ''}`, { montantCents: t.ttcCents, par: d.auto ? '' : d.commercial?.nom || '', lien: '#/devis/' + d.id, statutDevis: d.statut });
+      for (const x of d.envois || []) { add(x.at, 'envoi', `Devis ${num} envoyé par ${x.ia ? 'l’IA' : x.par || 'l’équipe'}`, { detail: (x.ia ? 'Envoi automatique, aussitôt la demande reçue, ' : '') + 'par ' + (x.canaux || ['email']).map(k => k === 'sms' ? 'SMS' : 'e-mail').join(' et '), montantCents: t.ttcCents, par: x.ia ? '✨ IA' : x.par, lien: d.token ? '/devis/' + d.token : '' }); lies.push([x.at, num]); }
       if (d.vuLe) add(d.vuLe, 'vu', `Le client a ouvert le devis ${num}`);
       for (const r of d.relances || []) { add(r.at, 'relance', `Relance : ${r.modele || ''}`.trim(), { detail: 'Devis ' + num, par: r.par }); lies.push([r.at, num, true]); }
       for (const m of d.commentaires || []) add(m.at, 'commentaire', `Commentaire du client sur le devis ${num}`, { detail: m.texte, lien: '#/devis/' + d.id });
@@ -1967,7 +2148,7 @@ async function createApp(opts = {}) {
     const vis = await visibles(req), voit = (coll, d) => !vis || vis[coll].has(d.id);
     if (q === 'catalogue') {
       const c = await cat.get(); const rubs = new Map(c.rubriques.map(r => [r.slug, r.nom]));
-      rows = [['Code (ne pas modifier)', 'Prestation', 'Rubrique', 'Prix TTC (€)', 'Par', 'Minimum', 'Coût de revient TTC (€)', 'TVA %', 'Statut (visible / masque)', 'Maison (oui / non)'],
+      rows = [['Code (ne pas modifier)', 'Prestation', 'Rubrique', 'Prix de vente TTC (€)', 'Par', 'Minimum', 'Prix d’achat TTC (€)', 'TVA %', 'Statut (visible / masque)', 'Maison (oui / non)'],
         ...c.produits.map(p => [p.slug, p.titre, rubs.get(p.rubrique) || p.rubrique, eurCsv(p.prixCents), p.unite || '', p.min || '', eurCsv(p.coutCents), p.tva ?? '', p.statut || 'visible', p.maison ? 'oui' : 'non'])];
     } else if (q === 'demandes') {
       rows = [['Réf.', 'Reçue le', 'Type', 'Nom', 'Société', 'E-mail', 'Téléphone', 'Événement', 'Date', 'Invités', 'Code postal', 'Ville', 'Estimé TTC (€)', 'Étape'],
@@ -1987,7 +2168,7 @@ async function createApp(opts = {}) {
         ...docs.flatMap(f => FAC.libelles(f).map(r => [r.date, eurCsv(r.montantCents), r.moyen, f.numero, f.client?.nom, f.devisNumero, [r.libelle, r.note].filter(Boolean).join(' · '), r.par])).sort((a, b) => String(a[0]).localeCompare(String(b[0])))];
     } else if (q === 'devis') {
       const docs = (await store.list(q)).map(d => d.data).filter(d => voit('devis', d));
-      rows = [[q === 'devis' ? 'N° devis' : 'N° facture', 'Client', 'Date', 'Total TTC (€)', 'Total HT (€)', 'Marge (€)', 'Statut'],
+      rows = [[q === 'devis' ? 'N° devis' : 'N° facture', 'Client', 'Date', 'Total TTC (€)', 'Total HT (€)', 'Marge HT (€, lignes avec prix d’achat)', 'Statut'],
         ...docs.map(d => { const t = totaux(d); return [d.numero, d.clientNom || d.client?.nom, String(d.envoyeLe || d.date || d.createdAt || '').slice(0, 10), eurCsv(q === 'factures' ? d.totalCents ?? t.ttcCents : t.ttcCents), eurCsv(t.htCents), eurCsv(t.margeCents), q === 'factures' ? (d.payee ? 'payée' : 'à encaisser') : d.statut]; })];
     } else return res.status(404).json({ error: 'Export inconnu.' });
     audit(req.ctx, 'export Excel', '', q);
@@ -2015,6 +2196,71 @@ async function createApp(opts = {}) {
     cat.invalidate();
     audit(req.ctx, 'catalogue mis à jour par fichier', 'produits', maj + ' prestation(s)');
     res.json({ ok: true, maj, erreurs });
+  }));
+  /* prix d'achat et fournisseurs depuis l'Excel de Jean-Luc : 1) analyse et rapprochement par nom, 2) application des lignes cochées */
+  A.post('/actions/import-achats/analyser', sameSite, peut('prix'), multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } }).single('fichier'), wrap(async (req, res) => {
+    if (!req.file) return res.status(400).json({ error: 'Aucun fichier reçu.' });
+    const prods = (await store.list('produits')).map(d => d.data);
+    try { res.json(ACHATS.analyser(req.file.buffer, req.file.originalname, prods)); } catch (e) { res.status(400).json({ error: e.message }); }
+  }));
+  /* fournisseurs : combien de fiches en utilisent un ; le supprimer de toutes les fiches (prix d'achat inchangés) */
+  const aLeFournisseur = (p, nom) => ACHATS.fournisseursDe(p).some(x => x.toLowerCase() === nom.toLowerCase());
+  A.get('/actions/fournisseurs/compter', peut('prix'), wrap(async (req, res) => {
+    const nom = String(req.query.nom || '').trim();
+    res.json({ n: nom ? (await store.list('produits')).filter(d => aLeFournisseur(d.data, nom)).length : 0 });
+  }));
+  A.post('/actions/fournisseurs/supprimer', sameSite, json, peut('prix'), wrap(async (req, res) => {
+    const nom = String(req.body?.nom || '').trim(); if (!nom) return res.status(400).json({ error: 'Nom du fournisseur manquant.' });
+    let fiches = 0;
+    for (const d of await store.list('produits')) {
+      if (!aLeFournisseur(d.data, nom)) continue;
+      const { fournisseur, ...p } = d.data;
+      await store.set('produits/' + d.id, { ...p, fournisseurs: ACHATS.fournisseursDe(d.data).filter(x => x.toLowerCase() !== nom.toLowerCase()), updatedAt: new Date().toISOString() });
+      fiches++;
+    }
+    cat.invalidate(); audit(req.ctx, 'fournisseur supprimé', 'produits', nom + ' · ' + fiches + ' fiche(s)');
+    res.json({ ok: true, fiches });
+  }));
+  /* mettre un fournisseur sur toute une catégorie (rubrique, ou rubrique › sous-catégorie) ; en option, prix d'achat
+     des fiches qui n'en ont pas = prix de vente ÷ (1 + pct %) — les prix d'achat déjà tapés ne changent jamais */
+  /* prix d'achat de toute une catégorie : prix d'achat HT = prix de vente HT − pct % (même TVA des deux côtés, gardé en TTC dans coutCents).
+     Le pourcentage est tapé dans le back-office : il n'est jamais écrit dans le code. Prix de vente inchangés. */
+  A.post('/actions/achats/categorie', sameSite, json, peut('prix'), wrap(async (req, res) => {
+    const rubrique = String(req.body?.rubrique || ''), sous = String(req.body?.sous || ''), pct = Number(req.body?.pct), remplacer = req.body?.remplacer !== false;
+    if (!rubrique) return res.status(400).json({ error: 'Catégorie manquante.' });
+    if (!(pct > 0 && pct < 100)) return res.status(400).json({ error: 'Pourcentage invalide.' });
+    let fiches = 0;
+    for (const d of await store.list('produits')) {
+      const p = d.data; if (!p || p.prixCents == null || (p.rubrique !== rubrique && !(p.autresRubriques || []).includes(rubrique)) || (sous && p.sous !== sous)) continue;
+      if (!remplacer && p.coutCents != null) continue;
+      await store.set('produits/' + d.id, { ...p, coutCents: Math.round(p.prixCents * (1 - pct / 100)), updatedAt: new Date().toISOString() });
+      fiches++;
+    }
+    cat.invalidate(); audit(req.ctx, 'prix d’achat calculé sur une catégorie', 'produits', rubrique + (sous ? ' › ' + sous : '') + ' · ' + fiches + ' fiche(s)');
+    res.json({ ok: true, fiches });
+  }));
+  A.post('/actions/fournisseurs/appliquer', sameSite, json, peut('prix'), wrap(async (req, res) => {
+    const nom = String(req.body?.nom || '').trim().slice(0, 80), rubrique = String(req.body?.rubrique || ''), sous = String(req.body?.sous || ''), pct = Number(req.body?.pct) || 0;
+    if (!nom) return res.status(400).json({ error: 'Nom du fournisseur manquant.' });
+    if (!rubrique) return res.status(400).json({ error: 'Catégorie manquante.' });
+    if (pct < 0 || pct >= 1000) return res.status(400).json({ error: 'Pourcentage invalide.' });
+    let fiches = 0, couts = 0;
+    for (const d of await store.list('produits')) {
+      const p0 = d.data; if (p0.rubrique !== rubrique || (sous && p0.sous !== sous)) continue;
+      const { fournisseur, ...p } = p0;
+      const fourn = [nom, ...ACHATS.fournisseursDe(p0).filter(x => x.toLowerCase() !== nom.toLowerCase())];
+      const calc = pct > 0 && p.coutCents == null && p.prixCents != null;
+      await store.set('produits/' + d.id, { ...p, fournisseurs: fourn, ...(calc ? { coutCents: Math.round(p.prixCents / (1 + pct / 100)) } : {}), updatedAt: new Date().toISOString() });
+      fiches++; if (calc) couts++;
+    }
+    cat.invalidate(); audit(req.ctx, 'fournisseur sur une catégorie', 'produits', rubrique + (sous ? ' › ' + sous : '') + ' · ' + fiches + ' fiche(s)');
+    res.json({ ok: true, fiches, couts });
+  }));
+  A.post('/actions/import-achats/appliquer', sameSite, json, peut('prix'), wrap(async (req, res) => {
+    const r = await ACHATS.appliquer(store, req.body?.lignes, { ht: !!req.body?.ht });
+    cat.invalidate();
+    audit(req.ctx, 'prix d’achat et fournisseurs importés', 'produits', r.maj + ' fiche(s)');
+    res.json({ ok: true, ...r });
   }));
   A.get('/actions/journal', wrap(async (req, res) => {
     const rows = (await store.list('_audit')).map(d => d.data).sort((a, b) => a.n - b.n);

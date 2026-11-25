@@ -70,7 +70,7 @@ const REGLAGES_DEFAUT = {
     suggestions: SUGGESTIONS_ACCUEIL,
     incontournables: ['grand-cocktail-magnolia', 'paella-royale', 'buffet-antillais-entree-plat-dessert', 'buffet-chinois-entrees-plat-dessert', 'buffet-indien-entree-plat-dessert', 'buffet-libanais-6-mezzes-1-plat', 'bar-a-burrata', 'couscous-royal'],
     photoMaison: '/site/c/antilles-menus/buffet-equipe-colombo-20261103-sans-logo-20261106.webp.webp',
-    photoCommande: '/site/c/accueil/personnel80-client-20261102.webp',
+    photoCommande: '/site/c/accueil/commande-en-ligne-bureau-2.webp',
   },
   logosClients: ['aircaraibes', 'doctolib', 'villedeparis', 'nestle', 'bnpparibas', 'loreal', 'accenture', 'armani', 'radisson', 'canon', 'cnrs', 'bpifrance', 'creditagricole', 'lcl']
     .map(k => ({ src: `/site/logos/${k}.svg`, nom: { aircaraibes: 'Air Caraïbes', doctolib: 'Doctolib', villedeparis: 'Ville de Paris', nestle: 'Nestlé', bnpparibas: 'BNP Paribas', loreal: 'L’Oréal', accenture: 'Accenture', armani: 'Giorgio Armani', radisson: 'Radisson Blu', canon: 'Canon', cnrs: 'CNRS', bpifrance: 'Bpifrance', creditagricole: 'Crédit Agricole', lcl: 'LCL' }[k] })),
@@ -317,7 +317,7 @@ const BANDEAUX_SPE = {
   /* table de mezzés (Pexels 39018407, licence Pexels) à la place de la vidéo de l'huile versée : Jean-Luc, 2026-11-22 */
   'buffet-libanais': 'https://images.pexels.com/photos/39018407/pexels-photo-39018407.jpeg?auto=compress&cs=tinysrgb&w=2400',
   /* choix de Jean-Luc (2026-11-22, photo A) : Pexels n° 10521312, licence Pexels (usage commercial gratuit) ; voir data/credits-photos.md */
-  'paella-party': 'https://images.pexels.com/photos/10521312/pexels-photo-10521312.jpeg?auto=compress&cs=tinysrgb&w=2400',
+  'paella-party': '/site/c/paella-party-bandeau.webp',
   'buffet-antillais': '/site/c/paysages/antilles.webp',
 };
 /* prestations de l'univers Petits-déjeuners (séparé de Boissons le 2026-11-22) */
@@ -345,7 +345,12 @@ const CARTE_INDIEN = [
   ['desserts', 'Salade de fruits de Goa', 650], ['desserts', 'Pista kulfi', 650], ['desserts', 'Mango kulfi', 650], ['desserts', 'Halwa maison', 450], ['desserts', 'Kheer (riz au lait indien)', 450],
 ];
 const AMBIANCE_INDIEN = ['menu-client-1', 'menu-client-2', 'menu-client-3', 'menu-client-4', 'plat-seul-client-1', 'plat-seul-client-2', 'plat-seul-client-3'].map(n => N + n + '.webp.webp');
-const RANGEMENTS = [['buffets', 'Nos buffets'], ['mezzes-froids', 'Nos mezzés froids à l’unité'], ['mezzes-chauds', 'Nos mezzés chauds à l’unité'], ['entrees', 'Nos entrées à l’unité'], ['plats', 'Nos plats à l’unité'], ['accompagnements', 'Nos accompagnements à l’unité'], ['fromages', 'Nos fromages'], ['desserts', 'Nos desserts à l’unité'], ['divers', 'Produits divers à l’unité'], ['animations', 'Nos animations'], ['corbeilles', 'Nos corbeilles de fruits'], ['pieces-montees', 'Nos pièces montées'], ['location', 'En location']];
+const RANGEMENTS = [['buffets', 'Nos buffets'], ['mezzes-froids', 'Nos mezzés froids à l’unité'], ['mezzes-chauds', 'Nos mezzés chauds à l’unité'], ['entrees', 'Nos entrées à l’unité'], ['plats', 'Nos plats à l’unité'], ['accompagnements', 'Nos accompagnements à l’unité'], ['fromages', 'Nos fromages'], ['desserts', 'Nos desserts à l’unité'], ['divers', 'Produits divers à l’unité'], ['animations', 'Nos animations'], ['corbeilles', 'Nos corbeilles de fruits'], ['pieces-montees', 'Nos pièces montées'], ['location', 'En location'],
+  /* La cave de Magnolia (server/cave.js) */
+  ['champagne', 'Notre champagne'], ['eaux', 'Les eaux'], ['sodas', 'Sodas'], ['jus', 'Jus de fruits'], ['vins-rouges', 'Vins rouges'], ['vins-blancs', 'Vins blancs'], ['vins-roses', 'Vin rosé'], ['alcools-forts', 'Alcools forts'], ['bars', 'Open bars & cocktails'], ['accessoires', 'Accessoires'],
+  /* Musique & animations et Les indispensables en rubriques (Jean-Luc, 2026-11-25) */
+  ['musique-live', 'Musique & DJ'], ['son-lumiere', 'Son, lumière & écrans'], ['spectacles', 'Artistes & spectacles'], ['jeux', 'Jeux & animations'], ['enfants', 'Pour les enfants'], ['souvenirs', 'Photos & souvenirs'],
+  ['arts-table', 'Vaisselle & verres'], ['mobilier', 'Tables, chaises & nappes'], ['materiel', 'Matériel de cuisine']];
 /* « Riz oriental : + 1,50 € HT/personne. » → « Riz oriental » (supplément d'un menu, pas un nom de plat) */
 const SUPPL = /\s*:\s*\+\s*[\d.,]+\s*€.*$/;
 /* accompagnements (riz, gratins, alloco…) : demande de Jean-Luc du 2026-11-22 */
@@ -732,6 +737,20 @@ async function initSousRubriques(store, { log = console } = {}) {
     if (nf) log.log?.(`[demarrage] ${nf} doublons fusionnés`);
   }
 
+  /* puff-puff = dessert africain, pas antillais (Jean-Luc, 2026-11-25) : retiré du Buffet antillais, reste au Buffet africain. Une fois. */
+  const RPf = await store.get('site/reglages');
+  if (RPf && !RPf.puffSansAntillais) {
+    for (const d of await store.list('produits')) {
+      const x = d.data;
+      if (!x || !/puff/i.test((x.titre || '') + ' ' + (x.slug || d.id))) continue;
+      const autres = (x.autresSous || []).filter(s => s !== 'buffet-antillais');
+      if (x.sous === 'buffet-antillais') {
+        if (x.statut !== 'masque') await store.set('produits/' + d.id, { ...x, statut: 'masque', fusionneDans: x.fusionneDans || 'puff-puff' });
+      } else if (autres.length !== (x.autresSous || []).length) await store.set('produits/' + d.id, { ...x, autresSous: autres });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), puffSansAntillais: true });
+  }
+
   /* photos ajoutées aux fiches qui n'en avaient pas (Jean-Luc, 2026-11-22). Une fois par fiche, si elle est toujours sans photo. */
   for (const [re, src, alt] of PHOTOS_FICHES) {
     for (const d of await store.list('produits')) {
@@ -763,11 +782,32 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('produits/' + slug, { ...x, photos: photos.map(([src, alt]) => ({ src, alt })), photoDouceur: 'v1' });
   }
 
-  /* sans le médaillon « R » du pâtissier (Jean-Luc, 2026-11-24) : l'ancienne photo est remplacée là où elle est encore */
-  for (const n of ['framboisine', 'tarte-chocolat', 'craqueline', 'croquant-caramel']) {
-    const ancien = '/site/c/douceurs/' + n + '.webp', nouveau = '/site/c/douceurs/' + n + '-2.webp';
-    for (const { id, data: x } of await store.list('produits')) {
-      if ((x.photos || []).some(ph => ph.src === ancien)) await store.set('produits/' + id, { ...x, photos: x.photos.map(ph => ph.src === ancien ? { ...ph, src: nouveau } : ph) });
+  /* sans le médaillon « R » du pâtissier (Jean-Luc, 2026-11-24), puis sans le petit rond en chocolat du tout (2026-11-25) :
+     les anciennes photos sont remplacées partout où elles sont encore (fiches, rubriques, pages, réglages). */
+  {
+    const PHOTOS_SANS_ROND = [[D('pyramide-macarons'), D('pyramide-macarons-2')]];
+    for (const n of ['framboisine', 'tarte-chocolat', 'craqueline', 'croquant-caramel']) PHOTOS_SANS_ROND.push([D(n), D(n + '-3')], [D(n + '-2'), D(n + '-3')]);
+    const remplace = j => PHOTOS_SANS_ROND.reduce((t, [a, b]) => t.split('"' + a + '"').join('"' + b + '"'), j);
+    for (const col of ['produits', 'rubriques', 'pages']) {
+      for (const { id, data: x } of (await store.list(col)) || []) {
+        const j = JSON.stringify(x || {}), k = remplace(j);
+        if (k !== j) await store.set(col + '/' + id, JSON.parse(k));
+      }
+    }
+    const R = await store.get('site/reglages');
+    if (R) { const j = JSON.stringify(R), k = remplace(j); if (k !== j) await store.set('site/reglages', JSON.parse(k)); }
+  }
+
+  /* Prix d'achat TTC des gâteaux et pièces montées du pâtissier partenaire (Jean-Luc, 2026-11-25) : prix publics de son site,
+     relevés le 2026-11-25. Posés une fois (le prix de vente ne change pas) ; modifiables ensuite dans le back-office. */
+  {
+    const R = await store.get('site/reglages');
+    if (R && !R.achatsPatissier1) {
+      for (const [slug, cents] of ACHATS_PATISSIER) {
+        const x = await store.get('produits/' + slug);
+        if (x) await store.set('produits/' + slug, { ...x, coutCents: cents });
+      }
+      await store.set('site/reglages', { ...(await store.get('site/reglages')), achatsPatissier1: true });
     }
   }
 
@@ -834,6 +874,36 @@ async function initSousRubriques(store, { log = console } = {}) {
     const x = await store.get('produits/' + slug);
     if (!x || (x.photoBuffet || '') === src) continue;
     await store.set('produits/' + slug, { ...x, photos: [{ src, alt }, ...(x.photos || []).filter(ph => ph.src !== src)], photoBuffet: src });
+  }
+
+  /* Buffet antillais (Jean-Luc, 2026-11-24) : la vidéo des 3 serveurs (antillais-boucle) s'affichait sur les formules et sur des pièces à l'unité.
+     Retirée de toutes les fiches : chaque fiche montre ses propres photos (la vidéo reste sur l'accueil et le bandeau de la page).
+     Les 3 formules reçoivent une galerie choisie d'après leur contenu. Boudin à la crevette : photo de son site magnoliatraiteur.fr. Une fois. */
+  const RAnt = await store.get('site/reglages');
+  if (RAnt && !RAnt.antillaisSansVideo1) {
+    for (const { id, data: x } of (await store.list('produits')) || []) {
+      if (x?.video?.src !== '/site/v/antillais-boucle.mp4') continue;
+      const { video, ...reste } = x;
+      const galerie = GALERIES_ANTILLAIS[id];
+      await store.set('produits/' + id, { ...reste, ...(galerie ? { photos: galerie.map(([src, alt]) => ({ src, alt })), photoBuffet: galerie[0][0] } : {}), sansVideo: true });
+    }
+    const bc = await store.get('produits/boudin-a-la-crevette');
+    if (bc && !(bc.photos || []).some(ph => ph.src && !/photo-a-venir/.test(ph.src))) {
+      await store.set('produits/boudin-a-la-crevette', { ...bc, photos: [{ src: '/site/c/antilles-unit/boudin-a-la-crevette.webp', alt: 'Boudins à la crevette' }] });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), antillaisSansVideo1: true });
+  }
+
+  /* Buffet libanais (Jean-Luc, 2026-11-25) : la vidéo libanais-boucle s'affichait sur toutes les formules de « Nos buffets ».
+     Retirée de toutes les fiches produit (elle reste en haut de la page) : chaque fiche montre ses photos. Une fois. */
+  const RLv = await store.get('site/reglages');
+  if (RLv && !RLv.libanaisSansVideo1) {
+    for (const { id, data: x } of (await store.list('produits')) || []) {
+      if (x?.video?.src !== '/site/v/libanais-boucle.mp4') continue;
+      const { video, ...reste } = x;
+      await store.set('produits/' + id, { ...reste, sansVideo: true });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), libanaisSansVideo1: true });
   }
 
   /* plateaux de sushis : compositions, prix et photos du site actuel magnoliatraiteur.fr/plateaux-de-sushis (Jean-Luc, 2026-11-22).
@@ -933,6 +1003,19 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('site/reglages', { ...(await store.get('site/reglages')), sansBrochure: true });
   }
 
+  /* Plateau de fruits de mer (Jean-Luc, 2026-11-24) : toutes les photos sur fond blanc pur, produit détouré et centré,
+     format carré (comme les praires). Une fois : seule une photo encore d'origine est remplacée, jamais une photo
+     changée ensuite dans le back-office. */
+  const RFm = await store.get('site/reglages');
+  if (RFm && !RFm.fruitsDeMerBlanc) {
+    for (const { id, data: pr } of await store.list('produits')) {
+      const avant = pr.photos || [];
+      const ph = avant.map(x => FRUITS_DE_MER_BLANC[x.src] ? { ...x, src: '/site/c/seafood30/blanc/' + FRUITS_DE_MER_BLANC[x.src] + '.webp' } : x);
+      if (JSON.stringify(ph) !== JSON.stringify(avant)) await store.set('produits/' + id, { ...pr, photos: ph });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), fruitsDeMerBlanc: true });
+  }
+
   /* « Cocktails & buffets français » + paragraphe de présentation (Jean-Luc, 2026-11-22). Une fois : modifiable ensuite dans le back-office. */
   const RCb = await store.get('site/reglages');
   if (RCb && !RCb.cocktailsFrancais) {
@@ -963,6 +1046,65 @@ async function initSousRubriques(store, { log = console } = {}) {
       if (chg) await store.set('produits/' + id, { ...p, groupes });
     }
     await store.set('site/reglages', { ...(await store.get('site/reglages')), buffetsPortions: true });
+  }
+
+  /* Buffet chinois sans « Produits divers » (Jean-Luc, 2026-11-25) : une fois. Un produit venu d'une autre rubrique
+     (Coffret chinois aux neuf saveurs, de Coffrets & plateaux) quitte seulement la page du buffet chinois ;
+     un produit propre au buffet chinois rangé en « divers » est masqué (réversible dans sa fiche). */
+  const RChd = await store.get('site/reglages');
+  if (RChd && !RChd.chinoisSansDivers) {
+    for (const { id, data: p } of await store.list('produits')) {
+      const ici = p.sous === 'buffet-chinois' || (p.autresSous || []).includes('buffet-chinois');
+      if (!ici || rangementDe(p) !== 'divers') continue;
+      if (p.rubrique === 'saveurs-du-monde' && p.sous === 'buffet-chinois') { await store.set('produits/' + id, { ...p, statut: 'masque' }); continue; }
+      const autresSous = (p.autresSous || []).filter(x => x !== 'buffet-chinois');
+      const sous = p.sous === 'buffet-chinois' ? (autresSous.shift() || '') : p.sous;
+      const resteSm = p.rubrique === 'saveurs-du-monde' || !!sous;
+      await store.set('produits/' + id, { ...p, sous, autresSous, autresRubriques: resteSm ? (p.autresRubriques || []) : (p.autresRubriques || []).filter(x => x !== 'saveurs-du-monde') });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), chinoisSansDivers: true });
+  }
+
+  /* Coq roussi + 5 € TTC la part (Jean-Luc, 2026-11-25) : plus cher que les autres plats, il est compté en supplément
+     dans les formules du Buffet antillais (ligne « Supplément coq roussi » en bas du total et sur le devis).
+     Une fois ; modifiable ensuite dans la fiche (« Coq roussi | 5 » dans « Choix proposés au client »). */
+  const RCq = await store.get('site/reglages');
+  if (RCq && !RCq.coqRoussiSupp) {
+    for (const { id, data: p } of await store.list('produits')) {
+      if (!/^buffet-antillais/.test(p.slug || id) || !(p.groupes || []).length) continue;
+      let ok = false;
+      const groupes = p.groupes.map(g => ({ ...g, options: (g.options || []).map(o => /^coq roussi$/i.test(String(o.label || '').trim()) && !o.supCents ? (ok = true, { ...o, supCents: 500 }) : o) }));
+      if (ok) await store.set('produits/' + id, { ...p, groupes });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), coqRoussiSupp: true });
+  }
+
+  /* Musique & animations et Les indispensables en rubriques (Jean-Luc, 2026-11-25) : plus de 20 produits, donc des têtes
+     de rubrique sur téléphone. Une fois ; chaque fiche reste modifiable (liste « Section » de la fiche). */
+  const RMi = await store.get('site/reglages');
+  if (RMi && !RMi.musiqueIndispSections) {
+    const sans = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const RUBS = {
+      'musique-animations': { ordre: ['musique-live', 'son-lumiere', 'spectacles', 'jeux', 'enfants', 'souvenirs', 'divers'], titres: { divers: 'Et aussi' },
+        k: t => /enfant|gonflable|hermine/.test(t) ? 'enfants' : /booth|livre d.or/.test(t) ? 'souvenirs'
+          : /lumiere|ecran|projecteur|enceinte|sonorisation/.test(t) ? 'son-lumiere'
+          : /dj|live band|saxo|pianiste|chanteu|guitare|jazz|flaming|musicien|violon/.test(t) ? 'musique-live'
+          : /casino|blind test|karaoke|escape|puissance|taureau|baby|hockey|billard|ping|flechette|jeu/.test(t) ? 'jeux'
+          : /drag|magicien|faux serveur|mentaliste|caricatur|ventriloque|contorsion|bonne aventure|spectacle|artiste/.test(t) ? 'spectacles' : 'divers' },
+      'indispensables': { ordre: ['arts-table', 'mobilier', 'materiel', 'divers'], titres: { divers: 'Et aussi' },
+        k: t => /vaisselle|verre|pack/.test(t) ? 'arts-table' : /table|nappe|nappage|chaise|mange-debout|tente/.test(t) ? 'mobilier'
+          : /materiel|etuve|bain-marie|chafing|cuiseur|four|tireuse/.test(t) ? 'materiel' : 'divers' }
+    };
+    for (const [slug, R] of Object.entries(RUBS)) {
+      const r = await store.get('rubriques/' + slug);
+      if (!r) continue;
+      await store.set('rubriques/' + slug, { ...r, parSections: true, ordreSections: R.ordre, titresSections: { ...R.titres, ...(r.titresSections || {}) } });
+      for (const { id, data: p } of await store.list('produits')) {
+        if (p.rubrique !== slug) continue;
+        await store.set('produits/' + id, { ...p, rangement: R.k(sans(p.titre)) });
+      }
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), musiqueIndispSections: true });
   }
 
   /* Animations sucrées & desserts en sections (Jean-Luc, 2026-11-24) : Nos animations, Nos corbeilles de fruits, Nos pièces montées,
@@ -996,7 +1138,7 @@ async function initSousRubriques(store, { log = console } = {}) {
   if (RAv && !RAv.animationsVideos1) {
     const VA = {
       'pizzaiolo-a-domicile': 'pizzaiolo', 'bar-a-burrata': 'burrata', 'animation-barbecue': 'barbecue-flammes', 'animation-ti-punch-acras-et-boudins': 'acras',
-      'stand-a-burgers': 'burgers', 'bar-a-pates': 'bar-a-pates', 'chef-sushi-a-domicile': 'sushi', 'bar-a-saumon-fume': 'saumon',
+      'stand-a-burgers': 'burgers-2', 'bar-a-pates': 'bar-a-pates', 'chef-sushi-a-domicile': 'sushi', 'bar-a-saumon-fume': 'saumon',
       'bar-a-foie-gras': 'foie-gras', 'bar-a-huitres': 'huitres', 'saint-jacques-a-la-plancha': 'saint-jacques', 'stand-show-a-volonte-pieces-chaudes': 'show',
       'animation-barbe-a-papa-a-volonte': 'barbe-a-papa', 'animation-fontaine-a-chocolat': 'fontaine-chocolat', 'crepes-a-volonte': 'crepes',
       'stand-de-churros': 'churros', 'brioche-perdue': 'brioche-perdue', 'animation-pop-corn': 'pop-corn', 'animation-de-gaufre': 'gaufres'
@@ -1262,7 +1404,7 @@ async function initSousRubriques(store, { log = console } = {}) {
       'mange-debout': ['mange-debout', 'Mange-debout sans nappe'],
       'nappe-rectangulaire-170-250-cm': ['nappe-rectangulaire', 'Table rectangulaire avec nappe blanche'],
       'chaise-pliante-de-luxe-en-velours-bordeaux': ['chaise-velours', 'Chaises dorées en velours bordeaux'],
-      'verres-en-verre-vin-coupes-a-champagne': ['verres-vin-coupes', 'Coupes à champagne en verre'],
+      'verres-en-verre-vin-coupes-a-champagne': ['verres-vin-flutes', 'Un verre à vin et une flûte à champagne sur une table de réception'],
       'verres-reutilisables-eco-responsables': ['verres-reutilisables', 'Gobelets réutilisables empilés'],
       'set-de-vaisselle-complet-par-personne': ['set-complet', 'Assiettes, couverts et verre à pied'],
       'set-de-vaisselle-sans-verrerie-par-personne': ['set-sans-verrerie', 'Assiettes en porcelaine blanche'],
@@ -1323,6 +1465,24 @@ async function initSousRubriques(store, { log = console } = {}) {
     const rp = await store.get('rubriques/personnel');
     if (rp) await store.set('rubriques/personnel', { ...rp, bandeauPhoto: '/site/c/personnel-bandeau-serveur.webp', bandeauVideo: '' });
     await store.set('site/reglages', { ...(await store.get('site/reglages')), personnelBandeau1: true });
+  }
+  /* Paella party : nouvelle photo de bandeau (Jean-Luc, 2026-11-24) : paella géante servie au buffet, centrée sur le plat.
+     Pexels 22880517 (Gleb Zhizhikin), recadrée sans le panneau à droite. Une fois : modifiable ensuite au back-office. */
+  const RPae = await store.get('site/reglages');
+  if (RPae && !RPae.paellaBandeau2) {
+    const rsw = await store.get('rubriques/saveurs-du-monde');
+    if (rsw) await store.set('rubriques/saveurs-du-monde', { ...rsw, sous: (rsw.sous || []).map(x => x.slug === 'paella-party' ? { ...x, bandeauPhoto: '/site/c/paella-party-bandeau.webp', bandeauVideo: '', bandeauPosition: '50% 45%' } : x) });
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), paellaBandeau2: true });
+  }
+  /* Bloc « Comment commander » : femme à son bureau qui passe commande sur son ordinateur (Jean-Luc, 2026-11-24), à la place du personnel au buffet.
+     v2 : Pexels 10041233 (sans carte bancaire : la section dit « Sans paiement en ligne »), recadrée.
+     Une fois, et seulement si la photo n'a pas été changée au back-office. */
+  const RCmd = await store.get('site/reglages');
+  if (RCmd && !RCmd.photoCommande2) {
+    const ac = RCmd.accueil || {};
+    const anc = ac.photoCommande || '';
+    const accueil = (!anc || /personnel80-client-20261102|commande-en-ligne-bureau\.webp/.test(anc)) ? { ...ac, photoCommande: '/site/c/accueil/commande-en-ligne-bureau-2.webp' } : ac;
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), accueil, photoCommande1: true, photoCommande2: true });
   }
   /* « Pizzaïolo · personnel » devient « Pizzaïolo » (Jean-Luc, 2026-11-24). Adresse /personnel/pizzaiolo-personnel inchangée. Une fois. */
   const RPz = await store.get('site/reglages');
@@ -1450,6 +1610,59 @@ async function initSousRubriques(store, { log = console } = {}) {
     }
     await store.set('site/reglages', { ...(await store.get('site/reglages')), lieuxCriteres: true });
   }
+  /* Vraies vidéos en haut de 3 pages (Jean-Luc, 2026-11-24), sans la photo dessous (l'image d'attente est la 1re image
+     de la vidéo) : Couscous party (tajine de légumes fumant, Pexels 3015488 ; aucune vidéo libre de couscous n'existe),
+     Buffet indien (grande table de plats indiens, Pexels 8811071), La carte Magnolia (chef qui dresse une assiette
+     au gros plan, Pexels 39877475). Une fois ; sources dans data/credits-videos-animations.md. */
+  const RBv = await store.get('site/reglages');
+  if (RBv && !RBv.bandeauxVideos1) {
+    const vid = n => ({ bandeauVideo: `/site/v/bandeaux/${n}.mp4`, bandeauPoster: `/site/v/bandeaux/${n}.jpg` });
+    const sm = await store.get('rubriques/saveurs-du-monde');
+    if (sm) await store.set('rubriques/saveurs-du-monde', { ...sm, sous: (sm.sous || []).map(x => ['couscous-party', 'buffet-indien'].includes(x.slug) ? { ...x, ...vid(x.slug) } : x) });
+    const cm = await store.get('rubriques/carte-magnolia');
+    if (cm) await store.set('rubriques/carte-magnolia', { ...cm, ...vid('carte-magnolia'), bandeauPosition: '50% 100%' /* l'assiette est en bas de l'image */ });
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), bandeauxVideos1: true });
+  }
+  /* Buffet antillais (Jean-Luc, 2026-11-24) : vraie vidéo à la place de la photo des îles : accras qui dorent dans
+     l'huile (Pexels 37670884) puis grand repas de famille (Pexels 4298650), en fondu. Aucune vraie vidéo libre de
+     buffet antillais n'existe. La vidéo de la vignette (antillais-boucle) ne change pas. Une fois. */
+  const RBa = await store.get('site/reglages');
+  if (RBa && !RBa.bandeauxVideos2) {
+    const sm = await store.get('rubriques/saveurs-du-monde');
+    if (sm) await store.set('rubriques/saveurs-du-monde', { ...sm, sous: (sm.sous || []).map(x => x.slug === 'buffet-antillais' ? { ...x, bandeauVideo: '/site/v/bandeaux/buffet-antillais.mp4', bandeauPoster: '/site/v/bandeaux/buffet-antillais.jpg' } : x) });
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), bandeauxVideos2: true });
+  }
+  /* Jean-Luc (2026-11-24) : vraies vidéos en haut de 2 autres pages, sans photo dessous. Spécialités japonaises :
+     un chef pose le saumon sur le maki puis le tranche (Pexels 8901982 + 8901980). Cocktails & buffets : petits fours
+     pris sur le buffet, invités en tenue avec un verre, cocktail du soir en smoking (Pexels 6760602, 6761146, 12350362). Une fois. */
+  const RBj = await store.get('site/reglages');
+  if (RBj && !RBj.bandeauxVideos3) {
+    const vid = n => ({ bandeauVideo: `/site/v/bandeaux/${n}.mp4`, bandeauPoster: `/site/v/bandeaux/${n}.jpg` });
+    const sm = await store.get('rubriques/saveurs-du-monde');
+    if (sm) await store.set('rubriques/saveurs-du-monde', { ...sm, sous: (sm.sous || []).map(x => x.slug === 'specialites-japonaises' ? { ...x, ...vid(x.slug) } : x) });
+    const cb = await store.get('rubriques/cocktails-buffets');
+    if (cb) await store.set('rubriques/cocktails-buffets', { ...cb, bandeauVideo: '/site/v/bandeaux/cocktails-buffets-2.mp4', bandeauPoster: '/site/v/bandeaux/cocktails-buffets-2.jpg' });
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), bandeauxVideos3: true });
+  }
+  /* Cocktails & buffets (Jean-Luc, 2026-11-25) : plan des petits fours (tomates-mozza, fromage) retiré, « trop bas de
+     gamme ». Nouvelle vidéo : invités en tenue avec un verre devant le buffet, puis cocktail du soir en smoking. Une fois. */
+  const RBc = await store.get('site/reglages');
+  if (RBc && !RBc.bandeauxVideos4) {
+    const cb = await store.get('rubriques/cocktails-buffets');
+    if (cb && (!cb.bandeauVideo || cb.bandeauVideo === '/site/v/bandeaux/cocktails-buffets.mp4'))
+      await store.set('rubriques/cocktails-buffets', { ...cb, bandeauVideo: '/site/v/bandeaux/cocktails-buffets-2.mp4', bandeauPoster: '/site/v/bandeaux/cocktails-buffets-2.jpg' });
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), bandeauxVideos4: true });
+  }
+  /* Stand à burgers (Jean-Luc, 2026-11-25) : on doit vraiment voir le burger, sur une plaque à snacker, pain posé sur
+     la viande : burgers coiffés de leur pain sur la plaque (Pexels 37284846), puis le chef pose le steak au cheddar
+     sur le pain (Pexels 32092904). Une fois, seulement si la fiche a encore l'ancienne vidéo. */
+  const RBb = await store.get('site/reglages');
+  if (RBb && !RBb.burgerVideo2) {
+    const p = await store.get('produits/stand-a-burgers');
+    if (p && (!p.video || p.video.src === '/site/v/animations/burgers.mp4'))
+      await store.set('produits/stand-a-burgers', { ...p, video: { src: '/site/v/animations/burgers-2.mp4', poster: '/site/v/animations/burgers-2.jpg' } });
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), burgerVideo2: true });
+  }
 }
 
 /* [fiche gardée, doublons…] : mêmes produit, prix et minimum */
@@ -1567,11 +1780,38 @@ const CARTE_CHINOISE = [
   ['accompagnements', 'Riz gluant à la vapeur', 280, null, '/site/c/chinois-carte/riz-gluant-a-la-vapeur.webp', []],
   ['accompagnements', 'Riz sauté thaï (crevettes, ananas et œuf)', 600, null, '/site/c/chinois-carte/riz-saute-thai-crevettes-ananas-et-oeuf.webp', []],
 ];
+/* Galeries des formules du Buffet antillais (Jean-Luc, 2026-11-24) : d'abord la photo de buffet, puis ce que contient la formule. */
+const GALERIES_ANTILLAIS = {
+  'buffet-antillais-entrees-seules': [
+    ['/site/c/antilles-unit/produit-19.webp.webp', 'Plateau de buffet : accras, boudins créoles et samoussas'],
+    ['/site/c/antilles-unit/produit-5.webp.webp', 'Assiette d’entrées : accras, boudin créole et samoussas'],
+    ['/site/c/antilles-menus/accras-client-20261101.webp.webp', 'Accras de morue'],
+    ['/site/c/antilles-site/boudin-antillais-40g-1-20261101.webp.webp', 'Boudins créoles'],
+    ['/site/c/antilles-menus/samoussas.webp.webp', 'Samoussas'],
+  ],
+  'buffet-antillais-entree-et-plat-ou-plat-et-dessert': [
+    ['/site/c/antilles-menus/buffet-colombo-chafing.webp', 'Colombo de poulet, haricots rouges et gratins sur le buffet'],
+    ['/site/c/antilles-unit/produit-19.webp.webp', 'Plateau de buffet : accras, boudins créoles et samoussas'],
+    ['/site/c/antilles-site/colombo-de-poulet-1-20261101.webp.webp', 'Colombo de poulet'],
+    ['/site/c/antilles-site/riz-blanc-200g-pers-1-20261101.webp.webp', 'Riz blanc'],
+    ['/site/c/antilles-site/flan-coco-la-part-1-20261101.webp.webp', 'Flan coco'],
+  ],
+  'buffet-antillais-entree-plat-dessert': [
+    ['/site/c/antilles-menus/buffet-complet.jpg.webp', 'Buffet antillais complet servi en chafing dishes'],
+    ['/site/c/antilles-unit/produit-19.webp.webp', 'Plateau de buffet : accras, boudins créoles et samoussas'],
+    ['/site/c/antilles-site/colombo-de-poulet-1-20261101.webp.webp', 'Colombo de poulet'],
+    ['/site/c/antilles-site/gratin-de-bananes-plantin-250g-la-part-1-20261101.webp.webp', 'Gratin de bananes plantains'],
+    ['/site/c/antilles-site/blanc-manger-coco-la-part-1-20261101.webp.webp', 'Blanc-manger coco'],
+    ['/site/c/antilles-site/salade-de-fruits-exotiques-1-20261101.webp.webp', 'Salade de fruits exotiques'],
+  ],
+};
 /* « Nos buffets » des spécialités (Jean-Luc, 2026-11-23) : une photo de buffet en tête de chaque formule, choisie d'après son contenu
    (jamais une pièce à l'unité). Les autres photos de la fiche restent dans sa galerie. Sources dans data/credits-photos-univers.md. */
 const PHOTOS_BUFFETS_EN_TETE = [
-  ['buffet-antillais-entrees-seules', 'https://images.pexels.com/photos/16868526/pexels-photo-16868526.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Plateau d’entrées : beignets, bouchées frites et crevettes'],
-  ['buffet-antillais-entree-et-plat-ou-plat-et-dessert', 'https://images.pexels.com/photos/9638804/pexels-photo-9638804.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Repas antillais : riz aux haricots rouges, plats en sauce et dessert'],
+/* Buffet antillais (Jean-Luc, 2026-11-24) : entrées seules = plateau d'accras, boudins et samoussas (ses photos) ;
+     entrée + plat ou plat + dessert = colombo de poulet, haricots rouges et gratins sur le buffet (ses photos) ; formule complète = rangée de chafing dishes (ses photos). */
+  ['buffet-antillais-entrees-seules', '/site/c/antilles-unit/produit-19.webp.webp', 'Plateau de buffet : accras, boudins créoles et samoussas'],
+  ['buffet-antillais-entree-et-plat-ou-plat-et-dessert', '/site/c/antilles-menus/buffet-colombo-chafing.webp', 'Colombo de poulet, haricots rouges et gratins sur le buffet'],
   ['buffet-antillais-entree-plat-dessert', '/site/c/antilles-menus/buffet-complet.jpg.webp', 'Buffet antillais complet servi en chafing dishes'],
   ['buffet-indien-entrees-a-l-unite', 'https://images.pexels.com/photos/958547/pexels-photo-958547.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Entrées indiennes : pakoras, naans et chutneys'],
   ['buffet-indien-entree-plat-ou-plat-dessert', 'https://images.pexels.com/photos/7182077/pexels-photo-7182077.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Table indienne : currys, riz et accompagnements'],
@@ -1599,6 +1839,14 @@ const VRAIES_PHOTOS = [
   ['buffet-libanais-6-mezzes-1-plat-1-dessert', 'buffet1', [['https://images.pexels.com/photos/29177219/pexels-photo-29177219.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Table de buffet libanais : mezzés et plats chauds'], ['https://images.unsplash.com/photo-1777891257688-cdf5c386bbb2?auto=format&fit=crop&w=1600&q=80', 'Mezzés et dessert oriental aux noix']]],
   ['buffet-libanais-8-mezzes-1-plat', 'buffet1', [['https://images.pexels.com/photos/23025180/pexels-photo-23025180.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Kafta, kebbé et mezzés servis à partager'], ['https://images.pexels.com/photos/19386650/pexels-photo-19386650.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Grande table de mezzés libanais']]],
   ['buffet-libanais-8-mezzes-1-plat-1-dessert', 'buffet1', [['https://images.unsplash.com/photo-1777891257688-cdf5c386bbb2?auto=format&fit=crop&w=1600&q=80', 'Mezzés et dessert oriental aux noix'], ['https://images.pexels.com/photos/29177219/pexels-photo-29177219.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Table de buffet libanais : mezzés et plats chauds']]],
+  /* Buffet libanais, « Nos buffets » (Jean-Luc, 2026-11-25) : plus de vidéo ; une vraie photo de buffet par formule, d'après son contenu
+     (8 mezzés = que des mezzés, plat seul = plateaux de grillades, + dessert = douceurs visibles). Pexels ; sources dans data/credits-photos-univers.md */
+  ['buffet-libanais-8-mezzes-au-choix', 'buffet2', [['https://images.pexels.com/photos/25907496/pexels-photo-25907496.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Grand plateau de mezzés libanais : houmous, falafels, manakish, halloumi'], ['https://images.pexels.com/photos/28241695/pexels-photo-28241695.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Mezzés à partager : houmous, labné, falafels, pains et pickles'], ['https://images.pexels.com/photos/21856002/pexels-photo-21856002.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Plateau de mezzés froids et chauds']]],
+  ['buffet-libanais-plat-seul', 'buffet2', [['https://images.pexels.com/photos/15781023/pexels-photo-15781023.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Grand plateau de grillades libanaises : kafta, chich taouk, brochettes'], ['https://images.pexels.com/photos/32986482/pexels-photo-32986482.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Plateau de grillades mixtes, légumes grillés et frites'], ['https://images.pexels.com/photos/30307766/pexels-photo-30307766.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Kafta et brochettes servies sur plateau']]],
+  ['buffet-libanais-6-mezzes-1-plat', 'buffet2', [['https://images.pexels.com/photos/23025180/pexels-photo-23025180.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Mezzés et kafta servis à partager'], ['https://images.pexels.com/photos/6419720/pexels-photo-6419720.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Houmous, mezzés et brochettes sur la table'], ['https://images.pexels.com/photos/28241712/pexels-photo-28241712.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Riz aux vermicelles et mezzés chauds']]],
+  ['buffet-libanais-6-mezzes-1-plat-1-dessert', 'buffet2', [['https://images.pexels.com/photos/36443669/pexels-photo-36443669.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Buffet : mezzés, feuilles de vigne, kebbé et douceurs orientales'], ['https://images.pexels.com/photos/38947725/pexels-photo-38947725.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Plateau de baklavas libanais'], ['https://images.pexels.com/photos/23025183/pexels-photo-23025183.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Plateau de mezzés et plats chauds']]],
+  ['buffet-libanais-8-mezzes-1-plat', 'buffet2', [['https://images.pexels.com/photos/8183709/pexels-photo-8183709.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Table de mezzés avec brochettes de viande grillée'], ['https://images.pexels.com/photos/28241720/pexels-photo-28241720.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Mezzés, kebbé, riz et brochettes de poulet'], ['https://images.pexels.com/photos/25907496/pexels-photo-25907496.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Grand plateau de mezzés libanais']]],
+  ['buffet-libanais-8-mezzes-1-plat-1-dessert', 'buffet2', [['https://images.pexels.com/photos/36287931/pexels-photo-36287931.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Grande table de buffet : mezzés, plats chauds et riz'], ['https://images.pexels.com/photos/38947724/pexels-photo-38947724.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Assortiment de baklavas aux pistaches'], ['https://images.pexels.com/photos/19386650/pexels-photo-19386650.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Grande table de mezzés libanais']]],
   /* Buffet chinois : une vraie photo de buffet en chafing dishes différente par fiche (Pexels), puis les images de sa vidéo */
   ['buffet-chinois-entrees-plat', 'buffet2', [['https://images.pexels.com/photos/39388375/pexels-photo-39388375.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Buffet asiatique en chafing dishes'], ['/site/c/chinois-menus/buffet-chafing-1.webp', 'Buffet chinois servi en chafing dishes']]],
   ['buffet-chinois-assortiment-13-pieces-salees', 'buffet2', [['https://images.pexels.com/photos/2291367/pexels-photo-2291367.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Rangée de chafing dishes ouverts'], ['/site/c/chinois-menus/buffet-chafing-3.webp', 'Buffet asiatique : plats chauds en chafing dishes']]],
@@ -1660,17 +1908,26 @@ const PHOTOS_DOUCEURS = [
   ['macarons-36-pieces', [[PX(1346345), 'Boîtes de macarons assortis']]],
   ['macarons-72-pieces', [[PX(239578), 'Macarons de toutes les couleurs']]],
   ['fraisier-32-parts', [[D('fraisier'), 'Part de fraisier : génoise, crème et fraises']]],
-  ['framboisine-32-parts', [[D('framboisine-2'), 'Framboisine nappée de framboises']]],
-  ['tarte-duo-chocolat-10-parts', [[D('tarte-chocolat-2'), 'Tarte au chocolat sur sablé']]],
-  ['craqueline-16-parts', [[D('craqueline-2'), 'Craqueline au chocolat et praliné croustillant']]],
-  ['croquant-caramel-16-parts', [[D('croquant-caramel-2'), 'Croquant caramel et éclats de nougatine']]],
+  ['framboisine-32-parts', [[D('framboisine-3'), 'Framboisine nappée de framboises']]],
+  ['tarte-duo-chocolat-10-parts', [[D('tarte-chocolat-3'), 'Tarte au chocolat sur sablé']]],
+  ['craqueline-16-parts', [[D('craqueline-3'), 'Craqueline au chocolat et praliné croustillant']]],
+  ['croquant-caramel-16-parts', [[D('croquant-caramel-3'), 'Croquant caramel et éclats de nougatine']]],
   ['gateau-chocolat-32-parts', [[D('gateau-chocolat'), 'Gâteau au chocolat, génoise cacao et crème chocolatée']]],
   /* pièces montées */
   ['piece-montee-romantica', [[D('piece-montee-romantica'), 'Pièce montée Romantica, étages décorés de roses']]],
   ['piece-montee-bella-rosa', [[D('piece-montee-bella-rosa'), 'Pièce montée Bella Rosa'], [D('piece-montee-bella-rosa-detail'), 'Pièce montée Bella Rosa, détail des fleurs']]],
   ['piece-montee-elegance', [[D('piece-montee-elegance'), 'Pièce montée Élégance, cinq étages fleuris']]],
   ['croquembouche-50-parts-200-choux', [[D('croquembouche'), 'Croquembouche de choux caramélisés']]],
-  ['pyramide-de-macarons', [[D('pyramide-macarons'), 'Pyramide de macarons multicolores']]],
+  ['pyramide-de-macarons', [[D('pyramide-macarons-2'), 'Pyramide de macarons multicolores']]],
+];
+/* Prix d'achat TTC (en centimes) chez le pâtissier partenaire, relevés sur son site le 2026-11-25.
+   Format le plus proche de la fiche : fraisier, framboisine et gâteau chocolat 32 parts = format « 24 à 32 parts » (vendu avec inscription) ;
+   tarte duo chocolat = tarte 8 parts ; pièces montées « Sur devis » = plus petit format (3 étages / 91 macarons). */
+const ACHATS_PATISSIER = [
+  ['fraisier-32-parts', 10690], ['framboisine-32-parts', 9790], ['gateau-chocolat-32-parts', 9790],
+  ['tarte-duo-chocolat-10-parts', 2990], ['craqueline-16-parts', 4790], ['croquant-caramel-16-parts', 4490],
+  ['piece-montee-romantica', 15990], ['piece-montee-bella-rosa', 15990], ['piece-montee-elegance', 20990],
+  ['croquembouche-50-parts-200-choux', 35990], ['pyramide-de-macarons', 15990],
 ];
 /* Corbeilles du partenaire Corbeilles Paris (corbeillesparis.fr/categorie-produit/corbeilles-fruits-frais/, relevé le 2026-11-24).
    prix = [kg, prix TTC du partenaire en €] ; prix de vente = + 30 %. Photos copiées dans public/site/c/corbeilles/ à la demande de Jean-Luc. */
@@ -1719,7 +1976,7 @@ const PHOTOS_BOISSONS = [
   ['open-bar-vins-et-champagnes', 'https://images.pexels.com/photos/3171837/pexels-photo-3171837.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Invités qui trinquent au champagne'],
   ['open-bar-alcools-forts-a-volonte-5-h', 'https://images.pexels.com/photos/28180061/pexels-photo-28180061.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Verre de whisky avec glaçons et citron'],
   ['livraison-de-glacons-sac-de-20-kg', 'https://images.pexels.com/photos/11931271/pexels-photo-11931271.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Glaçons'],
-  ['gobelet-reutilisable-a-biere-50-cl', 'https://images.pexels.com/photos/4996689/pexels-photo-4996689.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Bière servie dans un gobelet réutilisable'],
+  ['gobelet-reutilisable-a-biere-50-cl', '/site/c/materiel/gobelet-biere-50cl.webp', 'Verre à bière 50 cl en polypropylène givré, sur fond blanc'],
 ];
 const PHOTOS_FICHES = [
   [/^air hockey/i, 'https://images.pexels.com/photos/5780929/pexels-photo-5780929.jpeg?auto=compress&cs=tinysrgb&w=1200', 'Table d’air hockey lumineuse'],
@@ -1750,7 +2007,7 @@ const PLATEAUX_SUSHIS = [
 const INTROS_RUBRIQUES = {
   'carte-magnolia': ['La cuisine du chef, comme au restaurant', 'Carpaccios et tartares, foie gras aux figues, bœuf bourguignon, blanquette de veau, parmentier de canard, tartiflette : la carte Magnolia réunit les grands classiques de la cuisine française, préparés dans notre laboratoire de Villebon-sur-Yvette.\nComposez votre repas à l’unité, entrée, plat et dessert, pour un déjeuner d’entreprise, un dîner de famille ou un mariage. Nous livrons prêt à servir, ou nous dressons sur place avec notre personnel.'],
   'grand-large': ['La mer, fraîche du jour, sur votre table', 'Huîtres Gillardeau, Utah Beach ou pleine mer, homard de Bretagne, langoustines, crevettes, bulots, praires et caviar : nos plateaux de fruits de mer sont ouverts et dressés le jour même, pour garder tout l’iode et la fraîcheur.\nEn plateau à partager, en bar à huîtres ou en complément d’un buffet, ils donnent tout de suite un air de fête à vos réceptions, du dîner entre amis au grand mariage.'],
-  'boissons': ['De quoi trinquer, du champagne aux softs', 'Champagne, vins choisis en Bourgogne, à Bordeaux ou en Provence, sangria maison, open bars et softs en bouteilles individuelles : tout pour accompagner votre repas, de l’apéritif au dessert.\nNous livrons vos boissons fraîches avec le reste de votre commande. Ajoutez des glaçons, des verres et un barman, et vous n’avez plus rien à prévoir.'],
+  'boissons': require('./cave').INTRO_CAVE,
   'coffrets-plateaux': ['Des plateaux prêts à partager', 'Coffrets antillais, italien, libanais ou chinois, plateaux de mini-burgers, de mini-clubs et de wraps, fromages de nos régions et charcuteries : des formules pratiques, livrées prêtes à poser sur la table.\nParfaits pour une réunion, un séminaire, un déjeuner au bureau ou un apéritif improvisé : chacun se sert, sans service ni installation.'],
   'animations-salees': ['Le chef cuisine devant vos invités', 'Pizzaiolo et son four, pâtes flambées dans la meule de parmesan, barbecue, chef sushi, bar à huîtres, bar à foie gras, Saint-Jacques à la plancha, stand de burgers : nos animations salées transforment le repas en spectacle.\nVos invités voient les plats préparés sous leurs yeux, échangent avec le chef et se servent chaud. Une vraie animation pour un mariage, un anniversaire ou une soirée d’entreprise.'],
   'douceurs': ['Le sucré en spectacle', 'Fontaine à chocolat, barbe à papa, crêpes, gaufres, churros, pop-corn, candy bar, pièces montées, macarons et corbeilles de fruits : de quoi terminer la fête en beauté, pour les petits comme pour les grands.\nNos animations sucrées sont installées et servies par notre équipe, et nos desserts arrivent prêts à être découpés. Il ne reste plus qu’à souffler les bougies.'],
@@ -1764,7 +2021,6 @@ const INTROS_RUBRIQUES = {
 const PHOTOS_SANS_BROCHURE = {
   'pizzaiolo-a-domicile': [38539266, 'Pizzaiolo devant son four à bois'],
   'champagne-andre-diligent': [2259243, 'Bouteille de champagne dans un seau à glace'],
-  'la-cave-de-magnolia': [11851422, 'Bouteilles de vin et verres'],
   'pack-softs-en-individuel': [7414290, 'Bouteilles de jus et de sodas individuelles'],
   'plateau-de-20-mini-cheeseburgers': [18354206, 'Plateau de mini-burgers'],
   'jeux-de-lumiere': [33539320, 'Jeux de lumière colorés sur une piste de danse'],
@@ -1837,6 +2093,18 @@ const INTROS_SPE = {
 /* lassi sans texte incrusté (Pexels 18142603, licence Pexels) */
 const PHOTO_LASSI = 'https://images.pexels.com/photos/18142603/pexels-photo-18142603.jpeg?auto=compress&cs=tinysrgb&w=1200';
 const pexels = id => `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&w=1600`;
+/* fruits de mer détourés sur fond blanc (public/site/c/seafood30/blanc/, 2026-11-24) : ancienne photo -> nouveau fichier.
+   Crevettes roses : Pexels 566344 détourée (l'ancienne avait un logo) ; bulots : l'ancienne photo, sans l'étiquette « Marée du jour ». */
+const FRUITS_DE_MER_BLANC = Object.fromEntries([
+  ['pleine-mer', 'pleine-mer'], ['utah-beach', 'utah-beach'], ['gillardeau', 'gillardeau'], ['praires', 'praires'],
+  ['anchois-nature-20261110', 'anchois'], ['blinis', 'blinis'], ['bulots', 'bulots'], ['caviar-nature-20261110', 'caviar'],
+  ['crevettes-grises', 'crevettes-grises'], ['crevettes-roses', 'crevettes-roses'], ['demi-homard', 'demi-homard'], ['homard', 'homard'],
+  ['langoustines-nature-20261110', 'langoustines'], ['oeufs-saumon-nature-20261110', 'oeufs-saumon'], ['oursins', 'oursins'],
+  ['tarama-oursins-nature-20261110', 'tarama-oursins'], ['saumon-fume', 'saumon-fume'], ['tarama-nature-20261110', 'tarama'],
+  ['tarama-cabillaud', 'tarama-cabillaud'], ['demi-tourteau', 'demi-tourteau'], ['tourteau', 'tourteau'],
+].map(([a, b]) => ['/site/c/seafood30/' + a + '.webp.webp', b]).concat([
+  [pexels(37402010), 'bulots'], [pexels(16561736), 'crevettes-roses'],
+]));
 /* lot 1 des vraies photos (Pexels, licence libre ; sources dans data/credits-photos-univers.md) */
 const VRAIES_PHOTOS_SITE = [
   { id: 'bandeau-boutique-1', bandeau: 'boutique', avant: '/site/c/accueil/website-home-cocktail-20261110.webp', photo: pexels(8252824) },

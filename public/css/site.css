@@ -269,11 +269,25 @@ section { margin: clamp(56px, 8vw, 110px) auto; }
 .card-img { position: relative; aspect-ratio: 4 / 3; background: var(--creme-2); overflow: hidden; }
 .card-img img { width: 100%; height: 100%; object-fit: cover; transition: transform .6s; }
 .card:hover .card-img img { transform: scale(1.05); }
+/* photos détourées sur fond blanc (fruits de mer, Jean-Luc 2026-11-24) : produit entier, jamais coupé, sur blanc pur */
+img[src*="/seafood30/blanc/"] { object-fit: contain !important; background: #fff; }
+.card-img:has(img[src*="/seafood30/blanc/"]), .gal-main:has(img[src*="/seafood30/blanc/"]) { background: #fff; }
 /* vignette vidéo d'une fiche (animations culinaires) : plus de photo dessous (Jean-Luc, 2026-11-24) ; l'image d'attente est
    la première image de la vidéo elle-même (poster), donc rien ne « saute » quand la vidéo démarre */
 .card-img .card-v { display: block; width: 100%; height: 100%; object-fit: cover; transition: transform .6s; pointer-events: none; background: var(--creme-2); }
 .card:hover .card-img .card-v { transform: scale(1.05); }
 .card-img .tag { z-index: 1; }
+/* « Nos buffets » des spécialités (Jean-Luc, 2026-11-24) : les photos ne restent pas fixes, zoom lent et léger déplacement en boucle
+   (effet Ken Burns), chaque vignette avec son propre mouvement et son propre rythme. */
+.cards.kb-anim .card-img img { animation: kb-a 16s ease-in-out infinite alternate; transform-origin: 50% 50%; will-change: transform; }
+.cards.kb-anim .card:nth-child(4n+2) .card-img img { animation-name: kb-b; animation-duration: 18s; animation-delay: -5s; }
+.cards.kb-anim .card:nth-child(4n+3) .card-img img { animation-name: kb-c; animation-duration: 17s; animation-delay: -9s; }
+.cards.kb-anim .card:nth-child(4n+4) .card-img img { animation-name: kb-d; animation-duration: 19s; animation-delay: -3s; }
+@keyframes kb-a { from { transform: scale(1.02) translate(0, 0); } to { transform: scale(1.18) translate(-3%, -2%); } }
+@keyframes kb-b { from { transform: scale(1.16) translate(3%, 1%); } to { transform: scale(1.03) translate(-1%, -1%); } }
+@keyframes kb-c { from { transform: scale(1.03) translate(-2%, 2%); } to { transform: scale(1.17) translate(2%, -2%); } }
+@keyframes kb-d { from { transform: scale(1.15) translate(-3%, -1%); } to { transform: scale(1.02) translate(2%, 1%); } }
+@media (prefers-reduced-motion: reduce) { .cards.kb-anim .card-img img { animation: none; } }
 .tag { position: absolute; top: 10px; left: 10px; background: rgba(255, 255, 255, .94); color: #1b211e; font-size: .64rem; letter-spacing: .14em; text-transform: uppercase; padding: 5px 9px; border-radius: 6px; font-weight: 500; }
 .card-b { padding: 16px 18px 18px; display: flex; flex-direction: column; flex: 1; }
 .card-b h3 { font-size: 1.3rem; margin-bottom: .3em; }
@@ -584,6 +598,17 @@ textarea:focus, input:focus, select:focus { outline: 2px solid color-mix(in srgb
 @media (max-width: 860px) { body:has(.toast.on) .partage { opacity: 0; pointer-events: none; } }
 body.noscroll .partage { display: none; }
 @media print { .partage { display: none !important; } }
+/* bulle « Page précédente » : téléphone seulement, en bas à gauche, jumelle de « Partager » */
+.retour { display: none; }
+@media (max-width: 860px) {
+  .retour { position: fixed; left: max(16px, env(safe-area-inset-left)); bottom: calc(18px + env(safe-area-inset-bottom)); z-index: 35; display: inline-flex; align-items: center; gap: 7px; height: 42px; padding: 0 14px 0 12px; border: 1.5px solid #c9a46a; border-radius: 999px; background: #1d3b2f; color: #f6f1e8; font: 500 .84rem/1 var(--sans); letter-spacing: .02em; cursor: pointer; box-shadow: 0 8px 22px rgba(0, 0, 0, .22); transition: transform .2s, bottom .25s, opacity .2s; -webkit-tap-highlight-color: transparent; }
+  .retour svg { width: 19px; height: 19px; flex: none; color: #c9a46a; }
+  .retour:active { transform: scale(.96); }
+  body:has(.stickybar.on) .retour { bottom: calc(86px + env(safe-area-inset-bottom)); }
+  body:has(.toast.on) .retour, body.noscroll .retour { opacity: 0; pointer-events: none; }
+}
+@media (max-width: 860px) and (prefers-color-scheme: dark) { .retour { background: #173126; border-color: #d4b07a; box-shadow: 0 8px 22px rgba(0, 0, 0, .55); } .retour svg { color: #d4b07a; } }
+@media print { .retour { display: none !important; } }
 .consent { position: fixed; left: 16px; right: 16px; bottom: 16px; z-index: 95; max-width: 560px; margin: 0 auto; background: var(--carte, #fff); color: inherit; border: 1px solid rgba(0, 0, 0, .1); border-radius: 14px; padding: 16px 18px; box-shadow: 0 16px 40px rgba(0, 0, 0, .25); display: flex; gap: 14px; align-items: center; flex-wrap: wrap; font-size: .92rem; }
 .consent p { margin: 0; flex: 1 1 240px; }
 .consent div { display: flex; gap: 8px; }
@@ -1050,7 +1075,7 @@ body.noscroll .partage { display: none; }
 /* globe : la Lune (photo Pexels 596134, en noir et blanc), discrète */
 .sm-lune { opacity: .92; filter: grayscale(1) drop-shadow(0 3px 6px rgba(0, 0, 0, .3)); }
 /* Saveurs du monde : sous-titre discret sous « Choisissez votre destination culinaire » */
-.sm-sous { margin: -.35em auto .7em; max-width: 640px; line-height: 1.35; font-family: var(--serif, 'Cormorant Garamond', Georgia, serif); font-style: italic; font-size: 1.2rem; color: #9a7a45; }
+.sm-sous { margin: -.35em auto .7em; max-width: 640px; line-height: 1.35; font-family: var(--serif); font-style: italic; font-size: 1.2rem; color: #9a7a45; }
 .sm-sous[hidden] { display: none; }
 .sm-globe.sm-plat .sm-sous { color: #e9d3a6; }
 @media (max-width: 860px) { .sm-sous { font-size: 1.05rem; } }
@@ -1242,3 +1267,100 @@ h1 .formule { font-size: .5em; margin-top: .45em; }
 .doc-com .btn { white-space: normal; text-align: center; line-height: 1.25; max-width: 100%; }
 @media (max-width: 600px) { .doc-com .btn { width: 100%; } .doc-com { padding: 18px; margin-bottom: 90px; } }
 .com-liste small { color: #777; }
+
+/* Saveurs du monde : « par la Maison Magnolia » sous le titre du bandeau (Jean-Luc, 2026-11-24) */
+.phero .phero-sig { margin: -.2em 0 .7em; font-family: var(--serif); font-style: italic; font-size: clamp(1.15rem, 2.2vw, 1.6rem); letter-spacing: .02em; color: #e2c495; }
+/* Saveurs du monde : la vidéo des chefs est cadrée un peu plus haut, pour que les visages arrivent à hauteur du titre (Jean-Luc, 2026-11-24) */
+.sm-page .phero.land > video { object-position: 50% 28%; }
+
+/* ---------- La cave de Magnolia : catégories avec photo + champagne en vedette (2026-11-25) ---------- */
+.cats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; margin: 6px 0 34px; scroll-margin-top: 90px; }
+.cat { position: relative; display: block; aspect-ratio: 4 / 3; border-radius: var(--rayon); overflow: hidden; background: var(--creme-2); text-decoration: none; outline-offset: 3px; }
+.cat img, .cat .noimg { width: 100%; height: 100%; object-fit: cover; transition: transform .6s; }
+.cat::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0) 35%, rgba(10,30,20,.82)); }
+.cat:hover img { transform: scale(1.06); }
+.cat-t { position: absolute; left: 12px; right: 12px; bottom: 10px; z-index: 1; color: #fff; font-weight: 600; font-size: 1.02rem; line-height: 1.2; text-shadow: 0 1px 6px rgba(0,0,0,.4); }
+.cat-t small { display: block; font-weight: 400; font-size: .8rem; opacity: .85; margin-top: 2px; }
+.cat.on { box-shadow: 0 0 0 3px var(--or); }
+.cat-choisie .cat:not(.on) { opacity: .55; }
+.cat-choisie .cat:not(.on):hover { opacity: 1; }
+.spe-bloc.cat-off { display: none !important; }
+.spe-bloc[data-bloc] { scroll-margin-top: 90px; }
+.cat-retour { display: none; margin: -6px 0 14px; font-size: .92rem; color: var(--vert); font-weight: 600; text-decoration: none; }
+.cat-choisie .cat-retour { display: inline-block; }
+.cards-vedette { grid-template-columns: 1fr !important; }
+.card-vedette { flex-direction: row; align-items: stretch; }
+.card-vedette .card-img { flex: 0 0 46%; aspect-ratio: auto; min-height: 460px; background: #111; }
+.card-vedette .card-img img { position: absolute; inset: 0; object-position: center 35%; }
+.card-vedette .card-b { padding: 34px 38px; display: flex; flex-direction: column; justify-content: center; gap: 4px; }
+.card-vedette .eyebrow { text-transform: uppercase; letter-spacing: .12em; font-size: .78rem; color: var(--or); margin: 0 0 4px; font-weight: 600; }
+.card-vedette h3 { font-size: clamp(1.5rem, 2.6vw, 2.1rem); margin: 0 0 10px; }
+.card-vedette .card-b p:not(.eyebrow) { font-size: 1rem; line-height: 1.6; margin: 0 0 8px; }
+.card-vedette .card-f { margin-top: 14px; align-items: center; flex-wrap: wrap; gap: 12px; }
+.card-vedette .prix { font-size: 1.5rem; }
+@media (max-width: 1100px) { .cats { grid-template-columns: repeat(4, 1fr); } }
+@media (max-width: 860px) {
+  .cats { grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 26px; }
+  .cat { aspect-ratio: 16 / 10; }
+  .cat-t { left: 10px; right: 8px; bottom: 7px; font-size: .92rem; }
+  .card-vedette { flex-direction: column; }
+  .card-vedette .card-img { flex: none; min-height: 0; aspect-ratio: 4 / 5; }
+  .card-vedette .card-b { padding: 20px 18px 22px; }
+}
+
+/* Têtes de rubrique sur téléphone (pages de plus de 20 produits en sections) */
+.rubm-tuiles, .rubm-retour { display: none; }
+@media (max-width: 860px) {
+  [data-rubm]:not(.rubm-cherche) .rubm-tuiles { display: block; margin: 14px 0 8px; }
+  [data-rubm]:not(.rubm-cherche) [data-rubm-bloc] { display: none; }
+  [data-rubm].rubm-ouvert:not(.rubm-cherche) .rubm-tuiles { display: none; }
+  [data-rubm].rubm-ouvert:not(.rubm-cherche) [data-rubm-bloc].rubm-on { display: block; margin-top: 10px; }
+  [data-rubm].rubm-ouvert:not(.rubm-cherche) .shop-bar .rubm-retour { display: inline-flex; }
+  .rubm-q { font-family: var(--serif); font-size: 1.35rem; margin: 0 0 12px; color: inherit; }
+  .rubm-grille { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .rubm-grille.impair .rubm-t:first-child { grid-column: 1 / -1; aspect-ratio: 16 / 9; }
+  .rubm-t { position: relative; aspect-ratio: 1 / 1; border-radius: 16px; overflow: hidden; color: #fff; text-decoration: none; background: #2a332e; isolation: isolate; box-shadow: 0 6px 18px rgba(0, 0, 0, .14); -webkit-tap-highlight-color: transparent; }
+  .rubm-t img, .rubm-t .noimg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: -2; }
+  .rubm-t::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(8, 12, 10, 0) 38%, rgba(8, 12, 10, .85)); z-index: -1; }
+  .rubm-t:active { transform: scale(.98); }
+  .rubm-t span { position: absolute; left: 12px; right: 12px; bottom: 11px; }
+  .rubm-t b { display: block; font-family: var(--serif); font-weight: 500; font-size: 1.12rem; line-height: 1.12; }
+  .rubm-t small { display: block; margin-top: 3px; font-size: .74rem; color: #e9dcc3; }
+  .rubm-retour { align-items: center; gap: 6px; margin: 10px 0 0; padding: 9px 15px; border: 1.5px solid #c9a46a; border-radius: 999px; background: #1d3b2f; color: #f6f1e8; font: 500 .85rem/1.1 var(--sans); cursor: pointer; box-shadow: 0 6px 16px rgba(0, 0, 0, .18); }
+  .rubm-retour.bas { position: static; margin: 22px auto 0; display: none; }
+  [data-rubm]:not(.rubm-cherche) .rubm-on .rubm-retour.bas { display: flex; }
+}
+
+/* ---------- fiches liées (Open bar → Barman, Verres) ---------- */
+.liees { display: grid; gap: 10px; margin: 16px 0 18px; }
+.liee { display: grid; grid-template-columns: 92px 1fr; gap: 14px; align-items: center; padding: 10px; border: 1px solid var(--ligne); border-radius: var(--rayon); background: var(--carte); text-decoration: none; color: inherit; transition: box-shadow .2s, transform .2s; }
+.liee:hover { box-shadow: var(--ombre); transform: translateY(-2px); }
+.liee img, .liee .noimg { width: 92px; height: 72px; object-fit: cover; border-radius: calc(var(--rayon) - 4px); }
+.liee b { display: block; font-size: 1rem; }
+.liee small { display: block; font-size: .88rem; line-height: 1.4; opacity: .85; margin: 2px 0 4px; }
+.liee em { font-style: normal; font-size: .8rem; letter-spacing: .08em; text-transform: uppercase; color: var(--or); font-weight: 600; display: inline-flex; align-items: center; gap: .4em; }
+.liee em svg { width: 14px; height: 14px; }
+
+/* suppléments par part (coq roussi + 5 € TTC la part, Jean-Luc 2026-11-25) */
+.optq span small.optq-sup { display: inline-block; margin-top: 3px; padding: 1px 8px; border-radius: 999px; background: color-mix(in srgb, var(--or) 18%, transparent); color: var(--encre); font-weight: 600; font-size: .74rem; white-space: nowrap; }
+.conf-supp { margin-top: 18px; padding: 10px 14px; border-radius: 10px; background: color-mix(in srgb, var(--or) 12%, var(--carte)); border: 1px solid color-mix(in srgb, var(--or) 45%, transparent); }
+.conf-supp p { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin: 0; }
+.conf-supp p + p { margin-top: 6px; }
+.conf-supp span { font-weight: 600; color: var(--encre); }
+.conf-supp span small { display: block; font-weight: 400; font-size: .8rem; color: var(--gris); }
+.conf-supp b { white-space: nowrap; color: var(--encre); font-size: 1.05rem; }
+.sel-supp b { color: var(--encre); }
+
+/* autres propositions d'une fiche (ex. Bar à cocktail → Mobilier pour bar à cocktail, Jean-Luc 2026-11-25) */
+.conf-prop { border-color: color-mix(in srgb, var(--or) 55%, var(--ligne)); }
+.conf-prop summary { font-weight: 600; }
+.props-l { display: grid; gap: 8px; margin-top: 10px; }
+.prop-i { display: flex; align-items: center; gap: 10px; padding: 8px; border: 1px solid var(--ligne); border-radius: 10px; background: var(--fond, #fff); text-decoration: none; color: inherit; transition: border-color .2s, background .2s; }
+.prop-i.on { border-color: var(--or); background: color-mix(in srgb, var(--or) 10%, var(--carte)); }
+.prop-c { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; cursor: pointer; margin: 0; }
+.prop-c input { width: 20px; height: 20px; accent-color: var(--vert, #1d3b2f); flex: none; }
+.prop-i img, .prop-i .ph { width: 56px; height: 56px; object-fit: cover; border-radius: 8px; flex: none; background: var(--ligne); }
+.prop-t { min-width: 0; } .prop-t b { display: block; font-weight: 600; font-size: .95rem; line-height: 1.25; } .prop-t small { display: block; color: var(--gris); font-size: .82rem; margin-top: 2px; }
+.prop-i .qty.sm { flex: none; } .prop-i .qty.sm button { width: 30px; height: 30px; } .prop-i .qty.sm input { width: 44px; }
+.prop-i.lien { justify-content: flex-start; } .prop-i.lien .prop-t { flex: 1; } .prop-i.lien em { font-style: normal; font-size: .78rem; letter-spacing: .06em; text-transform: uppercase; color: var(--or); font-weight: 600; white-space: nowrap; }
+@media (max-width: 520px) { .prop-i { flex-wrap: wrap; } .prop-c { flex: 1 1 100%; } .prop-i img, .prop-i .ph { width: 48px; height: 48px; } .prop-i .qty.sm { margin-left: auto; } .prop-i.lien { flex-wrap: nowrap; } }

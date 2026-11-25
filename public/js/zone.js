@@ -19,7 +19,7 @@
   const m = $('[data-zl-m]'), mout = $('[data-zl-mout]');
   try {
     const sel = JSON.parse(localStorage.getItem('mg_sel') || '[]');
-    const sub = sel.reduce((t, l) => t + (l.prixCents == null ? 0 : (l.prixCents + (l.supCents || 0)) * (l.qte || 1)), 0);
+    const sub = sel.reduce((t, l) => t + (l.prixCents == null ? 0 : (l.prixCents + (l.supCents || 0)) * (l.qte || 1) + (l.supplements || []).reduce((s, x) => s + x.n * x.puCents, 0)), 0);
     if (sub > 0) m.value = Math.min(+m.max, Math.round(sub / 1000) * 1000);
   } catch (e) { /* pas de sélection */ }
   let choix = null; /* { nom, dep, lat, lon } */

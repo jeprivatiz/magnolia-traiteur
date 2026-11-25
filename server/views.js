@@ -129,6 +129,7 @@ ${schema ? `<script type="application/ld+json">${JSON.stringify(schema).replace(
   </div>
   <div class="foot-bas"><p>${esc(R.mentionPied || '')}</p><p><a href="/mentions-legales">Mentions légales</a> · <a href="/confidentialite">Confidentialité</a> · <a href="/cgv">CGV</a> · <a href="/allergenes">Allergènes</a><span data-cookies> · <a href="#cookies">Gérer mes cookies</a></span> · © ${new Date().getFullYear()} ${esc(R.nom)}</p></div>
 </footer>
+${path === '/' ? '' : `<button type="button" class="retour" data-retour aria-label="Revenir à la page précédente"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5m6-6-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Page précédente</span></button>`}
 ${/^\/(espace-client|ma-selection)/.test(path) ? '' : `<button type="button" class="partage" data-partage aria-label="Partager cette page">${icon.share}<span>Partager</span></button>`}
 <div class="toast" data-toast role="status" aria-live="polite"></div>
 <script>window.MG=${JSON.stringify({ tel: R.telephone, tarifs: R.tarifs, origine: R.origine, evenements: R.evenements }).replace(/</g, '\\u003c')};</script>
@@ -138,10 +139,16 @@ ${scripts}
 </html>`;
 }
 
-function card(p, c, { rubNom = true } = {}) {
+function card(p, c, { rubNom = true, vedette = false } = {}) {
   const r = c.rubriques.find(x => x.slug === p.rubrique);
   const { prix, unite } = prixCourt(p, euros);
   const ph = p.photos?.[0];
+  /* carte « en vedette » (notre champagne André Diligent sur La cave de Magnolia) : grande photo et texte complet */
+  if (vedette) return `<a class="card card-vedette" href="${prodHref(p)}" data-card data-rub="${esc([p.rubrique, ...(p.autresRubriques || [])].join(' '))}" data-prix="${p.prixCents ?? ''}" data-ordre="${p.ordre ?? 0}" data-titre="${esc(p.titre || '')}">
+    <div class="card-img">${img(ph?.src, ph?.alt || titreTexte(p.titre))}</div>
+    <div class="card-b"><p class="eyebrow">Notre champagne de récoltant</p><h3>${titreHtml(p.titre)}</h3>${(p.description || [p.extrait]).filter(Boolean).slice(0, 3).map(l => `<p>${esc(l)}</p>`).join('')}
+    <div class="card-f"><span class="prix">${esc(prix)} <small>${esc(unite)}</small></span><span class="btn btn-or">Découvrir et commander ${icon.arrow}</span></div></div>
+  </a>`;
   return `<a class="card" href="${prodHref(p)}" data-card data-rub="${esc([p.rubrique, ...(p.autresRubriques || [])].join(' '))}" data-prix="${p.prixCents ?? ''}" data-ordre="${p.ordre ?? 0}" data-titre="${esc(p.titre || '')}">
     <div class="card-img">${p.video?.src ? `<video class="card-v" muted loop playsinline preload="none" disablepictureinpicture aria-label="${esc(titreTexte(p.titre))}" poster="${esc(p.video.poster || ph?.src || '')}" data-vignette="${esc(p.video.src)}"></video>` : img(ph?.src, ph?.alt || titreTexte(p.titre))}${rubNom && r ? `<span class="tag">${esc(r.nom)}</span>` : ''}</div>
     <div class="card-b"><h3>${titreHtml(p.titre)}</h3><p>${esc(trunc(p.extrait, 110))}</p>
@@ -172,16 +179,17 @@ const MENU_TABLE = `<span class="cm-scene" aria-hidden="true"><span class="cm-om
    <nom>.mp4 (H.264, 4:5, sans son) et <nom>.jpg (image d'attente). Chargées et jouées seulement quand la vignette est à l'écran
    (public/js/site.js, « vignettes vidéo ») ; image fixe si l'utilisateur a demandé moins d'animations. Une vignette sans fichier garde sa photo. */
 const VIDEOS_ACCUEIL = {
-  'cocktails-buffets': 'cocktail', boissons: 'boissons', 'traiteur-vegetarien-vegan': 'vegetarien', 'animations-salees': 'burgers',
+  'cocktails-buffets': 'cocktail', boissons: 'boissons', 'traiteur-vegetarien-vegan': 'vegetarien', 'animations-salees': 'barbecue',
   personnel: 'personnel', indispensables: 'photobooth', 'petits-dejeuners': 'petit-dejeuner', douceurs: 'churros',
   'musique-animations': 'dj', lieux: 'peniche', 'grand-large': 'huitres', 'coffrets-plateaux': 'coffrets',
 };
 const _empreintes = new Map();
+/* ?v= change dès que le fichier change : sinon téléphones et navigateurs gardent l'ancienne vidéo 30 jours en cache */
+function versionne(f) { if (!_empreintes.has(f)) { try { _empreintes.set(f, `${f}?v=${require('crypto').createHash('md5').update(_fs.readFileSync(_path.join(__dirname, '..', 'public', f))).digest('hex').slice(0, 8)}`); } catch { _empreintes.set(f, f); } } return _empreintes.get(f); }
 function videoAccueil(slug) {
   const n = VIDEOS_ACCUEIL[slug], src = n && `/site/v/accueil/${n}.mp4`;
   if (!src || !logoExiste(src)) return '';
-  /* ?v= change dès que le fichier change : sinon téléphones et navigateurs gardent l'ancienne vidéo 30 jours en cache */
-  const v = f => { if (!_empreintes.has(f)) { try { _empreintes.set(f, `${f}?v=${require('crypto').createHash('md5').update(_fs.readFileSync(_path.join(__dirname, '..', 'public', f))).digest('hex').slice(0, 8)}`); } catch { _empreintes.set(f, f); } } return _empreintes.get(f); };
+  const v = versionne;
   return `<video class="tile-v" muted loop playsinline preload="none" disablepictureinpicture aria-hidden="true" poster="${v(`/site/v/accueil/${n}.jpg`)}" data-vignette="${v(src)}"></video>`;
 }
 function univers(c) {
@@ -228,7 +236,7 @@ function etapes(c) {
     <li><b>Précisez</b><span>Date, nombre d’invités, lieu de livraison : quelques champs, sans paiement.</span></li>
     <li><b>Validons ensemble</b><span>L’équipe vérifie les disponibilités et le montant, puis vous envoie votre devis à signer en ligne.</span></li></ol>
     <a class="btn btn-vert" href="/boutique">Composer mon événement</a></div>
-    <div class="etapes-img">${img(c.reglages.accueil?.photoCommande, 'Personnel de réception Magnolia au service d’un buffet')}</div></section>`;
+    <div class="etapes-img">${img(c.reglages.accueil?.photoCommande, 'Cliente qui compose sa commande traiteur en ligne depuis son bureau')}</div></section>`;
 }
 
 function home(c) {
@@ -309,9 +317,9 @@ function bandeauHtml(c, B, fil) {
   const tel = (R.telephone || '').replace(/\s/g, '');
   const G = R.avisGoogle || {};
   const media = B.video
-    ? `<video src="${esc(B.video)}" poster="${esc(B.photo || '')}" autoplay muted loop playsinline preload="metadata" aria-hidden="true" data-autoplay></video>`
-    : img(B.photo, '', '', 'fetchpriority="high"').replace(' loading="lazy"', '');
-  return `<section class="phero land${kb(c, B.video ? '' : B.photo, B.titre)}">${media}<div class="phero-c wrap">${crumbs(fil || [[B.titre]])}<h1>${esc(B.titre)}</h1>${B.chapo ? `<p class="lead">${esc(B.chapo)}</p>` : ''}
+    ? `<video src="${esc(B.video)}" poster="${esc(B.poster || B.photo || '')}"${B.position ? ` style="object-position:${esc(B.position)}"` : ''} autoplay muted loop playsinline preload="metadata" aria-hidden="true" data-autoplay></video>`
+    : img(B.photo, '', '', `fetchpriority="high"${B.position ? ` style="object-position:${esc(B.position)}"` : ''}`).replace(' loading="lazy"', '');
+  return `<section class="phero land${kb(c, B.video ? '' : B.photo, B.titre)}">${media}<div class="phero-c wrap">${crumbs(fil || [[B.titre]])}<h1>${esc(B.titre)}</h1>${B.signature ? `<p class="phero-sig">${esc(B.signature)}</p>` : ''}${B.chapo ? `<p class="lead">${esc(B.chapo)}</p>` : ''}
   <div class="row land-cta"><a class="btn btn-or" href="${esc(B.ancre || '/boutique')}">${esc(B.bouton || 'Découvrir')}</a><a class="btn btn-ghost-light" href="tel:${esc(tel)}">${icon.phone}<span>${esc(R.telephone || '')}</span></a></div>
   <p class="confiance"><span><span class="etoiles" aria-hidden="true">★★★★★</span> <b>${esc(G.note || '4,9')}/5</b> sur Google${G.nombre ? `, ${esc(G.nombre)} avis` : ''}</span><span>Livraison 7 j/7 sur Paris et toute l’Île-de-France</span></p></div></section>`;
 }
@@ -384,8 +392,8 @@ function pageGlobe(c, r) {
   const fr = c.rubriques.find(x => x.slug === 'cocktails-buffets' && x.statut !== 'masque');
   if (fr) items.push({ slug: 'france', nom: 'Cocktail et buffet français', pays: 'France', n: (c.byRub.get(fr.slug) || []).filter(p => p.statut !== 'masque').length, href: '/' + fr.slug,
     photo: fr.photoGlobe || fr.bandeauPhoto || fr.photo || '', vignette: fr.photo || '', phrase: fr.phraseGlobe || PHRASES_GLOBE.france, ids: [250], centre: CENTRES_GLOBE.france });
-  const body = `${bandeauHtml(c, { /* vidéo : une brochette de chefs de tous horizons qui sourient face caméra (Jean-Luc, 2026-11-24), à la place des îles et palmiers */
-    photo: '/site/v/monde/chefs.jpg', video: '/site/v/monde/chefs.mp4', titre: r.titrePage || r.nom, chapo: r.chapo || r.accroche || 'Choisissez votre spécialité : chaque cuisine a ses buffets, ses plats et ses douceurs.', bouton: 'Choisir ma spécialité', ancre: '#specialites' }, [['La boutique', '/boutique'], [r.nom]])}
+  const body = `${bandeauHtml(c, { /* vidéo : une brochette de chefs de tous horizons qui sourient face caméra (Jean-Luc, 2026-11-24), dont cuisiniers africain et indien (la photo antillaise « fait danseuse » : retirée) ; sources : data/credits-videos-monde.md */
+    photo: '/site/v/monde/chefs.jpg', video: '/site/v/monde/chefs.mp4', signature: r.signature ?? 'par la Maison Magnolia' /* Jean-Luc, 2026-11-24 */, titre: r.titrePage || r.nom, chapo: r.chapo || r.accroche || 'Choisissez votre spécialité : chaque cuisine a ses buffets, ses plats et ses douceurs.', bouton: 'Choisir ma spécialité', ancre: '#specialites' }, [['La boutique', '/boutique'], [r.nom]])}
 <section class="sm-globe" id="specialites" data-sm data-sm-paris="[2.35,48.86]">
   <div class="sm-map" data-sm-map aria-label="Globe des saveurs du monde : faites-le tourner, touchez un pays"></div>
   <svg class="sm-fleche" data-sm-fleche aria-hidden="true"><defs><marker id="sm-pointe" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="#e2c495"/></marker><linearGradient id="sm-grad" x1="0" x2="1"><stop offset="0" stop-color="#e2c495" stop-opacity=".25"/><stop offset="1" stop-color="#e2c495"/></linearGradient></defs><path data-sm-trait d="" fill="none" stroke="url(#sm-grad)" stroke-width="2.2" stroke-linecap="round" marker-end="url(#sm-pointe)"/></svg>
@@ -400,8 +408,8 @@ function pageGlobe(c, r) {
   <p class="sm-aide" aria-hidden="true">Faites tourner le globe et touchez un pays</p>
   <script type="application/json" data-sm-data>${JSON.stringify(items).replace(/</g, '\\u003c')}</script>
 </section>`;
-  return layout(c, { title: r.seoTitre || r.titrePage || r.nom, description: r.seoDescription || r.chapo || '', body, path: '/' + r.slug, /* vignette de partage : la photo d'arrivée avec « Dix traiteurs, une seule maison. » écrit dessus (Jean-Luc, 2026-11-23) */
-    image: '/site/partage/saveurs-du-monde.jpg', bodyClass: 'sm-page',
+  return layout(c, { title: r.seoTitre || r.titrePage || r.nom, description: r.seoDescription || r.chapo || '', body, path: '/' + r.slug, /* vignette de partage : 5 cuisiniers adultes côte à côte, européen, africain, métisse, asiatique, indien (photos Pexels, voir data/credits-videos-monde.md) avec « Dix traiteurs, une seule maison. » écrit dessus (Jean-Luc, 2026-11-25) */
+    image: '/site/partage/saveurs-du-monde-chefs.jpg', bodyClass: 'sm-page',
     /* aperçu au partage (SMS, WhatsApp…) sous le titre (Jean-Luc, 2026-11-23) */
     partage: r.partageTexte || 'Dix traiteurs, une seule maison.',
     head: '<link rel="stylesheet" href="/vendor/maplibre5/maplibre-gl.css">', scripts: `<script src="/vendor/maplibre5/maplibre-gl.js" defer></script><script src="/js/globe.js?v=${V}" defer></script>` });
@@ -418,7 +426,7 @@ function pageSpecialites(c, r) {
     if (carte) return `<a class="tile spe carte-v" href="/${esc(r.slug)}/${esc(x.slug)}">${carte}<span class="tile-t">${x.pays ? `<i class="pays">${esc(x.pays)}</i>` : ''}<b>${esc(x.nom)}</b><small>${n} prestation${n > 1 ? 's' : ''}</small><span class="voir">Voir nos propositions ${icon.arrow}</span></span></a>`;
     return `<a class="tile spe" href="/${esc(r.slug)}/${esc(x.slug)}">${img(x.photo, x.nom)}${x.video ? `<video src="${esc(x.video)}" muted loop playsinline preload="none" aria-hidden="true" data-survol></video>` : ''}<span class="tile-t">${x.pays ? `<i class="pays">${esc(x.pays)}</i>` : ''}<b>${esc(x.nom)}</b><small>${n} prestation${n > 1 ? 's' : ''}</small><span class="voir">Voir nos propositions ${icon.arrow}</span></span></a>`;
   };
-  const body = `${bandeauHtml(c, { photo: r.bandeauPhoto || r.photoAccueil || r.photo, video: r.bandeauVideo || '', titre: r.titrePage || r.nom, chapo: r.chapo || r.accroche || 'Choisissez votre spécialité : chaque cuisine a ses buffets, ses plats et ses douceurs.', bouton: 'Choisir ma spécialité', ancre: '#specialites' }, [['La boutique', '/boutique'], [r.nom]])}
+  const body = `${bandeauHtml(c, { photo: r.bandeauPhoto || r.photoAccueil || r.photo, video: r.bandeauVideo || '', poster: r.bandeauPoster || '', position: r.bandeauPosition || '', titre: r.titrePage || r.nom, chapo: r.chapo || r.accroche || 'Choisissez votre spécialité : chaque cuisine a ses buffets, ses plats et ses douceurs.', bouton: 'Choisir ma spécialité', ancre: '#specialites' }, [['La boutique', '/boutique'], [r.nom]])}
   <section class="wrap apres-bandeau" id="specialites">${introHtml(r.introTitre, r.introTexte)}<p class="eyebrow">Un voyage à votre table</p><h2>Choisissez votre spécialité</h2>
   <div class="tiles specialites">${S.map(tuile).join('')}${autres.length ? `<a class="tile spe autres" href="/${esc(r.slug)}/tout"><span class="tile-t"><b>Autres saveurs</b><small>${autres.length} prestation${autres.length > 1 ? 's' : ''}</small><span class="voir">Voir ${icon.arrow}</span></span></a>` : ''}</div>
   <p class="center tout-voir"><a class="lnk" href="/${esc(r.slug)}/tout">Voir les ${tous.length} prestations ${esc(r.nom.toLowerCase())} ensemble</a></p></section>`;
@@ -429,20 +437,35 @@ function specialite(c, r, x) {
   const liste = x ? prodsDeSous(c, r, x.slug) : (c.byRub.get(r.slug) || []);
   const chips = `<div class="chips scroll-x spe-chips">${S.map(y => `<a class="chip${x && y.slug === x.slug ? ' on' : ''}" href="/${esc(r.slug)}/${esc(y.slug)}">${esc(y.nom)}</a>`).join('')}${(() => { const m = r.slug === 'saveurs-du-monde' && c.rubriques.find(z => z.slug === 'grand-large' && z.statut !== 'masque'); return m ? `<a class="chip" href="/${esc(m.slug)}">${esc(m.nom)}</a>` : ''; })()}<a class="chip${!x ? ' on' : ''}" href="/${esc(r.slug)}/tout">Tout</a></div>`;
   const fil = [['La boutique', '/boutique'], [r.nom, '/' + r.slug], [x ? x.nom : 'Tout']];
-  const hero = x ? bandeauHtml(c, { photo: x.bandeauPhoto || x.photo, video: x.bandeauVideo ?? x.video ?? '', titre: speTitre(x), chapo: speChapo(x), bouton: x.bouton || 'Voir les propositions', ancre: '#prestations' }, fil) : '';
+  const hero = x ? bandeauHtml(c, { photo: x.bandeauPhoto || x.photo, video: x.bandeauVideo ?? x.video ?? '', poster: x.bandeauPoster || '', position: x.bandeauPosition || '', titre: speTitre(x), chapo: speChapo(x), bouton: x.bouton || 'Voir les propositions', ancre: '#prestations' }, fil) : '';
   if (x && x.parSections) return pageSections(c, r, x, chips, hero);
   return boutique(c, { intro: x ? { titre: x.introTitre, texte: x.introTexte } : { titre: r.introTitre, texte: r.introTexte }, rub: r.slug, titre: x ? speTitre(x) : r.nom, chapo: x ? speChapo(x) : r.chapo, photo: x ? (x.bandeauPhoto || x.photo) : (r.photoAccueil || r.photo), path: `/${r.slug}/${x ? x.slug : 'tout'}`, liste, fil, chips, hero, seo: x ? { title: x.seoTitre || speTitre(x), description: x.seoDescription || speChapo(x) } : null });
 }
+
+/* Têtes de rubrique sur téléphone (Jean-Luc, 2026-11-25) : une page de plus de 20 produits rangés en sections
+   commence, sur portable seulement, par une vignette photo par section ; un toucher n'affiche que cette section
+   (adresse #section, le bouton retour du téléphone ramène aux vignettes). Ordinateur : rien ne change. */
+const RUBM_SEUIL = 20;
+function photoSection(L) {
+  for (const p of L) { const s = p.photos?.find(x => x?.src)?.src || p.video?.poster; if (s) return s; }
+  return '';
+}
+function rubmActif(blocs) { return blocs.length > 1 && blocs.reduce((n, b) => n + b[2].length, 0) > RUBM_SEUIL; }
+function rubmTuiles(blocs) {
+  if (!rubmActif(blocs)) return '';
+  return `<nav class="rubm-tuiles" aria-label="Nos rubriques"><p class="rubm-q">Que souhaitez-vous découvrir ?</p><div class="rubm-grille${blocs.length % 2 ? ' impair' : ''}">${blocs.map(([k, t, L]) => `<a class="rubm-t" href="#${esc(k)}" data-rubm-go="${esc(k)}">${img(photoSection(L), t)}<span><b>${esc(String(t).replace(/\s+à l’unité$/, ''))}</b><small>${L.length} produit${L.length > 1 ? 's' : ''}${/à l’unité$/.test(t) ? ' à l’unité' : ''}</small></span></a>`).join('')}</div></nav>`;
+}
+const rubmRetour = (bas = false) => `<button type="button" class="rubm-retour${bas ? ' bas' : ''}" data-rubm-retour>${bas ? 'Voir les autres rubriques' : '← Toutes les rubriques'}</button>`;
 
 /* ---------- page de spécialité présentée en sections (modèle : Buffet chinois) ---------- */
 function pageSections(c, r, x, chips, hero) {
   const liste = prodsDeSous(c, r, x.slug).slice().sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
   const blocs = RANGEMENTS.map(([k, t]) => [k, (x.titresSections || {})[k] || t, liste.filter(p => rangementDe(p) === k)]).filter(b => b[2].length);
   const body = `${hero}
-<section class="wrap shop spe-sections" id="prestations">
-  <div class="shop-bar">${chips}</div>
+<section class="wrap shop spe-sections" id="prestations"${rubmActif(blocs) ? ' data-rubm' : ''}>
+  <div class="shop-bar">${chips}${rubmActif(blocs) ? rubmRetour() : ''}</div>
   ${x.introTexte ? `<div class="spe-intro">${x.introTitre ? `<h2>${esc(x.introTitre)}</h2>` : ''}${String(x.introTexte).split(/\n+/).map(l => l.trim()).filter(Boolean).map(l => `<p>${esc(l)}</p>`).join("")}</div>` : ''}
-  ${blocs.map(([k, t, L]) => `<div class="spe-bloc" id="${k}"><h2>${esc(t)}</h2><p class="count">${L.length} prestation${L.length > 1 ? 's' : ''} · tarifs TTC${k === 'buffets' && x.slug === 'buffet-libanais' ? ' · photos non contractuelles' : ''}</p><div class="cards grid">${L.map(p => card(p, c, { rubNom: false })).join('')}</div></div>`).join('')}
+  ${rubmTuiles(blocs)}${blocs.map(([k, t, L]) => `<div class="spe-bloc" id="${k}" data-rubm-bloc><h2>${esc(t)}</h2><p class="count">${L.length} prestation${L.length > 1 ? 's' : ''} · tarifs TTC</p><div class="cards grid${k === 'buffets' ? ' kb-anim' : ''}">${L.map(p => card(p, c, { rubNom: false })).join('')}</div>${rubmActif(blocs) ? rubmRetour(true) : ''}</div>`).join('')}
 </section>`;
   return layout(c, { title: x.seoTitre || speTitre(x), description: x.seoDescription || speChapo(x), body, path: `/${r.slug}/${x.slug}`, image: x.bandeauPhoto || x.photo });
 }
@@ -460,14 +483,25 @@ function sectionsRub(r, liste) {
   const R = [...ordre.map(k => RANGEMENTS.find(([x]) => x === k)), ...RANGEMENTS.filter(([x]) => !ordre.includes(x))];
   return R.map(([k, t]) => [k, (r.titresSections || {})[k] || t, L.filter(p => rangementDe(p) === k)]).filter(b => b[2].length);
 }
+/* La cave de Magnolia (Jean-Luc, 2026-11-25) : la page s'ouvre sur ses catégories, une photo chacune. On touche une catégorie :
+   seule celle-ci reste affichée (public/js/site.js, « catégories »), pour ne pas faire défiler toute la cave sur téléphone. */
+function tuilesSections(r, sections) {
+  const ph = r.photosSections || {};
+  return `<nav class="cats" id="categories" data-cats aria-label="Catégories">${sections.map(([k, t, L]) => {
+    const src = ph[k] || L[0]?.photos?.[0]?.src || '';
+    return `<a class="cat" href="#${esc(k)}" data-cat="${esc(k)}">${img(src, t)}<span class="cat-t">${esc(t)}<small>${L.length} produit${L.length > 1 ? 's' : ''}</small></span></a>`;
+  }).join('')}</nav>`;
+}
 function boutique(c, { q = '', rub = '', titre, chapo, photo, path = '/boutique', liste = null, fil = null, chips = '', hero = '', seo = null, intro = null, sections = null, avant = '', scripts = '' }) {
   const rubs = c.rubriques.filter(r => r.statut !== 'masque' && r.slug !== 'lieux');
   const prods = liste || (q ? c.search(c, q, 400) : c.produits.filter(p => p.statut !== 'masque'));
   const r = rubs.find(x => x.slug === rub);
+  /* têtes de rubrique sur téléphone, sauf si la rubrique a déjà ses propres vignettes (La cave de Magnolia) */
+  const rubm = !!sections && !r?.tuilesSections && rubmActif(sections);
   const body = `
-${hero || (path === '/boutique' && !q ? bandeau(c, 'boutique') : photo ? bandeauHtml(c, { photo: r?.bandeauPhoto || photo, video: r?.bandeauVideo || '', titre: r?.titrePage || titre, chapo, bouton: 'Voir les prestations', ancre: '#prestations' }, fil || (r ? [['La boutique', '/boutique'], [r.nom]] : [[titre]]))
+${hero || (path === '/boutique' && !q ? bandeau(c, 'boutique') : photo ? bandeauHtml(c, { photo: r?.bandeauPhoto || photo, video: r?.bandeauVideo || '', poster: r?.bandeauPoster || '', position: r?.bandeauPosition || '', titre: r?.titrePage || titre, chapo, bouton: 'Voir les prestations', ancre: '#prestations' }, fil || (r ? [['La boutique', '/boutique'], [r.nom]] : [[titre]]))
     : `<section class="wrap page-h">${crumbs([[titre]])}<h1>${esc(titre)}</h1><p class="lead">${esc(chapo || 'Toute la brochure, avec ses prix. Ajoutez vos choix à votre sélection, puis demandez votre devis.')}</p></section>`)}
-${avant}<section class="wrap shop" id="prestations" data-shop>
+${avant}<section class="wrap shop" id="prestations" data-shop${rubm ? ' data-rubm' : ''}>
   ${intro && !avant ? introHtml(intro.titre, intro.texte) : ''}${avant ? '<h2 class="p3-titre-liste">Tous nos produits en détail</h2>' : ''}
   ${path === '/boutique' && !q ? (B => B.introTitre || B.introTexte ? `<div class="shop-intro">${B.introTitre ? `<h2>${esc(B.introTitre)}</h2>` : ''}${B.introTexte ? `<p>${esc(B.introTexte)}</p>` : ''}</div>` : '')(bandeauDe(c, 'boutique')) : ''}
   <div class="shop-bar">
@@ -475,10 +509,10 @@ ${avant}<section class="wrap shop" id="prestations" data-shop>
     <div class="shop-tools">
       <form class="shop-q" action="/boutique" role="search">${icon.search}<input type="search" name="q" value="${esc(q)}" placeholder="Paëlla, DJ, huîtres…" aria-label="Rechercher dans la boutique" data-shop-q></form>
       <label class="tri"><span class="sr">Trier</span><select data-sort><option value="ordre">Classement</option><option value="az">Ordre alphabétique (A à Z)</option><option value="asc">Prix croissant</option><option value="desc">Prix décroissant</option></select></label>
-    </div>
+    </div>${rubm ? rubmRetour() : ''}
   </div>
   <p class="count"><span data-count>${prods.length}</span> prestations · tarifs TTC${q ? ` pour « ${esc(q)} »` : ''}</p>
-  ${sections ? sections.map(([k, t, L]) => `<div class="spe-bloc" id="${k}" data-bloc><h2>${esc(t)}</h2><div class="cards grid" data-grid>${L.map(p => card(p, c, { rubNom: false })).join('')}</div></div>`).join('')
+  ${sections && r?.tuilesSections ? tuilesSections(r, sections) : ''}${sections && rubm ? rubmTuiles(sections) : ''}${sections ? sections.map(([k, t, L]) => { const ved = (r?.sectionsVedette || []).includes(k); return `<div class="spe-bloc${ved ? ' bloc-vedette' : ''}" id="${k}" data-bloc${rubm ? ' data-rubm-bloc' : ''}><h2>${esc(t)}</h2>${r?.tuilesSections ? '<a class="cat-retour" href="#categories" data-cat="">← Toutes les catégories</a>' : ''}<div class="cards grid${ved ? ' cards-vedette' : ''}" data-grid>${L.map(p => card(p, c, { rubNom: false, vedette: ved })).join('')}</div>${rubm ? rubmRetour(true) : ''}</div>`; }).join('')
     : `<div class="cards grid" data-grid>${prods.map(p => card(p, c, { rubNom: !rub })).join('')}</div>`}
   ${!prods.length ? `<div class="empty"><p>Aucune prestation ne correspond à « ${esc(q)} ».</p><p>Appelez-nous au <a href="tel:${esc(c.reglages.telephone)}">${esc(c.reglages.telephone)}</a> : nous trouvons toujours une solution.</p></div>` : ''}
 </section>`;
@@ -529,12 +563,33 @@ function allergenesHtml(p) {
     ? `<p class="pastilles">${l.map(a => `<span>${esc(a)}</span>`).join('')}</p>`
     : '<p class="small">Liste détaillée sur simple demande.</p>'}<p class="small">Préparé dans un laboratoire qui travaille aussi les 14 allergènes réglementaires : des traces sont possibles. <a href="/allergenes">En savoir plus</a></p><p class="allerg-contact">Merci de nous contacter pour parler des produits qui vous sont contre-indiqués avant validation de votre devis.</p></section>`;
 }
+/* Fiches liées (Jean-Luc, 2026-11-25, modèle : Open bar vins et champagnes) : au lieu d'afficher le prix des barmans ou des verres,
+   une vignette mène à la fiche correspondante, où le client choisit lui-même (nombre de barmans et d'heures, verres) et l'ajoute à sa demande.
+   Champ produit `liees` : [{ slug, titre?, texte }]. */
+function fichesLiees(c, p) {
+  const L = (p.liees || []).map(l => ({ l, x: c.produits.find(y => y.slug === l.slug && y.statut !== 'masque') })).filter(o => o.x);
+  if (!L.length) return '';
+  return `<div class="liees">${L.map(({ l, x }) => { const ph = x.photos?.find(y => y?.src) || (x.video?.poster ? { src: x.video.poster } : null); return `<a class="liee" href="${prodHref(x)}">${img(ph?.src, ph?.alt || titreTexte(x.titre))}<span><b>${esc(l.titre || titreTexte(x.titre))}</b><small>${esc(l.texte || '')}</small><em>Choisir ${icon.arrow}</em></span></a>`; }).join('')}</div>`;
+}
+/* Autres propositions (Jean-Luc, 2026-11-25) : encadrés choisis dans le back-office pour CE produit (ex. Bar à cocktail →
+   « Mobilier pour bar à cocktail »). Le client coche les produits proposés et ils s'ajoutent à sa sélection, chacun sur sa ligne.
+   Un produit proposé qui a des choix obligatoires (formules, options) renvoie vers sa fiche. Les produits masqués ne sont pas montrés. */
+function propositionsDe(c, p) {
+  return (p.propositions || []).map(b => ({
+    titre: String(b.titre || '').trim() || 'Nous vous proposons aussi',
+    items: (b.slugs || []).map(sl => c.produits.find(y => y.slug === sl && y.statut !== 'masque' && y.slug !== p.slug)).filter(Boolean).map(x => {
+      const rr = c.rubriques.find(y => y.slug === x.rubrique) || { nom: '' };
+      return { slug: x.slug, titre: x.titre, nom: titreTexte(x.titre), photo: x.photos?.[0]?.src || x.video?.poster || '', prixCents: x.prixCents ?? null, prixAffiche: x.prixAffiche || null, unite: x.unite || '', min: x.min || 1, contenuPortion: x.contenuPortion || '', rubrique: rr.nom, href: prodHref(x),
+        choix: (x.variantes || []).length > 0 || (x.groupes || []).some(g => !g.facultatif && (g.options || []).length) };
+    }),
+  })).filter(b => b.items.length);
+}
 function produit(c, p) {
   const r = c.rubriques.find(x => x.slug === p.rubrique) || { nom: '', slug: p.rubrique };
   const R = c.reglages, T = R.tarifs || {};
   const photos = p.photos || [];
   const proches = (c.byRub.get(p.rubrique) || []).filter(x => x.slug !== p.slug).slice(0, 8);
-  const prixTxt = p.prixCents == null ? 'Sur devis' : euros(p.prixCents);
+  const prixTxt = p.prixCents == null ? (p.prixAffiche || 'Sur devis') : euros(p.prixCents);
   /* prix selon la contenance (corbeilles) : fourchette « 78,00 € – 156,00 € » */
   const gR = (p.groupes || []).find(g => g.radio && (g.options || []).length > 1);
   const prixMax = gR && p.prixCents != null ? p.prixCents + Math.max(...gR.options.map(o => o.supCents || 0)) : null;
@@ -548,7 +603,7 @@ function produit(c, p) {
     ${photos.length + (p.video ? 1 : 0) > 1 ? `<div class="gal-th">${p.video ? `<button type="button" data-gal-go="0" class="on vid">${icon.play}</button>` : ''}${photos.map((ph, i) => `<button type="button" data-gal-go="${i + (p.video ? 1 : 0)}"${!i && !p.video ? ' class="on"' : ''}><img src="${esc(ph.src)}" alt="" loading="lazy"></button>`).join('')}</div>` : ''}
   </div>`;
   const sections = (p.sections || []).map(s => `<section class="compo"><h2>${esc(s.titre || '')}</h2>${s.note ? `<p class="note">${esc(s.note)}</p>` : ''}${(s.items || []).length ? `<ul class="items">${s.items.map(it => `<li>${esc(avecPortion(it))}</li>`).join('')}</ul>` : ''}${(s.paragraphes || []).map(t => `<p>${esc(t)}</p>`).join('')}${s.apres ? `<p class="note">${esc(s.apres)}</p>` : ''}</section>`).join('');
-  const conf = { slug: p.slug, titre: p.titre, prixCents: p.prixCents, unite: p.unite, min: p.min || 1, groupes: p.groupes || [], variantes: p.variantes || [], regles: p.regles || {}, photo: photos[0]?.src || p.video?.poster || '', rubrique: r.nom };
+  const conf = { slug: p.slug, titre: p.titre, prixCents: p.prixCents, unite: p.unite, min: p.min || 1, groupes: (p.groupes || []).map(g => ({ ...g, options: (g.options || []).map(({ coutCents, ...o }) => o) })) /* prix d'achat des options : jamais envoyé au navigateur du client */, variantes: p.variantes || [], regles: p.regles || {}, photo: photos[0]?.src || p.video?.poster || '', rubrique: r.nom, prixAffiche: p.prixAffiche || null, propositions: propositionsDe(c, p) };
   const body = `
 <section class="wrap fiche">
   ${crumbs([['La boutique', '/boutique'], [r.nom, '/' + r.slug], ...(() => { const x = sousVisibles(c.rubriques.find(y => y.slug === p.rubrique)).find(y => y.slug === p.sous); return x ? [[x.nom, `/${p.rubrique}/${x.slug}`]] : []; })(), [titreTexte(p.titre)]])}
@@ -559,6 +614,7 @@ function produit(c, p) {
       <h1>${titreHtml(p.titre)}</h1>
       <p class="fiche-prix"><b>${esc(prixHaut)}</b>${p.prixCents != null ? ` <span>TTC${p.unite ? ' par ' + esc(p.unite) : ''}${p.contenuPortion ? ` <strong class="portion">(${esc(p.contenuPortion)})</strong>` : ''}</span>` : ''}${p.min > 1 ? `<span class="min">· dès ${p.min} ${esc(p.unite || '')}${p.min > 1 && p.unite && !/s$/.test(p.unite) ? 's' : ''}</span>` : ''}</p>
       ${(p.description || [p.extrait]).filter(Boolean).map(t => `<p class="desc">${esc(t)}</p>`).join('')}
+      ${fichesLiees(c, p)}
       <form class="conf" data-conf='${esc(JSON.stringify(conf))}' novalidate>
         <div data-conf-body></div>
         <div class="conf-tot"><span>Total estimé</span><b data-conf-total>${esc(prixTxt)}</b></div>
