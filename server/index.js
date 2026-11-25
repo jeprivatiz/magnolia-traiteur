@@ -1489,9 +1489,11 @@ async function createApp(opts = {}) {
      suivi par un autre commercial est masqué pour qui ne voit que ses opportunités, ses lignes restent réutilisables. */
   async function tousLesDevis(req) {
     const vis = await visibles(req);
+    cAnc = await cat.get();
     return { vis, liste: (await store.list('devis')).map(x => ({ ...x.data, id: x.data?.id || x.id })).filter(d => d && d.numero) };
   }
-  const carteDe = (vis, d, extra = {}) => ({ ...ANC.carte(d, { masquer: !!vis && !vis.devis.has(d.id) }), ...extra });
+  let cAnc = null;
+  const carteDe = (vis, d, extra = {}) => ({ ...ANC.carte(d, { masquer: !!vis && !vis.devis.has(d.id), c: cAnc }), ...extra });
   /* référence d'un devis en cours : type, invités, produits (ceux du devis, sinon ceux de sa demande) et texte de la demande */
   async function refDevis(d) {
     const dem = d.demandeId ? await store.get('demandes/' + d.demandeId) : null;
@@ -1501,8 +1503,8 @@ async function createApp(opts = {}) {
   }
   A.get('/anciens-devis', wrap(async (req, res) => {
     const { vis, liste } = await tousLesDevis(req), q = req.query || {};
-    const f = { q: s(q.q, 200), type: s(q.type, 80), invites: +q.invites || 0, budgetMin: +q.bmin || 0, budgetMax: +q.bmax || 0, du: s(q.du, 10), au: s(q.au, 10), com: s(q.com, 80), signes: q.signes === '1', modeles: q.modeles === '1', sauf: s(q.pour, 40) };
-    const R = ANC.rechercher(liste, f);
+    const f = { q: s(q.q, 200), type: s(q.type, 80), invites: +q.invites || 0, budgetMin: +q.bmin || 0, budgetMax: +q.bmax || 0, du: s(q.du, 10), au: s(q.au, 10), com: s(q.com, 80), signes: q.signes === '1', modeles: q.modeles === '1', sauf: s(q.pour, 40), tri: s(q.tri, 20) };
+    const R = ANC.rechercher(liste, f, cAnc);
     let proches = [];
     const cur = f.sauf ? liste.find(d => d.id === f.sauf) : null;
     if (cur) proches = ANC.proches(liste, { ...(await refDevis(cur)), invites: +q.refInvites || cur.evenement?.invites, type: s(q.refType, 80) || cur.evenement?.type }).map(x => carteDe(vis, x.d, { pourquoi: x.pourquoi }));

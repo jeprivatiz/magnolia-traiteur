@@ -981,10 +981,13 @@
   /* ---------- « 📂 Partir d'un ancien devis » (Jean-Luc, 2026-11-25, comme dans Teamleader) ----------
      Recherche dans TOUS les anciens devis, ⭐ modèles en tête, aperçu rapide, puis « Utiliser ce devis » :
      lignes reprises aux prix actuels du catalogue, quantités pour le nombre d'invités, sans les remises (server/anciens.js). */
+  /* marge HT de l'ancien devis (🔒 interne) : pour savoir quel devis gagné était le plus intéressant */
+  const ancMarge = x => x.marge ? `<p class="anc-mg ${x.marge.cents < 0 ? 'neg' : x.marge.pct >= 30 ? 'top' : ''}" title="Marge hors taxes, visible seulement par l’équipe">💰 Marge <b>${euros(x.marge.cents)} HT</b>${x.marge.pct != null ? ` · <b>${String(x.marge.pct).replace('.', ',')} %</b>` : ''}${x.marge.manquants ? `<small>⚠ ${x.marge.manquants} ligne${x.marge.manquants > 1 ? 's' : ''} sans prix d’achat, non comptée${x.marge.manquants > 1 ? 's' : ''}</small>` : ''}</p>` : '<p class="anc-mg nc">💰 Marge inconnue <small>(pas de prix d’achat sur ces lignes)</small></p>';
   const ancCarte = (x, { use = true } = {}) => `<article class="anc-c${x.modele ? ' star' : ''}" data-ancid="${esc(x.id)}">
       <div class="anc-h"><b>${esc(x.numero)}</b><button type="button" class="anc-star${x.modele ? ' on' : ''}" data-ancstar="${esc(x.id)}" title="${x.modele ? 'Retirer des modèles' : 'Marquer comme modèle : il apparaîtra en tête de liste'}" aria-label="Modèle">${x.modele ? '⭐' : '☆'}</button><span class="pill d-${x.statut}">${DSTAT[x.statut] || x.statut}</span></div>
       <p class="anc-cl">${esc(x.clientNom || '—')}${x.titre ? ` · <i>${esc(x.titre)}</i>` : ''}</p>
       <p class="anc-m">${x.type ? `<span>🎉 ${esc(x.type)}</span>` : ''}${x.date ? `<span>📅 ${dateFr(x.date)}</span>` : ''}${x.invites ? `<span>👥 ${x.invites}</span>` : ''}<b>${euros(x.ttcCents)}</b></p>
+      ${ancMarge(x)}
       <ul class="anc-p">${x.produits.map(p => `<li>${esc(p)}</li>`).join('')}${x.nbLignes > x.produits.length ? `<li class="muted">+ ${x.nbLignes - x.produits.length} autre${x.nbLignes - x.produits.length > 1 ? 's' : ''}</li>` : ''}</ul>
       ${x.pourquoi?.length ? `<p class="anc-why">💡 ${esc(x.pourquoi.join(' · '))}</p>` : ''}
       <p class="anc-by muted sm">${x.commercial ? esc(x.commercial) + ' · ' : ''}créé le ${dateFr(String(x.createdAt).slice(0, 10))}</p>
@@ -1010,11 +1013,12 @@
   async function anciensDevis(opts = {}) {
     document.querySelector('.anc-modal')?.remove();
     const m = document.createElement('div'); m.className = 'modal anc-modal'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-modal', 'true');
-    const F = { q: '', type: '', invites: '', bmin: '', bmax: '', du: '', au: '', com: '', signes: false, modeles: false };
+    const F = { q: '', type: '', invites: '', bmin: '', bmax: '', du: '', au: '', com: '', signes: false, modeles: false, tri: '' };
     let data = null, vue = 'liste', courant = null;
     const tous = () => [...(data?.proches || []), ...(data?.resultats || [])];
-    const filtre = () => Object.entries(F).some(([k, v]) => v && v !== false);
+    const filtre = () => Object.entries(F).some(([k, v]) => k !== 'tri' && v && v !== false);
     const qs = () => { const p = new URLSearchParams(); if (opts.pour) p.set('pour', opts.pour); if (opts.invites) p.set('refInvites', opts.invites); if (opts.type) p.set('refType', opts.type); for (const [k, v] of Object.entries(F)) if (v) p.set(k, v === true ? '1' : v); return p.toString(); };
+    const avecTri = () => !!F.tri;
     const charger = async () => { try { data = await api(A + '/anciens-devis?' + qs()); } catch (e) { toast(e.message, true); data = { resultats: [], proches: [], total: 0, commerciaux: [], types: [] }; } dessinRes(); };
     const tete = `<div class="aq-h"><div><p class="aq-eye">📂 Partir d’un ancien devis</p><h2>Retrouvez un devis qui ressemble à la demande</h2><p class="muted">Tous les devis de l’équipe, toutes dates, signés ou non. ⭐ = modèles de l’équipe, toujours en tête. « Utiliser ce devis » reprend les lignes aux <b>prix actuels</b>, pour le nombre d’invités du nouveau client, sans les remises.</p></div><button type="button" class="x" data-ancx aria-label="Fermer">×</button></div>`;
     const dessin = () => {
@@ -1028,7 +1032,7 @@
           <label class="anc-plus">Période du<input type="date" name="du" value="${esc(F.du)}"></label>
           <label class="anc-plus">au<input type="date" name="au" value="${esc(F.au)}"></label>
           <label class="anc-plus">Commercial<select name="com"><option value="">Tous</option></select></label>
-          <div class="anc-ck"><label class="chk"><input type="checkbox" name="signes"${F.signes ? ' checked' : ''}> Signés seulement</label><label class="chk"><input type="checkbox" name="modeles"${F.modeles ? ' checked' : ''}> ⭐ Modèles seulement</label><button type="button" class="lnk sm anc-plusb" data-ancplus>⚙ Plus de filtres (budget, période, commercial)</button><button type="button" class="lnk sm" data-ancraz>Effacer les filtres</button></div>
+          <div class="anc-ck"><label class="anc-tri">Trier par<select name="tri">${[['', 'Pertinence (⭐ modèles, signés, récents)'], ['marge', '💰 Meilleure marge en €'], ['margePct', '💰 Meilleure marge en %'], ['montant', 'Montant TTC le plus élevé'], ['recent', 'Plus récents']].map(([v, l]) => `<option value="${v}"${F.tri === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label><label class="chk"><input type="checkbox" name="signes"${F.signes ? ' checked' : ''}> Signés seulement</label><label class="chk"><input type="checkbox" name="modeles"${F.modeles ? ' checked' : ''}> ⭐ Modèles seulement</label><button type="button" class="lnk sm anc-plusb" data-ancplus>⚙ Plus de filtres (budget, période, commercial)</button><button type="button" class="lnk sm" data-ancraz>Effacer les filtres</button></div>
         </form>
         <div class="anc-res" id="ancRes"><p class="muted">Recherche…</p></div></div>`;
       const f = m.querySelector('.anc-f');
@@ -1039,15 +1043,15 @@
       const f = m.querySelector('.anc-f');
       const sel = (n, L) => { const s2 = f.elements[n], cur = F[n]; s2.innerHTML = '<option value="">Tous</option>' + L.map(x => `<option${x === cur ? ' selected' : ''}>${esc(x)}</option>`).join(''); };
       sel('type', data.types || []); sel('com', data.commerciaux || []);
-      const pr = !filtre() && (data.proches || []).length;
+      const pr = !filtre() && !avecTri() && (data.proches || []).length;
       res.innerHTML = `${pr ? `<h3 class="anc-t">💡 Devis proches de cette demande <small class="muted">(type d’événement, invités, produits ; signés en premier)</small></h3><div class="anc-g">${data.proches.map(x => ancCarte(x)).join('')}</div>` : ''}
-        <h3 class="anc-t">${filtre() ? `${data.total} devis trouvé${data.total > 1 ? 's' : ''}` : 'Tous les anciens devis'}${data.total > 60 ? ' <small class="muted">(60 premiers : affinez la recherche)</small>' : ''}</h3>
+        <h3 class="anc-t">${filtre() ? `${data.total} devis trouvé${data.total > 1 ? 's' : ''}` : 'Tous les anciens devis'}${F.tri === 'marge' || F.tri === 'margePct' ? ' <small class="muted">· les plus rentables d’abord</small>' : ''}${data.total > 60 ? ' <small class="muted">(60 premiers : affinez la recherche)</small>' : ''}</h3>
         ${data.resultats.length ? `<div class="anc-g">${data.resultats.map(x => ancCarte(x)).join('')}</div>` : '<p class="muted">Aucun ancien devis ne correspond : élargissez la recherche (moins de filtres, autre mot-clé).</p>'}`;
     };
     const apercu = x => {
       vue = 'apercu'; courant = x;
       m.querySelector('.modal-in').innerHTML = `<div class="aq-h"><div><p class="aq-eye">📂 Aperçu de l’ancien devis</p><h2>${esc(x.numero)} <span class="pill d-${x.statut}">${DSTAT[x.statut] || ''}</span>${x.modele ? ' ⭐' : ''}</h2><p class="muted">${esc([x.clientNom, x.type, x.date ? dateFr(x.date) : '', x.invites ? x.invites + ' invités' : '', x.lieu].filter(Boolean).join(' · '))}</p></div><button type="button" class="x" data-ancx aria-label="Fermer">×</button></div>
-        <div class="anc-ap"><table class="anc-tl"><thead><tr><th>Désignation</th><th class="n">Qté</th><th class="n">PU TTC</th></tr></thead><tbody>${x.lignes.map(l => l.titre ? `<tr class="t"><td colspan="3">${esc(l.designation)}</td></tr>` : `<tr><td>${titreHtml(l.designation)}</td><td class="n">${esc(l.qte)} ${esc(l.unite)}</td><td class="n">${euros(l.puCents)}</td></tr>`).join('')}</tbody></table><p class="anc-tot">Total TTC de l’époque <b>${euros(x.ttcCents)}</b></p>${x.masque ? '' : `<p class="sm"><a href="#/devis/${esc(x.id)}" target="_blank">Ouvrir ce devis dans un nouvel onglet ↗</a></p>`}</div>
+        ${ancMarge(x)}<div class="anc-ap"><table class="anc-tl"><thead><tr><th>Désignation</th><th class="n">Qté</th><th class="n">PU TTC</th></tr></thead><tbody>${x.lignes.map(l => l.titre ? `<tr class="t"><td colspan="3">${esc(l.designation)}</td></tr>` : `<tr><td>${titreHtml(l.designation)}</td><td class="n">${esc(l.qte)} ${esc(l.unite)}</td><td class="n">${euros(l.puCents)}</td></tr>`).join('')}</tbody></table><p class="anc-tot">Total TTC de l’époque <b>${euros(x.ttcCents)}</b></p>${x.masque ? '' : `<p class="sm"><a href="#/devis/${esc(x.id)}" target="_blank">Ouvrir ce devis dans un nouvel onglet ↗</a></p>`}</div>
         <div class="aq-f"><button type="button" class="btn ghost" data-ancback>← Retour aux résultats</button><span class="aq-sp"></span><button type="button" class="btn ghost" data-ancstar="${esc(x.id)}">${x.modele ? '⭐ Modèle' : '☆ Marquer comme modèle'}</button><button type="button" class="btn" data-ancuse="${esc(x.id)}">Utiliser ce devis</button></div>`;
     };
     const utiliser = async id => {

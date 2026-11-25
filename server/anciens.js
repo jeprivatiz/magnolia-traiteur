@@ -5,7 +5,7 @@
    d'invités, sans les remises. Aussi : ⭐ Modèle (meilleurs devis en tête), « Devis proches » automatiques et
    compléments « souvent pris avec », calculés sur les anciens devis signés. Fonctions pures (testables). */
 const { norm, titreTexte } = require('./util');
-const { totaux } = require('./devis');
+const { totaux, marge } = require('./devis');
 
 const net = s => norm(String(s || '').replace(/\*\*/g, '')).replace(/[’']/g, ' ');
 const mots = s => net(s).split(/[^a-z0-9]+/).filter(w => w.length > 2).map(w => w.replace(/s$/, ''));
@@ -24,18 +24,30 @@ function cle(l) {
 }
 const cles = d => new Set(vraies(d.lignes).map(cle).filter(Boolean));
 
+/* marge HT d'un ancien devis (interne) : prix d'achat de la ligne, sinon celui de la fiche du catalogue
+   si la ligne est encore au prix de la fiche (même règle que l'écran Devis). Lignes sans prix d'achat : hors calcul. */
+function margeDe(d, c) {
+  const lignes = (d.lignes || []).filter(l => l.type === 'titre' || String(l.designation || '').replace(/\*\*/g, '').trim() || l.puCents).map(l => {
+    if (l.type === 'titre' || l.coutCents != null || !l.produit || !c) return l;
+    const p = c.bySlug?.get(l.produit), pu = l.puBaseCents ?? l.puCents;
+    return p && p.coutCents != null && (p.prixCents == null || pu === p.prixCents) ? { ...l, coutCents: p.coutCents } : l;
+  });
+  const m = marge({ ...d, lignes });
+  return m.connu ? { cents: m.margeHtCents, pct: m.pct, manquants: m.manquants.length } : null;
+}
+
 /* carte d'un ancien devis (liste, aperçu rapide) */
-function carte(d, { masquer = false } = {}) {
+function carte(d, { masquer = false, c = null } = {}) {
   const L = vraies(d.lignes), t = totaux(d);
-  const cles4 = L.filter(l => !estLivraison(l) && !l.supplement)
-    .map(l => ({ n: titreTexte(String(l.designation || '').replace(/\*\*/g, '')), v: Math.round((l.puBaseCents ?? l.puCents ?? 0) * (+l.qte || 0)) }))
+  const cles4 = L.filter(l => !estLivraison(l) && !l.supplement && String(l.designation || '').replace(/\*\*/g, '').trim())
+    .map(l => ({ n: titreTexte(String(l.designation || '').replace(/\*\*/g, '').trim()), v: Math.round((l.puBaseCents ?? l.puCents ?? 0) * (+l.qte || 0)) }))
     .sort((a, b) => b.v - a.v).slice(0, 4).map(x => x.n);
   return {
     id: d.id, numero: d.numero, titre: d.titre || '', statut: d.statut, modele: !!d.modele,
     clientNom: masquer ? 'Client d’un autre commercial' : (d.clientNom || ''), masque: !!masquer,
     commercial: d.commercial?.nom || d.creePar || '', createdAt: d.createdAt || '', signeLe: d.signature?.at || '',
     type: d.evenement?.type || '', date: d.evenement?.date || '', invites: +d.evenement?.invites || null, lieu: masquer ? '' : (d.evenement?.lieu || ''),
-    ttcCents: t.ttcCents, nbLignes: L.length, produits: cles4,
+    ttcCents: t.ttcCents, marge: margeDe(d, c), nbLignes: L.filter(l => String(l.designation || '').replace(/\*\*/g, '').trim()).length, produits: cles4,
     lignes: (d.lignes || []).slice(0, 60).map(l => l.type === 'titre' ? { titre: true, designation: l.designation } : { designation: l.designation, qte: l.qte, unite: l.unite || '', puCents: l.puBaseCents ?? l.puCents ?? 0 }),
   };
 }
@@ -44,10 +56,19 @@ function carte(d, { masquer = false } = {}) {
 const ordre = (a, b) => (b.modele ? 1 : 0) - (a.modele ? 1 : 0) || (signe(b) ? 1 : 0) - (signe(a) ? 1 : 0) || String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
 
 /* recherche multicritère dans TOUS les anciens devis */
-function rechercher(liste, f = {}) {
+/* tris proposés : pertinence (⭐ modèles, signés, récents), marge en €, marge en %, montant, plus récents */
+function trier(liste, tri, c) {
+  if (!tri || tri === 'pertinence') return liste.sort(ordre);
+  if (tri === 'recent') return liste.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+  if (tri === 'montant') return liste.sort((a, b) => totaux(b).ttcCents - totaux(a).ttcCents);
+  const k = tri === 'margePct' ? 'pct' : 'cents', v = new Map(liste.map(d => [d, margeDe(d, c)?.[k] ?? null]));
+  return liste.sort((a, b) => (v.get(b) ?? -Infinity) - (v.get(a) ?? -Infinity) || ordre(a, b));
+}
+
+function rechercher(liste, f = {}, c = null) {
   const q = mots(f.q).filter(w => !STOP.has(w)), type = net(f.type).trim(), inv = +f.invites || 0, com = net(f.com).trim();
   const bmin = f.budgetMin ? Math.round(+f.budgetMin * 100) : 0, bmax = f.budgetMax ? Math.round(+f.budgetMax * 100) : 0;
-  return liste.filter(d => {
+  return trier(liste.filter(d => {
     if (!vraies(d.lignes).length || d.id === f.sauf) return false;
     if (f.signes && !signe(d)) return false;
     if (f.modeles && !d.modele) return false;
@@ -63,7 +84,7 @@ function rechercher(liste, f = {}) {
       if (!q.every(w => txt.includes(w))) return false;
     }
     return true;
-  }).sort(ordre);
+  }), f.tri, c);
 }
 
 /* « Devis proches » : ressemblance avec la demande (type d'événement, invités, produits, mots de la demande) */
@@ -189,4 +210,4 @@ function complements(liste, lignesActuelles, c, n = 6) {
   return out;
 }
 
-module.exports = { cle, carte, rechercher, proches, reprendre, complements, nouvelleQte };
+module.exports = { cle, carte, margeDe, trier, rechercher, proches, reprendre, complements, nouvelleQte };
