@@ -577,9 +577,17 @@ async function openBarPersonnel(store) {
   await store.set('_migr/openBarPersonnel1', { at: new Date().toISOString() });
 }
 
+/* Rosé Saint-Tropez : photo de la bouteille fournie par Jean-Luc (2026-11-25) */
+async function saintTropezPhoto(store) {
+  if (await store.get('_migr/caveSaintTropezPhoto1')) return;
+  const x = await store.get('produits/rose-saint-tropez-cotes-de-provence');
+  if (x) await store.set('produits/rose-saint-tropez-cotes-de-provence', { ...x, photos: [{ src: '/site/c/cave/rose-saint-tropez.webp', alt: 'Bouteille de rosé Saint-Tropez' }] });
+  await store.set('_migr/caveSaintTropezPhoto1', { at: new Date().toISOString() });
+}
+
 async function initCave(store) {
   await prixCave(store);
-  if (await store.get('_migr/caveCercle')) { await openBarCave(store); await sodasCave(store); await vinsCave(store); await eauxCave(store); await cocaPhotos(store); await cristalineGaz(store); await cristalinePlate(store); await caveBandeauBadoit(store); await barmanSousPhoto(store); await barmanPrix(store); await alcoolsBlanc(store); await vinsRouges2(store); await barCocktailsMin(store); await barCocktailsVideo(store); await barCocktailsTexte(store); await barCocktailsRetablir(store); await valettePrix(store); await minutyCave(store); await rosesCave2(store); const k = await ajoutsCave(store); await metroCave(store); await barmanHeuresSup(store); await rosesPhotos(store); await barmanVideo(store); await openBarVideo(store); await openBarPersonnel(store); return k; }
+  if (await store.get('_migr/caveCercle')) { await openBarCave(store); await sodasCave(store); await vinsCave(store); await eauxCave(store); await cocaPhotos(store); await cristalineGaz(store); await cristalinePlate(store); await caveBandeauBadoit(store); await barmanSousPhoto(store); await barmanPrix(store); await alcoolsBlanc(store); await vinsRouges2(store); await barCocktailsMin(store); await barCocktailsVideo(store); await barCocktailsTexte(store); await barCocktailsRetablir(store); await valettePrix(store); await minutyCave(store); await rosesCave2(store); const k = await ajoutsCave(store); await metroCave(store); await barmanHeuresSup(store); await rosesPhotos(store); await barmanVideo(store); await openBarVideo(store); await openBarPersonnel(store); await saintTropezPhoto(store); return k; }
   const now = new Date().toISOString();
   let n = 0;
   for (const d of await store.list('produits')) {
@@ -635,7 +643,7 @@ async function initCave(store) {
   await valettePrix(store);
   await minutyCave(store);
   await rosesCave2(store);
-  const k = await ajoutsCave(store); await metroCave(store); await barmanHeuresSup(store); await rosesPhotos(store); await barmanVideo(store); await openBarVideo(store); await openBarPersonnel(store); return n + k;
+  const k = await ajoutsCave(store); await metroCave(store); await barmanHeuresSup(store); await rosesPhotos(store); await barmanVideo(store); await openBarVideo(store); await openBarPersonnel(store); await saintTropezPhoto(store); return n + k;
 }
 
 module.exports = { texteBarCocktails, BARMAN, OPEN_BAR_VC, CAVE_SECTIONS, CAVE_PRODUITS, AJOUTS_CAVE, CAVE_GARDEES, INTRO_CAVE, ttc, initCave };
