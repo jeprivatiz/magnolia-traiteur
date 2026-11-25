@@ -1,2 +1,1 @@
-huitres https://videos.pexels.com/video-files/4084096/4084096-hd_1920_1080_30fps.mp4 0.5 9 0.5
-mobilier https://videos.pexels.com/video-files/39846486/16997895_1920_1080_50fps.mp4 0 8 0.5
+# vide
