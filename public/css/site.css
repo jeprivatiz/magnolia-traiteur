@@ -599,10 +599,10 @@ textarea:focus, input:focus, select:focus { outline: 2px solid color-mix(in srgb
 @media (max-width: 860px) { body:has(.toast.on) .partage { opacity: 0; pointer-events: none; } }
 body.noscroll .partage { display: none; }
 @media print { .partage { display: none !important; } }
-/* bulle « Revenir à la page précédente » : téléphone seulement, en bas à gauche, jumelle de « Partager » */
+/* bulle « Page précédente » : téléphone seulement, en bas à gauche, jumelle de « Partager » */
 .retour { display: none; }
 @media (max-width: 860px) {
-  .retour { position: fixed; left: max(16px, env(safe-area-inset-left)); bottom: calc(18px + env(safe-area-inset-bottom)); z-index: 35; display: inline-flex; align-items: center; gap: 7px; height: 42px; padding: 0 14px 0 11px; border: 1.5px solid #c9a46a; border-radius: 999px; background: #1d3b2f; color: #f6f1e8; font: 500 .74rem/1.15 var(--sans); letter-spacing: .01em; text-align: left; cursor: pointer; box-shadow: 0 8px 22px rgba(0, 0, 0, .22); transition: transform .2s, bottom .25s, opacity .2s; -webkit-tap-highlight-color: transparent; }
+  .retour { position: fixed; left: max(16px, env(safe-area-inset-left)); bottom: calc(18px + env(safe-area-inset-bottom)); z-index: 35; display: inline-flex; align-items: center; gap: 7px; height: 42px; padding: 0 14px 0 12px; border: 1.5px solid #c9a46a; border-radius: 999px; background: #1d3b2f; color: #f6f1e8; font: 500 .84rem/1 var(--sans); letter-spacing: .02em; cursor: pointer; box-shadow: 0 8px 22px rgba(0, 0, 0, .22); transition: transform .2s, bottom .25s, opacity .2s; -webkit-tap-highlight-color: transparent; }
   .retour svg { width: 19px; height: 19px; flex: none; color: #c9a46a; }
   .retour:active { transform: scale(.96); }
   body:has(.stickybar.on) .retour { bottom: calc(86px + env(safe-area-inset-bottom)); }
@@ -1273,6 +1273,40 @@ h1 .formule { font-size: .5em; margin-top: .45em; }
 .phero .phero-sig { margin: -.2em 0 .7em; font-family: var(--serif); font-style: italic; font-size: clamp(1.15rem, 2.2vw, 1.6rem); letter-spacing: .02em; color: #e2c495; }
 /* Saveurs du monde : la vidéo des chefs est cadrée un peu plus haut, pour que les visages arrivent à hauteur du titre (Jean-Luc, 2026-11-24) */
 .sm-page .phero.land > video { object-position: 50% 28%; }
+
+/* ---------- La cave de Magnolia : catégories avec photo + champagne en vedette (2026-11-25) ---------- */
+.cats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; margin: 6px 0 34px; scroll-margin-top: 90px; }
+.cat { position: relative; display: block; aspect-ratio: 4 / 3; border-radius: var(--rayon); overflow: hidden; background: var(--creme-2); text-decoration: none; outline-offset: 3px; }
+.cat img, .cat .noimg { width: 100%; height: 100%; object-fit: cover; transition: transform .6s; }
+.cat::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0) 35%, rgba(10,30,20,.82)); }
+.cat:hover img { transform: scale(1.06); }
+.cat-t { position: absolute; left: 12px; right: 12px; bottom: 10px; z-index: 1; color: #fff; font-weight: 600; font-size: 1.02rem; line-height: 1.2; text-shadow: 0 1px 6px rgba(0,0,0,.4); }
+.cat-t small { display: block; font-weight: 400; font-size: .8rem; opacity: .85; margin-top: 2px; }
+.cat.on { box-shadow: 0 0 0 3px var(--or); }
+.cat-choisie .cat:not(.on) { opacity: .55; }
+.cat-choisie .cat:not(.on):hover { opacity: 1; }
+.spe-bloc.cat-off { display: none !important; }
+.spe-bloc[data-bloc] { scroll-margin-top: 90px; }
+.cat-retour { display: none; margin: -6px 0 14px; font-size: .92rem; color: var(--vert); font-weight: 600; text-decoration: none; }
+.cat-choisie .cat-retour { display: inline-block; }
+.cards-vedette { grid-template-columns: 1fr !important; }
+.card-vedette { flex-direction: row; align-items: stretch; }
+.card-vedette .card-img { flex: 0 0 46%; aspect-ratio: auto; min-height: 460px; background: #111; }
+.card-vedette .card-img img { position: absolute; inset: 0; object-position: center 35%; }
+.card-vedette .card-b { padding: 34px 38px; display: flex; flex-direction: column; justify-content: center; gap: 4px; }
+.card-vedette .eyebrow { text-transform: uppercase; letter-spacing: .12em; font-size: .78rem; color: var(--or); margin: 0 0 4px; font-weight: 600; }
+.card-vedette h3 { font-size: clamp(1.5rem, 2.6vw, 2.1rem); margin: 0 0 10px; }
+.card-vedette .card-b p:not(.eyebrow) { font-size: 1rem; line-height: 1.6; margin: 0 0 8px; }
+.card-vedette .card-f { margin-top: 14px; align-items: center; flex-wrap: wrap; gap: 12px; }
+.card-vedette .prix { font-size: 1.5rem; }
+@media (max-width: 1100px) { .cats { grid-template-columns: repeat(4, 1fr); } }
+@media (max-width: 860px) {
+  .cats { grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 26px; }
+  .cat { aspect-ratio: 16 / 10; }
+  .cat-t { left: 10px; right: 8px; bottom: 7px; font-size: .92rem; }
+  .card-vedette { flex-direction: column; }
+  .card-vedette .card-img { flex: none; min-height: 0; aspect-ratio: 4 / 5; }
+  .card-vedette .card-b { padding: 20px 18px 22px; }
 
 /* Têtes de rubrique sur téléphone (pages de plus de 20 produits en sections) */
 .rubm-tuiles, .rubm-retour { display: none; }

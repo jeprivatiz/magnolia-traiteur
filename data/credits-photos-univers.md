@@ -290,3 +290,10 @@ Photos et textes repris de corbeillesparis.fr (partenaire de Magnolia, à la dem
 ## Fruits de mer sur fond blanc (2026-11-24)
 
 Les 21 photos de la page Plateau de fruits de mer (public/site/c/seafood30/blanc/) sont les photos déjà en place, détourées (rembg, modèles BiRefNet / IS-Net, sans IA générative) et posées sur fond blanc, centrées, 1200 × 1200. Exceptions : crevettes roses = Pexels 566344 (licence Pexels) détourée ; bulots = ancienne photo sans l’étiquette « Marée du jour ».
+
+## La cave de Magnolia (2026-11-25)
+Catégories et fiches de la page /boissons (server/cave.js). Photos Pexels (licence libre, pexels.com/license), regardées une à une :
+- Notre champagne : photo de la brochure Magnolia (public/site/c/cave/andre-diligent-seau.webp, recadrée de la page 26).
+- Catégories : eaux 31107362, sodas 12738761, jus 8679338, vins rouges 29436323, vins blancs 20848541, rosé 15006642, alcools forts 40025139, open bars 5531479, accessoires 8473124.
+- Fiches : Evian 8101056, Badoit 18212879, Vittel 31107362, Perrier 3023667, Paris Cola 4113667, Paris Cola Zéro 33469209, Paris Cola 75 cl 8879626, Parismonade 33 cl 5836998, Parismonade 75 cl 12900901, jus d'orange 8679601, jus de pomme 36794069, jus de pêche 10673227, JOMO gingembre 16411715, JOMO thé vert 25328043, JOMO thé blanc 36305566, vins rouges 33993981 / 9550790 / 10226064, vins blancs 8472736 / 5895443 / 39852931, rosé 15006643, Jack Daniel's 27393241, Bombay Sapphire 7851381, Havana Club 19562093, Absolut 17722186, tire-bouchon 8296228.
+- Les photos du site du traiteur d'origine n'ont pas été reprises (droits d'auteur).
