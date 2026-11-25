@@ -445,15 +445,30 @@ function specialite(c, r, x) {
   return boutique(c, { intro: x ? { titre: x.introTitre, texte: x.introTexte } : { titre: r.introTitre, texte: r.introTexte }, rub: r.slug, titre: x ? speTitre(x) : r.nom, chapo: x ? speChapo(x) : r.chapo, photo: x ? (x.bandeauPhoto || x.photo) : (r.photoAccueil || r.photo), path: `/${r.slug}/${x ? x.slug : 'tout'}`, liste, fil, chips, hero, seo: x ? { title: x.seoTitre || speTitre(x), description: x.seoDescription || speChapo(x) } : null });
 }
 
+/* Têtes de rubrique sur téléphone (Jean-Luc, 2026-11-25) : une page de plus de 20 produits rangés en sections
+   commence, sur portable seulement, par une vignette photo par section ; un toucher n'affiche que cette section
+   (adresse #section, le bouton retour du téléphone ramène aux vignettes). Ordinateur : rien ne change. */
+const RUBM_SEUIL = 20;
+function photoSection(L) {
+  for (const p of L) { const s = p.photos?.find(x => x?.src)?.src || p.video?.poster; if (s) return s; }
+  return '';
+}
+function rubmActif(blocs) { return blocs.length > 1 && blocs.reduce((n, b) => n + b[2].length, 0) > RUBM_SEUIL; }
+function rubmTuiles(blocs) {
+  if (!rubmActif(blocs)) return '';
+  return `<nav class="rubm-tuiles" aria-label="Nos rubriques"><p class="rubm-q">Que souhaitez-vous découvrir ?</p><div class="rubm-grille${blocs.length % 2 ? ' impair' : ''}">${blocs.map(([k, t, L]) => `<a class="rubm-t" href="#${esc(k)}" data-rubm-go="${esc(k)}">${img(photoSection(L), t)}<span><b>${esc(String(t).replace(/\s+à l’unité$/, ''))}</b><small>${L.length} produit${L.length > 1 ? 's' : ''}${/à l’unité$/.test(t) ? ' à l’unité' : ''}</small></span></a>`).join('')}</div></nav>`;
+}
+const rubmRetour = (bas = false) => `<button type="button" class="rubm-retour${bas ? ' bas' : ''}" data-rubm-retour>${bas ? 'Voir les autres rubriques' : '← Toutes les rubriques'}</button>`;
+
 /* ---------- page de spécialité présentée en sections (modèle : Buffet chinois) ---------- */
 function pageSections(c, r, x, chips, hero) {
   const liste = prodsDeSous(c, r, x.slug).slice().sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
   const blocs = RANGEMENTS.map(([k, t]) => [k, (x.titresSections || {})[k] || t, liste.filter(p => rangementDe(p) === k)]).filter(b => b[2].length);
   const body = `${hero}
-<section class="wrap shop spe-sections" id="prestations">
-  <div class="shop-bar">${chips}</div>
+<section class="wrap shop spe-sections" id="prestations"${rubmActif(blocs) ? ' data-rubm' : ''}>
+  <div class="shop-bar">${chips}${rubmActif(blocs) ? rubmRetour() : ''}</div>
   ${x.introTexte ? `<div class="spe-intro">${x.introTitre ? `<h2>${esc(x.introTitre)}</h2>` : ''}${String(x.introTexte).split(/\n+/).map(l => l.trim()).filter(Boolean).map(l => `<p>${esc(l)}</p>`).join("")}</div>` : ''}
-  ${blocs.map(([k, t, L]) => `<div class="spe-bloc" id="${k}"><h2>${esc(t)}</h2><p class="count">${L.length} prestation${L.length > 1 ? 's' : ''} · tarifs TTC${k === 'buffets' && x.slug === 'buffet-libanais' ? ' · photos non contractuelles' : ''}</p><div class="cards grid${k === 'buffets' ? ' kb-anim' : ''}">${L.map(p => card(p, c, { rubNom: false })).join('')}</div></div>`).join('')}
+  ${rubmTuiles(blocs)}${blocs.map(([k, t, L]) => `<div class="spe-bloc" id="${k}" data-rubm-bloc><h2>${esc(t)}</h2><p class="count">${L.length} prestation${L.length > 1 ? 's' : ''} · tarifs TTC${k === 'buffets' && x.slug === 'buffet-libanais' ? ' · photos non contractuelles' : ''}</p><div class="cards grid${k === 'buffets' ? ' kb-anim' : ''}">${L.map(p => card(p, c, { rubNom: false })).join('')}</div>${rubmActif(blocs) ? rubmRetour(true) : ''}</div>`).join('')}
 </section>`;
   return layout(c, { title: x.seoTitre || speTitre(x), description: x.seoDescription || speChapo(x), body, path: `/${r.slug}/${x.slug}`, image: x.bandeauPhoto || x.photo });
 }
@@ -478,7 +493,7 @@ function boutique(c, { q = '', rub = '', titre, chapo, photo, path = '/boutique'
   const body = `
 ${hero || (path === '/boutique' && !q ? bandeau(c, 'boutique') : photo ? bandeauHtml(c, { photo: r?.bandeauPhoto || photo, video: r?.bandeauVideo || '', poster: r?.bandeauPoster || '', position: r?.bandeauPosition || '', titre: r?.titrePage || titre, chapo, bouton: 'Voir les prestations', ancre: '#prestations' }, fil || (r ? [['La boutique', '/boutique'], [r.nom]] : [[titre]]))
     : `<section class="wrap page-h">${crumbs([[titre]])}<h1>${esc(titre)}</h1><p class="lead">${esc(chapo || 'Toute la brochure, avec ses prix. Ajoutez vos choix à votre sélection, puis demandez votre devis.')}</p></section>`)}
-${avant}<section class="wrap shop" id="prestations" data-shop>
+${avant}<section class="wrap shop" id="prestations" data-shop${sections && rubmActif(sections) ? ' data-rubm' : ''}>
   ${intro && !avant ? introHtml(intro.titre, intro.texte) : ''}${avant ? '<h2 class="p3-titre-liste">Tous nos produits en détail</h2>' : ''}
   ${path === '/boutique' && !q ? (B => B.introTitre || B.introTexte ? `<div class="shop-intro">${B.introTitre ? `<h2>${esc(B.introTitre)}</h2>` : ''}${B.introTexte ? `<p>${esc(B.introTexte)}</p>` : ''}</div>` : '')(bandeauDe(c, 'boutique')) : ''}
   <div class="shop-bar">
@@ -486,10 +501,10 @@ ${avant}<section class="wrap shop" id="prestations" data-shop>
     <div class="shop-tools">
       <form class="shop-q" action="/boutique" role="search">${icon.search}<input type="search" name="q" value="${esc(q)}" placeholder="Paëlla, DJ, huîtres…" aria-label="Rechercher dans la boutique" data-shop-q></form>
       <label class="tri"><span class="sr">Trier</span><select data-sort><option value="ordre">Classement</option><option value="az">Ordre alphabétique (A à Z)</option><option value="asc">Prix croissant</option><option value="desc">Prix décroissant</option></select></label>
-    </div>
+    </div>${sections && rubmActif(sections) ? rubmRetour() : ''}
   </div>
   <p class="count"><span data-count>${prods.length}</span> prestations · tarifs TTC${q ? ` pour « ${esc(q)} »` : ''}</p>
-  ${sections ? sections.map(([k, t, L]) => `<div class="spe-bloc" id="${k}" data-bloc><h2>${esc(t)}</h2><div class="cards grid" data-grid>${L.map(p => card(p, c, { rubNom: false })).join('')}</div></div>`).join('')
+  ${sections ? rubmTuiles(sections) + sections.map(([k, t, L]) => `<div class="spe-bloc" id="${k}" data-bloc data-rubm-bloc><h2>${esc(t)}</h2><div class="cards grid" data-grid>${L.map(p => card(p, c, { rubNom: false })).join('')}</div>${rubmActif(sections) ? rubmRetour(true) : ''}</div>`).join('')
     : `<div class="cards grid" data-grid>${prods.map(p => card(p, c, { rubNom: !rub })).join('')}</div>`}
   ${!prods.length ? `<div class="empty"><p>Aucune prestation ne correspond à « ${esc(q)} ».</p><p>Appelez-nous au <a href="tel:${esc(c.reglages.telephone)}">${esc(c.reglages.telephone)}</a> : nous trouvons toujours une solution.</p></div>` : ''}
 </section>`;
