@@ -192,9 +192,34 @@ async function sodasCave(store) {
   await store.set('_migr/caveSodas1', { at: new Date().toISOString() });
 }
 
+/* Vins ajoutés par Jean-Luc (2026-11-25), à ses prix TTC (pas de majoration) :
+   Château La Gordonne « Vérité du Terroir » (ancienne fiche remise en ligne) et Bordeaux rosé Manoir de la Valette. */
+async function vinsCave(store) {
+  if (await store.get('_migr/caveVins1')) return;
+  const now = new Date().toISOString();
+  const g = await store.get('produits/chateau-la-gordonne-verite-du-terroir');
+  const gordonne = {
+    rangement: 'vins-rouges', titre: 'Château La Gordonne « Vérité du Terroir », vin rouge', prixCents: 1790, prixTexte: null, unite: 'bouteille', min: 1,
+    extrait: 'Vin rouge de Provence du Château La Gordonne, cuvée Vérité du Terroir, bouteille de 75 cl.',
+    description: ['Un rouge de Provence du Château La Gordonne, cuvée Vérité du Terroir, fruité et généreux, pour vos repas et vos buffets.', 'Bouteille de 75 cl. ' + TIRE],
+    statut: 'visible', masqueCave: false, ordre: 26.5, tva: 20,
+  };
+  if (g) await store.set('produits/chateau-la-gordonne-verite-du-terroir', { ...g, ...gordonne, photos: (g.photos || []).length ? g.photos : [{ src: px(8473211), alt: 'Bouteille et verre de vin rouge, grappe de raisin' }] });
+  else await store.set('produits/chateau-la-gordonne-verite-du-terroir', { id: 'chateau-la-gordonne-verite-du-terroir', slug: 'chateau-la-gordonne-verite-du-terroir', rubrique: 'boissons', autresRubriques: [], sous: '', autresSous: [], coutCents: null, minimumTexte: null, sections: [], details: [], photos: [{ src: px(8473211), alt: 'Bouteille et verre de vin rouge, grappe de raisin' }], video: null, groupes: [], variantes: [], regles: {}, maison: false, allergenes: ['Sulfites'], aCompleter: false, createdAt: now, ...gordonne });
+  if (!(await store.get('produits/bordeaux-rose-manoir-de-la-valette'))) await store.set('produits/bordeaux-rose-manoir-de-la-valette', {
+    id: 'bordeaux-rose-manoir-de-la-valette', slug: 'bordeaux-rose-manoir-de-la-valette', rubrique: 'boissons', autresRubriques: [], sous: '', autresSous: [], rangement: 'vins-roses',
+    titre: 'Bordeaux rosé Manoir de la Valette AOP', prixCents: 1650, coutCents: null, prixTexte: null, unite: 'bouteille', min: 1, minimumTexte: null,
+    extrait: 'Bordeaux rosé AOP du Manoir de la Valette, frais et fruité, bouteille de 75 cl.',
+    description: ['Un Bordeaux rosé AOP du Manoir de la Valette, frais et fruité, pour l’apéritif, les buffets et les repas d’été.', 'Bouteille de 75 cl. ' + TIRE],
+    sections: [], details: [], photos: [{ src: 'https://images.pexels.com/photos/4906328/pexels-photo-4906328.jpeg?auto=compress&cs=tinysrgb&w=1200', alt: 'Verre de vin rosé' }],
+    video: null, groupes: [], variantes: [], regles: {}, ordre: 32.5, statut: 'visible', maison: false, tva: 20, allergenes: ['Sulfites'], aCompleter: false, createdAt: now,
+  });
+  await store.set('_migr/caveVins1', { at: now });
+}
+
 async function initCave(store) {
   await prixCave(store);
-  if (await store.get('_migr/caveCercle')) { await openBarCave(store); await sodasCave(store); return ajoutsCave(store); }
+  if (await store.get('_migr/caveCercle')) { await openBarCave(store); await sodasCave(store); await vinsCave(store); return ajoutsCave(store); }
   const now = new Date().toISOString();
   let n = 0;
   for (const d of await store.list('produits')) {
@@ -233,6 +258,7 @@ async function initCave(store) {
   await store.set('_migr/caveCercle', { at: now, crees: n });
   await openBarCave(store);
   await sodasCave(store);
+  await vinsCave(store);
   return n + await ajoutsCave(store);
 }
 
