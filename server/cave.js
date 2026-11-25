@@ -790,9 +790,37 @@ async function evianAchat(store) {
   await store.set('_migr/caveEvianAchat1', { at: new Date().toISOString() });
 }
 
+/* Open bar champagne (fiche « nos-open-bars ») comme l'open bar vins et champagnes (Jean-Luc, 2026-11-25) : plus de « Sur devis »,
+   le prix de base est le personnel (270 € TTC par barman pour 4 h, 1 à 5 barmans, heures supplémentaires à 39 €) ;
+   bar à cocktails et verres proposés à droite, le pack traiteur reste en option. */
+const OPEN_BAR_CHAMPAGNE = {
+  prixCents: BARMAN_FORFAIT, prixTexte: null, unite: 'barman', min: 1, minimumTexte: null, groupes: [BARMAN_HEURES],
+  extrait: 'Mise en place d’un open bar champagne pour toute la durée de votre événement.',
+  description: ['Mise en place d’un open bar champagne pour toute la durée de votre événement.'],
+  sousPhoto: [
+    'Nous mettons à votre disposition le personnel nécessaire selon le nombre de vos invités, avec au minimum un barman. Le prix correspond à ce personnel : 4 heures de service par barman, puis les heures supplémentaires que vous choisissez. Comptez un barman pour 30 à 40 invités : choisissez de 1 à 5 barmans.',
+    'Vous composez ensuite votre bar à votre goût : ajoutez si vous le souhaitez le pack traiteur, le bar à cocktails ou de vrais verres, dans le cadre à droite.',
+    'Les bouteilles ne sont pas comprises dans ce prix : vous ne payez que celles que vous aurez consommées, après un minimum de consommation demandé. Elles sont comptées avant le début de votre événement et un inventaire est fait à la fin, tout cela en votre présence.',
+    'Un chèque de caution sera demandé pour cette prestation et restitué après le paiement des bouteilles. Une facture des bouteilles consommées vous sera envoyée le lendemain de la prestation pour règlement.',
+  ],
+  sousPhotoAuto: false,
+};
+async function openBarChampagne(store) {
+  if (await store.get('_migr/openBarChampagne1')) return;
+  const x = await store.get('produits/nos-open-bars');
+  if (x) {
+    const { prixAffiche, ...y } = x;
+    const props = [...(y.propositions || [])];
+    if (!props.some(b => (b.slugs || []).includes('bar-a-cocktails-4-h-au-cocktail')))
+      props.push({ titre: 'À ajouter à votre open bar', slugs: ['bar-a-cocktails-4-h-au-cocktail', 'verres-en-verre-vin-coupes-a-champagne'] });
+    await store.set('produits/nos-open-bars', { ...y, ...OPEN_BAR_CHAMPAGNE, propositions: props });
+  }
+  await store.set('_migr/openBarChampagne1', { at: new Date().toISOString() });
+}
+
 async function initCave(store) {
   await prixCave(store);
-  if (await store.get('_migr/caveCercle')) { await openBarCave(store); await sodasCave(store); await vinsCave(store); await eauxCave(store); await cocaPhotos(store); await cristalineGaz(store); await cristalinePlate(store); await caveBandeauBadoit(store); await barmanSousPhoto(store); await barmanPrix(store); await alcoolsBlanc(store); await vinsRouges2(store); await barCocktailsMin(store); await barCocktailsVideo(store); await barCocktailsTexte(store); await barCocktailsRetablir(store); await valettePrix(store); await minutyCave(store); await rosesCave2(store); const k = await ajoutsCave(store); await metroCave(store); await barmanHeuresSup(store); await rosesPhotos(store); await barmanVideo(store); await openBarVideo(store); await openBarPersonnel(store); await saintTropezPhoto(store); await barsVideos(store); await openBarTextes(store); await pepsiMax(store); await pepsiMaxPhoto(store); await jusPhotos(store); await pechePhoto(store); await valettePhoto(store); await blancsPhotos(store); await eauxBouteilles(store); await rougesPhotos(store); await eauxEvianPellegrino(store); await eauxPrix2(store); await evianAchat(store); return k; }
+  if (await store.get('_migr/caveCercle')) { await openBarCave(store); await sodasCave(store); await vinsCave(store); await eauxCave(store); await cocaPhotos(store); await cristalineGaz(store); await cristalinePlate(store); await caveBandeauBadoit(store); await barmanSousPhoto(store); await barmanPrix(store); await alcoolsBlanc(store); await vinsRouges2(store); await barCocktailsMin(store); await barCocktailsVideo(store); await barCocktailsTexte(store); await barCocktailsRetablir(store); await valettePrix(store); await minutyCave(store); await rosesCave2(store); const k = await ajoutsCave(store); await metroCave(store); await barmanHeuresSup(store); await rosesPhotos(store); await barmanVideo(store); await openBarVideo(store); await openBarPersonnel(store); await saintTropezPhoto(store); await barsVideos(store); await openBarTextes(store); await pepsiMax(store); await pepsiMaxPhoto(store); await jusPhotos(store); await pechePhoto(store); await valettePhoto(store); await blancsPhotos(store); await eauxBouteilles(store); await rougesPhotos(store); await eauxEvianPellegrino(store); await eauxPrix2(store); await evianAchat(store); await openBarChampagne(store); return k; }
   const now = new Date().toISOString();
   let n = 0;
   for (const d of await store.list('produits')) {
@@ -848,7 +876,7 @@ async function initCave(store) {
   await valettePrix(store);
   await minutyCave(store);
   await rosesCave2(store);
-  const k = await ajoutsCave(store); await metroCave(store); await barmanHeuresSup(store); await rosesPhotos(store); await barmanVideo(store); await openBarVideo(store); await openBarPersonnel(store); await saintTropezPhoto(store); await barsVideos(store); await openBarTextes(store); await pepsiMax(store); await pepsiMaxPhoto(store); await jusPhotos(store); await pechePhoto(store); await valettePhoto(store); await blancsPhotos(store); await eauxBouteilles(store); await rougesPhotos(store); await eauxEvianPellegrino(store); await eauxPrix2(store); await evianAchat(store); return n + k;
+  const k = await ajoutsCave(store); await metroCave(store); await barmanHeuresSup(store); await rosesPhotos(store); await barmanVideo(store); await openBarVideo(store); await openBarPersonnel(store); await saintTropezPhoto(store); await barsVideos(store); await openBarTextes(store); await pepsiMax(store); await pepsiMaxPhoto(store); await jusPhotos(store); await pechePhoto(store); await valettePhoto(store); await blancsPhotos(store); await eauxBouteilles(store); await rougesPhotos(store); await eauxEvianPellegrino(store); await eauxPrix2(store); await evianAchat(store); await openBarChampagne(store); return n + k;
 }
 
 module.exports = { texteBarCocktails, BARMAN, OPEN_BAR_VC, CAVE_SECTIONS, CAVE_PRODUITS, AJOUTS_CAVE, CAVE_GARDEES, INTRO_CAVE, ttc, initCave };
