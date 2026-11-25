@@ -1818,6 +1818,22 @@ async function initSousRubriques(store, { log = console } = {}) {
     }
     await store.set('site/reglages', { ...(await store.get('site/reglages')), antillaisDoublons1: true });
   }
+
+  /* Buffet africain sans « Produits divers à l'unité » (Jean-Luc, 2026-11-25) : ces fiches (plateaux de mini wraps et de
+     mini club sandwichs) quittent la page ; une fiche rangée aussi dans une autre spécialité y reste, sinon elle est masquée
+     (les mêmes plateaux restent dans Coffrets & plateaux). Rien n'est effacé. Une fois. */
+  const RAf = await store.get('site/reglages');
+  if (RAf && !RAf.africainSansDivers) {
+    for (const { id, data: p } of await store.list('produits')) {
+      const ici = p.sous === 'buffet-africain', aussi = (p.autresSous || []).includes('buffet-africain');
+      if ((!ici && !aussi) || p.statut === 'masque' || rangementDe(p) !== 'divers') continue;
+      const autresSous = (p.autresSous || []).filter(x => x !== 'buffet-africain');
+      if (aussi && !ici) await store.set('produits/' + id, { ...p, autresSous });
+      else if (autresSous.length) await store.set('produits/' + id, { ...p, sous: autresSous[0], autresSous: autresSous.slice(1) });
+      else await store.set('produits/' + id, { ...p, statut: 'masque' });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), africainSansDivers: true });
+  }
 }
 
 /* [fiche gardée, doublons…] : mêmes produit, prix et minimum */
