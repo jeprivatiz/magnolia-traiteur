@@ -936,14 +936,17 @@
     if (e.target.closest('.k4pop a')) return;
     e.preventDefault(); const on = !m.classList.contains('on'); $$('[data-k4m].on').forEach(x => x.classList.remove('on')); m.classList.toggle('on', on);
   }, true);
+  /* ligne de livraison (même règle que server/devis.js) : hors remise globale, verrouillée sans le droit Administrateur */
+  const estLivraison = l => !!(l && (l.livraison || l.unite === 'km'));
   function tot(d) {
     const L = (d.lignes || []).filter(l => l.type !== 'titre');
     const brut = L.reduce((s, l) => s + Math.round((l.puCents || 0) * (+l.qte || 0)), 0);
-    const remise = Math.min(brut, d.remiseCents || 0);
+    const hors = L.filter(l => !estLivraison(l)).reduce((s, l) => s + Math.round((l.puCents || 0) * (+l.qte || 0)), 0);
+    const remise = Math.min(hors, d.remiseCents || 0);
     const cout = L.reduce((s, l) => s + Math.round((l.coutCents || 0) * (+l.qte || 0)), 0);
-    const ratio = brut ? (brut - remise) / brut : 1;
+    const r = hors ? (hors - remise) / hors : 1, ratio = l => (estLivraison(l) ? 1 : r);
     let ht = 0; const tva = {};
-    for (const l of L) { const t = Math.round((l.puCents || 0) * (+l.qte || 0) * ratio); const h = Math.round(t / (1 + (l.tva ?? 10) / 100)); ht += h; tva[l.tva ?? 10] = (tva[l.tva ?? 10] || 0) + t - h; }
+    for (const l of L) { const t = Math.round((l.puCents || 0) * (+l.qte || 0) * ratio(l)); const h = Math.round(t / (1 + (l.tva ?? 10) / 100)); ht += h; tva[l.tva ?? 10] = (tva[l.tva ?? 10] || 0) + t - h; }
     return { brut, remise, ttc: brut - remise, ht, tva, cout, mg: margeDevis(L, ratio) };
   }
   /* marge du devis : même calcul que le serveur (server/devis.js, marge) — HORS TAXES, interne à l'équipe.
@@ -953,7 +956,7 @@
     for (const l of L) {
       const q = +l.qte || 0; if (!q) continue; const k = 1 + (l.tva ?? 10) / 100;
       if (l.coutCents == null || l.coutCents === '') { manquants.push(String(l.designation || 'Ligne sans nom').replace(/\*\*/g, '')); continue; }
-      const v = Math.round((l.puCents || 0) * q * ratio), a = Math.round(l.coutCents * q);
+      const v = Math.round((l.puCents || 0) * q * ratio(l)), a = Math.round(l.coutCents * q);
       vHt += Math.round(v / k); aHt += Math.round(a / k); aTtc += a;
     }
     const m = vHt - aHt;
@@ -1165,7 +1168,7 @@
     const nombre = v => Math.max(0, parseFloat(String(v || '').replace(',', '.')) || 0);
     const remiseCts = () => {
       if (form.remiseMode.value !== 'pct') return toCents(form.remise.value) || 0;
-      const brut = lignes.filter(l => l.type !== 'titre').reduce((s2, l) => s2 + Math.round((l.puCents || 0) * (+l.qte || 0)), 0);
+      const brut = lignes.filter(l => l.type !== 'titre' && !estLivraison(l)).reduce((s2, l) => s2 + Math.round((l.puCents || 0) * (+l.qte || 0)), 0); /* la livraison n'est jamais remisée */
       return Math.round(brut * Math.min(100, nombre(form.remise.value)) / 100);
     };
     /* draw(false) : seulement les totaux et la marge — pendant la frappe, on ne redessine pas les cases (sinon « 3 » devient « 3,00 » et le curseur saute) */
@@ -1176,6 +1179,14 @@
            <td><input data-f="qte" class="num" value="${esc(l.qte)}" inputmode="decimal"></td><td><select data-f="unite">${[...new Set([l.unite, ...UNITES])].map(u => `<option${u === l.unite ? ' selected' : ''}>${esc(u || '')}</option>`).join('')}</select></td>
            <td><input data-f="puCents" class="num" value="${fromCents(l.puBaseCents ?? l.puCents)}" inputmode="decimal"></td><td class="rem"><span class="remi"><input data-f="remisePct" class="num pct" value="${l.remisePct ? String(l.remisePct).replace('.', ',') : ''}" placeholder="0" inputmode="decimal" aria-label="Remise en %"> %</span>${l.remisePct ? `<small>= ${euros(l.puCents)}</small>` : ''}${l.coutCents != null && l.puCents ? `<small class="mgl ${l.puCents > l.coutCents ? 'pos' : 'neg'}" title="Marge de cette ligne (interne)">marge ${String(Math.round(1000 * (l.puCents - l.coutCents) / l.puCents) / 10).replace('.', ',')} %</small>` : ''}</td><td><input data-f="coutCents" class="num${l.coutCents == null && +l.qte ? ' manq' : ''}" value="${fromCents(achatHt(l.coutCents, l.tva ?? 10))}" inputmode="decimal" placeholder="manquant" title="Prix d’achat HT à l’unité"></td>
            <td><select data-f="tva">${[5.5, 10, 20].map(t => `<option value="${t}"${+l.tva === t ? ' selected' : ''}>${String(t).replace('.', ',')} %</option>`).join('')}</select></td><td class="n">${euros(Math.round((l.puCents || 0) * (+l.qte || 0)))}</td><td><button type="button" class="x" data-del aria-label="Supprimer">×</button></td></tr>`).join('') || '<tr><td colspan="10" class="muted">Aucune ligne : ajoutez une prestation du catalogue ou une ligne libre.</td></tr>';
+      if (cases && !peut('admin')) lignes.forEach((l, i) => { /* 🔒 livraison : seul un administrateur la change, l'offre ou la retire */
+        if (l.type === 'titre' || !estLivraison(l)) return;
+        const tr = body.querySelector(`[data-i="${i}"]`); if (!tr) return;
+        tr.classList.add('liv-lock'); tr.title = '🔒 Ligne de livraison : seul un administrateur peut la modifier ou l’offrir.';
+        tr.querySelectorAll('input, select').forEach(x => { if (x.dataset.f === 'detail' || x.dataset.f === 'designation') return; x.disabled = true; });
+        tr.querySelector('[data-del]')?.replaceWith(Object.assign(document.createElement('span'), { className: 'lock-i', textContent: '🔒' }));
+        const h = tr.querySelector('.h'); if (h) h.textContent = '🔒';
+      });
       const t = tot({ lignes, remiseCents: remiseCts() });
       $('#marge').innerHTML = margeHtml(t);
       $('#totaux').innerHTML = `${t.remise ? `<div><dt>Sous-total</dt><dd>${euros(t.brut)}</dd></div><div><dt>Remise${form.remiseMode.value === 'pct' ? ' ' + String(nombre(form.remise.value)).replace('.', ',') + ' %' : ''}</dt><dd>− ${euros(t.remise)}</dd></div>` : ''}${Object.entries(t.tva).map(([k, v]) => `<div class="sm"><dt>dont TVA ${String(k).replace('.', ',')} %</dt><dd>${euros(v)}</dd></div>`).join('')}<div class="sm"><dt>Total HT</dt><dd>${euros(t.ht)}</dd></div><div class="big"><dt>Total TTC</dt><dd>${euros(t.ttc)}</dd></div>${(() => { const a = regleAcompte(t.ttc, { acomptePct: form.acomptePct.value, evenement: { date: form.ev_date.value }, signature: d.signature }, cache.R?.tarifs); return `<div class="sm"><dt>${a.total ? `À payer à la signature (totalité${a.raison === 'proche' ? ', événement dans moins de ' + a.delai + ' jours' : ''})` : `Acompte ${a.pct} %`}</dt><dd>${euros(a.cents)}</dd></div>`; })()}`;
@@ -3193,7 +3204,7 @@
         <div class="lp">${(() => { const P = window.MGLivr ? MGLivr.paliers(T) : []; const fixes = P.filter(x => x.jusquaCents != null), der = P[P.length - 1] || { kmCents: 0 };
           const rows = [...fixes, { jusquaCents: null, kmCents: null }];
           return rows.map((x, i) => `<div class="lp-r"><span>${i === 0 ? 'Commande de 0 €' : `Commande au-delà de ${fromCents(rows[i - 1].jusquaCents)} €`}</span><label>jusqu’à (€ TTC)<input name="lpj${i}" inputmode="decimal" value="${fromCents(x.jusquaCents)}" placeholder="${i === fixes.length ? 'nouveau palier (facultatif)' : ''}"></label><label>prix du km (€)<input name="lpk${i}" inputmode="decimal" value="${fromCents(x.kmCents)}"></label></div>`).join('')
-            + `<div class="lp-r lp-fin"><span>Au-delà du dernier palier</span><label>prix du km (€, 0 = offerte)<input name="lpkfin" inputmode="decimal" value="${fromCents(der.kmCents)}"></label></div><p class="muted small">Pour retirer un palier, videz sa case « jusqu’à ». Les paliers sont rangés automatiquement du plus petit au plus grand montant.</p>`; })()}</div></section>
+            + `<div class="lp-r lp-fin"><span>Au-delà du dernier palier</span><label>prix du km (€, 0 = offerte)<input name="lpkfin" inputmode="decimal" value="${fromCents(der.kmCents)}"></label></div><div class="lp-r lp-fin"><span>Coût réel du km pour Magnolia (livreur + véhicule)</span><label>coût du km (€ TTC) : plein tarif des devis, remise selon le palier, compté dans la marge<input name="lpcout" inputmode="decimal" value="${fromCents(window.MGLivr ? MGLivr.coutKmCents(T) : 100)}"></label></div><p class="muted small">Pour retirer un palier, videz sa case « jusqu’à ». Les paliers sont rangés automatiquement du plus petit au plus grand montant.</p>`; })()}</div></section>
       <section class="box"><h2>Publicité Google Ads</h2><p class="muted sm">Renseignez l’identifiant du compte (AW-…) et les libellés de conversion donnés par Google Ads. Chaque demande de devis envoyée est alors comptée, avec son montant estimé. Rien n’est mesuré sans l’accord du visiteur.</p><div class="g3"><label>Identifiant du compte<input name="ads_id" value="${esc(R.suivi?.googleAdsId || '')}" placeholder="AW-123456789"></label><label>Libellé « demande de devis »<input name="ads_dem" value="${esc(R.suivi?.conversionDemande || '')}"></label><label>Libellé « message de contact »<input name="ads_con" value="${esc(R.suivi?.conversionContact || '')}"></label></div></section>
       <section class="box"><h2>Redirections (bascule de l’ancien site)</h2><p class="muted sm">Une ligne par ancienne adresse : « /ancienne-page /nouvelle-page ». Une ancienne adresse finissant par * couvre toutes les pages qui commencent pareil. Google transfère alors le référencement (redirection 301).</p><textarea name="redirections" rows="5" class="mono" placeholder="/nos-buffets /saveurs-du-monde&#10;/blog/* /conseils">${esc(R.redirections || '')}</textarea></section>
       <div class="actions sticky"><button class="btn">Enregistrer</button><span class="muted" id="dirty"></span></div></form>`);
@@ -3231,7 +3242,7 @@
           incontournables: [0, 1, 2, 3, 4, 5, 6, 7].map(i => f['inc' + i]).filter(Boolean), photoMaison: f.photoMaison, photoCommande: f.photoCommande },
         horaires: f.horaires, slogan: f.slogan, instagram: f.instagram, mentionPied: f.mentionPied,
         avisGoogle: { ...(R.avisGoogle || {}), note: f.g_note, nombre: f.g_nombre },
-        tarifs: { ...T, livraisonPaliers: [...Object.keys(f).filter(k => /^lpj\d+$/.test(k)).map(k => ({ jusquaCents: toCents(f[k]), kmCents: toCents(f['lpk' + k.slice(3)]) ?? 0 })).filter(x => x.jusquaCents != null && x.jusquaCents > 0), { jusquaCents: null, kmCents: toCents(f.lpkfin) ?? 0 }], acomptePct: +f.acompte, seuilAcompteCents: toCents(f.seuilAcompte) ?? 80000, personnel: { ...(T.personnel || {}), heureCents: toCents(f.ph), minHeures: +f.pmin }, packs: (T.packs || []).map((pk, i) => ({ ...pk, prixCents: toCents(f['pk' + i]) ?? pk.prixCents })) },
+        tarifs: { ...T, livraisonCoutKmCents: toCents(f.lpcout) ?? 100, livraisonPaliers: [...Object.keys(f).filter(k => /^lpj\d+$/.test(k)).map(k => ({ jusquaCents: toCents(f[k]), kmCents: toCents(f['lpk' + k.slice(3)]) ?? 0 })).filter(x => x.jusquaCents != null && x.jusquaCents > 0), { jusquaCents: null, kmCents: toCents(f.lpkfin) ?? 0 }], acomptePct: +f.acompte, seuilAcompteCents: toCents(f.seuilAcompte) ?? 80000, personnel: { ...(T.personnel || {}), heureCents: toCents(f.ph), minHeures: +f.pmin }, packs: (T.packs || []).map((pk, i) => ({ ...pk, prixCents: toCents(f['pk' + i]) ?? pk.prixCents })) },
         suivi: { googleAdsId: String(f.ads_id || '').trim().toUpperCase(), conversionDemande: String(f.ads_dem || '').trim(), conversionContact: String(f.ads_con || '').trim() },
         redirections: f.redirections || '',
         effetBandeaux: !!f.effetBandeaux,

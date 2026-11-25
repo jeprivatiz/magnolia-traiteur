@@ -58,5 +58,7 @@
   /* livraison hors Île-de-France : nous consulter (Jean-Luc, 2026-11-25) */
   const IDF = ['75', '77', '78', '91', '92', '93', '94', '95'];
   function horsZone(cp) { const c = String(cp || '').replace(/\D/g, ''); return c.length === 5 && !IDF.includes(c.slice(0, 2)); }
-  return { DEFAUT, IDF, horsZone, paliers, kmCents, frais, offerteDes, suivant, tranches, message, eur };
+  /* coût réel du km pour Magnolia (livreur + véhicule), compté dans la marge des devis : 1 € TTC par défaut */
+  function coutKmCents(T) { const v = T && T.livraisonCoutKmCents; return v == null || v === '' || isNaN(+v) ? 100 : Math.max(0, Math.round(+v)); }
+  return { DEFAUT, IDF, horsZone, coutKmCents, paliers, kmCents, frais, offerteDes, suivant, tranches, message, eur };
 });
