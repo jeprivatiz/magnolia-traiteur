@@ -737,6 +737,20 @@ async function initSousRubriques(store, { log = console } = {}) {
     if (nf) log.log?.(`[demarrage] ${nf} doublons fusionnés`);
   }
 
+  /* puff-puff = dessert africain, pas antillais (Jean-Luc, 2026-11-25) : retiré du Buffet antillais, reste au Buffet africain. Une fois. */
+  const RPf = await store.get('site/reglages');
+  if (RPf && !RPf.puffSansAntillais) {
+    for (const d of await store.list('produits')) {
+      const x = d.data;
+      if (!x || !/puff/i.test((x.titre || '') + ' ' + (x.slug || d.id))) continue;
+      const autres = (x.autresSous || []).filter(s => s !== 'buffet-antillais');
+      if (x.sous === 'buffet-antillais') {
+        if (x.statut !== 'masque') await store.set('produits/' + d.id, { ...x, statut: 'masque', fusionneDans: x.fusionneDans || 'puff-puff' });
+      } else if (autres.length !== (x.autresSous || []).length) await store.set('produits/' + d.id, { ...x, autresSous: autres });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), puffSansAntillais: true });
+  }
+
   /* photos ajoutées aux fiches qui n'en avaient pas (Jean-Luc, 2026-11-22). Une fois par fiche, si elle est toujours sans photo. */
   for (const [re, src, alt] of PHOTOS_FICHES) {
     for (const d of await store.list('produits')) {
