@@ -1461,3 +1461,9 @@ input.verrou { background: var(--doux); color: var(--gris); cursor: not-allowed;
 .sm-saisie input[data-smcout] { border: 2px solid var(--or); font-weight: 600; }
 .smrow.sm-ok { opacity: .25; }
 @media (max-width: 860px) { .smrow { flex-direction: column; align-items: stretch; } .sm-saisie input, .sm-saisie [data-smf] { flex: 1; width: auto; min-width: 0; } }
+/* liste « sans marge » : une ligne par produit, pas de grille (sinon les cases écrasent le nom) */
+.plist.smlist { display: flex; flex-direction: column; gap: 8px; }
+.smlist .prow > span:not(.pill):not(.ph0) { flex: 1; min-width: 160px; } .smlist .prow .pill { flex: none; margin-top: 0; }
+.smlist .prow b { white-space: normal; }
+.smlist .prow small { white-space: nowrap; }
+@media (max-width: 860px) { .smlist .smrow { gap: 6px; padding-bottom: 14px; border-bottom: 2px solid var(--or); } .smlist .prow { flex-wrap: wrap; } }
