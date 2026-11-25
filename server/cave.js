@@ -157,7 +157,17 @@ const OPEN_BAR_VC = {
     { slug: 'verres-en-verre-vin-coupes-a-champagne', titre: 'Vrais verres en option', texte: 'Pour servir dans de vrais verres, ajoutez-les à votre demande depuis la fiche Verres.' },
   ],
 };
+/* le texte sous la photo (écrit par l'IA d'après l'ancienne fiche) disait « sans minimum de consommation » : remplacé une fois */
+const OPEN_BAR_SOUS_PHOTO = ['Offrez à vos invités les vins et champagnes de la cave Magnolia, servis par nos barmans pendant toute la durée de votre événement.',
+  'Les bouteilles sont comptées avant et après l’événement, en votre présence : vous ne payez que celles qui ont été consommées, après un minimum de consommation. Une formule simple et transparente pour vos mariages, réceptions et soirées.'];
+async function openBarSousPhoto(store) {
+  if (await store.get('_migr/openBarVC2')) return;
+  const x = await store.get('produits/open-bar-vins-et-champagnes');
+  if (x && (!(x.sousPhoto || []).length || x.sousPhotoAuto || /sans minimum/i.test((x.sousPhoto || []).join(' ')))) await store.set('produits/open-bar-vins-et-champagnes', { ...x, sousPhoto: OPEN_BAR_SOUS_PHOTO, sousPhotoAuto: false });
+  await store.set('_migr/openBarVC2', { at: new Date().toISOString() });
+}
 async function openBarCave(store) {
+  await openBarSousPhoto(store);
   if (await store.get('_migr/openBarVC1')) return;
   if (!(await store.get('produits/barman'))) await store.set('produits/barman', { ...BARMAN, createdAt: new Date().toISOString() });
   const x = await store.get('produits/open-bar-vins-et-champagnes');
