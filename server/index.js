@@ -241,6 +241,18 @@ async function createApp(opts = {}) {
     }
     await store.set('_migr/verresFlutes', { at: new Date().toISOString() });
   }
+  /* une seule fois (Jean-Luc, 2026-11-25) : plus de « (par personne) » dans les noms des fiches et des vignettes (ex. Set de vaisselle
+     complet) : l'unité « personne » s'affiche déjà au prix et au choix de la quantité. Adresses des fiches inchangées. */
+  if (!(await store.get('_migr/sansParPersonne'))) {
+    const PP = /\s*\(\s*par\s+pers(?:onne|\.)?\s*\)/gi;
+    for (const { id, data: p } of await store.list('produits')) {
+      if (!p || !PP.test(String(p.titre || '') + ' ' + String(p.seoTitre || ''))) continue;
+      PP.lastIndex = 0;
+      await store.set('produits/' + id, { ...p, titre: String(p.titre || '').replace(PP, '').trim(), ...(p.seoTitre ? { seoTitre: String(p.seoTitre).replace(PP, '').replace(/\s{2,}/g, ' ').trim() } : {}) });
+      PP.lastIndex = 0;
+    }
+    await store.set('_migr/sansParPersonne', { at: new Date().toISOString() });
+  }
   /* une seule fois (Jean-Luc, 2026-11-25) : chaise pliante de luxe en velours bordeaux = sa propre photo (rangs de chaises dans un salon doré, piano à queue), à la place de l'ancienne */
   if (!(await store.get('_migr/chaiseVeloursPhoto'))) {
     const SLUG = 'chaise-pliante-de-luxe-en-velours-bordeaux';
@@ -263,6 +275,15 @@ async function createApp(opts = {}) {
       await store.set('produits/' + id, { ...p, photos: [{ src: '/site/c/materiel/gobelet-biere-50cl.webp', alt: 'Verre à bière 50 cl en polypropylène givré, sur fond blanc' }] });
     }
     await store.set('_migr/gobeletBierePhoto', { at: new Date().toISOString() });
+  }
+  /* une seule fois (Jean-Luc, 2026-11-25) : nos verres réutilisables sont blancs translucides, pas rouges → photo de son propre verre en polypropylène givré (fond blanc) */
+  if (!(await store.get('_migr/verresReutilisablesPhoto'))) {
+    const SLUG = 'verres-reutilisables-eco-responsables';
+    for (const { id, data: p } of await store.list('produits')) {
+      if (!p || (p.slug !== SLUG && id !== SLUG)) continue;
+      await store.set('produits/' + id, { ...p, photos: [{ src: '/site/c/materiel/verres-reutilisables-blancs.webp', alt: 'Verre réutilisable en polypropylène blanc translucide' }] });
+    }
+    await store.set('_migr/verresReutilisablesPhoto', { at: new Date().toISOString() });
   }
   /* La cave de Magnolia refaite (Jean-Luc, 2026-11-25) : catégories avec photo, boissons reprises d'une carte de traiteur, champagne André Diligent en grand (server/cave.js) */
   { const n = await require('./cave').initCave(store); if (n) console.log(`[demarrage] La cave de Magnolia : ${n} boissons créées`); }

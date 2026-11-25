@@ -1950,13 +1950,13 @@
     const [rubs, prods, lieuxL] = await Promise.all([api(A + '/rubriques'), api(A + '/produits'), api(A + '/lieux').catch(() => [])]);
     /* la rubrique « Lieux de réception » ne contient pas de produits : ses fiches sont dans le menu Lieux (compteur = lieux visibles, comme sur le site) */
     const nbLieux = lieuxL.filter(l => l.statut !== 'masque').length;
-    const nbRub = slug => slug === 'lieux' ? nbLieux : prods.filter(p => p.rubrique === slug).length;
+    const nbRub = slug => slug === 'lieux' ? nbLieux : prods.filter(p => dansRub(p, slug)).length;
     cache.rubriques = rubs.sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0)); cache.produits = prods;
     if (new URLSearchParams(location.hash.split('?')[1] || '').get('masques')) return pageMasques(rubs, prods);
     if (new URLSearchParams(location.hash.split('?')[1] || '').get('sansmarge')) return pageSansMarge(rubs, prods);
     const r = new URLSearchParams(location.hash.split('?')[1] || '').get('r') || cache.catR || rubs[0]?.slug;
     cache.catR = r;
-    const liste = masquesALaFin(prods.filter(p => p.rubrique === r).sort(ordreSite));
+    const liste = masquesALaFin(prods.filter(p => dansRub(p, r)).sort(ordreSite));
     const rub = rubs.find(x => x.slug === r) || {};
     const titreCat = 'Catalogue' + pavesCat(prods, 'produits');
     return page(titreCat, '', `
@@ -2199,11 +2199,14 @@
   const fournisseursConnus = () => [...new Set((cache.produits || []).flatMap(x => [...(x.fournisseurs || []), ...(x.fournisseur ? [x.fournisseur] : [])]).map(x => String(x).trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
   const sansMarge = p => p.statut !== 'masque' && p.prixCents != null && (p.coutCents == null || p.coutCents >= p.prixCents);
   /* produits visibles d'abord, masqués à la fin, en gardant l'ordre choisi dans chaque groupe (Jean-Luc 2026-11-25) */
+  /* un produit est dans une rubrique par sa rubrique principale ou par « Aussi dans ces rubriques » (Jean-Luc 2026-11-25 : Mobilier et matériel à la location) */
+  const dansRub = (p, r) => p.rubrique === r || (p.autresRubriques || []).includes(r);
   const masquesALaFin = L => [...L.filter(p => p.statut !== 'masque'), ...L.filter(p => p.statut === 'masque')];
   const ordreSite = (a, b) => (b.maison ? 1 : 0) - (a.maison ? 1 : 0) || (a.ordre ?? 0) - (b.ordre ?? 0);
-  const prow = p => `<a class="prow${p.statut === 'masque' ? ' hid' : ''}" href="#/catalogue/${p.id || p.slug}">${p.photos?.[0]?.src ? `<img src="${esc(p.photos[0].src)}" alt="" loading="lazy">` : '<span class="ph0"></span>'}<span><b>${titreHtml(p.titre)}</b><small>${p.prixCents == null ? 'Sur devis' : euros(p.prixCents) + (p.unite ? ' / ' + esc(p.unite) : '')}${p.min > 1 ? ' · min. ' + p.min : ''}</small></span><span class="pill ${p.statut === 'masque' ? 'd-refuse' : 'd-accepte'}">${p.statut === 'masque' ? 'Masqué' : 'Visible'}</span>${p.maison ? '<span class="pill" title="Réglage « Ordre sur le site » de la fiche : produit affiché en premier">★ En premier sur le site</span>' : ''}${sansMarge(p) ? `<span class="pill smpill">${p.coutCents == null ? 'Prix d’achat manquant' : 'Vendu à perte'}</span>` : ''}${p.sous ? `<span class="pill">${esc(((cache.rubriques || []).find(r => r.slug === p.rubrique)?.sous || []).find(x => x.slug === p.sous)?.nom || '')}</span>` : ''}</a>`;
+  const prow = p => `<a class="prow${p.statut === 'masque' ? ' hid' : ''}" href="#/catalogue/${p.id || p.slug}">${p.photos?.[0]?.src ? `<img src="${esc(p.photos[0].src)}" alt="" loading="lazy">` : '<span class="ph0"></span>'}<span><b>${titreHtml(p.titre)}</b><small>${p.prixCents == null ? 'Sur devis' : euros(p.prixCents) + (p.unite ? ' / ' + esc(p.unite) : '')}${p.min > 1 ? ' · min. ' + p.min : ''}</small></span><span class="pill ${p.statut === 'masque' ? 'd-refuse' : 'd-accepte'}">${p.statut === 'masque' ? 'Masqué' : 'Visible'}</span>${cache.catR && p.rubrique !== cache.catR && (p.autresRubriques || []).includes(cache.catR) ? `<span class="pill" title="Fiche rangée dans « ${esc(nomRubAdmin(p.rubrique))} », affichée aussi ici (« Aussi dans ces rubriques »)">↪ ${esc(nomRubAdmin(p.rubrique))}</span>` : ''}${p.maison ? '<span class="pill" title="Réglage « Ordre sur le site » de la fiche : produit affiché en premier">★ En premier sur le site</span>' : ''}${sansMarge(p) ? `<span class="pill smpill">${p.coutCents == null ? 'Prix d’achat manquant' : 'Vendu à perte'}</span>` : ''}${p.sous ? `<span class="pill">${esc(((cache.rubriques || []).find(r => r.slug === p.rubrique)?.sous || []).find(x => x.slug === p.sous)?.nom || '')}</span>` : ''}</a>`;
   /* cases à cocher devant chaque produit + « 🗑 Supprimer » groupé, barre en bas d'écran (Jean-Luc 2026-11-25).
      La sélection est vidée à chaque changement d'écran ; « ↶ Annuler » remet les fiches juste après. */
+  const nomRubAdmin = slug => (cache.rubriques || []).find(r => r.slug === slug)?.nom || slug;
   const PSEL = new Set();
   let psDernier = null;
   const pchk = p => peut('produits') ? `<label class="pchk" title="Cocher pour supprimer"><input type="checkbox" data-psel="${esc(p.id || p.slug)}"${PSEL.has(p.id || p.slug) ? ' checked' : ''} aria-label="Cocher « ${esc(titreTexte(p.titre))} »"></label>` : '';
@@ -2227,7 +2230,20 @@
       return;
     }
     if (e.target.closest('[data-psdel]')) {
-      const ids = [...PSEL]; if (!ids.length) return;
+      let ids = [...PSEL]; if (!ids.length) return;
+      /* dans une rubrique, un produit qui n'y est qu'« aussi » (rangé ailleurs) en est seulement retiré : il reste dans sa rubrique */
+      const enCat = /^#\/catalogue(\?|$)/.test(location.hash || '') && cache.catR;
+      const lies = enCat ? ids.filter(id => { const p = (cache.produits || []).find(x => (x.id || x.slug) === id); return p && p.rubrique !== cache.catR && (p.autresRubriques || []).includes(cache.catR); }) : [];
+      if (lies.length) {
+        const nomR = nomRubAdmin(cache.catR), nl = lies.length;
+        if (!confirm(`Retirer ${nl > 1 ? 'ces ' + nl + ' produits' : 'ce produit'} de « ${nomR} » ?\n\n${lies.slice(0, 12).map(id => '• ' + titreTexte((cache.produits || []).find(p => (p.id || p.slug) === id)?.titre || id)).join('\n')}\n\n${nl > 1 ? 'Ils ne sont' : 'Il n’est'} pas ${nl > 1 ? 'supprimés' : 'supprimé'} : ${nl > 1 ? 'ils restent' : 'il reste'} dans ${nl > 1 ? 'leur' : 'sa'} rubrique d’origine.`)) return;
+        try {
+          for (const id of lies) { const p = await api(A + '/produits/' + encodeURIComponent(id)); await api(`${A}/produits/${encodeURIComponent(id)}`, { method: 'PUT', body: { ...p, autresRubriques: (p.autresRubriques || []).filter(x => x !== cache.catR) } }); PSEL.delete(id); }
+          toast(`${nl} produit${nl > 1 ? 's' : ''} retiré${nl > 1 ? 's' : ''} de « ${nomR} ».`);
+        } catch (err) { toast(err.message, true); return; }
+        ids = ids.filter(id => !lies.includes(id));
+        if (!ids.length) { cache.produits = null; majPsBar(); render(); return; }
+      }
       const noms = ids.map(id => titreTexte((cache.produits || []).find(p => (p.id || p.slug) === id)?.titre || id));
       const n = ids.length;
       if (!confirm(`Supprimer définitivement ${n > 1 ? 'ces ' + n + ' produits' : 'ce produit'} ?\n\n${noms.slice(0, 12).map(x => '• ' + x).join('\n')}${n > 12 ? `\n… et ${n - 12} autre${n - 12 > 1 ? 's' : ''}` : ''}\n\n${n > 1 ? 'Ils disparaissent' : 'Il disparaît'} du site et du back-office, et ne ${n > 1 ? 'reviendront' : 'reviendra'} pas. Les devis déjà faits ne changent pas.\nVous pourrez annuler juste après avec « ↶ Annuler ».`)) return;
@@ -2365,7 +2381,7 @@
     const sansAcc = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     const filtrer = () => {
       const v = $('[data-sousf]')?.value ?? '*', q = sansAcc($('[data-pq]').value).trim();
-      let L = cache.produits.filter(p => p.rubrique === cache.catR && (v === '*' || (v ? p.sous === v : !sous.some(x => x.slug === p.sous))) && (!q || q.split(/\s+/).every(m => sansAcc(p.titre + ' ' + p.slug).includes(m))));
+      let L = cache.produits.filter(p => dansRub(p, cache.catR) && (v === '*' || (v ? p.sous === v : !sous.some(x => x.slug === p.sous))) && (!q || q.split(/\s+/).every(m => sansAcc(p.titre + ' ' + p.slug).includes(m))));
       const tri = $('[data-tri]').value, vis = $('[data-vis]').value;
       if (vis) L = L.filter(p => (p.statut === 'masque') === (vis === 'masque'));
       const nom = (a, b) => String(a.titre || '').localeCompare(String(b.titre || ''), 'fr', { sensitivity: 'base' });

@@ -1407,7 +1407,7 @@ async function initSousRubriques(store, { log = console } = {}) {
       'nappe-rectangulaire-170-250-cm': ['nappe-rectangulaire', 'Table rectangulaire avec nappe blanche'],
       'chaise-pliante-de-luxe-en-velours-bordeaux': ['chaises-velours-bordeaux-salon', 'Chaises pliantes en velours bordeaux installées en rangs dans un salon doré, devant un piano à queue'],
       'verres-en-verre-vin-coupes-a-champagne': ['verres-vin-flutes', 'Un verre à vin et une flûte à champagne sur une table de réception'],
-      'verres-reutilisables-eco-responsables': ['verres-reutilisables', 'Gobelets réutilisables empilés'],
+      'verres-reutilisables-eco-responsables': ['verres-reutilisables-blancs', 'Verre réutilisable en polypropylène blanc translucide'],
       'set-de-vaisselle-complet-par-personne': ['set-complet', 'Assiettes, couverts et verre à pied'],
       'set-de-vaisselle-sans-verrerie-par-personne': ['set-sans-verrerie', 'Assiettes en porcelaine blanche'],
       'set-de-vaisselle-dessert-par-personne': ['set-dessert', 'Assiette à dessert et fourchette'],
