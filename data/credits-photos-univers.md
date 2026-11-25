@@ -309,3 +309,5 @@ Photos regardées une à une (vraies photos, sans texte ni logo), licence Pexels
 - buffet-libanais-8-mezzes-1-plat : Pexels 8183709 (https://www.pexels.com/photo/8183709/), Pexels 28241720 (https://www.pexels.com/photo/28241720/), Pexels 25907496 (https://www.pexels.com/photo/25907496/)
 - buffet-libanais-8-mezzes-1-plat-1-dessert : Pexels 36287931 (https://www.pexels.com/photo/36287931/), Pexels 38947724 (https://www.pexels.com/photo/38947724/), Pexels 19386650 (https://www.pexels.com/photo/19386650/)
 - Eau plate Cristaline 1,5 L : Pexels 13055851 ; eau pétillante 1,5 L : Pexels 31699476 (2026-11-25).
+- Coca-Cola 1,5 L et Coca-Cola Zéro 1,5 L : photos fournies par Jean-Luc (2026-11-25), remplacent les photos Pexels.
+- Cristaline gazéifiée 1,5 L : photo fournie par Jean-Luc (2026-11-25), remplace Pexels 31699476.

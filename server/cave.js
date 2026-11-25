@@ -179,9 +179,9 @@ async function openBarCave(store) {
    Prix : environ 4,50 € HT chez les traiteurs → TTC (10 %) + 10 % = 5,50 €. */
 const SODAS_RETIRES = ['paris-cola-33-cl', 'paris-cola-zero-33-cl', 'parismonade-33-cl', 'parismonade-75-cl', 'paris-cola-75-cl'];
 const SODAS_COCA = [
-  { slug: 'coca-cola-1-5-l', titre: 'Coca-Cola (1,5 L)', ordre: 14, photo: [px(35020136), 'Bouteille de Coca-Cola'],
+  { slug: 'coca-cola-1-5-l', titre: 'Coca-Cola (1,5 L)', ordre: 14, photo: ['/site/c/cave/coca-cola-1-5-l.webp', 'Bouteille de Coca-Cola 1,5 L'],
     extrait: 'Coca-Cola original, grande bouteille de 1,5 litre à partager.', description: ['Coca-Cola original, grande bouteille de 1,5 litre à partager.', FRAIS] },
-  { slug: 'coca-cola-zero-1-5-l', titre: 'Coca-Cola Zéro (1,5 L)', ordre: 14.5, photo: [px(19504042), 'Coca-Cola Zéro Sucre bien frais'],
+  { slug: 'coca-cola-zero-1-5-l', titre: 'Coca-Cola Zéro (1,5 L)', ordre: 14.5, photo: ['/site/c/cave/coca-cola-zero-1-5-l.webp', 'Bouteille de Coca-Cola Zéro 1,5 L'],
     extrait: 'Coca-Cola Zéro sucre, grande bouteille de 1,5 litre à partager.', description: ['Coca-Cola Zéro sucre, grande bouteille de 1,5 litre à partager.', FRAIS] },
 ];
 async function sodasCave(store) {
@@ -233,8 +233,8 @@ const EAUX_RETIREES = ['eau-evian-50-cl', 'eau-vittel-1-l', 'perrier-fines-bulle
 const EAUX_NOUVELLES = [
   { slug: 'eau-plate-cristaline-1-5-l', titre: 'Eau plate Cristaline (1,5 L)', ordre: 10, photo: [px(13055851), 'Bouteilles d’eau plate'],
     extrait: 'Eau de source plate Cristaline, bouteille de 1,5 litre, vendue à l’unité.', description: ['Eau de source plate Cristaline, bouteille de 1,5 litre, vendue à l’unité.', FRAIS] },
-  { slug: 'eau-petillante-1-5-l', titre: 'Eau pétillante (1,5 L)', ordre: 10.5, photo: [px(31699476), 'Bouteille d’eau pétillante'],
-    extrait: 'Eau pétillante, bouteille de 1,5 litre, vendue à l’unité.', description: ['Eau pétillante, bouteille de 1,5 litre, vendue à l’unité.', FRAIS] },
+  { slug: 'eau-petillante-1-5-l', titre: 'Eau gazeuse Cristaline (1,5 L)', ordre: 10.5, prix: 220, photo: ['/site/c/cave/cristaline-gazeifiee-1-5-l.webp', 'Bouteille de Cristaline gazéifiée 1,5 L'],
+    extrait: 'Eau de source gazéifiée Cristaline, bouteille de 1,5 litre, vendue à l’unité.', description: ['Eau de source gazéifiée Cristaline, bouteille de 1,5 litre, vendue à l’unité.', FRAIS] },
 ];
 async function eauxCave(store) {
   if (await store.get('_migr/caveEaux1')) return;
@@ -245,7 +245,7 @@ async function eauxCave(store) {
   for (const x of EAUX_NOUVELLES) {
     if (await store.get('produits/' + x.slug)) continue;
     await store.set('produits/' + x.slug, {
-      id: x.slug, slug: x.slug, rubrique: 'boissons', autresRubriques: [], sous: '', autresSous: [], rangement: 'eaux', titre: x.titre, prixCents: 250, coutCents: null, prixTexte: null,
+      id: x.slug, slug: x.slug, rubrique: 'boissons', autresRubriques: [], sous: '', autresSous: [], rangement: 'eaux', titre: x.titre, prixCents: x.prix || 250, coutCents: null, prixTexte: null,
       unite: 'bouteille', min: 1, minimumTexte: null, extrait: x.extrait, description: x.description, sections: [], details: [],
       photos: [{ src: x.photo[0], alt: x.photo[1] }], video: null, groupes: [], variantes: [], regles: {}, ordre: x.ordre, statut: 'visible', maison: false, tva: 10,
       allergenes: [], aCompleter: false, createdAt: new Date().toISOString(),
@@ -254,9 +254,27 @@ async function eauxCave(store) {
   await store.set('_migr/caveEaux1', { at: new Date().toISOString() });
 }
 
+/* Photos des Coca-Cola 1,5 L fournies par Jean-Luc (2026-11-25) : posées une fois sur les deux fiches */
+async function cocaPhotos(store) {
+  if (await store.get('_migr/caveCocaPhotos1')) return;
+  for (const x of SODAS_COCA) {
+    const d = await store.get('produits/' + x.slug);
+    if (d) await store.set('produits/' + x.slug, { ...d, photos: [{ src: x.photo[0], alt: x.photo[1] }] });
+  }
+  await store.set('_migr/caveCocaPhotos1', { at: new Date().toISOString() });
+}
+
+/* Eau gazeuse (Jean-Luc, 2026-11-25) : Cristaline gazéifiée 1,5 L à 2,20 € TTC, avec sa photo */
+async function cristalineGaz(store) {
+  if (await store.get('_migr/caveCristalineGaz1')) return;
+  const x = EAUX_NOUVELLES[1], d = await store.get('produits/' + x.slug);
+  if (d) await store.set('produits/' + x.slug, { ...d, titre: x.titre, prixCents: x.prix, extrait: x.extrait, description: x.description, photos: [{ src: x.photo[0], alt: x.photo[1] }] });
+  await store.set('_migr/caveCristalineGaz1', { at: new Date().toISOString() });
+}
+
 async function initCave(store) {
   await prixCave(store);
-  if (await store.get('_migr/caveCercle')) { await openBarCave(store); await sodasCave(store); await vinsCave(store); await eauxCave(store); return ajoutsCave(store); }
+  if (await store.get('_migr/caveCercle')) { await openBarCave(store); await sodasCave(store); await vinsCave(store); await eauxCave(store); await cocaPhotos(store); await cristalineGaz(store); return ajoutsCave(store); }
   const now = new Date().toISOString();
   let n = 0;
   for (const d of await store.list('produits')) {
@@ -297,6 +315,8 @@ async function initCave(store) {
   await sodasCave(store);
   await vinsCave(store);
   await eauxCave(store);
+  await cocaPhotos(store);
+  await cristalineGaz(store);
   return n + await ajoutsCave(store);
 }
 
