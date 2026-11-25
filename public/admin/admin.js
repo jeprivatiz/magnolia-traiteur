@@ -1168,8 +1168,9 @@
       const brut = lignes.filter(l => l.type !== 'titre').reduce((s2, l) => s2 + Math.round((l.puCents || 0) * (+l.qte || 0)), 0);
       return Math.round(brut * Math.min(100, nombre(form.remise.value)) / 100);
     };
-    const draw = () => {
-      body.innerHTML = lignes.map((l, i) => l.type === 'titre'
+    /* draw(false) : seulement les totaux et la marge — pendant la frappe, on ne redessine pas les cases (sinon « 3 » devient « 3,00 » et le curseur saute) */
+    const draw = (cases = true) => {
+      if (cases) body.innerHTML = lignes.map((l, i) => l.type === 'titre'
         ? `<tr class="t" data-i="${i}"><td class="h">⋮⋮</td><td colspan="8"><input data-f="designation" value="${esc(l.designation)}" placeholder="Titre de section"></td><td><button type="button" class="x" data-del>×</button></td></tr>`
         : `<tr data-i="${i}" class="${l.coutCents && l.puCents < l.coutCents ? 'neg' : ''}"><td class="h" title="Déplacer">⋮⋮</td><td><input data-f="designation" value="${esc(l.designation)}"><input data-f="detail" class="sub" value="${esc(l.detail || '')}" placeholder="Détail (facultatif)"></td>
            <td><input data-f="qte" class="num" value="${esc(l.qte)}" inputmode="decimal"></td><td><select data-f="unite">${[...new Set([l.unite, ...UNITES])].map(u => `<option${u === l.unite ? ' selected' : ''}>${esc(u || '')}</option>`).join('')}</select></td>
@@ -1193,11 +1194,19 @@
       else l[f] = f === 'coutCents' ? achatTtc(toCents(e.target.value), l.tva ?? 10) : f === 'puCents' ? toCents(e.target.value) : f === 'tva' ? +e.target.value : f === 'qte' ? parseFloat(String(e.target.value).replace(',', '.')) || 0 : e.target.value;
       const cell = tr.children[8]; if (cell && l.type !== 'titre') cell.textContent = euros(Math.round((l.puCents || 0) * (+l.qte || 0)));
       tr.classList.toggle('neg', !!(l.coutCents && l.puCents < l.coutCents));
-      const t = tot({ lignes, remiseCents: remiseCts() }); draw.totOnly ? 0 : 0; $('#totaux').innerHTML = ''; draw(); dirty();
-      const again = $(`[data-i="${tr.dataset.i}"] [data-f="${f}"]`); if (again && again.tagName === 'INPUT') { again.focus(); again.setSelectionRange(again.value.length, again.value.length); }
-      void t;
+      if (e.target.tagName === 'SELECT') draw(); else draw(false);
+      dirty();
     });
-    body.addEventListener('change', e => { if (e.target.tagName === 'SELECT') body.dispatchEvent(new Event('input', { bubbles: true })) ; });
+    /* en quittant une case : mise en forme (3 → 3,00), prix remisé et marge de la ligne ; la case suivante garde le curseur */
+    body.addEventListener('change', e => {
+      if (e.target.tagName === 'SELECT') return;
+      setTimeout(() => {
+        const a = document.activeElement, tr = a?.closest?.('#lines [data-i]'), f = a?.dataset?.f;
+        draw();
+        const b = tr && f ? $(`#lines [data-i="${tr.dataset.i}"] [data-f="${f}"]`) : null;
+        if (b) { b.focus(); try { b.select(); } catch { /* select : pas de sélection */ } }
+      });
+    });
     body.addEventListener('click', e => { if (e.target.closest('[data-del]')) { lignes.splice(+e.target.closest('[data-i]').dataset.i, 1); draw(); dirty(); } });
     /* déplacer une ligne en la glissant */
     let from = null;
