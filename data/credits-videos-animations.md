@@ -9,7 +9,7 @@ Recadrées en 4:3 (800 × 600), muettes, en boucle avec un fondu, dans `public/s
 | Bar à burrata | burrata | https://www.pexels.com/video/29966863/ (Fresh Burrata and Cherry Tomato Salad) |
 | Animation barbecue | barbecue-flammes | https://www.pexels.com/video/27641728/ (A person is cooking food on a grill), flammes vives |
 | Animation ti punch, acras & boudins | acras | https://www.pexels.com/video/29544740/ (Crispy Golden Fritters Frying), recadrée sur la poêle |
-| Stand à burgers | burgers | https://www.pexels.com/video/34556299/ (Juicy Grilled Burgers with Melting Cheese) |
+| Stand à burgers | burgers-2 | https://www.pexels.com/video/37284846/ (burgers coiffés du pain sur la plaque) + https://www.pexels.com/video/32092904/ (chef qui monte le cheeseburger), 25/11/2026 |
 | Animation pâtes à la meule de parmesan | pates-flambees | https://www.pexels.com/video/40801697/ (Professional Chef Flambé Cooking Technique) : flambage à la poêle, faute de vidéo libre d'une meule flambée |
 | Bar à pâtes | bar-a-pates | https://www.pexels.com/video/8964471/ (A Person Tossing a Creamy Pasta on a Pan) |
 | Chef sushi à domicile | sushi | https://www.pexels.com/video/8901981/ (A Man Slicing Sushi Roll) |
