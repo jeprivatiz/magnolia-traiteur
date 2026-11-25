@@ -14,8 +14,8 @@ const px = id => `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg
 const CAVE_SECTIONS = [
   ['champagne', 'Notre champagne', '/site/c/cave/andre-diligent-seau.webp'],
   ['eaux', 'Les eaux', px(31107362)],
-  ['sodas', 'Sodas & limonades', px(12738761)],
-  ['jus', 'Jus de fruits & thés glacés', px(8679338)],
+  ['sodas', 'Sodas', px(35020136)],
+  ['jus', 'Jus de fruits', px(8679601)],
   ['vins-rouges', 'Vins rouges', px(29436323)],
   ['vins-blancs', 'Vins blancs', px(20848541)],
   ['vins-roses', 'Vin rosé', px(15006642)],
@@ -30,7 +30,7 @@ const ttc = (ht, tva) => Math.ceil(Math.round(ht * (1 + tva / 100) * 1.1 * 1000)
 const plus20 = e => Math.round(e * 120);
 
 const TIRE = 'Tire-bouchon non fourni : pensez à l’ajouter à votre sélection (rubrique Accessoires).';
-const FRAIS = 'Livré frais avec le reste de votre commande.';
+const FRAIS = 'Livré à température ambiante avec le reste de votre commande.';
 
 /* [section, slug, titre, prix TTC en centimes, TVA, extrait, description, photo, texte de la photo] */
 const CAVE_PRODUITS = [
@@ -78,13 +78,13 @@ const CHAMPAGNE = {
     'Notre champagne de récoltant, une valeur sûre pour vos réceptions.',
     'Au sud de la Champagne, sur la Côte des Bar, dix hectares de vignes donnent naissance à un champagne de récoltant-manipulant : une maison qui accompagne son produit de la vigne à la bouteille, avec un excellent rapport qualité-prix.',
     'Des vins patiemment élevés et assemblés, puis conservés au moins deux ans en cave avant de rejoindre votre table.',
-    'Bouteille de 75 cl, livrée fraîche avec votre commande.',
+    'Bouteille de 75 cl, livrée à température ambiante avec votre commande.',
   ],
   photos: [{ src: '/site/c/cave/andre-diligent-seau.webp', alt: 'Deux bouteilles de champagne André Diligent dans un seau à glace, devant des flûtes' }],
 };
 
 const INTRO_CAVE = ['Notre cave, livrée avec votre commande',
-  'Notre champagne de récoltant André Diligent, des vins choisis pour vos buffets et vos repas, des eaux, des softs artisanaux de Paris, des jus de fruits et quelques alcools pour vos cocktails.\nChoisissez une catégorie, ajoutez vos bouteilles à votre sélection : elles arrivent fraîches avec le reste de votre commande. Tous nos prix sont TTC.'];
+  'Notre champagne de récoltant André Diligent, des vins choisis pour vos buffets et vos repas, des eaux, des sodas, des jus de fruits et quelques alcools pour vos cocktails.\nChoisissez une catégorie, ajoutez vos bouteilles à votre sélection : elles arrivent avec le reste de votre commande, à température ambiante. Tous nos prix sont TTC.'];
 
 /* prix donnés par Jean-Luc après coup (2026-11-25) : posés une fois, seulement si la fiche est encore « Sur devis » */
 const PRIX_CAVE = { 'livraison-de-glacons-sac-de-20-kg': 4900 };
@@ -97,13 +97,13 @@ async function prixCave(store) {
   await store.set('_migr/prixCave1', { at: new Date().toISOString() });
 }
 
-/* fiches ajoutées après coup (Jean-Luc, 2026-11-25) : rhum Trois-Rivières en tête des alcools forts, à 35 € TTC.
+/* fiches ajoutées après coup (Jean-Luc, 2026-11-25) : rhum Trois-Rivières en tête des alcools forts (35 € puis 24,90 € TTC, photo de la bouteille fournie par Jean-Luc).
    Créées une fois, après la mise en place de la cave (sinon elles seraient masquées avec les anciennes boissons). */
 const AJOUTS_CAVE = [
-  { slug: 'rhum-trois-rivieres-blanc-50-70-cl', rangement: 'alcools-forts', ordre: 31, titre: 'Rhum blanc agricole Trois-Rivières 50° (70 cl)', prixCents: 3500, tva: 20,
+  { slug: 'rhum-trois-rivieres-blanc-50-70-cl', rangement: 'alcools-forts', ordre: 31, titre: 'Rhum blanc agricole Trois-Rivières 50° (70 cl)', prixCents: 2490, tva: 20,
     extrait: 'Le rhum blanc agricole de la Martinique, à 50°, pour le ti-punch, le planteur et les cocktails. 70 cl.',
     description: ['Rhum blanc agricole AOC Martinique de la distillerie Trois-Rivières, à 50°, distillé à partir de pur jus de canne à sucre.', 'Le rhum du ti-punch, du planteur et des cocktails antillais.', 'Bouteille de 70 cl. À consommer avec modération.'],
-    photo: [px(36860546), 'Ti-punch au rhum blanc agricole et citron vert'] },
+    photo: ['/site/c/cave/rhum-trois-rivieres-blanc-50.webp', 'Bouteille de rhum blanc agricole Trois-Rivières 50°'] },
 ];
 async function ajoutsCave(store) {
   if (await store.get('_migr/caveAjouts1')) return 0;
@@ -282,9 +282,40 @@ async function cristalinePlate(store) {
   await store.set('_migr/caveCristalinePlate1', { at: new Date().toISOString() });
 }
 
+/* Jean-Luc (2026-11-25) : plus de Badoit ni de Perrier ; catégories Sodas et Jus de fruits ; bandeau de la cave = vidéo sombre où l'on sert du champagne dans des flûtes
+   (montage de 2 vidéos Pexels, sources dans data/credits-photos-univers.md) */
+async function caveBandeauBadoit(store) {
+  if (await store.get('_migr/caveBandeau1')) return;
+  for (const slug of ['eau-badoit-50-cl', 'perrier-fines-bulles-1-l']) {
+    const x = await store.get('produits/' + slug);
+    if (x && x.statut !== 'masque') await store.set('produits/' + slug, { ...x, statut: 'masque', masqueCave: true });
+  }
+  /* « Sodas » (sans limonades, vignette Coca-Cola) ; « Jus de fruits » seuls : thés glacés et citronnade JOMO retirés */
+  for (const slug of ['jomo-citronnade-gingembre-35-cl', 'jomo-the-vert-menthe-citron-35-cl', 'jomo-the-blanc-peche-hibiscus-35-cl']) {
+    const x = await store.get('produits/' + slug);
+    if (x && x.statut !== 'masque') await store.set('produits/' + slug, { ...x, statut: 'masque', masqueCave: true });
+  }
+  const rh = AJOUTS_CAVE[0], d = await store.get('produits/' + rh.slug);
+  if (d) await store.set('produits/' + rh.slug, { ...d, prixCents: rh.prixCents, photos: [{ src: rh.photo[0], alt: rh.photo[1] }] });
+  /* boissons livrées à température ambiante, jamais « fraîches » (Jean-Luc, 2026-11-25) */
+  const amb = t => typeof t !== 'string' ? t : t.replace('Livré frais avec le reste de votre commande.', FRAIS).replace('livrée fraîche avec votre commande', 'livrée à température ambiante avec votre commande');
+  for (const { id, data: x } of await store.list('produits')) {
+    if (!x || x.rubrique !== 'boissons') continue;
+    const description = (x.description || []).map(amb), sousPhoto = (x.sousPhoto || []).map(amb);
+    if (JSON.stringify(description) !== JSON.stringify(x.description || []) || JSON.stringify(sousPhoto) !== JSON.stringify(x.sousPhoto || []))
+      await store.set('produits/' + id, { ...x, description, ...(x.sousPhoto ? { sousPhoto } : {}) });
+  }
+  const rb = await store.get('rubriques/boissons');
+  const sec = k => CAVE_SECTIONS.find(x => x[0] === k);
+  if (rb) await store.set('rubriques/boissons', { ...rb, ...(/softs artisanaux|arrivent fraîches/.test(rb.introTexte || '') ? { introTexte: INTRO_CAVE[1] } : {}), bandeauVideo: '/site/v/bandeaux/cave-champagne.mp4', bandeauPoster: '/site/v/bandeaux/cave-champagne.jpg',
+    titresSections: { ...(rb.titresSections || {}), sodas: sec('sodas')[1], jus: sec('jus')[1] },
+    photosSections: { ...(rb.photosSections || {}), sodas: sec('sodas')[2], jus: sec('jus')[2] } });
+  await store.set('_migr/caveBandeau1', { at: new Date().toISOString() });
+}
+
 async function initCave(store) {
   await prixCave(store);
-  if (await store.get('_migr/caveCercle')) { await openBarCave(store); await sodasCave(store); await vinsCave(store); await eauxCave(store); await cocaPhotos(store); await cristalineGaz(store); await cristalinePlate(store); return ajoutsCave(store); }
+  if (await store.get('_migr/caveCercle')) { await openBarCave(store); await sodasCave(store); await vinsCave(store); await eauxCave(store); await cocaPhotos(store); await cristalineGaz(store); await cristalinePlate(store); await caveBandeauBadoit(store); return ajoutsCave(store); }
   const now = new Date().toISOString();
   let n = 0;
   for (const d of await store.list('produits')) {
@@ -328,6 +359,7 @@ async function initCave(store) {
   await cocaPhotos(store);
   await cristalineGaz(store);
   await cristalinePlate(store);
+  await caveBandeauBadoit(store);
   return n + await ajoutsCave(store);
 }
 

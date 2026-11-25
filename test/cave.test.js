@@ -23,12 +23,13 @@ test('initCave : anciens vins masqués, nos open bars gardés, nouvelles fiches 
     list: async col => [...docs].filter(([k]) => k.startsWith(col + '/')).map(([k, data]) => ({ id: k.slice(col.length + 1), data })),
   };
   docs.set('rubriques/boissons', { slug: 'boissons', nom: 'La cave de Magnolia', introTexte: 'Champagne, vins choisis en Bourgogne, à Bordeaux ou en Provence…' });
+  docs.set('produits/vieille-eau', { slug: 'vieille-eau', rubrique: 'boissons', titre: 'Eau', description: ['Eau.', 'Livré frais avec le reste de votre commande.'] });
   docs.set('produits/chablis', { slug: 'chablis', rubrique: 'boissons', titre: 'Chablis', statut: 'visible' });
   docs.set('produits/sangria-maison-au-litre', { slug: 'sangria-maison-au-litre', rubrique: 'boissons', titre: 'Sangria', statut: 'visible' });
   docs.set('produits/champagne-andre-diligent', { slug: 'champagne-andre-diligent', rubrique: 'boissons', titre: 'Champagne André Diligent', prixCents: 2850, statut: 'visible' });
   assert.equal(await initCave(store), CAVE_PRODUITS.length + AJOUTS_CAVE.length);
   const rhum = docs.get('produits/rhum-trois-rivieres-blanc-50-70-cl');
-  assert.equal(rhum.prixCents, 3500);
+  assert.equal(rhum.prixCents, 2490);
   assert.equal(rhum.statut, 'visible');
   assert.equal(docs.get('produits/chablis').statut, 'masque');
   assert.equal(docs.get('produits/sangria-maison-au-litre').statut, 'visible');
@@ -52,5 +53,9 @@ test('initCave : anciens vins masqués, nos open bars gardés, nouvelles fiches 
   assert.equal(docs.get('produits/coca-cola-1-5-l').photos[0].src, '/site/c/cave/coca-cola-1-5-l.webp');
   assert.equal(docs.get('produits/eau-petillante-1-5-l').prixCents, 220);
   assert.match(docs.get('produits/eau-plate-cristaline-1-5-l').photos[0].src, /cristaline-plate-1-5-l\.webp/);
+  assert.equal(docs.get('produits/eau-badoit-50-cl').statut, 'masque');
+  assert.ok(![...docs.values()].some(d => JSON.stringify(d).includes('Livré frais')));
+  assert.equal(docs.get('produits/jomo-the-vert-menthe-citron-35-cl').statut, 'masque');
+  assert.equal(docs.get('rubriques/boissons').titresSections.sodas, 'Sodas');
   assert.equal(await initCave(store), 0);
 });
