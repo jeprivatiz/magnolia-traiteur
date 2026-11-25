@@ -1780,6 +1780,26 @@ async function initSousRubriques(store, { log = console } = {}) {
     }
     await store.set('site/reglages', { ...(await store.get('site/reglages')), antillaisDivers1: true });
   }
+
+  /* Doublons du Buffet antillais (Jean-Luc, 2026-11-25) : une seule fiche de riz aux légumes (4,90 € TTC la portion) et une
+     seule de fricassée de chatrou ; on garde la mieux renseignée (description, allergènes, photos), l'autre est masquée.
+     À égalité, « Fricassée » (orthographe juste) est gardée. Une fois. */
+  const RAx = await store.get('site/reglages');
+  if (RAx && !RAx.antillaisDoublons1) {
+    const sans = t => String(t ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const remplie = x => Array.isArray(x) ? x.some(l => String(l || '').trim()) : !!String(x || '').trim();
+    const score = p => (remplie(p.description) ? 4 : 0) + (remplie(p.sousPhoto) ? 2 : 0) + ((p.allergenes || []).length ? 2 : 0) + (p.photos || []).length;
+    const tous = (await store.list('produits')).filter(({ data: p }) => p.statut !== 'masque' && (p.sous === 'buffet-antillais' || (p.autresSous || []).includes('buffet-antillais')));
+    for (const [re, prixCents] of [[/^riz aux legumes/, 490], [/^fricassee? de chatrou/, null]]) {
+      const lot = tous.filter(({ data: p }) => re.test(sans(p.titre))).sort((a, b) => score(b.data) - score(a.data) || /fricassee/.test(sans(b.data.titre)) - /fricassee/.test(sans(a.data.titre)));
+      if (!lot.length) continue;
+      const [garde, ...autres] = lot;
+      if (prixCents) await store.set('produits/' + garde.id, { ...garde.data, prixCents, prixTexte: (prixCents / 100).toFixed(2).replace('.', ',') + ' € TTC', aCompleter: false,
+        ...(garde.data.seoAuto ? { seoTitre: garde.data.seoTitre === garde.data.seoAuto.titre ? '' : garde.data.seoTitre, seoDescription: garde.data.seoDescription === garde.data.seoAuto.description ? '' : garde.data.seoDescription, seoAuto: null } : {}) });
+      for (const { id, data: p } of autres) await store.set('produits/' + id, { ...p, statut: 'masque' });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), antillaisDoublons1: true });
+  }
 }
 
 /* [fiche gardée, doublons…] : mêmes produit, prix et minimum */
