@@ -47,5 +47,7 @@ test('initCave : anciens vins masqués, nos open bars gardés, nouvelles fiches 
   assert.equal(docs.get('produits/barman').prixCents, 6870);
   assert.equal(docs.get('produits/bordeaux-rose-manoir-de-la-valette').prixCents, 1650);
   assert.equal(docs.get('produits/chateau-la-gordonne-verite-du-terroir').prixCents, 1790);
+  assert.equal(docs.get('produits/eau-vittel-1-l').statut, 'masque');
+  assert.equal(docs.get('produits/eau-plate-cristaline-1-5-l').prixCents, 250);
   assert.equal(await initCave(store), 0);
 });
