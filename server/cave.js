@@ -14,8 +14,8 @@ const px = id => `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg
 const CAVE_SECTIONS = [
   ['champagne', 'Notre champagne', '/site/c/cave/andre-diligent-seau.webp'],
   ['eaux', 'Les eaux', px(31107362)],
-  ['sodas', 'Sodas & limonades', px(12738761)],
-  ['jus', 'Jus de fruits & thés glacés', px(8679338)],
+  ['sodas', 'Sodas', px(35020136)],
+  ['jus', 'Jus de fruits', px(8679601)],
   ['vins-rouges', 'Vins rouges', px(29436323)],
   ['vins-blancs', 'Vins blancs', px(20848541)],
   ['vins-roses', 'Vin rosé', px(15006642)],
@@ -97,13 +97,13 @@ async function prixCave(store) {
   await store.set('_migr/prixCave1', { at: new Date().toISOString() });
 }
 
-/* fiches ajoutées après coup (Jean-Luc, 2026-11-25) : rhum Trois-Rivières en tête des alcools forts, à 35 € TTC.
+/* fiches ajoutées après coup (Jean-Luc, 2026-11-25) : rhum Trois-Rivières en tête des alcools forts (35 € puis 24,90 € TTC, photo de la bouteille fournie par Jean-Luc).
    Créées une fois, après la mise en place de la cave (sinon elles seraient masquées avec les anciennes boissons). */
 const AJOUTS_CAVE = [
-  { slug: 'rhum-trois-rivieres-blanc-50-70-cl', rangement: 'alcools-forts', ordre: 31, titre: 'Rhum blanc agricole Trois-Rivières 50° (70 cl)', prixCents: 3500, tva: 20,
+  { slug: 'rhum-trois-rivieres-blanc-50-70-cl', rangement: 'alcools-forts', ordre: 31, titre: 'Rhum blanc agricole Trois-Rivières 50° (70 cl)', prixCents: 2490, tva: 20,
     extrait: 'Le rhum blanc agricole de la Martinique, à 50°, pour le ti-punch, le planteur et les cocktails. 70 cl.',
     description: ['Rhum blanc agricole AOC Martinique de la distillerie Trois-Rivières, à 50°, distillé à partir de pur jus de canne à sucre.', 'Le rhum du ti-punch, du planteur et des cocktails antillais.', 'Bouteille de 70 cl. À consommer avec modération.'],
-    photo: [px(36860546), 'Ti-punch au rhum blanc agricole et citron vert'] },
+    photo: ['/site/c/cave/rhum-trois-rivieres-blanc-50.webp', 'Bouteille de rhum blanc agricole Trois-Rivières 50°'] },
 ];
 async function ajoutsCave(store) {
   if (await store.get('_migr/caveAjouts1')) return 0;
@@ -282,7 +282,7 @@ async function cristalinePlate(store) {
   await store.set('_migr/caveCristalinePlate1', { at: new Date().toISOString() });
 }
 
-/* Jean-Luc (2026-11-25) : plus de Badoit ni de Perrier ; bandeau de la cave = vidéo sombre où l'on sert du champagne dans des flûtes
+/* Jean-Luc (2026-11-25) : plus de Badoit ni de Perrier ; catégories Sodas et Jus de fruits ; bandeau de la cave = vidéo sombre où l'on sert du champagne dans des flûtes
    (montage de 2 vidéos Pexels, sources dans data/credits-photos-univers.md) */
 async function caveBandeauBadoit(store) {
   if (await store.get('_migr/caveBandeau1')) return;
@@ -290,8 +290,18 @@ async function caveBandeauBadoit(store) {
     const x = await store.get('produits/' + slug);
     if (x && x.statut !== 'masque') await store.set('produits/' + slug, { ...x, statut: 'masque', masqueCave: true });
   }
+  /* « Sodas » (sans limonades, vignette Coca-Cola) ; « Jus de fruits » seuls : thés glacés et citronnade JOMO retirés */
+  for (const slug of ['jomo-citronnade-gingembre-35-cl', 'jomo-the-vert-menthe-citron-35-cl', 'jomo-the-blanc-peche-hibiscus-35-cl']) {
+    const x = await store.get('produits/' + slug);
+    if (x && x.statut !== 'masque') await store.set('produits/' + slug, { ...x, statut: 'masque', masqueCave: true });
+  }
+  const rh = AJOUTS_CAVE[0], d = await store.get('produits/' + rh.slug);
+  if (d) await store.set('produits/' + rh.slug, { ...d, prixCents: rh.prixCents, photos: [{ src: rh.photo[0], alt: rh.photo[1] }] });
   const rb = await store.get('rubriques/boissons');
-  if (rb) await store.set('rubriques/boissons', { ...rb, bandeauVideo: '/site/v/bandeaux/cave-champagne.mp4', bandeauPoster: '/site/v/bandeaux/cave-champagne.jpg' });
+  const sec = k => CAVE_SECTIONS.find(x => x[0] === k);
+  if (rb) await store.set('rubriques/boissons', { ...rb, bandeauVideo: '/site/v/bandeaux/cave-champagne.mp4', bandeauPoster: '/site/v/bandeaux/cave-champagne.jpg',
+    titresSections: { ...(rb.titresSections || {}), sodas: sec('sodas')[1], jus: sec('jus')[1] },
+    photosSections: { ...(rb.photosSections || {}), sodas: sec('sodas')[2], jus: sec('jus')[2] } });
   await store.set('_migr/caveBandeau1', { at: new Date().toISOString() });
 }
 
