@@ -1893,13 +1893,12 @@
     const nbLieux = lieuxL.filter(l => l.statut !== 'masque').length;
     const nbRub = slug => slug === 'lieux' ? nbLieux : prods.filter(p => p.rubrique === slug).length;
     cache.rubriques = rubs.sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0)); cache.produits = prods;
+    if (new URLSearchParams(location.hash.split('?')[1] || '').get('masques')) return pageMasques(rubs, prods);
     const r = new URLSearchParams(location.hash.split('?')[1] || '').get('r') || cache.catR || rubs[0]?.slug;
     cache.catR = r;
     const liste = prods.filter(p => p.rubrique === r).sort((a, b) => (b.maison ? 1 : 0) - (a.maison ? 1 : 0) || (a.ordre ?? 0) - (b.ordre ?? 0));
     const rub = rubs.find(x => x.slug === r) || {};
-    /* petite case à gauche du titre : nombre de produits visibles sur le site (les masqués sont indiqués à part) */
-    const nbVis = prods.filter(p => p.statut !== 'masque').length, nbMasq = prods.length - nbVis;
-    const titreCat = `<span class="nbcat" title="${nbVis} produit${nbVis > 1 ? 's' : ''} visible${nbVis > 1 ? 's' : ''} sur le site${nbMasq ? ` · ${nbMasq} masqué${nbMasq > 1 ? 's' : ''} · ${prods.length} au total` : ''}"><b>${nbVis.toLocaleString('fr-FR')}</b><small>produit${nbVis > 1 ? 's' : ''}</small></span>Catalogue${nbMasq ? `<small class="nbmasq">+ ${nbMasq} masqué${nbMasq > 1 ? 's' : ''}</small>` : ''}`;
+    const titreCat = 'Catalogue' + pavesCat(prods, 'produits');
     return page(titreCat, `<input type="search" placeholder="Rechercher dans tout le catalogue…" data-q>`, `
       <div class="catg"><nav class="rubs">${rubs.map(x => `<a href="#/catalogue?r=${x.slug}" class="${x.slug === r ? 'on' : ''}${x.statut === 'masque' ? ' hid' : ''}">${esc(x.nom)}<small>${nbRub(x.slug)}</small></a>`).join('')}<button class="lnk" data-newrub>+ Nouvelle rubrique</button></nav>
       <div><section class="box rubbox"><div class="bh"><h2>${esc(rub.nom || '')}</h2><a class="btn voir-site" href="/${esc(r)}?apercu=1" target="_blank">👁 Voir la présentation sur le site</a>${r === 'lieux' ? `<a class="btn" href="#/lieux">Gérer les ${nbLieux} lieux</a>` : `<button class="btn" data-new="${esc(r)}">+ Créer dans « ${esc(rub.nom || '')} »</button>`}</div>
@@ -1918,9 +1917,55 @@
       <div class="row sousfiltre"><label class="pq">Rechercher une prestation<input type="search" data-pq placeholder="Tapez un nom : nems, mafé, paëlla…" autocomplete="off"></label>${(rub.sous || []).length ? `<label>Afficher<select data-sousf><option value="*">Toutes les prestations (${liste.length})</option>${[...rub.sous].sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0)).map(x => `<option value="${esc(x.slug)}">${esc(x.nom)} (${liste.filter(p => p.sous === x.slug).length})</option>`).join('')}<option value="">Sans spécialité (${liste.filter(p => !(rub.sous || []).some(x => x.slug === p.sous)).length})</option></select></label>` : ''}<label>Classement<select data-tri><option value="">Ordre du site</option><option value="az">Ordre alphabétique (A → Z)</option><option value="za">Ordre alphabétique (Z → A)</option><option value="p+">Prix croissant</option><option value="p-">Prix décroissant</option></select></label><label>Visibilité<select data-vis><option value="">Tous les produits (${liste.length})</option><option value="visible">Produits visibles (${liste.filter(p => p.statut !== 'masque').length})</option><option value="masque">Produits masqués (${liste.filter(p => p.statut === 'masque').length})</option></select></label><span class="muted sm" data-pqn></span></div>
       <div class="plist" id="plist">${liste.map(prow).join('') || '<p class="muted">Aucune prestation dans cette rubrique.</p>'}</div></div></section></div></div>`);
   }
+  /* Pavés vert foncé à droite du titre « Catalogue » : chacun est un lien (même classe .nbcat pour les suivants) */
+  const pavesCat = (prods, actif) => {
+    const nbVis = prods.filter(p => p.statut !== 'masque').length, nbMasq = prods.length - nbVis, s = n => n > 1 ? 's' : '';
+    const pave = (k, href, n, mot, titre) => `<a class="nbcat${actif === k ? ' on' : ''}" data-pave="${k}" href="${href}" title="${titre}"><b>${n.toLocaleString('fr-FR')}</b><small>${mot}</small></a>`;
+    return `<span class="nbpaves">${pave('produits', '#/catalogue', nbVis, 'produit' + s(nbVis), `${nbVis} produit${s(nbVis)} visible${s(nbVis)} sur le site · ${prods.length} au total`)}${pave('masques', '#/catalogue?masques=1', nbMasq, 'masqué' + s(nbMasq), `Voir les ${nbMasq} fiche${s(nbMasq)} masquée${s(nbMasq)} et pourquoi`)}</span>`;
+  };
+  /* Fiches masquées de tout le catalogue (clic sur « + N masqués ») : raison du masquage, Modifier, Rendre visible */
+  const raisonMasque = (p, prods) => {
+    if (p.fusionneDans) { const g = prods.find(x => (x.id || x.slug) === p.fusionneDans || x.slug === p.fusionneDans); return { k: 'doublon', t: `Doublon : regroupé avec « ${g ? titreTexte(g.titre) : p.fusionneDans} »` }; }
+    if (p.masqueCave) return { k: 'cave', t: 'Ancienne boisson, remplacée lors de la refonte de La cave de Magnolia' };
+    if (p.sous === 'buffet-chinois' && p.rangement === 'divers') return { k: 'chinois', t: 'Retiré des « Produits divers » du buffet chinois' };
+    const manque = [!p.photos?.length && 'pas de photo', p.prixCents == null && 'pas de prix'].filter(Boolean);
+    return { k: 'main', t: 'Masqué dans sa fiche (à la main ou à la création)' + (manque.length ? ' · ' + manque.join(', ') : '') };
+  };
+  const RAISONS_M = [['doublon', 'Doublons'], ['cave', 'Anciennes boissons'], ['chinois', 'Divers du buffet chinois'], ['main', 'Masqués dans leur fiche']];
+  function pageMasques(rubs, prods) {
+    const L = prods.filter(p => p.statut === 'masque').map(p => ({ p, r: raisonMasque(p, prods) }));
+    const nomRub = sl => rubs.find(x => x.slug === sl)?.nom || sl || 'Sans rubrique';
+    const rang = sl => { const i = rubs.findIndex(x => x.slug === sl); return i < 0 ? 999 : i; };
+    const groupes = [...new Set(L.map(x => x.p.rubrique))].sort((a, b) => rang(a) - rang(b));
+    const ligne = ({ p, r }) => `<div class="mrow" data-mk="${r.k}" data-mid="${esc(p.id || p.slug)}">${p.photos?.[0]?.src ? `<img src="${esc(p.photos[0].src)}" alt="" loading="lazy">` : '<span class="ph0"></span>'}<span class="mtx"><b>${titreHtml(p.titre)}</b><small>${p.prixCents == null ? 'Sur devis' : euros(p.prixCents) + (p.unite ? ' / ' + esc(p.unite) : '')}</small><em class="mwhy mw-${r.k}">${esc(r.t)}</em></span><span class="mact"><a class="btn ghost sm" href="#/catalogue/${esc(p.id || p.slug)}">✏ Modifier la fiche</a><button type="button" class="btn sm" data-mvis>👁 Rendre visible</button></span></div>`;
+    return page('Catalogue' + pavesCat(prods, 'masques'), `<a class="btn ghost" href="#/catalogue">← Retour au catalogue</a>`, `
+      <section class="box"><h2>Fiches masquées</h2><p class="muted">Ces fiches existent dans le back-office mais <b>ne s’affichent pas sur le site</b>. La raison est écrite en couleur sous chaque nom. « Rendre visible » la remet aussitôt sur le site ; « Modifier la fiche » ouvre la fiche complète.</p>
+      <div class="row mfil"><button type="button" class="btn sm on" data-mf="">Toutes (${L.length})</button>${RAISONS_M.map(([k, t]) => { const n = L.filter(x => x.r.k === k).length; return n ? `<button type="button" class="btn ghost sm" data-mf="${k}">${t} (${n})</button>` : ''; }).join('')}</div></section>
+      ${groupes.map(g => `<section class="box mgrp"><h2>${esc(nomRub(g))} <small class="muted">(${L.filter(x => x.p.rubrique === g).length})</small></h2><div class="mlist">${L.filter(x => x.p.rubrique === g).map(ligne).join('')}</div></section>`).join('') || '<section class="box"><p class="muted">Aucune fiche masquée : tout le catalogue est visible.</p></section>'}`);
+  }
+  const apresMasques = () => {
+    $$('[data-mf]').forEach(b => b.addEventListener('click', () => {
+      $$('[data-mf]').forEach(x => { x.classList.toggle('on', x === b); x.classList.toggle('ghost', x !== b); });
+      $$('.mrow').forEach(r => { r.hidden = !!b.dataset.mf && r.dataset.mk !== b.dataset.mf; });
+      $$('.mgrp').forEach(g => { g.hidden = !$$('.mrow', g).some(r => !r.hidden); });
+    }));
+    $('.content').addEventListener('click', async e => {
+      const b = e.target.closest('[data-mvis]'); if (!b) return;
+      const row = b.closest('.mrow'), id = row.dataset.mid;
+      if (row.dataset.mk === 'doublon' && !confirm('Cette fiche est un doublon d’une autre fiche déjà visible. La rendre visible quand même ?')) return;
+      b.disabled = true;
+      try {
+        const p = await api(A + '/produits/' + id);
+        await api(`${A}/produits/${id}`, { method: 'PUT', body: { ...p, statut: 'visible' } });
+        cache.produits = null; row.classList.add('mok'); b.outerHTML = '<span class="pill d-accepte">Visible sur le site</span>';
+        toast('Fiche visible sur le site.');
+      } catch (err) { b.disabled = false; toast(err.message, true); }
+    });
+  };
   const LIEUX_CARTE = [['espagne', 'Espagne'], ['portugal', 'Portugal'], ['italie', 'Italie'], ['grece', 'Grèce'], ['france', 'France'], ['liban', 'Liban'], ['turquie', 'Turquie'], ['maghreb', 'Maghreb (Maroc, Algérie, Tunisie)'], ['maroc', 'Maroc'], ['algerie', 'Algérie'], ['tunisie', 'Tunisie'], ['afrique', 'Afrique (tout le continent)'], ['senegal', 'Sénégal'], ['cote-d-ivoire', 'Côte d’Ivoire'], ['cameroun', 'Cameroun'], ['congo', 'Congo'], ['antilles', 'Antilles'], ['reunion', 'La Réunion'], ['polynesie', 'Polynésie'], ['mexique', 'Mexique'], ['bresil', 'Brésil'], ['perou', 'Pérou'], ['argentine', 'Argentine'], ['etats-unis', 'États-Unis'], ['inde', 'Inde'], ['chine', 'Chine'], ['japon', 'Japon'], ['coree', 'Corée'], ['vietnam', 'Vietnam'], ['thailande', 'Thaïlande']];
   const prow = p => `<a class="prow${p.statut === 'masque' ? ' hid' : ''}" href="#/catalogue/${p.id || p.slug}">${p.photos?.[0]?.src ? `<img src="${esc(p.photos[0].src)}" alt="" loading="lazy">` : '<span class="ph0"></span>'}<span><b>${titreHtml(p.titre)}</b><small>${p.prixCents == null ? 'Sur devis' : euros(p.prixCents) + (p.unite ? ' / ' + esc(p.unite) : '')}${p.min > 1 ? ' · min. ' + p.min : ''}</small></span><span class="pill ${p.statut === 'masque' ? 'd-refuse' : 'd-accepte'}">${p.statut === 'masque' ? 'Masqué' : 'Visible'}</span>${p.maison ? '<span class="pill">Maison</span>' : ''}${p.sous ? `<span class="pill">${esc(((cache.rubriques || []).find(r => r.slug === p.rubrique)?.sous || []).find(x => x.slug === p.sous)?.nom || '')}</span>` : ''}</a>`;
   catalogue.after = () => {
+    if (new URLSearchParams(location.hash.split('?')[1] || '').get('masques')) return apresMasques();
     $('[data-q]').addEventListener('input', e => {
       const q = e.target.value.toLowerCase().trim(); if (cache.catR === 'lieux') $('.prodbox').hidden = !q;
       $('#plist').innerHTML = (q ? cache.produits.filter(p => (p.titre + ' ' + (p.extrait || '')).toLowerCase().includes(q)) : cache.produits.filter(p => p.rubrique === cache.catR)).map(prow).join('') || '<p class="muted">Aucun résultat.</p>';
