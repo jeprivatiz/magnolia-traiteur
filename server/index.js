@@ -2147,6 +2147,25 @@ async function createApp(opts = {}) {
     cat.invalidate(); audit(req.ctx, 'fournisseur supprimé', 'produits', nom + ' · ' + fiches + ' fiche(s)');
     res.json({ ok: true, fiches });
   }));
+  /* mettre un fournisseur sur toute une catégorie (rubrique, ou rubrique › sous-catégorie) ; en option, prix d'achat
+     des fiches qui n'en ont pas = prix de vente ÷ (1 + pct %) — les prix d'achat déjà tapés ne changent jamais */
+  A.post('/actions/fournisseurs/appliquer', sameSite, json, peut('prix'), wrap(async (req, res) => {
+    const nom = String(req.body?.nom || '').trim().slice(0, 80), rubrique = String(req.body?.rubrique || ''), sous = String(req.body?.sous || ''), pct = Number(req.body?.pct) || 0;
+    if (!nom) return res.status(400).json({ error: 'Nom du fournisseur manquant.' });
+    if (!rubrique) return res.status(400).json({ error: 'Catégorie manquante.' });
+    if (pct < 0 || pct >= 1000) return res.status(400).json({ error: 'Pourcentage invalide.' });
+    let fiches = 0, couts = 0;
+    for (const d of await store.list('produits')) {
+      const p0 = d.data; if (p0.rubrique !== rubrique || (sous && p0.sous !== sous)) continue;
+      const { fournisseur, ...p } = p0;
+      const fourn = [nom, ...ACHATS.fournisseursDe(p0).filter(x => x.toLowerCase() !== nom.toLowerCase())];
+      const calc = pct > 0 && p.coutCents == null && p.prixCents != null;
+      await store.set('produits/' + d.id, { ...p, fournisseurs: fourn, ...(calc ? { coutCents: Math.round(p.prixCents / (1 + pct / 100)) } : {}), updatedAt: new Date().toISOString() });
+      fiches++; if (calc) couts++;
+    }
+    cat.invalidate(); audit(req.ctx, 'fournisseur sur une catégorie', 'produits', rubrique + (sous ? ' › ' + sous : '') + ' · ' + fiches + ' fiche(s)');
+    res.json({ ok: true, fiches, couts });
+  }));
   A.post('/actions/import-achats/appliquer', sameSite, json, peut('prix'), wrap(async (req, res) => {
     const r = await ACHATS.appliquer(store, req.body?.lignes, { ht: !!req.body?.ht });
     cat.invalidate();
