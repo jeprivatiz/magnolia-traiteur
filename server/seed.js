@@ -873,6 +873,18 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('site/reglages', { ...(await store.get('site/reglages')), antillaisSansVideo1: true });
   }
 
+  /* Buffet libanais (Jean-Luc, 2026-11-25) : la vidéo libanais-boucle s'affichait sur toutes les formules de « Nos buffets ».
+     Retirée de toutes les fiches produit (elle reste en haut de la page) : chaque fiche montre ses photos. Une fois. */
+  const RLv = await store.get('site/reglages');
+  if (RLv && !RLv.libanaisSansVideo1) {
+    for (const { id, data: x } of (await store.list('produits')) || []) {
+      if (x?.video?.src !== '/site/v/libanais-boucle.mp4') continue;
+      const { video, ...reste } = x;
+      await store.set('produits/' + id, { ...reste, sansVideo: true });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), libanaisSansVideo1: true });
+  }
+
   /* plateaux de sushis : compositions, prix et photos du site actuel magnoliatraiteur.fr/plateaux-de-sushis (Jean-Luc, 2026-11-22).
      Une fois. Le plateau 80 pièces n'existe plus et le « Plateau de 75 sushis » des coffrets faisait doublon : masqués, leur adresse renvoie au grand plateau. */
   const RSu = await store.get('site/reglages');
@@ -1773,6 +1785,14 @@ const VRAIES_PHOTOS = [
   ['buffet-libanais-6-mezzes-1-plat-1-dessert', 'buffet1', [['https://images.pexels.com/photos/29177219/pexels-photo-29177219.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Table de buffet libanais : mezzés et plats chauds'], ['https://images.unsplash.com/photo-1777891257688-cdf5c386bbb2?auto=format&fit=crop&w=1600&q=80', 'Mezzés et dessert oriental aux noix']]],
   ['buffet-libanais-8-mezzes-1-plat', 'buffet1', [['https://images.pexels.com/photos/23025180/pexels-photo-23025180.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Kafta, kebbé et mezzés servis à partager'], ['https://images.pexels.com/photos/19386650/pexels-photo-19386650.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Grande table de mezzés libanais']]],
   ['buffet-libanais-8-mezzes-1-plat-1-dessert', 'buffet1', [['https://images.unsplash.com/photo-1777891257688-cdf5c386bbb2?auto=format&fit=crop&w=1600&q=80', 'Mezzés et dessert oriental aux noix'], ['https://images.pexels.com/photos/29177219/pexels-photo-29177219.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Table de buffet libanais : mezzés et plats chauds']]],
+  /* Buffet libanais, « Nos buffets » (Jean-Luc, 2026-11-25) : plus de vidéo ; une vraie photo de buffet par formule, d'après son contenu
+     (8 mezzés = que des mezzés, plat seul = plateaux de grillades, + dessert = douceurs visibles). Pexels ; sources dans data/credits-photos-univers.md */
+  ['buffet-libanais-8-mezzes-au-choix', 'buffet2', [['https://images.pexels.com/photos/25907496/pexels-photo-25907496.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Grand plateau de mezzés libanais : houmous, falafels, manakish, halloumi'], ['https://images.pexels.com/photos/28241695/pexels-photo-28241695.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Mezzés à partager : houmous, labné, falafels, pains et pickles'], ['https://images.pexels.com/photos/21856002/pexels-photo-21856002.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Plateau de mezzés froids et chauds']]],
+  ['buffet-libanais-plat-seul', 'buffet2', [['https://images.pexels.com/photos/15781023/pexels-photo-15781023.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Grand plateau de grillades libanaises : kafta, chich taouk, brochettes'], ['https://images.pexels.com/photos/32986482/pexels-photo-32986482.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Plateau de grillades mixtes, légumes grillés et frites'], ['https://images.pexels.com/photos/30307766/pexels-photo-30307766.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Kafta et brochettes servies sur plateau']]],
+  ['buffet-libanais-6-mezzes-1-plat', 'buffet2', [['https://images.pexels.com/photos/23025180/pexels-photo-23025180.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Mezzés et kafta servis à partager'], ['https://images.pexels.com/photos/6419720/pexels-photo-6419720.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Houmous, mezzés et brochettes sur la table'], ['https://images.pexels.com/photos/28241712/pexels-photo-28241712.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Riz aux vermicelles et mezzés chauds']]],
+  ['buffet-libanais-6-mezzes-1-plat-1-dessert', 'buffet2', [['https://images.pexels.com/photos/36443669/pexels-photo-36443669.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Buffet : mezzés, feuilles de vigne, kebbé et douceurs orientales'], ['https://images.pexels.com/photos/38947725/pexels-photo-38947725.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Plateau de baklavas libanais'], ['https://images.pexels.com/photos/23025183/pexels-photo-23025183.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Plateau de mezzés et plats chauds']]],
+  ['buffet-libanais-8-mezzes-1-plat', 'buffet2', [['https://images.pexels.com/photos/8183709/pexels-photo-8183709.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Table de mezzés avec brochettes de viande grillée'], ['https://images.pexels.com/photos/28241720/pexels-photo-28241720.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Mezzés, kebbé, riz et brochettes de poulet'], ['https://images.pexels.com/photos/25907496/pexels-photo-25907496.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Grand plateau de mezzés libanais']]],
+  ['buffet-libanais-8-mezzes-1-plat-1-dessert', 'buffet2', [['https://images.pexels.com/photos/36287931/pexels-photo-36287931.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Grande table de buffet : mezzés, plats chauds et riz'], ['https://images.pexels.com/photos/38947724/pexels-photo-38947724.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Assortiment de baklavas aux pistaches'], ['https://images.pexels.com/photos/19386650/pexels-photo-19386650.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Grande table de mezzés libanais']]],
   /* Buffet chinois : une vraie photo de buffet en chafing dishes différente par fiche (Pexels), puis les images de sa vidéo */
   ['buffet-chinois-entrees-plat', 'buffet2', [['https://images.pexels.com/photos/39388375/pexels-photo-39388375.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Buffet asiatique en chafing dishes'], ['/site/c/chinois-menus/buffet-chafing-1.webp', 'Buffet chinois servi en chafing dishes']]],
   ['buffet-chinois-assortiment-13-pieces-salees', 'buffet2', [['https://images.pexels.com/photos/2291367/pexels-photo-2291367.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Rangée de chafing dishes ouverts'], ['/site/c/chinois-menus/buffet-chafing-3.webp', 'Buffet asiatique : plats chauds en chafing dishes']]],
