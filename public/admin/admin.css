@@ -1472,3 +1472,6 @@ input.verrou { background: var(--doux); color: var(--gris); cursor: not-allowed;
 @media (max-width: 860px) { .sm-saisie { flex-wrap: wrap; } .sm-saisie select[data-smf] { flex: 1; width: auto; } }
 
 .fourn-gest .fchip { cursor: pointer; user-select: none; -webkit-user-select: none; touch-action: manipulation; }
+
+.sm-rech { position: sticky; top: 8px; z-index: 5; } .sm-rech label { font-weight: 600; } .sm-rech input { width: 100%; margin-top: 6px; font-size: 1rem; } .sm-rech p { margin: 6px 0 0; }
+.smrow[hidden], section.box[hidden] { display: none; }
