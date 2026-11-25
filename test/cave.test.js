@@ -51,7 +51,7 @@ test('initCave : anciens vins masqués, nos open bars gardés, nouvelles fiches 
   assert.equal(bm.unite, 'barman');
   /* 3 barmans, 6 heures : 3 × (270 + 2 × 39) = 1 044 € */
   assert.equal((bm.prixCents + bm.groupes[0].options.find(o => o.id === '6h').supCents) * 3, 104400);
-  assert.equal(docs.get('produits/bordeaux-rose-manoir-de-la-valette').prixCents, 1650);
+  assert.equal(docs.get('produits/bordeaux-rose-manoir-de-la-valette').prixCents, 1668);
   assert.equal(docs.get('produits/chateau-la-gordonne-verite-du-terroir').prixCents, 1790);
   assert.equal(docs.get('produits/eau-vittel-1-l').statut, 'masque');
   assert.equal(docs.get('produits/eau-plate-cristaline-1-5-l').prixCents, 250);
@@ -59,6 +59,13 @@ test('initCave : anciens vins masqués, nos open bars gardés, nouvelles fiches 
   assert.equal(docs.get('produits/eau-petillante-1-5-l').prixCents, 220);
   assert.match(docs.get('produits/eau-plate-cristaline-1-5-l').photos[0].src, /cristaline-plate-1-5-l\.webp/);
   assert.equal(docs.get('produits/eau-badoit-50-cl').statut, 'masque');
+  assert.equal(docs.get('produits/chateau-minuty-prestige-rose').prixCents, 3590);
+  assert.equal(docs.get('produits/chateau-minuty-prestige-rose').coutCents, 1548);
+  assert.equal(docs.get('produits/chateau-minuty-prestige-rose').fournisseurs[0], 'Metro');
+  assert.equal(docs.get('produits/marrenon-luberon-classique-rose').prixCents, 1908);
+  assert.equal(docs.get('produits/marrenon-luberon-classique-rose').coutCents, 659);
+  assert.equal(docs.get('produits/rose-saint-tropez-cotes-de-provence').prixCents, 1950);
+  assert.equal(docs.get('produits/rose-saint-tropez-cotes-de-provence').coutCents, 683);
   assert.equal(docs.get('produits/bar-a-cocktails-4-h-au-cocktail').min, 30);
   assert.equal(docs.get('produits/bar-a-cocktails-4-h-au-cocktail').video.src, '/site/v/produits/bar-a-cocktails.mp4');
   assert.equal(docs.get('produits/nuiton-beaunoy-hautes-cotes-de-beaune-grande-cuvee-rouge').prixCents, 2400);

@@ -437,9 +437,88 @@ async function barCocktailsRetablir(store) {
   await store.set('_migr/barCocktailsRetablir2', { at: new Date().toISOString() });
 }
 
+/* Bordeaux rosé Manoir de la Valette (Jean-Luc, 2026-11-25) : 16,68 € TTC et petit descriptif du vin */
+const VALETTE = {
+  prixCents: 1668,
+  extrait: 'Bordeaux rosé AOP du Manoir de la Valette : un rosé frais et fruité, bouteille de 75 cl.',
+  description: [
+    'Un Bordeaux rosé AOP du Manoir de la Valette, à la robe rose pâle et lumineuse.',
+    'Au nez, des notes gourmandes de petits fruits rouges, fraise et framboise. En bouche, il est frais, souple et fruité, avec une finale nette et désaltérante.',
+    'Il accompagne l’apéritif, les buffets, les salades composées, les grillades et toute la cuisine d’été. À servir bien frais, entre 8 et 10 °C.',
+    'Bouteille de 75 cl. ' + TIRE,
+  ],
+};
+async function valettePrix(store) {
+  if (await store.get('_migr/caveValette2')) return;
+  const x = await store.get('produits/bordeaux-rose-manoir-de-la-valette');
+  if (x) await store.set('produits/bordeaux-rose-manoir-de-la-valette', { ...x, ...VALETTE, statut: 'visible' });
+  await store.set('_migr/caveValette2', { at: new Date().toISOString() });
+}
+
+/* Château Minuty Prestige rosé (Jean-Luc, 2026-11-25) : vente 35,90 € TTC, achat 12,90 € HT ; descriptif reformulé d'après la présentation du domaine */
+async function minutyCave(store) {
+  if (await store.get('_migr/caveMinuty1')) return;
+  if (!(await store.get('produits/chateau-minuty-prestige-rose'))) await store.set('produits/chateau-minuty-prestige-rose', {
+    id: 'chateau-minuty-prestige-rose', slug: 'chateau-minuty-prestige-rose', rubrique: 'boissons', autresRubriques: [], sous: '', autresSous: [], rangement: 'vins-roses',
+    titre: 'Château Minuty « Prestige » rosé, Côtes de Provence AOP', prixCents: 3590, coutCents: Math.round(1290 * 1.2) /* 12,90 € HT */, prixTexte: null, unite: 'bouteille', min: 1, minimumTexte: null,
+    extrait: 'Le grand rosé de Provence du Château Minuty, sur la presqu’île de Saint-Tropez. Bouteille de 75 cl.',
+    description: [
+      'Château Minuty est un domaine familial de la presqu’île de Saint-Tropez, devenu l’une des grandes références du rosé de Provence. La cuvée Prestige assemble surtout grenache et cinsault, cueillis à la fraîcheur du matin.',
+      'Sa robe est rose très pâle, aux reflets pétale de rose. Le nez est fin et frais, sur les agrumes, la pêche blanche et les petits fruits rouges. La bouche est ample et élégante, avec une belle fraîcheur et une finale saline.',
+      'Il est parfait à l’apéritif, avec les poissons grillés, les crustacés, la cuisine méditerranéenne et les buffets d’été. À servir bien frais, entre 8 et 10 °C.',
+      'Bouteille de 75 cl. ' + TIRE,
+    ],
+    sections: [], details: [], photos: [{ src: px(15006642), alt: 'Verre et bouteille de vin rosé' }], video: null, groupes: [], variantes: [], regles: {},
+    ordre: 32.6, statut: 'visible', maison: false, tva: 20, allergenes: ['Sulfites'], aCompleter: false, createdAt: new Date().toISOString(),
+  });
+  await store.set('_migr/caveMinuty1', { at: new Date().toISOString() });
+}
+
+/* Rosés ajoutés par Jean-Luc (2026-11-25) : prix de vente TTC ; prix d'achat donné HT, gardé en TTC dans coutCents comme partout */
+function nouveauRose(slug, titre, prixCents, coutCents, extrait, description, photo, alt, ordre) {
+  return {
+    id: slug, slug, rubrique: 'boissons', autresRubriques: [], sous: '', autresSous: [], rangement: 'vins-roses',
+    titre, prixCents, coutCents, prixTexte: null, unite: 'bouteille', min: 1, minimumTexte: null, extrait,
+    description: [...description, 'Bouteille de 75 cl. ' + TIRE],
+    sections: [], details: [], photos: [{ src: px(photo), alt }], video: null, groupes: [], variantes: [], regles: {},
+    ordre, statut: 'visible', maison: false, tva: 20, allergenes: ['Sulfites'], aCompleter: false, createdAt: new Date().toISOString(),
+  };
+}
+const ROSES_2 = [
+  nouveauRose('marrenon-luberon-classique-rose', 'Marrenon « Classique » rosé, Luberon AOP', 1908, Math.round(549 * 1.2) /* 5,49 € HT */,
+    'Un rosé du Luberon frais et fruité, signé Marrenon. Bouteille de 75 cl.',
+    ['Marrenon réunit les vignerons du Luberon, entre Provence et vallée du Rhône. La cuvée Classique assemble grenache, cinsault et syrah, nés sur des coteaux ensoleillés et rafraîchis par l’altitude.',
+     'Sa robe est rose pâle et brillante. Le nez s’ouvre sur les petits fruits rouges, la groseille et une touche d’agrumes. La bouche est fraîche, ronde et gourmande, avec une finale légère et désaltérante.',
+     'Il accompagne l’apéritif, les salades, les grillades, la cuisine provençale et les buffets d’été. À servir bien frais, entre 8 et 10 °C.'],
+    15006643, 'Bouteille de vin rosé et verre', 32.7),
+  nouveauRose('rose-saint-tropez-cotes-de-provence', 'Rosé « Saint-Tropez », Côtes de Provence AOP', 1950, Math.round(569 * 1.2) /* 5,69 € HT */,
+    'Un rosé de Provence élaboré autour du golfe de Saint-Tropez. Bouteille de 75 cl.',
+    ['Un Côtes de Provence AOP né sur les terroirs du golfe de Saint-Tropez, entre mer et massif des Maures. Il assemble les cépages provençaux, grenache, cinsault et syrah.',
+     'Sa robe est rose clair aux reflets saumonés. Le nez est frais et fruité, sur la pêche, les agrumes et les fruits rouges. La bouche est vive et élégante, avec une jolie finale minérale.',
+     'Il est idéal à l’apéritif, avec les poissons, les fruits de mer, les grillades et la cuisine du soleil. À servir bien frais, entre 8 et 10 °C.'],
+    15006642, 'Verre et bouteille de vin rosé', 32.8),
+];
+async function rosesCave2(store) {
+  if (await store.get('_migr/caveRoses2')) return;
+  for (const r of ROSES_2) if (!(await store.get('produits/' + r.slug))) await store.set('produits/' + r.slug, r);
+  await store.set('_migr/caveRoses2', { at: new Date().toISOString() });
+}
+
+/* Metro = fournisseur principal de toutes les boissons (Jean-Luc, 2026-11-25) ; les autres fournisseurs déjà notés restent derrière */
+async function metroCave(store) {
+  if (await store.get('_migr/caveMetro1')) return;
+  for (const d of await store.list('produits')) {
+    const p0 = d.data; if (!p0 || p0.rubrique !== 'boissons') continue;
+    const { fournisseur, ...p } = p0;
+    const autres = [...(Array.isArray(p0.fournisseurs) ? p0.fournisseurs : []), ...(fournisseur ? [fournisseur] : [])].map(x => String(x).trim()).filter(x => x && x.toLowerCase() !== 'metro');
+    await store.set('produits/' + d.id, { ...p, fournisseurs: ['Metro', ...new Set(autres)] });
+  }
+  await store.set('_migr/caveMetro1', { at: new Date().toISOString() });
+}
+
 async function initCave(store) {
   await prixCave(store);
-  if (await store.get('_migr/caveCercle')) { await openBarCave(store); await sodasCave(store); await vinsCave(store); await eauxCave(store); await cocaPhotos(store); await cristalineGaz(store); await cristalinePlate(store); await caveBandeauBadoit(store); await barmanSousPhoto(store); await barmanPrix(store); await alcoolsBlanc(store); await vinsRouges2(store); await barCocktailsMin(store); await barCocktailsVideo(store); await barCocktailsTexte(store); await barCocktailsRetablir(store); return ajoutsCave(store); }
+  if (await store.get('_migr/caveCercle')) { await openBarCave(store); await sodasCave(store); await vinsCave(store); await eauxCave(store); await cocaPhotos(store); await cristalineGaz(store); await cristalinePlate(store); await caveBandeauBadoit(store); await barmanSousPhoto(store); await barmanPrix(store); await alcoolsBlanc(store); await vinsRouges2(store); await barCocktailsMin(store); await barCocktailsVideo(store); await barCocktailsTexte(store); await barCocktailsRetablir(store); await valettePrix(store); await minutyCave(store); await rosesCave2(store); const k = await ajoutsCave(store); await metroCave(store); return k; }
   const now = new Date().toISOString();
   let n = 0;
   for (const d of await store.list('produits')) {
@@ -492,7 +571,10 @@ async function initCave(store) {
   await barCocktailsVideo(store);
   await barCocktailsTexte(store);
   await barCocktailsRetablir(store);
-  return n + await ajoutsCave(store);
+  await valettePrix(store);
+  await minutyCave(store);
+  await rosesCave2(store);
+  const k = await ajoutsCave(store); await metroCave(store); return n + k;
 }
 
 module.exports = { texteBarCocktails, BARMAN, OPEN_BAR_VC, CAVE_SECTIONS, CAVE_PRODUITS, AJOUTS_CAVE, CAVE_GARDEES, INTRO_CAVE, ttc, initCave };
