@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { ttc, CAVE_PRODUITS, CAVE_SECTIONS, initCave } = require('../server/cave');
+const { ttc, CAVE_PRODUITS, CAVE_SECTIONS, AJOUTS_CAVE, initCave } = require('../server/cave');
 
 test('prix de la cave : HT → TTC puis + 10 %, arrondi aux 10 centimes du dessus', () => {
   assert.equal(ttc(2, 10), 250);     /* eau 50 cl : 2,00 HT → 2,42 → 2,50 € */
@@ -26,7 +26,10 @@ test('initCave : anciens vins masqués, nos open bars gardés, nouvelles fiches 
   docs.set('produits/chablis', { slug: 'chablis', rubrique: 'boissons', titre: 'Chablis', statut: 'visible' });
   docs.set('produits/sangria-maison-au-litre', { slug: 'sangria-maison-au-litre', rubrique: 'boissons', titre: 'Sangria', statut: 'visible' });
   docs.set('produits/champagne-andre-diligent', { slug: 'champagne-andre-diligent', rubrique: 'boissons', titre: 'Champagne André Diligent', prixCents: 2850, statut: 'visible' });
-  assert.equal(await initCave(store), CAVE_PRODUITS.length);
+  assert.equal(await initCave(store), CAVE_PRODUITS.length + AJOUTS_CAVE.length);
+  const rhum = docs.get('produits/rhum-trois-rivieres-blanc-50-70-cl');
+  assert.equal(rhum.prixCents, 3500);
+  assert.equal(rhum.statut, 'visible');
   assert.equal(docs.get('produits/chablis').statut, 'masque');
   assert.equal(docs.get('produits/sangria-maison-au-litre').statut, 'visible');
   assert.equal(docs.get('produits/sangria-maison-au-litre').rangement, 'bars');

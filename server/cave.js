@@ -97,9 +97,34 @@ async function prixCave(store) {
   await store.set('_migr/prixCave1', { at: new Date().toISOString() });
 }
 
+/* fiches ajoutées après coup (Jean-Luc, 2026-11-25) : rhum Trois-Rivières en tête des alcools forts, à 35 € TTC.
+   Créées une fois, après la mise en place de la cave (sinon elles seraient masquées avec les anciennes boissons). */
+const AJOUTS_CAVE = [
+  { slug: 'rhum-trois-rivieres-blanc-50-70-cl', rangement: 'alcools-forts', ordre: 31, titre: 'Rhum blanc agricole Trois-Rivières 50° (70 cl)', prixCents: 3500, tva: 20,
+    extrait: 'Le rhum blanc agricole de la Martinique, à 50°, pour le ti-punch, le planteur et les cocktails. 70 cl.',
+    description: ['Rhum blanc agricole AOC Martinique de la distillerie Trois-Rivières, à 50°, distillé à partir de pur jus de canne à sucre.', 'Le rhum du ti-punch, du planteur et des cocktails antillais.', 'Bouteille de 70 cl. À consommer avec modération.'],
+    photo: [px(36860546), 'Ti-punch au rhum blanc agricole et citron vert'] },
+];
+async function ajoutsCave(store) {
+  if (await store.get('_migr/caveAjouts1')) return 0;
+  let n = 0;
+  for (const x of AJOUTS_CAVE) {
+    if (await store.get('produits/' + x.slug)) continue;
+    await store.set('produits/' + x.slug, {
+      id: x.slug, slug: x.slug, rubrique: 'boissons', autresRubriques: [], sous: '', autresSous: [], rangement: x.rangement, titre: x.titre, prixCents: x.prixCents, coutCents: null, prixTexte: null,
+      unite: 'bouteille', min: 1, minimumTexte: null, extrait: x.extrait, description: x.description, sections: [], details: [],
+      photos: [{ src: x.photo[0], alt: x.photo[1] }], video: null, groupes: [], variantes: [], regles: {}, ordre: x.ordre, statut: 'visible', maison: false, tva: x.tva,
+      allergenes: [], aCompleter: false, createdAt: new Date().toISOString(),
+    });
+    n++;
+  }
+  await store.set('_migr/caveAjouts1', { at: new Date().toISOString(), crees: n });
+  return n;
+}
+
 async function initCave(store) {
   await prixCave(store);
-  if (await store.get('_migr/caveCercle')) return 0;
+  if (await store.get('_migr/caveCercle')) return ajoutsCave(store);
   const now = new Date().toISOString();
   let n = 0;
   for (const d of await store.list('produits')) {
@@ -136,7 +161,7 @@ async function initCave(store) {
     });
   }
   await store.set('_migr/caveCercle', { at: now, crees: n });
-  return n;
+  return n + await ajoutsCave(store);
 }
 
-module.exports = { CAVE_SECTIONS, CAVE_PRODUITS, CAVE_GARDEES, INTRO_CAVE, ttc, initCave };
+module.exports = { CAVE_SECTIONS, CAVE_PRODUITS, AJOUTS_CAVE, CAVE_GARDEES, INTRO_CAVE, ttc, initCave };
