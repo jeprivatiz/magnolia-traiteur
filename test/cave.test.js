@@ -36,6 +36,7 @@ test('initCave : anciens vins masqués, nos open bars gardés, nouvelles fiches 
   assert.equal(obc.prixAffiche, undefined);
   assert.equal(obc.groupes[0].id, 'duree');
   assert.ok(obc.propositions[0].slugs.includes('bar-a-cocktails-4-h-au-cocktail'));
+  assert.equal(docs.get('produits/jean-degaves-bordeaux-aop-rouge').coutCents, 1240);
   const rhum = docs.get('produits/rhum-trois-rivieres-blanc-50-70-cl');
   assert.equal(rhum.prixCents, 2490);
   assert.equal(rhum.statut, 'visible');
