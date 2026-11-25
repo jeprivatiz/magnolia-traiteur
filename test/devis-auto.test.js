@@ -64,6 +64,8 @@ test('devis complet envoyé tout seul, demande incomplète laissée à l’équi
     /* e-mail et SMS à l'équipe pour rappeler le client */
     const envois = JSON.stringify((await call('/api/admin/actions/envois')).j);
     assert.ok(envois.includes('envoyé par l’IA à Alice'), 'alerte équipe');
+    assert.ok(envois.includes('0658226969') || envois.includes('06 58 22 69 69') || envois.includes('33658226969'), 'SMS au 06 58 22 69 69');
+    assert.ok(envois.includes('devis envoyé par l\'IA. Alice'), 'texte du SMS');
 
     /* interrupteur : désactivé, tout attend l'équipe */
     assert.equal((await call('/api/admin/site', { method: 'PUT', body: { devisAuto: false } })).status, 200);
