@@ -1946,7 +1946,7 @@ const PHOTOS_BOISSONS = [
   ['open-bar-vins-et-champagnes', 'https://images.pexels.com/photos/3171837/pexels-photo-3171837.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Invités qui trinquent au champagne'],
   ['open-bar-alcools-forts-a-volonte-5-h', 'https://images.pexels.com/photos/28180061/pexels-photo-28180061.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Verre de whisky avec glaçons et citron'],
   ['livraison-de-glacons-sac-de-20-kg', 'https://images.pexels.com/photos/11931271/pexels-photo-11931271.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Glaçons'],
-  ['gobelet-reutilisable-a-biere-50-cl', 'https://images.pexels.com/photos/4996689/pexels-photo-4996689.jpeg?auto=compress&cs=tinysrgb&w=1600', 'Bière servie dans un gobelet réutilisable'],
+  ['gobelet-reutilisable-a-biere-50-cl', '/site/c/materiel/gobelet-biere-50cl.webp', 'Verre à bière 50 cl en polypropylène givré, sur fond blanc'],
 ];
 const PHOTOS_FICHES = [
   [/^air hockey/i, 'https://images.pexels.com/photos/5780929/pexels-photo-5780929.jpeg?auto=compress&cs=tinysrgb&w=1200', 'Table d’air hockey lumineuse'],
