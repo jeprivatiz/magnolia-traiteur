@@ -1453,3 +1453,11 @@ input.verrou { background: var(--doux); color: var(--gris); cursor: not-allowed;
 .lines.ach td:nth-child(4), .lines.ach th:nth-child(4) { width: 110px; white-space: nowrap; }
 .lines.ach td:nth-child(5) { width: 16%; }
 .lines.ach td:nth-child(6) { width: 34%; }
+
+/* liste « sans marge » : saisie directe du prix d'achat à droite de chaque produit */
+.smrow { display: flex; align-items: center; gap: 10px; transition: opacity .3s; } .smrow .prow { flex: 1; min-width: 0; }
+.sm-saisie { display: flex; gap: 6px; align-items: center; flex: none; }
+.sm-saisie input { width: 150px; min-height: 40px; padding: 6px 10px; } .sm-saisie [data-smf] { width: 190px; }
+.sm-saisie input[data-smcout] { border: 2px solid var(--or); font-weight: 600; }
+.smrow.sm-ok { opacity: .25; }
+@media (max-width: 860px) { .smrow { flex-direction: column; align-items: stretch; } .sm-saisie input, .sm-saisie [data-smf] { flex: 1; width: auto; min-width: 0; } }

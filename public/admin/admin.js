@@ -12,6 +12,9 @@
   const titreHtml = t => { const [n, f] = coupeTitre(t); return f ? `${esc(n)}<span class="formule">${esc(f)}</span>` : esc(n); };
   const titreTexte = t => { const [n, f] = coupeTitre(t); return f ? `${n} (${f.charAt(0).toLowerCase() + f.slice(1)})` : n; };
   const euros = c => c == null || c === '' ? '—' : (Math.round(c) / 100).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).replace(/ /g, ' ') + ' €';
+  /* prix d'achat : saisi et affiché HORS TAXES (Jean-Luc, 2026-11-25), gardé en TTC dans la fiche (coutCents) pour les calculs */
+  const achatHt = (ttc, t) => ttc == null || ttc === '' ? null : Math.round(ttc / (1 + (+t || 10) / 100));
+  const achatTtc = (ht, t) => ht == null ? null : Math.round(ht * (1 + (+t || 10) / 100));
   const toCents = v => { const n = parseFloat(String(v ?? '').replace(/\s|€/g, '').replace(',', '.')); return isNaN(n) ? null : Math.round(n * 100); };
   const fromCents = c => c == null ? '' : (c / 100).toFixed(2).replace('.', ',');
   const dateFr = (d, o = { day: 'numeric', month: 'short', year: 'numeric' }) => { if (!d) return '—'; const x = new Date(String(d).length === 10 ? d + 'T12:00' : d); return isNaN(x) ? '—' : x.toLocaleDateString('fr-FR', o); };
@@ -767,7 +770,7 @@
       ${g.connu ? `<dl><div><dt>Vente HT ${g.manquants.length ? '<small>(lignes avec prix d’achat)</small>' : ''}</dt><dd>${euros(g.vHt)}</dd></div><div><dt>Achat HT</dt><dd>${euros(g.aHt)} <small>(${euros(g.aTtc)} TTC)</small></dd></div>
       <div class="big ${g.marge < 0 ? 'neg' : 'pos'}"><dt>Ce que l’on gagne (marge HT)</dt><dd>${euros(g.marge)}${pc ? ' · ' + pc : ''}</dd></div></dl>
       <p class="muted sm">Calcul hors taxes : la TVA collectée sur la vente est reversée à l’État, celle payée sur les achats est récupérée. Les prix restent saisis TTC.</p>` : '<p class="muted sm">Aucune ligne n’a encore de prix d’achat : la marge ne peut pas être calculée.</p>'}
-      ${g.manquants.length ? `<p class="mg-manq">⚠ Prix d’achat manquant sur ${g.manquants.length} ligne${g.manquants.length > 1 ? 's' : ''} (non comptée${g.manquants.length > 1 ? 's' : ''} dans la marge) : ${g.manquants.map(esc).join(' · ')}. <small>Tapez-le dans la colonne « Achat TTC », ou sur la fiche produit du catalogue.</small></p>` : g.connu ? '<p class="ok sm">✓ Toutes les lignes ont un prix d’achat.</p>' : ''}`;
+      ${g.manquants.length ? `<p class="mg-manq">⚠ Prix d’achat manquant sur ${g.manquants.length} ligne${g.manquants.length > 1 ? 's' : ''} (non comptée${g.manquants.length > 1 ? 's' : ''} dans la marge) : ${g.manquants.map(esc).join(' · ')}. <small>Tapez-le dans la colonne « Achat HT », ou sur la fiche produit du catalogue.</small></p>` : g.connu ? '<p class="ok sm">✓ Toutes les lignes ont un prix d’achat.</p>' : ''}`;
   };
 
   /* même règle que le serveur (server/devis.js) : totalité sous 800 € TTC, 50 % au-dessus, sauf pourcentage forcé */
@@ -806,7 +809,7 @@
       ${lock ? '' : `<section class="box ia-modif"><h2>✨ Demander à l’IA de modifier ce devis</h2><p class="muted sm">Écrivez ou dictez ce qu’il faut changer, par exemple : « Supprime le DJ et mets une contorsionniste à la place », « passe à 80 invités », « ajoute 2 serveurs pendant 5 h ». L’IA vous montre les changements avant de les appliquer. Vous pouvez toujours modifier les lignes vous-même.</p>
         <textarea id="iam-t" rows="2" placeholder="Ex. : supprime le DJ et mets une contorsionniste à la place"></textarea><div class="row"><button type="button" class="btn aq-btn" data-iam>✨ Proposer la modification</button><button type="button" class="btn ghost sm" data-iam-mic>🎤 Dicter</button><span id="iam-msg" class="muted sm"></span></div><div id="iam-res"></div></section>`}
       <section class="box"><div class="bh"><h2>Lignes du devis</h2><div class="row"><select data-addprod class="wide"><option value="">+ Ajouter une prestation du catalogue…</option>${cat.filter(p => p.statut !== 'masque').sort((a, b) => a.titre.localeCompare(b.titre)).map(p => `<option value="${esc(p.slug)}">${esc(titreTexte(p.titre))} · ${p.prixCents == null ? 'sur devis' : euros(p.prixCents)}</option>`).join('')}${lieuxD.length ? `<optgroup label="Lieux à privatiser (3 photos sur le devis)">${lieuxD.sort((a, b) => a.nom.localeCompare(b.nom)).map(l => `<option value="lieu-${esc(l.slug)}">📍 ${esc(l.nom)}${l.capacite ? ' · ' + l.capacite + ' pers.' : ''}${l.statut === 'masque' ? ' (masqué)' : ''}</option>`).join('')}</optgroup>` : ''}</select><button type="button" class="btn ghost sm" data-addline>+ Ligne libre</button><button type="button" class="btn ghost sm" data-addtitle>+ Titre</button></div></div>
-        <div class="table"><table class="lines"><thead><tr><th></th><th>Désignation</th><th class="n">Qté</th><th>Unité</th><th class="n">PU TTC</th><th class="n" title="Prix d’achat TTC à l’unité — interne, jamais montré au client">Achat TTC 🔒</th><th>TVA</th><th class="n">Total TTC</th><th></th></tr></thead><tbody id="lines"></tbody></table></div>
+        <div class="table"><table class="lines"><thead><tr><th></th><th>Désignation</th><th class="n">Qté</th><th>Unité</th><th class="n">PU TTC</th><th class="n" title="Prix d’achat HT à l’unité — interne, jamais montré au client">Achat HT 🔒</th><th>TVA</th><th class="n">Total TTC</th><th></th></tr></thead><tbody id="lines"></tbody></table></div>
         <div class="totbox"><div class="g2"><label>Remise TTC (€)<input name="remise" value="${fromCents(d.remiseCents || 0)}" inputmode="decimal"></label></div><dl id="totaux"></dl></div><div class="mg-box" id="marge"></div></section>
       <section class="box"><label>Conditions particulières<textarea name="conditions" rows="2">${esc(d.conditions || '')}</textarea></label></section>
       <div class="actions sticky"><button class="btn" type="submit">Enregistrer</button><button class="btn ghost" type="button" data-voir>👁 Voir le devis</button><span class="muted" id="dirty"></span></div>
@@ -860,7 +863,7 @@
         ? `<tr class="t" data-i="${i}"><td class="h">⋮⋮</td><td colspan="7"><input data-f="designation" value="${esc(l.designation)}" placeholder="Titre de section"></td><td><button type="button" class="x" data-del>×</button></td></tr>`
         : `<tr data-i="${i}" class="${l.coutCents && l.puCents < l.coutCents ? 'neg' : ''}"><td class="h" title="Déplacer">⋮⋮</td><td><input data-f="designation" value="${esc(l.designation)}"><input data-f="detail" class="sub" value="${esc(l.detail || '')}" placeholder="Détail (facultatif)"></td>
            <td><input data-f="qte" class="num" value="${esc(l.qte)}" inputmode="decimal"></td><td><select data-f="unite">${[...new Set([l.unite, ...UNITES])].map(u => `<option${u === l.unite ? ' selected' : ''}>${esc(u || '')}</option>`).join('')}</select></td>
-           <td><input data-f="puCents" class="num" value="${fromCents(l.puCents)}" inputmode="decimal"></td><td><input data-f="coutCents" class="num${l.coutCents == null && +l.qte ? ' manq' : ''}" value="${fromCents(l.coutCents)}" inputmode="decimal" placeholder="manquant" title="Prix d’achat TTC à l’unité"></td>
+           <td><input data-f="puCents" class="num" value="${fromCents(l.puCents)}" inputmode="decimal"></td><td><input data-f="coutCents" class="num${l.coutCents == null && +l.qte ? ' manq' : ''}" value="${fromCents(achatHt(l.coutCents, l.tva ?? 10))}" inputmode="decimal" placeholder="manquant" title="Prix d’achat HT à l’unité"></td>
            <td><select data-f="tva">${[5.5, 10, 20].map(t => `<option value="${t}"${+l.tva === t ? ' selected' : ''}>${String(t).replace('.', ',')} %</option>`).join('')}</select></td><td class="n">${euros(Math.round((l.puCents || 0) * (+l.qte || 0)))}</td><td><button type="button" class="x" data-del aria-label="Supprimer">×</button></td></tr>`).join('') || '<tr><td colspan="9" class="muted">Aucune ligne : ajoutez une prestation du catalogue ou une ligne libre.</td></tr>';
       const t = tot({ lignes, remiseCents: toCents(form.remise.value) || 0 });
       $('#marge').innerHTML = margeHtml(t);
@@ -871,7 +874,7 @@
     body.addEventListener('input', e => {
       const tr = e.target.closest('[data-i]'); const l = lignes[+tr.dataset.i]; const f = e.target.dataset.f;
       if (!f) return;
-      l[f] = ['puCents', 'coutCents'].includes(f) ? toCents(e.target.value) : f === 'tva' ? +e.target.value : f === 'qte' ? parseFloat(String(e.target.value).replace(',', '.')) || 0 : e.target.value;
+      l[f] = f === 'coutCents' ? achatTtc(toCents(e.target.value), l.tva ?? 10) : f === 'puCents' ? toCents(e.target.value) : f === 'tva' ? +e.target.value : f === 'qte' ? parseFloat(String(e.target.value).replace(',', '.')) || 0 : e.target.value;
       const cell = tr.children[7]; if (cell && l.type !== 'titre') cell.textContent = euros(Math.round((l.puCents || 0) * (+l.qte || 0)));
       tr.classList.toggle('neg', !!(l.coutCents && l.puCents < l.coutCents));
       const t = tot({ lignes, remiseCents: toCents(form.remise.value) || 0 }); draw.totOnly ? 0 : 0; $('#totaux').innerHTML = ''; draw(); dirty();
@@ -1925,12 +1928,42 @@
     return `<span class="nbpaves">${pave('produits', '#/catalogue', nbVis, 'produit' + s(nbVis), `${nbVis} produit${s(nbVis)} visible${s(nbVis)} sur le site · ${prods.length} au total`)}${pave('masques', '#/catalogue?masques=1', nbMasq, 'masqué' + s(nbMasq), `Voir les ${nbMasq} fiche${s(nbMasq)} masquée${s(nbMasq)} et pourquoi`)}${pave('marge', '#/catalogue?sansmarge=1', nbSM, 'sans marge', `${nbSM} produit${s(nbSM)} visible${s(nbSM)} sans prix d’achat : leur marge ne peut pas être calculée`)}</span>`;
   };
   /* produits sans marge (Jean-Luc, 2026-11-25) : visibles, avec un prix de vente, mais sans prix d'achat (ou vendus à perte) */
+  /* ligne de la liste « sans marge » : la fiche (lien) + saisie directe du prix d'achat et du fournisseur (Jean-Luc, 2026-11-25) */
+  const smLigne = p => `<div class="smrow" data-smid="${esc(p.id || p.slug)}">${prow(p)}${peut('prix') ? `<span class="sm-saisie"><input data-smcout inputmode="decimal" placeholder="Prix d’achat HT €" aria-label="Prix d’achat HT de ${esc(titreTexte(p.titre))}"><input data-smf list="dl-fourn-sm" placeholder="Fournisseur (facultatif)" aria-label="Fournisseur"><button type="button" class="btn sm" data-smok title="Enregistrer dans la fiche">✓</button></span>` : ''}</div>`;
+  const apresSansMarge = () => {
+    const enreg = async row => {
+      const ci = $('[data-smcout]', row), fi = $('[data-smf]', row), b = $('[data-smok]', row);
+      const cout = toCents(ci.value), f = fi.value.trim();
+      if (cout == null) { ci.focus(); toast('Tapez le prix d’achat HT, par exemple 4,50.', true); return; }
+      b.disabled = true;
+      try {
+        const id = row.dataset.smid, p = await api(A + '/produits/' + id);
+        const fourn = [...new Set([...(p.fournisseurs || []), ...(p.fournisseur ? [p.fournisseur] : [])])];
+        if (f && !fourn.some(x => x.toLowerCase() === f.toLowerCase())) fourn.unshift(f);
+        const coutTtc = achatTtc(cout, p.tva ?? 10);
+        await api(`${A}/produits/${id}`, { method: 'PUT', body: { ...p, coutCents: coutTtc, fournisseurs: fourn, fournisseur: undefined } });
+        cache.produits = null;
+        if (coutTtc >= (p.prixCents ?? Infinity)) { b.disabled = false; toast('Enregistré, mais le prix d’achat est au-dessus du prix de vente : le produit reste dans la liste (vendu à perte).', true); return; }
+        const box = row.closest('section'), suiv = row.nextElementSibling || row.previousElementSibling;
+        row.classList.add('sm-ok');
+        setTimeout(() => {
+          row.parentNode.removeChild(row);
+          const n = $$('.smrow', box).length; const sm = box.querySelector('h2 small'); if (sm) sm.textContent = `(${n})`; if (!n) box.parentNode.removeChild(box);
+          const tot = $$('.smrow').length; const pv = $('[data-pave="marge"] b'); if (pv) pv.textContent = tot.toLocaleString('fr-FR'); const h = $('.smbox h2 small'); if (h) h.textContent = `(${tot})`;
+          const nx = suiv && suiv.isConnected ? $('[data-smcout]', suiv) : $('[data-smcout]'); nx?.focus();
+        }, 350);
+        toast('✓ Prix d’achat enregistré dans la fiche.');
+      } catch (err) { b.disabled = false; toast(err.message, true); }
+    };
+    $('.content').addEventListener('click', e => { const b = e.target.closest('[data-smok]'); if (b) enreg(b.closest('.smrow')); });
+    $('.content').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.closest('.sm-saisie')) { e.preventDefault(); enreg(e.target.closest('.smrow')); } });
+  };
   function pageSansMarge(rubs, prods) {
     const L = prods.filter(sansMarge), nomRub = sl => rubs.find(x => x.slug === sl)?.nom || sl || 'Sans rubrique';
     const groupes = [...new Set(L.map(p => p.rubrique))].sort((a, b) => rubs.findIndex(x => x.slug === a) - rubs.findIndex(x => x.slug === b));
     return page('Catalogue' + pavesCat(prods, 'marge'), `<a class="btn ghost" href="#/catalogue">← Retour au catalogue</a>${peut('prix') ? '<a class="btn" href="#/achats">⬆ Importer les prix d’achat (Excel)</a>' : ''}`, `
-      <section class="box smbox"><h2>Produits sans marge <small class="muted">(${L.length})</small></h2><p class="muted">Produits visibles sur le site qui ont un prix de vente mais <b>pas de prix d’achat</b> (ou un prix d’achat supérieur au prix de vente) : leur marge ne peut pas être calculée sur les devis. Cliquez sur un produit pour remplir son prix d’achat et ses fournisseurs, ou importez votre tableau Excel.</p></section>
-      ${groupes.map(g => `<section class="box"><h2>${esc(nomRub(g))} <small class="muted">(${L.filter(p => p.rubrique === g).length})</small></h2><div class="plist">${L.filter(p => p.rubrique === g).map(prow).join('')}</div></section>`).join('') || '<section class="box"><p class="ok">✓ Tous les produits visibles ont un prix d’achat.</p></section>'}`);
+      <section class="box smbox"><h2>Produits sans marge <small class="muted">(${L.length})</small></h2><p class="muted">Produits visibles sur le site qui ont un prix de vente mais <b>pas de prix d’achat</b> (ou un prix d’achat supérieur au prix de vente) : leur marge ne peut pas être calculée sur les devis. Tapez le prix d’achat <b>HT</b> dans la case à droite (et le fournisseur si vous voulez), puis <b>Entrée</b> ou ✓ : la fiche est enregistrée et le produit disparaît de la liste. Vous pouvez aussi importer votre tableau Excel.</p></section><datalist id="dl-fourn-sm">${fournisseursConnus().map(x => `<option value="${esc(x)}">`).join('')}</datalist>
+      ${groupes.map(g => `<section class="box"><h2>${esc(nomRub(g))} <small class="muted">(${L.filter(p => p.rubrique === g).length})</small></h2><div class="plist">${L.filter(p => p.rubrique === g).map(smLigne).join('')}</div></section>`).join('') || '<section class="box"><p class="ok">✓ Tous les produits visibles ont un prix d’achat.</p></section>'}`);
   }
   /* Fiches masquées de tout le catalogue (clic sur « + N masqués ») : raison du masquage, Modifier, Rendre visible */
   const raisonMasque = (p, prods) => {
@@ -1976,7 +2009,7 @@
     return page('Importer les prix d’achat', '<a class="btn ghost" href="#/catalogue?sansmarge=1">← Produits sans marge</a>', `
       <section class="box"><h2>1. Votre fichier Excel</h2>
         <p>Un tableau avec <b>une ligne par produit</b> et ces colonnes (dans n’importe quel ordre) : <b>Produit</b> (le nom), <b>Prix d’achat</b>, <b>Fournisseur</b>. La première ligne contient les titres.</p>
-        <div class="g2"><label>Les prix d’achat du fichier sont<select id="ach-ht"><option value="">TTC (comme sur le site)</option><option value="1">HT (convertis en TTC avec la TVA de chaque fiche)</option></select></label></div>
+        <div class="g2"><label>Les prix d’achat du fichier sont<select id="ach-ht"><option value="1">HT (hors taxes)</option><option value="">TTC</option></select></label></div>
         <label class="imp-drop" id="achDrop"><input type="file" id="achFile" accept=".xlsx,.csv,.txt" hidden><b>📄 Cliquez ici ou glissez le fichier</b><small>Excel (.xlsx) ou CSV · rien n’est enregistré avant votre validation</small></label>
         <p class="muted sm">🔒 Prix d’achat et fournisseurs restent internes : jamais montrés aux clients (site, devis, e-mails).</p></section>
       <section class="box" id="achRes" hidden></section>`);
@@ -2029,10 +2062,10 @@
   const LIEUX_CARTE = [['espagne', 'Espagne'], ['portugal', 'Portugal'], ['italie', 'Italie'], ['grece', 'Grèce'], ['france', 'France'], ['liban', 'Liban'], ['turquie', 'Turquie'], ['maghreb', 'Maghreb (Maroc, Algérie, Tunisie)'], ['maroc', 'Maroc'], ['algerie', 'Algérie'], ['tunisie', 'Tunisie'], ['afrique', 'Afrique (tout le continent)'], ['senegal', 'Sénégal'], ['cote-d-ivoire', 'Côte d’Ivoire'], ['cameroun', 'Cameroun'], ['congo', 'Congo'], ['antilles', 'Antilles'], ['reunion', 'La Réunion'], ['polynesie', 'Polynésie'], ['mexique', 'Mexique'], ['bresil', 'Brésil'], ['perou', 'Pérou'], ['argentine', 'Argentine'], ['etats-unis', 'États-Unis'], ['inde', 'Inde'], ['chine', 'Chine'], ['japon', 'Japon'], ['coree', 'Corée'], ['vietnam', 'Vietnam'], ['thailande', 'Thaïlande']];
   const fournisseursConnus = () => [...new Set((cache.produits || []).flatMap(x => [...(x.fournisseurs || []), ...(x.fournisseur ? [x.fournisseur] : [])]).map(x => String(x).trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fr'));
   const sansMarge = p => p.statut !== 'masque' && p.prixCents != null && (p.coutCents == null || p.coutCents >= p.prixCents);
-  const prow = p => `<a class="prow${p.statut === 'masque' ? ' hid' : ''}" href="#/catalogue/${p.id || p.slug}">${p.photos?.[0]?.src ? `<img src="${esc(p.photos[0].src)}" alt="" loading="lazy">` : '<span class="ph0"></span>'}<span><b>${titreHtml(p.titre)}</b><small>${p.prixCents == null ? 'Sur devis' : euros(p.prixCents) + (p.unite ? ' / ' + esc(p.unite) : '')}${p.min > 1 ? ' · min. ' + p.min : ''}</small></span><span class="pill ${p.statut === 'masque' ? 'd-refuse' : 'd-accepte'}">${p.statut === 'masque' ? 'Masqué' : 'Visible'}</span>${p.maison ? '<span class="pill">Maison</span>' : ''}${sansMarge(p) ? `<span class="pill smpill">${p.coutCents == null ? 'Prix d’achat manquant' : 'Vendu à perte'}</span>` : ''}${p.sous ? `<span class="pill">${esc(((cache.rubriques || []).find(r => r.slug === p.rubrique)?.sous || []).find(x => x.slug === p.sous)?.nom || '')}</span>` : ''}</a>`;
+  const prow = p => `<a class="prow${p.statut === 'masque' ? ' hid' : ''}" href="#/catalogue/${p.id || p.slug}">${p.photos?.[0]?.src ? `<img src="${esc(p.photos[0].src)}" alt="" loading="lazy">` : '<span class="ph0"></span>'}<span><b>${titreHtml(p.titre)}</b><small>${p.prixCents == null ? 'Sur devis' : euros(p.prixCents) + (p.unite ? ' / ' + esc(p.unite) : '')}${p.min > 1 ? ' · min. ' + p.min : ''}</small></span><span class="pill ${p.statut === 'masque' ? 'd-refuse' : 'd-accepte'}">${p.statut === 'masque' ? 'Masqué' : 'Visible'}</span>${p.maison ? '<span class="pill" title="Réglage « Mise en avant » de la fiche : produit affiché en premier sur le site">★ En premier sur le site</span>' : ''}${sansMarge(p) ? `<span class="pill smpill">${p.coutCents == null ? 'Prix d’achat manquant' : 'Vendu à perte'}</span>` : ''}${p.sous ? `<span class="pill">${esc(((cache.rubriques || []).find(r => r.slug === p.rubrique)?.sous || []).find(x => x.slug === p.sous)?.nom || '')}</span>` : ''}</a>`;
   catalogue.after = () => {
     if (new URLSearchParams(location.hash.split('?')[1] || '').get('masques')) return apresMasques();
-    if (new URLSearchParams(location.hash.split('?')[1] || '').get('sansmarge')) return;
+    if (new URLSearchParams(location.hash.split('?')[1] || '').get('sansmarge')) return apresSansMarge();
     $('[data-q]').addEventListener('input', e => {
       const q = e.target.value.toLowerCase().trim(); if (cache.catR === 'lieux') $('.prodbox').hidden = !q;
       $('#plist').innerHTML = (q ? cache.produits.filter(p => (p.titre + ' ' + (p.extrait || '')).toLowerCase().includes(q)) : cache.produits.filter(p => p.rubrique === cache.catR)).map(prow).join('') || '<p class="muted">Aucun résultat.</p>';
@@ -2219,7 +2252,7 @@
         </section>
         <section class="box"><h2>Prix et quantités</h2>${peut('prix') ? '' : '<p class="muted sm">🔒 Les prix sont verrouillés pour votre compte (droit « Modifier les prix »).</p>'}
           <div class="g2 prix-va"><label>Prix de vente TTC (€) <small>prix payé par le client · vide = « Sur devis »</small><input name="prix" value="${fromCents(p.prixCents)}" inputmode="decimal"${peut('prix') ? '' : ' readonly class="verrou"'}></label>
-          <label>Prix d’achat TTC (€) <small>🔒 interne : jamais montré au client · sert à la marge des devis</small><input name="cout" value="${fromCents(p.coutCents)}" inputmode="decimal" placeholder="à remplir"${peut('prix') ? '' : ' readonly class="verrou"'}></label></div>
+          <label>Prix d’achat HT (€) <small>🔒 interne : jamais montré au client · sert à la marge des devis</small><input name="cout" value="${fromCents(achatHt(p.coutCents, p.tva ?? 10))}" inputmode="decimal" placeholder="à remplir"${peut('prix') ? '' : ' readonly class="verrou"'}></label></div>
           <p class="pf-marge" data-pfmarge></p>
           <div class="fourn" data-fourn><span class="fourn-lab">Fournisseurs <small>🔒 interne : d’où vient le produit, jamais montré au client · le premier est le principal</small></span>
             <div class="fourn-chips" data-fchips></div>
@@ -2254,7 +2287,7 @@
     /* marge de la fiche, en direct (HT, interne) */
     const pfMarge = () => {
       const el = $('[data-pfmarge]'); if (!el) return;
-      const v = toCents(form.prix.value), a = toCents(form.cout.value), k = 1 + (+form.tva.value || 10) / 100;
+      const v = toCents(form.prix.value), a = achatTtc(toCents(form.cout.value), form.tva.value), k = 1 + (+form.tva.value || 10) / 100;
       if (v == null) { el.textContent = ''; return; }
       if (a == null) { el.className = 'pf-marge manq'; el.textContent = '⚠ Prix d’achat manquant : la marge de cette prestation ne sera pas comptée sur les devis.'; return; }
       const m = Math.round(v / k) - Math.round(a / k), pc = v ? Math.round(1000 * m / Math.round(v / k)) / 10 : 0;
@@ -2413,7 +2446,7 @@
         return { ...old, variantes: gv && gv.length && gv.length < vars.length ? gv : null, id: old.id || 'g' + gi, titre, max: +max || null, exact: mode === 'exact', facultatif: fac === 'facultatif', options: b.slice(1).map((o, oi) => { const [label, sup, achat] = o.split('|').map(x => x.trim()); const oo = (old.options || []).find(x => x.label === label) || {}; return { ...oo, id: oo.id || 'o' + oi + '-' + label.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-').slice(0, 30), label, supCents: toCents(sup) || 0, coutCents: achat ? toCents(achat) : null }; }) };
       });
       const next = { ...p, titre: f.get('titre'), rubrique: f.get('rubrique'), sous: f.get('rubrique') === p.rubrique ? (f.get('sous') ?? p.sous ?? '') : '', autresSous: f.get('rubrique') === p.rubrique ? f.getAll('autresSous').filter(x => x !== f.get('sous')) : [], rangement: f.get('rangement') ?? p.rangement ?? '', statut: f.get('statut'), maison: !!f.get('maison'), extrait: f.get('extrait'), seoTitre: String(f.get('seoTitre') || '').trim(), seoDescription: String(f.get('seoDescription') || '').replace(/\s+/g, ' ').trim(), description: lignesNettes(f.get('description')), sousPhoto: lignesSousPhoto(f.get('sousPhoto')),
-        prixCents: toCents(f.get('prix')), unite: f.get('unite'), contenuPortion: String(f.get('contenuPortion') || '').trim(), min: +f.get('min') || 1, minimumTexte: '', prixTexte: '', coutCents: toCents(f.get('cout')), fournisseurs: fourn.slice(), fournisseur: undefined, tva: +f.get('tva'),
+        prixCents: toCents(f.get('prix')), unite: f.get('unite'), contenuPortion: String(f.get('contenuPortion') || '').trim(), min: +f.get('min') || 1, minimumTexte: '', prixTexte: '', coutCents: achatTtc(toCents(f.get('cout')), +f.get('tva')), fournisseurs: fourn.slice(), fournisseur: undefined, tva: +f.get('tva'),
         regles: { ...(p.regles || {}), personnel: f.get('r_personnel') ? (p.regles?.personnel || 'service') : null, packs: !!f.get('r_packs') },
         variantes: String(f.get('variantes')).split('\n').map(x => x.trim()).filter(Boolean), photos: photos.filter(x => !x.envoi).map(({ src, alt }) => ({ src, alt })), video: f.get('video') ? { src: f.get('video'), poster: f.get('poster') || '' } : null,
         sections, details: String(f.get('details')).split('\n').map(x => x.trim()).filter(Boolean), groupes, allergenes: f.getAll('al'), allergenesAuto: false };
