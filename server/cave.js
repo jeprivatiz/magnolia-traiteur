@@ -30,7 +30,7 @@ const ttc = (ht, tva) => Math.ceil(Math.round(ht * (1 + tva / 100) * 1.1 * 1000)
 const plus20 = e => Math.round(e * 120);
 
 const TIRE = 'Tire-bouchon non fourni : pensez à l’ajouter à votre sélection (rubrique Accessoires).';
-const FRAIS = 'Livré frais avec le reste de votre commande.';
+const FRAIS = 'Livré à température ambiante avec le reste de votre commande.';
 
 /* [section, slug, titre, prix TTC en centimes, TVA, extrait, description, photo, texte de la photo] */
 const CAVE_PRODUITS = [
@@ -78,13 +78,13 @@ const CHAMPAGNE = {
     'Notre champagne de récoltant, une valeur sûre pour vos réceptions.',
     'Au sud de la Champagne, sur la Côte des Bar, dix hectares de vignes donnent naissance à un champagne de récoltant-manipulant : une maison qui accompagne son produit de la vigne à la bouteille, avec un excellent rapport qualité-prix.',
     'Des vins patiemment élevés et assemblés, puis conservés au moins deux ans en cave avant de rejoindre votre table.',
-    'Bouteille de 75 cl, livrée fraîche avec votre commande.',
+    'Bouteille de 75 cl, livrée à température ambiante avec votre commande.',
   ],
   photos: [{ src: '/site/c/cave/andre-diligent-seau.webp', alt: 'Deux bouteilles de champagne André Diligent dans un seau à glace, devant des flûtes' }],
 };
 
 const INTRO_CAVE = ['Notre cave, livrée avec votre commande',
-  'Notre champagne de récoltant André Diligent, des vins choisis pour vos buffets et vos repas, des eaux, des softs artisanaux de Paris, des jus de fruits et quelques alcools pour vos cocktails.\nChoisissez une catégorie, ajoutez vos bouteilles à votre sélection : elles arrivent fraîches avec le reste de votre commande. Tous nos prix sont TTC.'];
+  'Notre champagne de récoltant André Diligent, des vins choisis pour vos buffets et vos repas, des eaux, des sodas, des jus de fruits et quelques alcools pour vos cocktails.\nChoisissez une catégorie, ajoutez vos bouteilles à votre sélection : elles arrivent avec le reste de votre commande, à température ambiante. Tous nos prix sont TTC.'];
 
 /* prix donnés par Jean-Luc après coup (2026-11-25) : posés une fois, seulement si la fiche est encore « Sur devis » */
 const PRIX_CAVE = { 'livraison-de-glacons-sac-de-20-kg': 4900 };
@@ -297,9 +297,17 @@ async function caveBandeauBadoit(store) {
   }
   const rh = AJOUTS_CAVE[0], d = await store.get('produits/' + rh.slug);
   if (d) await store.set('produits/' + rh.slug, { ...d, prixCents: rh.prixCents, photos: [{ src: rh.photo[0], alt: rh.photo[1] }] });
+  /* boissons livrées à température ambiante, jamais « fraîches » (Jean-Luc, 2026-11-25) */
+  const amb = t => typeof t !== 'string' ? t : t.replace('Livré frais avec le reste de votre commande.', FRAIS).replace('livrée fraîche avec votre commande', 'livrée à température ambiante avec votre commande');
+  for (const { id, data: x } of await store.list('produits')) {
+    if (!x || x.rubrique !== 'boissons') continue;
+    const description = (x.description || []).map(amb), sousPhoto = (x.sousPhoto || []).map(amb);
+    if (JSON.stringify(description) !== JSON.stringify(x.description || []) || JSON.stringify(sousPhoto) !== JSON.stringify(x.sousPhoto || []))
+      await store.set('produits/' + id, { ...x, description, ...(x.sousPhoto ? { sousPhoto } : {}) });
+  }
   const rb = await store.get('rubriques/boissons');
   const sec = k => CAVE_SECTIONS.find(x => x[0] === k);
-  if (rb) await store.set('rubriques/boissons', { ...rb, bandeauVideo: '/site/v/bandeaux/cave-champagne.mp4', bandeauPoster: '/site/v/bandeaux/cave-champagne.jpg',
+  if (rb) await store.set('rubriques/boissons', { ...rb, ...(/softs artisanaux|arrivent fraîches/.test(rb.introTexte || '') ? { introTexte: INTRO_CAVE[1] } : {}), bandeauVideo: '/site/v/bandeaux/cave-champagne.mp4', bandeauPoster: '/site/v/bandeaux/cave-champagne.jpg',
     titresSections: { ...(rb.titresSections || {}), sodas: sec('sodas')[1], jus: sec('jus')[1] },
     photosSections: { ...(rb.photosSections || {}), sodas: sec('sodas')[2], jus: sec('jus')[2] } });
   await store.set('_migr/caveBandeau1', { at: new Date().toISOString() });
