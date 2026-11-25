@@ -232,6 +232,15 @@ async function createApp(opts = {}) {
     }
     await store.set('_migr/verresFlutes', { at: new Date().toISOString() });
   }
+  /* une seule fois (Jean-Luc, 2026-11-25) : photo du verre à bière 50 cl = sa propre photo (verre en polypropylène givré), détourée sur fond blanc */
+  if (!(await store.get('_migr/gobeletBierePhoto'))) {
+    const SLUG = 'gobelet-reutilisable-a-biere-50-cl';
+    for (const { id, data: p } of await store.list('produits')) {
+      if (!p || (p.slug !== SLUG && id !== SLUG)) continue;
+      await store.set('produits/' + id, { ...p, photos: [{ src: '/site/c/materiel/gobelet-biere-50cl.webp', alt: 'Verre à bière 50 cl en polypropylène givré, sur fond blanc' }] });
+    }
+    await store.set('_migr/gobeletBierePhoto', { at: new Date().toISOString() });
+  }
   /* La cave de Magnolia refaite (Jean-Luc, 2026-11-25) : catégories avec photo, boissons reprises d'une carte de traiteur, champagne André Diligent en grand (server/cave.js) */
   { const n = await require('./cave').initCave(store); if (n) console.log(`[demarrage] La cave de Magnolia : ${n} boissons créées`); }
 
