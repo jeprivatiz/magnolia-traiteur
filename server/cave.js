@@ -746,9 +746,34 @@ async function rougesPhotos(store) {
   await store.set('_migr/caveRougesPhotos1', { at: new Date().toISOString() });
 }
 
+/* Eaux : Evian 1,5 L et San Pellegrino 1,5 L remplacent les deux Cristaline (masquées), 1,99 € TTC chacune,
+   photos fournies par Jean-Luc (2026-11-25) */
+const EAUX_2 = [
+  ['eau-plate-cristaline-1-5-l', 'eau-evian-1-5-l', 'Eau minérale Evian (1,5 L)', '/site/c/cave/evian-1-5-l.webp', 'Bouteille d’eau minérale Evian 1,5 L',
+    'Eau minérale naturelle plate Evian, bouteille de 1,5 litre, vendue à l’unité.',
+    'Eau minérale naturelle des Alpes françaises, plate et légère, bouteille de 1,5 litre vendue à l’unité.'],
+  ['eau-petillante-1-5-l', 'eau-san-pellegrino-1-5-l', 'Eau gazeuse San Pellegrino (1,5 L)', '/site/c/cave/san-pellegrino.webp', 'Bouteille d’eau gazeuse San Pellegrino',
+    'Eau minérale naturelle gazeuse San Pellegrino, bouteille de 1,5 litre, vendue à l’unité.',
+    'Eau minérale naturelle italienne aux fines bulles, idéale à table, bouteille de 1,5 litre vendue à l’unité.'],
+];
+async function eauxEvianPellegrino(store) {
+  if (await store.get('_migr/caveEaux2')) return;
+  const now = new Date().toISOString();
+  for (const [ancien, slug, titre, src, alt, extrait, texte] of EAUX_2) {
+    const a = await store.get('produits/' + ancien);
+    if (!a) continue;
+    if (!(await store.get('produits/' + slug))) await store.set('produits/' + slug, { ...a, id: slug, slug, titre, extrait, description: [texte, FRAIS],
+      photos: [{ src, alt }], prixCents: 199, sousPhoto: '', sousPhotoAuto: false, statut: 'visible', masqueCave: false, createdAt: now });
+    await store.set('produits/' + ancien, { ...a, statut: 'masque', masqueCave: true });
+  }
+  const rb = await store.get('rubriques/boissons');
+  if (rb) await store.set('rubriques/boissons', { ...rb, photosSections: { ...(rb.photosSections || {}), eaux: '/site/c/cave/vignette-eaux-evian-pellegrino.webp' } });
+  await store.set('_migr/caveEaux2', { at: now });
+}
+
 async function initCave(store) {
   await prixCave(store);
-  if (await store.get('_migr/caveCercle')) { await openBarCave(store); await sodasCave(store); await vinsCave(store); await eauxCave(store); await cocaPhotos(store); await cristalineGaz(store); await cristalinePlate(store); await caveBandeauBadoit(store); await barmanSousPhoto(store); await barmanPrix(store); await alcoolsBlanc(store); await vinsRouges2(store); await barCocktailsMin(store); await barCocktailsVideo(store); await barCocktailsTexte(store); await barCocktailsRetablir(store); await valettePrix(store); await minutyCave(store); await rosesCave2(store); const k = await ajoutsCave(store); await metroCave(store); await barmanHeuresSup(store); await rosesPhotos(store); await barmanVideo(store); await openBarVideo(store); await openBarPersonnel(store); await saintTropezPhoto(store); await barsVideos(store); await openBarTextes(store); await pepsiMax(store); await pepsiMaxPhoto(store); await jusPhotos(store); await pechePhoto(store); await valettePhoto(store); await blancsPhotos(store); await eauxBouteilles(store); await rougesPhotos(store); return k; }
+  if (await store.get('_migr/caveCercle')) { await openBarCave(store); await sodasCave(store); await vinsCave(store); await eauxCave(store); await cocaPhotos(store); await cristalineGaz(store); await cristalinePlate(store); await caveBandeauBadoit(store); await barmanSousPhoto(store); await barmanPrix(store); await alcoolsBlanc(store); await vinsRouges2(store); await barCocktailsMin(store); await barCocktailsVideo(store); await barCocktailsTexte(store); await barCocktailsRetablir(store); await valettePrix(store); await minutyCave(store); await rosesCave2(store); const k = await ajoutsCave(store); await metroCave(store); await barmanHeuresSup(store); await rosesPhotos(store); await barmanVideo(store); await openBarVideo(store); await openBarPersonnel(store); await saintTropezPhoto(store); await barsVideos(store); await openBarTextes(store); await pepsiMax(store); await pepsiMaxPhoto(store); await jusPhotos(store); await pechePhoto(store); await valettePhoto(store); await blancsPhotos(store); await eauxBouteilles(store); await rougesPhotos(store); await eauxEvianPellegrino(store); return k; }
   const now = new Date().toISOString();
   let n = 0;
   for (const d of await store.list('produits')) {
@@ -804,7 +829,7 @@ async function initCave(store) {
   await valettePrix(store);
   await minutyCave(store);
   await rosesCave2(store);
-  const k = await ajoutsCave(store); await metroCave(store); await barmanHeuresSup(store); await rosesPhotos(store); await barmanVideo(store); await openBarVideo(store); await openBarPersonnel(store); await saintTropezPhoto(store); await barsVideos(store); await openBarTextes(store); await pepsiMax(store); await pepsiMaxPhoto(store); await jusPhotos(store); await pechePhoto(store); await valettePhoto(store); await blancsPhotos(store); await eauxBouteilles(store); await rougesPhotos(store); return n + k;
+  const k = await ajoutsCave(store); await metroCave(store); await barmanHeuresSup(store); await rosesPhotos(store); await barmanVideo(store); await openBarVideo(store); await openBarPersonnel(store); await saintTropezPhoto(store); await barsVideos(store); await openBarTextes(store); await pepsiMax(store); await pepsiMaxPhoto(store); await jusPhotos(store); await pechePhoto(store); await valettePhoto(store); await blancsPhotos(store); await eauxBouteilles(store); await rougesPhotos(store); await eauxEvianPellegrino(store); return n + k;
 }
 
 module.exports = { texteBarCocktails, BARMAN, OPEN_BAR_VC, CAVE_SECTIONS, CAVE_PRODUITS, AJOUTS_CAVE, CAVE_GARDEES, INTRO_CAVE, ttc, initCave };
