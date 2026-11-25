@@ -59,7 +59,8 @@ test('initCave : anciens vins masqués, nos open bars gardés, nouvelles fiches 
   assert.equal(docs.get('produits/eau-petillante-1-5-l').prixCents, 250);
   assert.match(docs.get('produits/eau-plate-cristaline-1-5-l').photos[0].src, /cristaline-plate-bouteille\.webp/);
   assert.equal(docs.get('produits/eau-plate-cristaline-1-5-l').statut, 'masque');
-  assert.equal(docs.get('produits/eau-evian-1-5-l').prixCents, 199);
+  assert.equal(docs.get('produits/eau-evian-1-5-l').prixCents, 250);
+  assert.equal(docs.get('produits/eau-san-pellegrino-1-5-l').coutCents, 242);
   assert.equal(docs.get('produits/eau-san-pellegrino-1-5-l').statut, 'visible');
   assert.equal(docs.get('produits/eau-badoit-50-cl').statut, 'masque');
   assert.equal(docs.get('produits/chateau-minuty-prestige-rose').prixCents, 3590);
