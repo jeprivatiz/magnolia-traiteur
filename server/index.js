@@ -190,6 +190,8 @@ async function createApp(opts = {}) {
     if (rb) await store.set('rubriques/boissons', { ...rb, nom: 'La cave de Magnolia', titrePage: rb.titrePage ? 'La cave de Magnolia' : rb.titrePage, chapo: 'Du vin au soft, en passant par les alcools.' });
     await store.set('_migr/caveMagnolia', { at: new Date().toISOString() });
   }
+  /* La cave de Magnolia refaite (Jean-Luc, 2026-11-25) : catégories avec photo, boissons reprises d'une carte de traiteur, champagne André Diligent en grand (server/cave.js) */
+  { const n = await require('./cave').initCave(store); if (n) console.log(`[demarrage] La cave de Magnolia : ${n} boissons créées`); }
 
   /* ---------- titres et descriptions « dans Google » (Jean-Luc, 2026-11-24) ----------
      À chaque démarrage : les cases vides des produits, rubriques et spécialités sont remplies (jamais un texte tapé à la main).

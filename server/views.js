@@ -139,10 +139,16 @@ ${scripts}
 </html>`;
 }
 
-function card(p, c, { rubNom = true } = {}) {
+function card(p, c, { rubNom = true, vedette = false } = {}) {
   const r = c.rubriques.find(x => x.slug === p.rubrique);
   const { prix, unite } = prixCourt(p, euros);
   const ph = p.photos?.[0];
+  /* carte « en vedette » (notre champagne André Diligent sur La cave de Magnolia) : grande photo et texte complet */
+  if (vedette) return `<a class="card card-vedette" href="${prodHref(p)}" data-card data-rub="${esc([p.rubrique, ...(p.autresRubriques || [])].join(' '))}" data-prix="${p.prixCents ?? ''}" data-ordre="${p.ordre ?? 0}" data-titre="${esc(p.titre || '')}">
+    <div class="card-img">${img(ph?.src, ph?.alt || titreTexte(p.titre))}</div>
+    <div class="card-b"><p class="eyebrow">Notre champagne de récoltant</p><h3>${titreHtml(p.titre)}</h3>${(p.description || [p.extrait]).filter(Boolean).slice(0, 3).map(l => `<p>${esc(l)}</p>`).join('')}
+    <div class="card-f"><span class="prix">${esc(prix)} <small>${esc(unite)}</small></span><span class="btn btn-or">Découvrir et commander ${icon.arrow}</span></div></div>
+  </a>`;
   return `<a class="card" href="${prodHref(p)}" data-card data-rub="${esc([p.rubrique, ...(p.autresRubriques || [])].join(' '))}" data-prix="${p.prixCents ?? ''}" data-ordre="${p.ordre ?? 0}" data-titre="${esc(p.titre || '')}">
     <div class="card-img">${p.video?.src ? `<video class="card-v" muted loop playsinline preload="none" disablepictureinpicture aria-label="${esc(titreTexte(p.titre))}" poster="${esc(p.video.poster || ph?.src || '')}" data-vignette="${esc(p.video.src)}"></video>` : img(ph?.src, ph?.alt || titreTexte(p.titre))}${rubNom && r ? `<span class="tag">${esc(r.nom)}</span>` : ''}</div>
     <div class="card-b"><h3>${titreHtml(p.titre)}</h3><p>${esc(trunc(p.extrait, 110))}</p>
@@ -471,6 +477,15 @@ function sectionsRub(r, liste) {
   const R = [...ordre.map(k => RANGEMENTS.find(([x]) => x === k)), ...RANGEMENTS.filter(([x]) => !ordre.includes(x))];
   return R.map(([k, t]) => [k, (r.titresSections || {})[k] || t, L.filter(p => rangementDe(p) === k)]).filter(b => b[2].length);
 }
+/* La cave de Magnolia (Jean-Luc, 2026-11-25) : la page s'ouvre sur ses catégories, une photo chacune. On touche une catégorie :
+   seule celle-ci reste affichée (public/js/site.js, « catégories »), pour ne pas faire défiler toute la cave sur téléphone. */
+function tuilesSections(r, sections) {
+  const ph = r.photosSections || {};
+  return `<nav class="cats" id="categories" data-cats aria-label="Catégories">${sections.map(([k, t, L]) => {
+    const src = ph[k] || L[0]?.photos?.[0]?.src || '';
+    return `<a class="cat" href="#${esc(k)}" data-cat="${esc(k)}">${img(src, t)}<span class="cat-t">${esc(t)}<small>${L.length} produit${L.length > 1 ? 's' : ''}</small></span></a>`;
+  }).join('')}</nav>`;
+}
 function boutique(c, { q = '', rub = '', titre, chapo, photo, path = '/boutique', liste = null, fil = null, chips = '', hero = '', seo = null, intro = null, sections = null, avant = '', scripts = '' }) {
   const rubs = c.rubriques.filter(r => r.statut !== 'masque' && r.slug !== 'lieux');
   const prods = liste || (q ? c.search(c, q, 400) : c.produits.filter(p => p.statut !== 'masque'));
@@ -489,7 +504,7 @@ ${avant}<section class="wrap shop" id="prestations" data-shop>
     </div>
   </div>
   <p class="count"><span data-count>${prods.length}</span> prestations · tarifs TTC${q ? ` pour « ${esc(q)} »` : ''}</p>
-  ${sections ? sections.map(([k, t, L]) => `<div class="spe-bloc" id="${k}" data-bloc><h2>${esc(t)}</h2><div class="cards grid" data-grid>${L.map(p => card(p, c, { rubNom: false })).join('')}</div></div>`).join('')
+  ${sections && r?.tuilesSections ? tuilesSections(r, sections) : ''}${sections ? sections.map(([k, t, L]) => { const ved = (r?.sectionsVedette || []).includes(k); return `<div class="spe-bloc${ved ? ' bloc-vedette' : ''}" id="${k}" data-bloc><h2>${esc(t)}</h2>${r?.tuilesSections ? '<a class="cat-retour" href="#categories" data-cat="">← Toutes les catégories</a>' : ''}<div class="cards grid${ved ? ' cards-vedette' : ''}" data-grid>${L.map(p => card(p, c, { rubNom: false, vedette: ved })).join('')}</div></div>`; }).join('')
     : `<div class="cards grid" data-grid>${prods.map(p => card(p, c, { rubNom: !rub })).join('')}</div>`}
   ${!prods.length ? `<div class="empty"><p>Aucune prestation ne correspond à « ${esc(q)} ».</p><p>Appelez-nous au <a href="tel:${esc(c.reglages.telephone)}">${esc(c.reglages.telephone)}</a> : nous trouvons toujours une solution.</p></div>` : ''}
 </section>`;

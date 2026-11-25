@@ -254,6 +254,27 @@
       io.observe(row);
       document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); else marche(); });
     }
+    /* catégories (La cave de Magnolia, Jean-Luc 2026-11-25) : on touche une catégorie, seule celle-ci reste à l'écran ;
+       « Toutes les catégories » (ou la même vignette) remet tout. L'adresse garde la catégorie (#vins-rouges) pour le retour arrière. */
+    const cats = $('[data-cats]', shop);
+    if (cats) {
+      const blocs = $$('[data-bloc]', shop);
+      const choisir = (k, defile) => {
+        $$('[data-cat]', cats).forEach(a => a.classList.toggle('on', !!k && a.dataset.cat === k));
+        blocs.forEach(b => b.classList.toggle('cat-off', !!k && b.id !== k));
+        shop.classList.toggle('cat-choisie', !!k);
+        const cible = k ? document.getElementById(k) : cats;
+        if (defile && cible) cible.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+      };
+      $$('[data-cat]', shop).forEach(a => a.addEventListener('click', e => {
+        e.preventDefault();
+        const k = a.dataset.cat && !a.classList.contains('on') ? a.dataset.cat : '';
+        history.replaceState(null, '', k ? '#' + k : location.pathname + location.search);
+        choisir(k, true);
+      }));
+      const h = decodeURIComponent(location.hash.slice(1));
+      if (h && blocs.some(b => b.id === h)) choisir(h, false);
+    }
     const qi = $('[data-shop-q]', shop);
     if (qi && location.pathname !== '/boutique') qi.form.addEventListener('submit', e => { e.preventDefault(); apply(); });
     qi?.addEventListener('input', () => { if (!new URLSearchParams(location.search).get('q')) apply(); });
