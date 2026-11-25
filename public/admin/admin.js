@@ -1929,11 +1929,27 @@
   };
   /* produits sans marge (Jean-Luc, 2026-11-25) : visibles, avec un prix de vente, mais sans prix d'achat (ou vendus à perte) */
   /* ligne de la liste « sans marge » : la fiche (lien) + saisie directe du prix d'achat et du fournisseur (Jean-Luc, 2026-11-25) */
-  const smLigne = p => `<div class="smrow" data-smid="${esc(p.id || p.slug)}">${prow(p)}${peut('prix') ? `<span class="sm-saisie"><input data-smcout inputmode="decimal" placeholder="Prix d’achat HT €" aria-label="Prix d’achat HT de ${esc(titreTexte(p.titre))}"><input data-smf list="dl-fourn-sm" placeholder="Fournisseur (facultatif)" aria-label="Fournisseur"><button type="button" class="btn sm" data-smok title="Enregistrer dans la fiche">✓</button></span>` : ''}</div>`;
+  /* liste des fournisseurs de la saisie rapide : ordre alphabétique, un nouveau fournisseur s'ajoute aussitôt à toutes les lignes */
+  let SMF = [];
+  const trierF = L => [...new Set(L.map(x => String(x).trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
+  const smfOptions = sel => `<option value="">Fournisseur (facultatif)</option>${SMF.map(x => `<option${x === sel ? ' selected' : ''}>${esc(x)}</option>`).join('')}<option value="__nouveau">✚ Nouveau fournisseur…</option>`;
+  const fgestHtml = () => SMF.map(x => `<span class="fchip" data-fg="${esc(x)}" title="Tapez deux fois pour supprimer">${esc(x)}<button type="button" data-fgdel aria-label="Supprimer ${esc(x)}">×</button></span>`).join('') || '<span class="muted sm">Aucun fournisseur pour l’instant.</span>';
+  const smLigne = p => `<div class="smrow" data-smid="${esc(p.id || p.slug)}">${prow(p)}${peut('prix') ? `<span class="sm-saisie"><input data-smcout inputmode="decimal" placeholder="Prix d’achat HT €" aria-label="Prix d’achat HT de ${esc(titreTexte(p.titre))}"><select data-smf aria-label="Fournisseur">${smfOptions('')}</select><input data-smfnew placeholder="Nom du nouveau fournisseur" hidden><button type="button" class="btn sm" data-smok title="Enregistrer dans la fiche">✓</button></span>` : ''}</div>`;
+  const majFgest = () => { const g = $('[data-fgest]'); if (g) g.innerHTML = fgestHtml(); const n = $('[data-fgn]'); if (n) n.textContent = `(${SMF.length})`; $$('[data-smf]').forEach(s => { const v = SMF.includes(s.value) || s.value === '__nouveau' ? s.value : ''; s.innerHTML = smfOptions(v); }); };
+  const supprimerFournisseur = async nom => {
+    let n = 0; try { n = (await api(A + '/actions/fournisseurs/compter?nom=' + encodeURIComponent(nom))).n; } catch { /* compte indisponible : on demande quand même */ }
+    if (!confirm(`Voulez-vous supprimer le fournisseur « ${nom} » ?\n\nIl sera retiré de la liste${n ? (n === 1 ? ' et de la fiche qui l’utilise' : ` et des ${n} fiches qui l’utilisent`) + ' (leurs prix d’achat ne changent pas)' : ''}.`)) return;
+    try { const r = await api(A + '/actions/fournisseurs/supprimer', { method: 'POST', body: { nom } }); SMF = SMF.filter(x => x !== nom); cache.produits = null; majFgest(); toast(`Fournisseur « ${nom} » supprimé${r.fiches ? ` (retiré de ${r.fiches} fiche${r.fiches > 1 ? 's' : ''})` : ''}.`); }
+    catch (err) { toast(err.message, true); }
+  };
   const apresSansMarge = () => {
+    /* « taper deux fois » : détecté à la main (l'iPhone n'envoie pas toujours le double-clic) */
+    let dernier = { el: null, t: 0 };
+    $('[data-fgest]')?.addEventListener('click', e => { const c = e.target.closest('[data-fg]'); if (!c || e.target.closest('[data-fgdel]')) return; const now = Date.now(); if (dernier.el === c && now - dernier.t < 450) { dernier = { el: null, t: 0 }; supprimerFournisseur(c.dataset.fg); } else dernier = { el: c, t: now }; });
+    $('[data-fgest]')?.addEventListener('click', e => { const b = e.target.closest('[data-fgdel]'); if (b) supprimerFournisseur(b.closest('[data-fg]').dataset.fg); });
     const enreg = async row => {
-      const ci = $('[data-smcout]', row), fi = $('[data-smf]', row), b = $('[data-smok]', row);
-      const cout = toCents(ci.value), f = fi.value.trim();
+      const ci = $('[data-smcout]', row), fi = $('[data-smf]', row), fn = $('[data-smfnew]', row), b = $('[data-smok]', row);
+      const cout = toCents(ci.value), f = (fi.value === '__nouveau' ? fn.value : fi.value).trim();
       if (cout == null) { ci.focus(); toast('Tapez le prix d’achat HT, par exemple 4,50.', true); return; }
       b.disabled = true;
       try {
@@ -1943,6 +1959,7 @@
         const coutTtc = achatTtc(cout, p.tva ?? 10);
         await api(`${A}/produits/${id}`, { method: 'PUT', body: { ...p, coutCents: coutTtc, fournisseurs: fourn, fournisseur: undefined } });
         cache.produits = null;
+        if (f && !SMF.some(x => x.toLowerCase() === f.toLowerCase())) { SMF = trierF([...SMF, f]); $$('[data-smf]').forEach(s => { const v = s === fi ? f : s.value; s.innerHTML = smfOptions(v); if (s === fi) { fn.hidden = true; fn.value = ''; } }); majFgest(); }
         if (coutTtc >= (p.prixCents ?? Infinity)) { b.disabled = false; toast('Enregistré, mais le prix d’achat est au-dessus du prix de vente : le produit reste dans la liste (vendu à perte).', true); return; }
         const box = row.closest('section'), suiv = row.nextElementSibling || row.previousElementSibling;
         row.classList.add('sm-ok');
@@ -1956,13 +1973,16 @@
       } catch (err) { b.disabled = false; toast(err.message, true); }
     };
     $('.content').addEventListener('click', e => { const b = e.target.closest('[data-smok]'); if (b) enreg(b.closest('.smrow')); });
+    $('.content').addEventListener('change', e => { const s = e.target.closest('[data-smf]'); if (!s) return; const n = $('[data-smfnew]', s.closest('.smrow')); n.hidden = s.value !== '__nouveau'; if (!n.hidden) n.focus(); });
     $('.content').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.closest('.sm-saisie')) { e.preventDefault(); enreg(e.target.closest('.smrow')); } });
   };
   function pageSansMarge(rubs, prods) {
+    SMF = trierF(prods.flatMap(x => [...(x.fournisseurs || []), ...(x.fournisseur ? [x.fournisseur] : [])]));
     const L = prods.filter(sansMarge), nomRub = sl => rubs.find(x => x.slug === sl)?.nom || sl || 'Sans rubrique';
     const groupes = [...new Set(L.map(p => p.rubrique))].sort((a, b) => rubs.findIndex(x => x.slug === a) - rubs.findIndex(x => x.slug === b));
     return page('Catalogue' + pavesCat(prods, 'marge'), `<a class="btn ghost" href="#/catalogue">← Retour au catalogue</a>${peut('prix') ? '<a class="btn" href="#/achats">⬆ Importer les prix d’achat (Excel)</a>' : ''}`, `
-      <section class="box smbox"><h2>Produits sans marge <small class="muted">(${L.length})</small></h2><p class="muted">Produits visibles sur le site qui ont un prix de vente mais <b>pas de prix d’achat</b> (ou un prix d’achat supérieur au prix de vente) : leur marge ne peut pas être calculée sur les devis. Tapez le prix d’achat <b>HT</b> dans la case à droite (et le fournisseur si vous voulez), puis <b>Entrée</b> ou ✓ : la fiche est enregistrée et le produit disparaît de la liste. Vous pouvez aussi importer votre tableau Excel.</p></section><datalist id="dl-fourn-sm">${fournisseursConnus().map(x => `<option value="${esc(x)}">`).join('')}</datalist>
+      <section class="box smbox"><h2>Produits sans marge <small class="muted">(${L.length})</small></h2><p class="muted">Produits visibles sur le site qui ont un prix de vente mais <b>pas de prix d’achat</b> (ou un prix d’achat supérieur au prix de vente) : leur marge ne peut pas être calculée sur les devis. Tapez le prix d’achat <b>HT</b> dans la case à droite (et le fournisseur si vous voulez), puis <b>Entrée</b> ou ✓ : la fiche est enregistrée et le produit disparaît de la liste. Vous pouvez aussi importer votre tableau Excel.</p></section>
+      ${peut('prix') ? `<section class="box fourn-gest"><h2>Vos fournisseurs <small class="muted" data-fgn>(${SMF.length})</small></h2><p class="muted sm">Classés par ordre alphabétique. Pour supprimer un fournisseur, <b>tapez deux fois dessus</b> (ou sur ×) : il est retiré de la liste et de toutes les fiches qui l’utilisent.</p><div class="fourn-chips" data-fgest>${fgestHtml()}</div></section>` : ''}
       ${groupes.map(g => `<section class="box"><h2>${esc(nomRub(g))} <small class="muted">(${L.filter(p => p.rubrique === g).length})</small></h2><div class="plist smlist">${L.filter(p => p.rubrique === g).map(smLigne).join('')}</div></section>`).join('') || '<section class="box"><p class="ok">✓ Tous les produits visibles ont un prix d’achat.</p></section>'}`);
   }
   /* Fiches masquées de tout le catalogue (clic sur « + N masqués ») : raison du masquage, Modifier, Rendre visible */
@@ -2060,7 +2080,7 @@
     });
   };
   const LIEUX_CARTE = [['espagne', 'Espagne'], ['portugal', 'Portugal'], ['italie', 'Italie'], ['grece', 'Grèce'], ['france', 'France'], ['liban', 'Liban'], ['turquie', 'Turquie'], ['maghreb', 'Maghreb (Maroc, Algérie, Tunisie)'], ['maroc', 'Maroc'], ['algerie', 'Algérie'], ['tunisie', 'Tunisie'], ['afrique', 'Afrique (tout le continent)'], ['senegal', 'Sénégal'], ['cote-d-ivoire', 'Côte d’Ivoire'], ['cameroun', 'Cameroun'], ['congo', 'Congo'], ['antilles', 'Antilles'], ['reunion', 'La Réunion'], ['polynesie', 'Polynésie'], ['mexique', 'Mexique'], ['bresil', 'Brésil'], ['perou', 'Pérou'], ['argentine', 'Argentine'], ['etats-unis', 'États-Unis'], ['inde', 'Inde'], ['chine', 'Chine'], ['japon', 'Japon'], ['coree', 'Corée'], ['vietnam', 'Vietnam'], ['thailande', 'Thaïlande']];
-  const fournisseursConnus = () => [...new Set((cache.produits || []).flatMap(x => [...(x.fournisseurs || []), ...(x.fournisseur ? [x.fournisseur] : [])]).map(x => String(x).trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fr'));
+  const fournisseursConnus = () => [...new Set((cache.produits || []).flatMap(x => [...(x.fournisseurs || []), ...(x.fournisseur ? [x.fournisseur] : [])]).map(x => String(x).trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
   const sansMarge = p => p.statut !== 'masque' && p.prixCents != null && (p.coutCents == null || p.coutCents >= p.prixCents);
   const prow = p => `<a class="prow${p.statut === 'masque' ? ' hid' : ''}" href="#/catalogue/${p.id || p.slug}">${p.photos?.[0]?.src ? `<img src="${esc(p.photos[0].src)}" alt="" loading="lazy">` : '<span class="ph0"></span>'}<span><b>${titreHtml(p.titre)}</b><small>${p.prixCents == null ? 'Sur devis' : euros(p.prixCents) + (p.unite ? ' / ' + esc(p.unite) : '')}${p.min > 1 ? ' · min. ' + p.min : ''}</small></span><span class="pill ${p.statut === 'masque' ? 'd-refuse' : 'd-accepte'}">${p.statut === 'masque' ? 'Masqué' : 'Visible'}</span>${p.maison ? '<span class="pill" title="Réglage « Mise en avant » de la fiche : produit affiché en premier sur le site">★ En premier sur le site</span>' : ''}${sansMarge(p) ? `<span class="pill smpill">${p.coutCents == null ? 'Prix d’achat manquant' : 'Vendu à perte'}</span>` : ''}${p.sous ? `<span class="pill">${esc(((cache.rubriques || []).find(r => r.slug === p.rubrique)?.sous || []).find(x => x.slug === p.sous)?.nom || '')}</span>` : ''}</a>`;
   catalogue.after = () => {
@@ -2254,7 +2274,7 @@
           <div class="g2 prix-va"><label>Prix de vente TTC (€) <small>prix payé par le client · vide = « Sur devis »</small><input name="prix" value="${fromCents(p.prixCents)}" inputmode="decimal"${peut('prix') ? '' : ' readonly class="verrou"'}></label>
           <label>Prix d’achat HT (€) <small>🔒 interne : jamais montré au client · sert à la marge des devis</small><input name="cout" value="${fromCents(achatHt(p.coutCents, p.tva ?? 10))}" inputmode="decimal" placeholder="à remplir"${peut('prix') ? '' : ' readonly class="verrou"'}></label></div>
           <p class="pf-marge" data-pfmarge></p>
-          <div class="fourn" data-fourn><span class="fourn-lab">Fournisseurs <small>🔒 interne : d’où vient le produit, jamais montré au client · le premier est le principal</small></span>
+          <div class="fourn" data-fourn><span class="fourn-lab">Fournisseurs <small>🔒 interne : d’où vient le produit, jamais montré au client · le premier est le principal · × = retirer de cette fiche · deux fois dessus = supprimer partout</small></span>
             <div class="fourn-chips" data-fchips></div>
             ${peut('prix') ? `<div class="row fourn-add"><select data-fsel><option value="">+ Ajouter un fournisseur…</option>${fournisseursConnus().map(x => `<option>${esc(x)}</option>`).join('')}<option value="__nouveau">✚ Nouveau fournisseur…</option></select><input data-fnew placeholder="Nom du nouveau fournisseur" hidden><button type="button" class="btn sm" data-fok hidden>Ajouter</button></div>` : ''}</div>
           <div class="g2"><label>Par<select name="unite">${[...new Set([p.unite || '', ...UNITES])].map(u => `<option${u === (p.unite || '') ? ' selected' : ''}>${esc(u)}</option>`).join('')}</select></label>
@@ -2302,6 +2322,16 @@
     $('[data-fsel]')?.addEventListener('change', e => { const v = e.target.value; e.target.value = ''; if (v === '__nouveau') { $('[data-fnew]').hidden = $('[data-fok]').hidden = false; $('[data-fnew]').focus(); } else fAjout(v); });
     $('[data-fok]')?.addEventListener('click', () => { fAjout($('[data-fnew]').value); $('[data-fnew]').value = ''; $('[data-fnew]').hidden = $('[data-fok]').hidden = true; });
     $('[data-fnew]')?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('[data-fok]').click(); } });
+    let dTap = { el: null, t: 0 };
+    $('[data-fchips]')?.addEventListener('click', async e => {
+      const c = e.target.closest('.fchip'); if (!c || e.target.closest('[data-fdel]') || !peut('prix')) return;
+      const now = Date.now(); if (!(dTap.el === c && now - dTap.t < 450)) { dTap = { el: c, t: now }; return; } dTap = { el: null, t: 0 };
+      const nom = fourn[$$('.fchip', $('[data-fchips]')).indexOf(c)]; if (!nom) return;
+      let n = 0; try { n = (await api(A + '/actions/fournisseurs/compter?nom=' + encodeURIComponent(nom))).n; } catch { /* rien */ }
+      if (!confirm(`Voulez-vous supprimer le fournisseur « ${nom} » ?\n\nIl sera retiré de la liste${n ? (n === 1 ? ' et de la fiche qui l’utilise' : ` et des ${n} fiches qui l’utilisent`) : ''}.`)) return;
+      try { await api(A + '/actions/fournisseurs/supprimer', { method: 'POST', body: { nom } }); fourn.splice(fourn.indexOf(nom), 1); cache.produits = null; fChips(); $('[data-fsel] option', document) && $$('[data-fsel] option').forEach(o => { if (o.value === nom || o.textContent === nom) o.remove(); }); toast(`Fournisseur « ${nom} » supprimé.`); }
+      catch (err) { toast(err.message, true); }
+    });
     $('[data-fchips]')?.addEventListener('click', e => { const b = e.target.closest('[data-fdel]'); if (!b) return; fourn.splice(+b.dataset.fdel, 1); fChips(); $('#dirty').textContent = 'Modifications non enregistrées'; });
     pfMarge(); ['prix', 'cout'].forEach(n => form[n].addEventListener('input', pfMarge)); ['tva', 'unite'].forEach(n => form[n].addEventListener('change', pfMarge));
     let photos = (p.photos || []).map(x => ({ ...x }));

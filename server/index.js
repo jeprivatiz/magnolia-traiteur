@@ -2127,6 +2127,24 @@ async function createApp(opts = {}) {
     const prods = (await store.list('produits')).map(d => d.data);
     try { res.json(ACHATS.analyser(req.file.buffer, req.file.originalname, prods)); } catch (e) { res.status(400).json({ error: e.message }); }
   }));
+  /* fournisseurs : combien de fiches en utilisent un ; le supprimer de toutes les fiches (prix d'achat inchangés) */
+  const aLeFournisseur = (p, nom) => ACHATS.fournisseursDe(p).some(x => x.toLowerCase() === nom.toLowerCase());
+  A.get('/actions/fournisseurs/compter', peut('prix'), wrap(async (req, res) => {
+    const nom = String(req.query.nom || '').trim();
+    res.json({ n: nom ? (await store.list('produits')).filter(d => aLeFournisseur(d.data, nom)).length : 0 });
+  }));
+  A.post('/actions/fournisseurs/supprimer', sameSite, json, peut('prix'), wrap(async (req, res) => {
+    const nom = String(req.body?.nom || '').trim(); if (!nom) return res.status(400).json({ error: 'Nom du fournisseur manquant.' });
+    let fiches = 0;
+    for (const d of await store.list('produits')) {
+      if (!aLeFournisseur(d.data, nom)) continue;
+      const { fournisseur, ...p } = d.data;
+      await store.set('produits/' + d.id, { ...p, fournisseurs: ACHATS.fournisseursDe(d.data).filter(x => x.toLowerCase() !== nom.toLowerCase()), updatedAt: new Date().toISOString() });
+      fiches++;
+    }
+    cat.invalidate(); audit(req.ctx, 'fournisseur supprimé', 'produits', nom + ' · ' + fiches + ' fiche(s)');
+    res.json({ ok: true, fiches });
+  }));
   A.post('/actions/import-achats/appliquer', sameSite, json, peut('prix'), wrap(async (req, res) => {
     const r = await ACHATS.appliquer(store, req.body?.lignes, { ht: !!req.body?.ht });
     cat.invalidate();
