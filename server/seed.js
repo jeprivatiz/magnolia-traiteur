@@ -782,11 +782,32 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('produits/' + slug, { ...x, photos: photos.map(([src, alt]) => ({ src, alt })), photoDouceur: 'v1' });
   }
 
-  /* sans le médaillon « R » du pâtissier (Jean-Luc, 2026-11-24) : l'ancienne photo est remplacée là où elle est encore */
-  for (const n of ['framboisine', 'tarte-chocolat', 'craqueline', 'croquant-caramel']) {
-    const ancien = '/site/c/douceurs/' + n + '.webp', nouveau = '/site/c/douceurs/' + n + '-2.webp';
-    for (const { id, data: x } of await store.list('produits')) {
-      if ((x.photos || []).some(ph => ph.src === ancien)) await store.set('produits/' + id, { ...x, photos: x.photos.map(ph => ph.src === ancien ? { ...ph, src: nouveau } : ph) });
+  /* sans le médaillon « R » du pâtissier (Jean-Luc, 2026-11-24), puis sans le petit rond en chocolat du tout (2026-11-25) :
+     les anciennes photos sont remplacées partout où elles sont encore (fiches, rubriques, pages, réglages). */
+  {
+    const PHOTOS_SANS_ROND = [[D('pyramide-macarons'), D('pyramide-macarons-2')]];
+    for (const n of ['framboisine', 'tarte-chocolat', 'craqueline', 'croquant-caramel']) PHOTOS_SANS_ROND.push([D(n), D(n + '-3')], [D(n + '-2'), D(n + '-3')]);
+    const remplace = j => PHOTOS_SANS_ROND.reduce((t, [a, b]) => t.split('"' + a + '"').join('"' + b + '"'), j);
+    for (const col of ['produits', 'rubriques', 'pages']) {
+      for (const { id, data: x } of (await store.list(col)) || []) {
+        const j = JSON.stringify(x || {}), k = remplace(j);
+        if (k !== j) await store.set(col + '/' + id, JSON.parse(k));
+      }
+    }
+    const R = await store.get('site/reglages');
+    if (R) { const j = JSON.stringify(R), k = remplace(j); if (k !== j) await store.set('site/reglages', JSON.parse(k)); }
+  }
+
+  /* Prix d'achat TTC des gâteaux et pièces montées du pâtissier partenaire (Jean-Luc, 2026-11-25) : prix publics de son site,
+     relevés le 2026-11-25. Posés une fois (le prix de vente ne change pas) ; modifiables ensuite dans le back-office. */
+  {
+    const R = await store.get('site/reglages');
+    if (R && !R.achatsPatissier1) {
+      for (const [slug, cents] of ACHATS_PATISSIER) {
+        const x = await store.get('produits/' + slug);
+        if (x) await store.set('produits/' + slug, { ...x, coutCents: cents });
+      }
+      await store.set('site/reglages', { ...(await store.get('site/reglages')), achatsPatissier1: true });
     }
   }
 
@@ -1887,17 +1908,26 @@ const PHOTOS_DOUCEURS = [
   ['macarons-36-pieces', [[PX(1346345), 'Boîtes de macarons assortis']]],
   ['macarons-72-pieces', [[PX(239578), 'Macarons de toutes les couleurs']]],
   ['fraisier-32-parts', [[D('fraisier'), 'Part de fraisier : génoise, crème et fraises']]],
-  ['framboisine-32-parts', [[D('framboisine-2'), 'Framboisine nappée de framboises']]],
-  ['tarte-duo-chocolat-10-parts', [[D('tarte-chocolat-2'), 'Tarte au chocolat sur sablé']]],
-  ['craqueline-16-parts', [[D('craqueline-2'), 'Craqueline au chocolat et praliné croustillant']]],
-  ['croquant-caramel-16-parts', [[D('croquant-caramel-2'), 'Croquant caramel et éclats de nougatine']]],
+  ['framboisine-32-parts', [[D('framboisine-3'), 'Framboisine nappée de framboises']]],
+  ['tarte-duo-chocolat-10-parts', [[D('tarte-chocolat-3'), 'Tarte au chocolat sur sablé']]],
+  ['craqueline-16-parts', [[D('craqueline-3'), 'Craqueline au chocolat et praliné croustillant']]],
+  ['croquant-caramel-16-parts', [[D('croquant-caramel-3'), 'Croquant caramel et éclats de nougatine']]],
   ['gateau-chocolat-32-parts', [[D('gateau-chocolat'), 'Gâteau au chocolat, génoise cacao et crème chocolatée']]],
   /* pièces montées */
   ['piece-montee-romantica', [[D('piece-montee-romantica'), 'Pièce montée Romantica, étages décorés de roses']]],
   ['piece-montee-bella-rosa', [[D('piece-montee-bella-rosa'), 'Pièce montée Bella Rosa'], [D('piece-montee-bella-rosa-detail'), 'Pièce montée Bella Rosa, détail des fleurs']]],
   ['piece-montee-elegance', [[D('piece-montee-elegance'), 'Pièce montée Élégance, cinq étages fleuris']]],
   ['croquembouche-50-parts-200-choux', [[D('croquembouche'), 'Croquembouche de choux caramélisés']]],
-  ['pyramide-de-macarons', [[D('pyramide-macarons'), 'Pyramide de macarons multicolores']]],
+  ['pyramide-de-macarons', [[D('pyramide-macarons-2'), 'Pyramide de macarons multicolores']]],
+];
+/* Prix d'achat TTC (en centimes) chez le pâtissier partenaire, relevés sur son site le 2026-11-25.
+   Format le plus proche de la fiche : fraisier, framboisine et gâteau chocolat 32 parts = format « 24 à 32 parts » (vendu avec inscription) ;
+   tarte duo chocolat = tarte 8 parts ; pièces montées « Sur devis » = plus petit format (3 étages / 91 macarons). */
+const ACHATS_PATISSIER = [
+  ['fraisier-32-parts', 10690], ['framboisine-32-parts', 9790], ['gateau-chocolat-32-parts', 9790],
+  ['tarte-duo-chocolat-10-parts', 2990], ['craqueline-16-parts', 4790], ['croquant-caramel-16-parts', 4490],
+  ['piece-montee-romantica', 15990], ['piece-montee-bella-rosa', 15990], ['piece-montee-elegance', 20990],
+  ['croquembouche-50-parts-200-choux', 35990], ['pyramide-de-macarons', 15990],
 ];
 /* Corbeilles du partenaire Corbeilles Paris (corbeillesparis.fr/categorie-produit/corbeilles-fruits-frais/, relevé le 2026-11-24).
    prix = [kg, prix TTC du partenaire en €] ; prix de vente = + 30 %. Photos copiées dans public/site/c/corbeilles/ à la demande de Jean-Luc. */
