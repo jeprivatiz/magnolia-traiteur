@@ -338,6 +338,14 @@ async function createApp(opts = {}) {
     }
     await store.set('_migr/verresTroisRacks', { at: new Date().toISOString() });
   }
+  /* une seule fois (Jean-Luc, 2026-11-25) : photos de SON tumbler (verre droit haut), vide puis avec citronnade, sur fond blanc */
+  if (!(await store.get('_migr/tumblerPhotos'))) {
+    const p = await store.get('produits/verres-tumbler');
+    if (p) await store.set('produits/verres-tumbler', { ...p, photos: [
+      { src: '/site/c/materiel/verres-tumbler-1.webp', alt: 'Verre tumbler en verre, vide, sur fond blanc' },
+      { src: '/site/c/materiel/verres-tumbler-2.webp', alt: 'Verre tumbler rempli de citronnade avec glaçons et rondelles de citron' }] });
+    await store.set('_migr/tumblerPhotos', { at: new Date().toISOString() });
+  }
 
   /* ---------- titres et descriptions « dans Google » (Jean-Luc, 2026-11-24) ----------
      À chaque démarrage : les cases vides des produits, rubriques et spécialités sont remplies (jamais un texte tapé à la main).
