@@ -107,3 +107,19 @@ test('anciens devis : recherche, proches, modèle, reprise, compléments, IA', a
     assert.equal((await call('/api/admin/devis/' + cmd.j.devisId)).j.inspireDe, 'D-2026-0042');
   } finally { srv.close(); }
 });
+
+test('anciens devis : marge HT sur chaque carte, tri par marge, pas de puce vide', () => {
+  const mk = (id, pu, cout, extra = []) => ({ id, numero: id, statut: 'accepte', createdAt: '2026-01-0' + id.length + 'T00:00:00Z', lignes: [{ designation: 'Buffet', qte: 10, unite: 'personne', puCents: pu, coutCents: cout, tva: 10 }, ...extra] });
+  const a = mk('a', 2200, 1100), b = mk('bb', 3300, 1100, [{ designation: '**  **', qte: 1, puCents: 0, tva: 10 }, { designation: 'Nappe', qte: 2, unite: 'pièce', puCents: 500, tva: 20 }]), z = mk('ccc', 2000, null);
+  const ca = ANC.carte(a), cb = ANC.carte(b), cz = ANC.carte(z);
+  assert.equal(ca.marge.cents, 10000); assert.equal(ca.marge.pct, 50);
+  assert.equal(cb.marge.manquants, 1, 'ligne sans prix d’achat signalée');
+  assert.ok(!cb.produits.some(p => !p.trim()), 'pas de puce vide');
+  assert.equal(cb.nbLignes, 2);
+  assert.equal(cz.marge, null);
+  /* prix d'achat repris de la fiche du catalogue quand la ligne n'en a pas */
+  const c = { bySlug: new Map([['buffet', { prixCents: 2000, coutCents: 1000 }]]) };
+  assert.equal(ANC.carte({ ...z, lignes: [{ ...z.lignes[0], produit: 'buffet' }] }, { c }).marge.cents, 9091);
+  assert.deepEqual(ANC.rechercher([a, b, z], { tri: 'marge' }).map(d => d.id), ['bb', 'a', 'ccc']);
+  assert.deepEqual(ANC.rechercher([a, b, z], { tri: 'margePct' }).map(d => d.id), ['bb', 'a', 'ccc']);
+});

@@ -1839,3 +1839,15 @@ body.avec-psbar .content { padding-bottom: 120px; }
 }
 .anc-f label.chk { display: inline-flex; align-items: center; gap: 6px; font-size: .9rem; color: var(--texte); }
 .anc-f label.chk input { width: 18px; height: 18px; }
+.anc-mg { margin: 1px 0 0; font-size: .84rem; color: #2f5d45; background: #eef5f0; border-radius: 8px; padding: 4px 8px; display: flex; flex-wrap: wrap; gap: 2px 6px; align-items: baseline; }
+.anc-mg.top { background: #e2f1e7; color: #1f6a43; }
+.anc-mg.neg { background: #fbecea; color: var(--rouge); }
+.anc-mg.nc { background: #f4f1ea; color: #7b7f78; }
+.anc-mg small { flex-basis: 100%; color: #8a6a2a; font-size: .76rem; }
+.anc-tri { display: inline-flex !important; align-items: center; gap: 6px !important; grid-auto-flow: column; }
+.anc-tri select { width: auto !important; }
+@media (prefers-color-scheme: dark) { .anc-mg { background: #1c2a23; color: var(--vert-2); } .anc-mg.nc { background: var(--doux); color: var(--gris); } }
+@media (max-width: 860px) {
+  .anc-tri { display: grid !important; grid-auto-flow: row; flex-basis: 100%; width: 100%; }
+  .anc-tri select { width: 100% !important; }
+}
