@@ -101,13 +101,15 @@ function coutLigne(l, p) {
 }
 
 /* marge négative bloquée : une ligne vendue sous son coût, ou un total sous le coût total */
+/* ligne de livraison : vendue volontairement sous son coût (remise des paliers), jamais bloquée */
+const estLivraison = l => !!l.livraison || l.unite === 'km';
 function controleMarge(doc) {
   const erreurs = [];
   for (const l of doc.lignes || []) {
-    if (l.type === 'titre') continue;
+    if (l.type === 'titre' || estLivraison(l)) continue;
     if (l.coutCents != null && l.coutCents > 0 && (l.puCents || 0) < l.coutCents) erreurs.push(`« ${l.designation} » est vendu sous son coût.`);
   }
-  const t = totaux(doc);
+  const t = totaux({ ...doc, lignes: (doc.lignes || []).filter(l => !estLivraison(l)) }); /* livraison offerte/remisée : charge assumée, hors contrôle */
   if (t.coutCents > 0 && t.margeCents < 0) erreurs.push('La remise rend la marge totale négative.');
   return erreurs;
 }
@@ -165,9 +167,14 @@ function lignesDepuisDemande(demande, catalogue, tarifs = {}) {
       return out;
     }
     const pu = demande.livraison.kmCents ?? (demande.livraison.offerte ? 0 : LIVR.kmCents(tarifs, demande.sousTotalCents || 0));
+    /* coût réel de la livraison pour Magnolia (Jean-Luc, 2026-11-25) : 1 € TTC du km (livreur + véhicule), compté dans la marge ;
+       la ligne montre ce plein tarif avec la remise du palier (20, 50, 70 ou 100 %) au lieu de 0 €. */
+    const base = Math.max(pu, LIVR.coutKmCents(tarifs));
+    const remisePct = base > pu ? Math.round(1000 * (1 - pu / base)) / 10 : 0;
     const offerte = pu === 0;
     const des = LIVR.offerteDes(tarifs);
-    out.push({ designation: offerte ? 'Livraison et reprise (offerte)' : 'Livraison et reprise', detail: `${demande.evenement?.ville || ''} · ${demande.livraison.km} km aller-retour${offerte ? (des != null ? ` · offerte au-delà de ${LIVR.eur(des)} TTC de commande` : '') : ` · ${LIVR.eur(pu)} TTC du km selon le montant de la commande`}`, qte: demande.livraison.km, unite: 'km', puCents: pu, coutCents: null, tva: 20 });
+    out.push({ designation: offerte ? 'Livraison et reprise (offerte)' : 'Livraison et reprise', detail: `${demande.evenement?.ville || ''} · ${demande.livraison.km} km aller-retour${offerte ? (des != null ? ` · offerte au-delà de ${LIVR.eur(des)} TTC de commande` : '') : remisePct ? ' · remise selon le montant de la commande' : ''}`,
+      qte: demande.livraison.km, unite: 'km', puCents: pu, ...(remisePct ? { puBaseCents: base, remisePct } : {}), coutCents: LIVR.coutKmCents(tarifs), tva: 20, livraison: true });
   }
   return out;
 }
