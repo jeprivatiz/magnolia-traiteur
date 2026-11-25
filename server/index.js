@@ -253,6 +253,16 @@ async function createApp(opts = {}) {
     }
     await store.set('_migr/sansParPersonne', { at: new Date().toISOString() });
   }
+  /* une seule fois (Jean-Luc, 2026-11-25) : set de vaisselle dessert à 2,90 € TTC par personne (plus de « Sur devis ») ;
+     composition : une petite assiette à dessert, une petite cuillère et une fourchette ; prix d'achat 1,50 € HT = 1,80 € TTC (coutCents en TTC, TVA 20 %) */
+  if (!(await store.get('_migr/setDessertPrix'))) {
+    const SLUG = 'set-de-vaisselle-dessert-par-personne';
+    const p = await store.get('produits/' + SLUG);
+    const T = 'Une petite assiette à dessert, une petite cuillère et une fourchette, pour chaque invité.';
+    if (p) await store.set('produits/' + SLUG, { ...p, prixCents: 290, prixTexte: null, unite: p.unite || 'personne', extrait: T,
+      description: ['Le set de vaisselle dessert de chaque invité : une petite assiette à dessert, une petite cuillère et une fourchette.'], coutCents: 180, tva: 20 });
+    await store.set('_migr/setDessertPrix', { at: new Date().toISOString() });
+  }
   /* une seule fois (Jean-Luc, 2026-11-25) : chaise pliante de luxe en velours bordeaux = sa propre photo (rangs de chaises dans un salon doré, piano à queue), à la place de l'ancienne */
   if (!(await store.get('_migr/chaiseVeloursPhoto'))) {
     const SLUG = 'chaise-pliante-de-luxe-en-velours-bordeaux';
