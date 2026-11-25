@@ -313,9 +313,21 @@ async function caveBandeauBadoit(store) {
   await store.set('_migr/caveBandeau1', { at: new Date().toISOString() });
 }
 
+/* Fiche Barman, texte sous la photo (Jean-Luc, 2026-11-25) : « …pour 30 à 40 invités. À vous de faire le calcul. » */
+async function barmanSousPhoto(store) {
+  if (await store.get('_migr/barmanSousPhoto1')) return;
+  const x = await store.get('produits/barman');
+  if (x) {
+    const fin = t => String(t).replace(/(30 à 40 invités)\s*,?\s*jusqu.à 5 barmans\s*,?\s*pour 4 heures minimum\s*\.?/i, '$1. À vous de faire le calcul.');
+    const sousPhoto = (x.sousPhoto || []).map(fin);
+    if (sousPhoto.join('') !== (x.sousPhoto || []).join('')) await store.set('produits/barman', { ...x, sousPhoto, sousPhotoAuto: false });
+  }
+  await store.set('_migr/barmanSousPhoto1', { at: new Date().toISOString() });
+}
+
 async function initCave(store) {
   await prixCave(store);
-  if (await store.get('_migr/caveCercle')) { await openBarCave(store); await sodasCave(store); await vinsCave(store); await eauxCave(store); await cocaPhotos(store); await cristalineGaz(store); await cristalinePlate(store); await caveBandeauBadoit(store); return ajoutsCave(store); }
+  if (await store.get('_migr/caveCercle')) { await openBarCave(store); await sodasCave(store); await vinsCave(store); await eauxCave(store); await cocaPhotos(store); await cristalineGaz(store); await cristalinePlate(store); await caveBandeauBadoit(store); await barmanSousPhoto(store); return ajoutsCave(store); }
   const now = new Date().toISOString();
   let n = 0;
   for (const d of await store.list('produits')) {
@@ -360,6 +372,7 @@ async function initCave(store) {
   await cristalineGaz(store);
   await cristalinePlate(store);
   await caveBandeauBadoit(store);
+  await barmanSousPhoto(store);
   return n + await ajoutsCave(store);
 }
 
