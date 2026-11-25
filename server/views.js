@@ -481,7 +481,10 @@ function sectionsRub(r, liste) {
   /* ordre des sections propre à la rubrique (Animations sucrées : animations, corbeilles, pièces montées, desserts, location) */
   const ordre = (r.ordreSections || []).filter(k => RANGEMENTS.some(([x]) => x === k));
   const R = [...ordre.map(k => RANGEMENTS.find(([x]) => x === k)), ...RANGEMENTS.filter(([x]) => !ordre.includes(x))];
-  return R.map(([k, t]) => [k, (r.titresSections || {})[k] || t, L.filter(p => rangementDe(p) === k)]).filter(b => b[2].length);
+  /* un produit venu d'une autre rubrique peut avoir sa section propre à celle-ci (champ produit rangements[slug]) :
+     ex. le château gonflable, « Pour les enfants » dans Musique & spectacles, « Jeux & loisirs » dans Mobilier et matériel à la location */
+  const sec = p => { const k = (p.rangements || {})[r.slug]; return RANGEMENTS.some(([x]) => x === k) ? k : rangementDe(p); };
+  return R.map(([k, t]) => [k, (r.titresSections || {})[k] || t, L.filter(p => sec(p) === k)]).filter(b => b[2].length);
 }
 /* La cave de Magnolia (Jean-Luc, 2026-11-25) : la page s'ouvre sur ses catégories, une photo chacune. On touche une catégorie :
    seule celle-ci reste affichée (public/js/site.js, « catégories »), pour ne pas faire défiler toute la cave sur téléphone. */
