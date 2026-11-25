@@ -12,4 +12,9 @@ Montage `public/site/v/monde/chefs.mp4` (18 s, en boucle, sans son), plans dans 
 
 ## Vignette de partage (aperçu WhatsApp / SMS / e-mail)
 
-- public/site/partage/saveurs-du-monde-brigade.jpg : Pexels photo 6937472 (brigade souriante dans une cuisine de restaurant), licence Pexels. Logos des casquettes, badge et écusson retirés ; texte « Saveurs du monde · Dix traiteurs, une seule maison. » ajouté.
+- public/site/partage/saveurs-du-monde-chefs.jpg : 5 photos Pexels côte à côte (licence Pexels), texte « Saveurs du monde · Dix traiteurs, une seule maison. » ajouté :
+  - 6605422 : chef européen au tablier rayé
+  - 7447284 : chef africain en toque
+  - 5737830 : cuisinière au tablier marron
+  - 7488998 : chef asiatique bras croisés
+  - 30660319 : chef indien (logo de la veste effacé)
