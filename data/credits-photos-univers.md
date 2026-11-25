@@ -317,3 +317,5 @@ Photos regardées une à une (vraies photos, sans texte ni logo), licence Pexels
 - Alcools forts (2026-11-25) : gin Bombay Sapphire = photo fournie par Jean-Luc ; vodka Absolut = Pexels 17722186 ; whiskey Jack Daniel's = Pexels 32995841 (fond crème, faute de photo libre sur fond blanc). Vignette « Les eaux » = ses photos Cristaline plate et gazeuse.
 - Bar à cocktails (2026-11-25) : vidéo Pexels https://www.pexels.com/video/11268027/ (barman qui prépare un cocktail), public/site/v/produits/bar-a-cocktails.mp4.
 - Rosés Minuty Prestige, Marrenon Classique Luberon, Batti Batti : photos de bouteilles fournies par Jean-Luc (2026-11-25), /site/c/cave/rose-*.webp.
+- Open bar vins et champagnes : vidéo Pexels 6396321 (invités qui trinquent au champagne), /site/v/produits/open-bar-champagne.mp4.
+- Barman : vidéo Pexels 40076771 (barmaid qui prépare un gin tonic), /site/v/produits/barman.mp4.
