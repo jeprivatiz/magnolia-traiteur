@@ -2166,14 +2166,54 @@
     const sansAccQ = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     const nomRubQ = p => { const r = (cache.rubriques || []).find(x => x.slug === p.rubrique); const so = (r?.sous || []).find(x => x.slug === p.sous); return (r?.nom || p.rubrique || '') + (so ? ' › ' + so.nom : ''); };
     /* chiffres visibles directement sur chaque résultat (Jean-Luc 2026-11-25) : fournisseur(s), prix de vente TTC, achat HT, marge HT € et % ; case vide si la donnée manque */
-    const qchif = p => {
-      const k = 1 + (+p.tva || 10) / 100, f = [...new Set([...(p.fournisseurs || []), ...(p.fournisseur ? [p.fournisseur] : [])])].filter(Boolean);
-      const vHt = p.prixCents == null ? null : Math.round(p.prixCents / k), aHt = achatHt(p.coutCents, p.tva);
+    /* chiffres de chaque résultat (Jean-Luc 2026-11-25) : fournisseur, vente TTC, achat HT, marge HT € et % (vide si la donnée manque) ;
+       avec le droit « prix », fournisseur / vente / achat se modifient sur place (Entrée ou ✓), marge recalculée en direct */
+    const fournQ = p => [...new Set([...(p.fournisseurs || []), ...(p.fournisseur ? [p.fournisseur] : [])])].map(x => String(x).trim()).filter(Boolean);
+    const margeQ = (vTtc, aHt, tva) => {
+      const vHt = vTtc == null ? null : Math.round(vTtc / (1 + (+tva || 10) / 100));
       const m = vHt != null && aHt != null ? vHt - aHt : null, pc = m != null && vHt ? Math.round(1000 * m / vHt) / 10 : null;
-      const c = (lab, val, cls = '') => `<span class="qc${cls}"><small>${lab}</small><b>${val}</b></span>`;
-      return `<span class="qchif">${c('Fournisseur', esc(f.join(', ')), ' qc-f')}${c('Vente TTC', p.prixCents == null ? '' : euros(p.prixCents))}${c('Achat HT', aHt == null ? '' : euros(aHt))}${c('Marge HT', m == null ? '' : `${euros(m)} <i>${String(pc).replace('.', ',')} %</i>`, m == null ? '' : m < 0 ? ' qc-neg' : ' qc-pos')}</span>`;
+      return { html: m == null ? '' : `${euros(m)} <i>${String(pc).replace('.', ',')} %</i>`, cls: m == null ? '' : m < 0 ? ' qc-neg' : ' qc-pos' };
     };
-    const qrow = p => `<a class="qrow${p.statut === 'masque' ? ' hid' : ''}" href="#/catalogue/${esc(p.id || p.slug)}">${p.photos?.[0]?.src ? `<img src="${esc(p.photos[0].src)}" alt="" loading="lazy">` : '<span class="ph0"></span>'}<span class="qtx"><b>${titreHtml(p.titre)}</b><small>${p.prixCents == null ? 'Sur devis' : euros(p.prixCents) + (p.unite ? ' / ' + esc(p.unite) : '')}${p.min > 1 ? ' · min. ' + p.min : ''}</small><span class="qrub">📂 ${esc(nomRubQ(p))}</span></span>${qchif(p)}<span class="pill ${p.statut === 'masque' ? 'd-refuse' : 'd-accepte'}">${p.statut === 'masque' ? 'Masqué' : 'Visible'}</span><span class="btn sm">✏ Ouvrir la fiche</span></a>`;
+    const qchif = p => {
+      const f = fournQ(p), aHt = achatHt(p.coutCents, p.tva), mg = margeQ(p.prixCents, aHt, p.tva);
+      const c = (lab, val, cls = '') => `<span class="qc${cls}"><small>${lab}</small><b>${val}</b></span>`;
+      if (!peut('prix')) return `<span class="qchif">${c('Fournisseur', esc(f.join(', ')), ' qc-f')}${c('Vente TTC', p.prixCents == null ? '' : euros(p.prixCents))}${c('Achat HT', aHt == null ? '' : euros(aHt))}${c('Marge HT', mg.html, mg.cls)}</span>`;
+      const connus = fournisseursConnus();
+      return `<span class="qchif qedit"><label class="qc qc-f"><small>Fournisseur</small><select data-qf><option value="">—</option>${[...new Set([...f, ...connus])].sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' })).map(x => `<option${x === f[0] ? ' selected' : ''}>${esc(x)}</option>`).join('')}<option value="__nouveau">✚ Nouveau fournisseur…</option></select><input data-qfnew placeholder="Nom du fournisseur" hidden></label>`
+        + `<label class="qc"><small>Vente TTC €</small><input data-qv inputmode="decimal" value="${fromCents(p.prixCents)}" placeholder="—"></label>`
+        + `<label class="qc"><small>Achat HT €</small><input data-qa inputmode="decimal" value="${fromCents(aHt)}" placeholder="—"></label>`
+        + `<span class="qc${mg.cls}" data-qm><small>Marge HT</small><b>${mg.html}</b></span></span>`;
+    };
+    const qrow = p => `<div class="qrow${p.statut === 'masque' ? ' hid' : ''}" data-qid="${esc(p.id || p.slug)}"><a class="qlien" href="#/catalogue/${esc(p.id || p.slug)}">${p.photos?.[0]?.src ? `<img src="${esc(p.photos[0].src)}" alt="" loading="lazy">` : '<span class="ph0"></span>'}<span class="qtx"><b>${titreHtml(p.titre)}</b><small>${p.unite ? 'par ' + esc(p.unite) : ''}${p.min > 1 ? ' · min. ' + p.min : ''}</small><span class="qrub">📂 ${esc(nomRubQ(p))}</span></span></a>${qchif(p)}<span class="pill ${p.statut === 'masque' ? 'd-refuse' : 'd-accepte'}">${p.statut === 'masque' ? 'Masqué' : 'Visible'}</span>${peut('prix') ? '<button type="button" class="btn sm qok" data-qok hidden>✓ Enregistrer</button>' : ''}<a class="btn sm" href="#/catalogue/${esc(p.id || p.slug)}">✏ Ouvrir la fiche</a></div>`;
+    const qProd = row => (cache.produits || []).find(x => (x.id || x.slug) === row.dataset.qid);
+    const qMaj = row => {
+      const p = qProd(row) || {}, v = toCents($('[data-qv]', row).value), a = toCents($('[data-qa]', row).value), mg = margeQ(v, a, p.tva), m = $('[data-qm]', row);
+      m.className = 'qc' + mg.cls; $('b', m).innerHTML = mg.html;
+      row.classList.add('qmod'); $('[data-qok]', row).hidden = false;
+    };
+    const qEnreg = async row => {
+      const b = $('[data-qok]', row), vi = $('[data-qv]', row), ai = $('[data-qa]', row), fs = $('[data-qf]', row), fn = $('[data-qfnew]', row);
+      const v = toCents(vi.value), a = ai.value.trim() ? toCents(ai.value) : null, f = (fs.value === '__nouveau' ? fn.value : fs.value).trim();
+      if (v == null) { vi.focus(); toast('Tapez le prix de vente TTC, par exemple 12,90.', true); return; }
+      if (ai.value.trim() && a == null) { ai.focus(); toast('Prix d’achat HT incorrect : tapez par exemple 4,50.', true); return; }
+      b.disabled = true;
+      try {
+        const id = row.dataset.qid, p = await api(A + '/produits/' + id), avant = fournQ(p);
+        /* seuls le prix de vente, le prix d'achat et le premier fournisseur changent ; le reste de la fiche est repris tel quel */
+        const fourn = f ? [f, ...avant.slice(1).filter(x => x.toLowerCase() !== f.toLowerCase())] : avant.slice(1);
+        const next = { ...p, prixCents: v, coutCents: achatTtc(a, p.tva ?? 10), fournisseurs: fourn, fournisseur: undefined };
+        await api(`${A}/produits/${id}`, { method: 'PUT', body: next });
+        const c = qProd(row); if (c) Object.assign(c, { prixCents: next.prixCents, coutCents: next.coutCents, fournisseurs: fourn, fournisseur: undefined });
+        row.classList.remove('qmod'); row.classList.add('qsave'); setTimeout(() => row.classList.remove('qsave'), 1200);
+        b.hidden = true; b.disabled = false;
+        if (fs.value === '__nouveau') { fs.insertAdjacentHTML('afterbegin', `<option>${esc(f)}</option>`); fs.value = f; fn.hidden = true; fn.value = ''; }
+        toast('✓ Enregistré dans la fiche.');
+      } catch (err) { b.disabled = false; toast(err.message, true); }
+    };
+    $('#qres').addEventListener('input', e => { const r = e.target.closest('.qrow'); if (r && e.target.matches('[data-qv], [data-qa], [data-qfnew]')) qMaj(r); });
+    $('#qres').addEventListener('change', e => { const s = e.target.closest('[data-qf]'); if (!s) return; const r = s.closest('.qrow'), n = $('[data-qfnew]', r); n.hidden = s.value !== '__nouveau'; if (!n.hidden) n.focus(); qMaj(r); });
+    $('#qres').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.closest('.qedit')) { e.preventDefault(); qEnreg(e.target.closest('.qrow')); } });
+    $('#qres').addEventListener('click', e => { const b = e.target.closest('[data-qok]'); if (b) qEnreg(b.closest('.qrow')); });
     const chercher = () => {
       const brut = $('[data-q]').value, q = sansAccQ(brut).trim();
       try { sessionStorage.setItem('mg-trouve', brut); } catch { /* */ }

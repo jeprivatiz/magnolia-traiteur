@@ -1554,3 +1554,13 @@ input.verrou { background: var(--doux); color: var(--gris); cursor: not-allowed;
 @media (max-width: 700px) { .qchif { grid-template-columns: 1fr 1fr; flex-basis: 100%; } }
 .qc-pos b, .qc-neg b { white-space: normal; }
 .qc b i { white-space: nowrap; }
+.qrow { cursor: default; }
+.qlien { display: flex; gap: 12px; align-items: center; flex: 1 1 280px; min-width: 0; text-decoration: none; color: inherit; }
+.qlien:hover b { color: var(--vert-2); text-decoration: underline; }
+.qedit .qc { padding: 4px 6px; }
+.qedit input, .qedit select { width: 100%; min-width: 0; max-width: none; margin: 2px 0 0; padding: 5px 7px; font: inherit; font-size: .92rem; font-weight: 600; background: #fffdf8; color: #1f2a24; border: 1px solid var(--ligne); border-radius: 6px; }
+.qedit select { font-weight: 500; font-size: .85rem; }
+.qedit input:focus, .qedit select:focus { border-color: var(--or); outline: 2px solid rgba(176, 138, 79, .25); }
+.qrow.qmod { border-color: var(--or); background: #fffaf0; }
+.qrow.qsave { border-color: var(--vert-ok); background: #eef6f0; }
+.qok { background: var(--or); color: #14221b; }
