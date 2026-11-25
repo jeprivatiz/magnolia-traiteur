@@ -300,8 +300,9 @@
   const aTraiter = (d, dv) => d.type !== 'contact' && !d.classee && !d.priseEnCharge && d.statut === 'demande' && !dv.some(x => x.demandeId === d.id);
   async function demandes(id) {
     if (id) return demande(id);
-    const [list0, dv, R0] = await Promise.all([api(A + '/demandes'), api(A + '/devis'), cache.R ? null : api(A + '/site').catch(() => null)]);
-    if (R0) cache.R = R0;
+    const [list0, dv, R0, prods] = await Promise.all([api(A + '/demandes'), api(A + '/devis'), cache.R ? null : api(A + '/site').catch(() => null), cache.produits || api(A + '/produits').catch(() => null)]);
+    if (R0) cache.R = R0; if (prods) cache.produits = prods;
+    const chiffresDemande = d => { const x = dv.filter(v => v.demandeId === d.id).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))); const m = x.find(v => v.statut === 'accepte') || x.find(v => v.statut === 'envoye') || x[0]; return m ? k4Html(chiffres(m), '#/devis/' + m.id) + `<small>devis n° ${esc(m.numero)}</small>` : (d.lignes || []).length ? k4Html(chiffres(d, { lignes: lignesDemande(d), ttc: d.totalEstimeCents })) + '<small>estimation du site</small>' : ''; };
     const autoOn = (cache.R || {}).devisAuto !== false;
     const list = list0.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     cache.devisL = dv;
@@ -321,13 +322,14 @@
       <td>${d.evenement?.date ? dateFr(d.evenement.date, { day: 'numeric', month: 'long', year: 'numeric' }) : '—'}</td>
       <td class="n">${d.evenement?.invites || '—'}</td>
       <td>${(d.lignes || []).length ? `<b>${d.lignes.length} prestation${d.lignes.length > 1 ? 's' : ''}</b> · ${euros(d.totalEstimeCents)}<small>${esc(d.lignes.slice(0, 3).map(l => l.titre).join(', '))}${d.lignes.length > 3 ? '…' : ''}</small>` : ''}${d.message ? `<small class="msg">${esc(String(d.message).slice(0, 160))}${String(d.message).length > 160 ? '…' : ''}</small>` : ''}</td>
+      <td class="k4c">${d.type === 'contact' ? '' : chiffresDemande(d)}</td>
       <td class="act">${action(d)}${d.devisAuto && !d.devisAuto.envoye && (d.devisAuto.raisons || []).length ? `<small class="da-why" title="Pourquoi l’IA n’a pas envoyé le devis toute seule">À faire à la main : ${esc(d.devisAuto.raisons.slice(0, 2).join(' ; '))}${d.devisAuto.raisons.length > 2 ? '…' : ''}</small>` : ''}</td></tr>`;
     const onglet = (k, l, n) => `<button type="button" class="qs-chip${voir === k ? ' on' : ''}" data-voir="${k}">${l} <b>${n}</b></button>`;
     return page('Demandes de devis', '<button type="button" class="btn ghost aq-btn" data-aiq>✨ Devis avec l’IA</button><a class="btn" href="#/devis/nouveau">+ Nouveau devis</a>', `
       <p class="muted intro">Les demandes envoyées depuis le site arrivent ici, avec une alerte par e-mail. Dès que quelqu’un s’en occupe (devis, e-mail, SMS, appel, note, rendez-vous ou attribution à un commercial), elles passent dans « Suivi client », à son nom.</p>
       <section class="box da-box"><label class="chk"><input type="checkbox" data-devisauto${autoOn ? ' checked' : ''}${peut('equipe') ? '' : ' disabled title="Réservé aux personnes qui gèrent l’équipe"'}> <b>✨ Envoi automatique des devis complets : ${autoOn ? 'activé' : 'désactivé'}</b></label><p class="muted sm">Quand une demande du site ne contient que des prestations du catalogue, avec leur prix, les quantités minimum, la date, le nombre d’invités, l’adresse et le téléphone, l’IA crée le devis et l’envoie aussitôt au client (e-mail et SMS), quel que soit le montant. L’équipe est prévenue par e-mail et SMS pour rappeler le client, et la demande passe dans « Suivi client ». Sinon, la demande reste ici, avec la raison.</p><div class="row da-sms"><label>📱 SMS « devis envoyé par l’IA » à ce(s) portable(s)<input type="tel" data-dasms value="${esc((cache.R || {}).devisAutoSms ?? '06 58 22 69 69')}" placeholder="06 12 34 56 78 (plusieurs : séparés par une virgule)"${peut('equipe') ? '' : ' disabled'}></label>${peut('equipe') ? '<button type="button" class="btn sm" data-dasmsok>Enregistrer</button>' : ''}</div></section>
       <div class="qs-top"><div class="qs-chips">${onglet('todo', 'À traiter', todo.length)}${onglet('msg', 'Messages', msgs.length)}${onglet('done', 'Déjà traitées', done.length)}</div></div>
-      ${shown.length ? `<div class="table jp"><table><thead><tr><th>Reçue</th><th>Client</th><th>Événement</th><th>Date</th><th class="n">Invités</th><th>Sélection et message</th><th></th></tr></thead><tbody>${shown.map(row).join('')}</tbody></table></div>`
+      ${shown.length ? `<div class="table jp"><table><thead><tr><th>Reçue</th><th>Client</th><th>Événement</th><th>Date</th><th class="n">Invités</th><th>Sélection et message</th><th class="n">Montants 🔒</th><th></th></tr></thead><tbody>${shown.map(row).join('')}</tbody></table></div>`
         : `<div class="vide"><p>${voir === 'todo' ? (list.length ? 'Aucune demande en attente : elles sont toutes prises en charge. Leur suivi est dans « Suivi client ».' : 'Aucune demande de devis pour l’instant.') : 'Rien ici pour l’instant.'}</p></div>`}`);
   }
   demandes.after = id => {
@@ -388,7 +390,8 @@
     return { d, dv, main, envoyeLe, envoyePar, relances, late, last, montant, cat, at, estime: !main, com: String(d.commercial || main?.commercial?.nom || '').trim() };
   }
   async function suivi() {
-    const [dem, devisL, eq, cl, fac, R] = await Promise.all([api(A + '/demandes'), api(A + '/devis'), api(A + '/actions/equipe').catch(() => []), api(A + '/clients?vue=actifs').catch(() => []), api(A + '/factures').catch(() => []), cache.R ? Promise.resolve(cache.R) : api(A + '/site').catch(() => ({}))]);
+    const [dem, devisL, eq, cl, fac, R, prods] = await Promise.all([api(A + '/demandes'), api(A + '/devis'), api(A + '/actions/equipe').catch(() => []), api(A + '/clients?vue=actifs').catch(() => []), api(A + '/factures').catch(() => []), cache.R ? Promise.resolve(cache.R) : api(A + '/site').catch(() => ({})), cache.produits || api(A + '/produits').catch(() => null)]);
+    if (prods) cache.produits = prods;
     cache.devisL = devisL; cache.equipe = eq.filter(u => !u.desactive); cache.R = cache.R || R;
     cache.opps = dem.filter(d => d.type !== 'contact' && !aTraiter(d, devisL)).map(d => opportunite(d, devisL));
     cache.annuaire = annuaire(cl, dem, devisL, fac);
@@ -521,7 +524,7 @@
         <div class="qs-co">${esc([c.societe, c.tel || c.email].filter(Boolean).join(' · '))}</div>
         <div class="qs-co"><button type="button" class="qs-own-pick${o.com ? '' : ' none'}" data-qown="${o.d.id}" title="Attribuer ou changer le commercial">👤 ${esc(o.com || 'Non attribué')} <span aria-hidden="true">▾</span></button></div>
         <div class="qs-ev">${e.type ? '<b>' + esc(e.type) + '</b> · ' : ''}${esc([e.date ? dateFr(e.date, { day: 'numeric', month: 'short', year: 'numeric' }) : 'date à définir', e.invites ? e.invites + ' pers.' : '', e.ville || ''].filter(Boolean).join(' · '))}</div></div></div>
-      <div class="qs-right"><div class="qs-amt">${o.montant ? euros(o.montant) : '—'}</div><div class="qs-ht">TTC · ${o.main ? 'devis n° ' + esc(o.main.numero) : 'estimation du site'}</div></div>
+      <div class="qs-right">${k4Html(o.main ? chiffres(o.main) : chiffres(o.d, { lignes: lignesDemande(o.d), ttc: o.d.totalEstimeCents }), o.main ? '#/devis/' + o.main.id : '')}<div class="qs-ht">${o.main ? 'devis n° ' + esc(o.main.numero) : 'estimation du site'}</div></div>
       ${frise(o)}
       <div class="qs-foot"><div class="qs-info">${o.d.notes ? `<div class="qs-note">📝 ${esc(String(o.d.notes).slice(0, 140))}</div>` : ''}</div><div class="qs-acts">${o.late ? '' : icons}${['refuse', 'reserve', 'termine'].includes(o.d.statut) ? `<button class="qs-back" type="button" data-qback="${o.d.id}" title="Remettre dans les opportunités en cours">↺ Remettre en cours</button>` : ''}${o.main && o.main.statut !== 'brouillon' ? `<a class="qs-back" href="/devis/${esc(o.main.token)}" target="_blank" title="Le devis tel que le client le voit">📨 ${o.main.statut === 'accepte' ? 'Devis signé' : 'Devis envoyé'}</a>` : ''}${o.d.clientId ? `<a class="qs-back" href="#/clients/${esc(o.d.clientId)}" title="Tout ce qui s’est passé avec ce client">🕘 Historique</a>` : ''}<button class="qs-open" type="button" data-qopen="${o.d.id}">${o.cat === 'draft' ? 'Terminer' : 'Ouvrir'}</button></div></div>
       ${o.late ? `<div class="qs-alert"><b>⚠ Plus de 24 h sans nouvelles.</b> <span>${o.envoyeLe ? `Rappelez ${esc(first || 'ce client')} ou relancez-le.` : `La demande de ${esc(first || 'ce client')} attend son devis.`}</span><span class="sp"></span>${tel ? `<a class="qs-pill dark" href="tel:${esc(tel)}" data-qappel="${o.d.id}">📞 Appeler</a>` : ''}${o.envoyeLe && c.email ? `<button class="qs-pill" type="button" data-qrel="${o.d.id}" data-canal="mail">✉ Relancer par e-mail</button>` : ''}${o.envoyeLe && tel ? `<button class="qs-pill" type="button" data-qrel="${o.d.id}" data-canal="sms">💬 Relancer par SMS</button>` : ''}${o.envoyeLe ? '' : `<button class="qs-pill dark" type="button" data-qdevis="${o.d.id}">✎ Préparer le devis</button>`}<button class="qs-pill" type="button" data-qfait="${o.d.id}">✓ Relance faite (noter)</button></div>` : ''}
@@ -718,8 +721,8 @@
     const effacable = d => d.statut !== 'accepte';
     const filtre = `<div class="dv-who"><span class="qs-olab">Commercial</span><label class="qs-csel"><span aria-hidden="true">👤</span><select data-dvcom aria-label="Choisir le commercial"><option value=""${!qui ? ' selected' : ''}>Tous les commerciaux</option>${noms.map(n => `<option value="${esc(n)}"${qui === n ? ' selected' : ''}>${esc(n)}</option>`).join('')}<option value="—"${qui === '—' ? ' selected' : ''}>Sans commercial</option></select></label><span class="muted sm">${list.length} devis${qui ? ` · ${euros(list.reduce((t, d) => t + tot(d).ttc, 0))} TTC` : ''}</span></div>`;
     if (tous.length && !list.length) return page('Devis', '<button type="button" class="btn ghost aq-btn" data-aiq>✨ Devis avec l’IA</button><a class="btn" href="#/devis/nouveau">+ Nouveau devis</a>', filtre + '<div class="vide"><p>Aucun devis pour ce commercial.</p></div>');
-    return page('Devis', '<button type="button" class="btn ghost aq-btn" data-aiq>✨ Devis avec l’IA</button><a class="btn" href="#/devis/nouveau">+ Nouveau devis</a>', list.length ? `${filtre}<div class="row sel-bar">${peut('effacerDevis') ? '<button type="button" class="btn danger sm" data-effacer disabled>🗑 Effacer</button>' : ''}<span class="muted sm" data-nbsel>Cochez les devis à effacer.</span></div><div class="table"><table><thead><tr><th class="ck"><input type="checkbox" data-tout aria-label="Tout cocher" title="Tout cocher"></th><th>N°</th><th>Client</th><th>Nature de l’événement</th><th>Date</th><th class="n">Personnes</th><th>Commercial</th><th class="n">Total TTC</th><th>Statut</th><th>Vu par le client</th></tr></thead><tbody>
-      ${list.map(d => `<tr data-href="#/devis/${d.id}"><td class="ck">${effacable(d) ? `<input type="checkbox" data-sel="${esc(d.id)}" data-num="${esc(d.numero)}" data-st="${esc(d.statut)}" aria-label="Sélectionner ${esc(d.numero)}">` : '<span title="Devis signé : ne peut pas être effacé">🔒</span>'}</td><td class="nw"><b>${esc(d.numero)}</b>${(d.commentaires || []).length ? ` <span title="${d.commentaires.length} commentaire(s) du client">💬</span>` : ''}</td><td>${esc(d.clientNom)}</td><td>${esc(d.evenement?.type || '—')}</td><td class="nw">${d.evenement?.date ? dateFr(d.evenement.date) : '—'}</td><td class="n nw">${d.evenement?.invites ? esc(d.evenement.invites) + ' pers.' : '—'}</td><td>${comDe(d) ? esc(comDe(d)) : d.auto ? '<span class="pill ia-pill" title="Devis créé et envoyé automatiquement par l’IA">✨ IA</span>' : '—'}</td><td class="n">${euros(tot(d).ttc)}</td><td><span class="pill d-${d.statut}">${DSTAT[d.statut]}</span></td><td>${d.vuLe ? dateH(d.vuLe) : '—'}</td></tr>`).join('')}</tbody></table></div>` : '<div class="vide"><p>Aucun devis.</p><p class="muted">Créez un devis depuis une demande (les lignes sont reprises) ou partez d’un devis vierge.</p></div>');
+    return page('Devis', '<button type="button" class="btn ghost aq-btn" data-aiq>✨ Devis avec l’IA</button><a class="btn" href="#/devis/nouveau">+ Nouveau devis</a>', list.length ? `${filtre}<div class="row sel-bar">${peut('effacerDevis') ? '<button type="button" class="btn danger sm" data-effacer disabled>🗑 Effacer</button>' : ''}<span class="muted sm" data-nbsel>Cochez les devis à effacer.</span></div><div class="table"><table><thead><tr><th class="ck"><input type="checkbox" data-tout aria-label="Tout cocher" title="Tout cocher"></th><th>N°</th><th>Client</th><th>Nature de l’événement</th><th>Date</th><th class="n">Personnes</th><th>Commercial</th><th class="n">Montants 🔒</th><th>Statut</th><th>Vu par le client</th></tr></thead><tbody>
+      ${list.map(d => `<tr data-href="#/devis/${d.id}"><td class="ck">${effacable(d) ? `<input type="checkbox" data-sel="${esc(d.id)}" data-num="${esc(d.numero)}" data-st="${esc(d.statut)}" aria-label="Sélectionner ${esc(d.numero)}">` : '<span title="Devis signé : ne peut pas être effacé">🔒</span>'}</td><td class="nw"><b>${esc(d.numero)}</b>${(d.commentaires || []).length ? ` <span title="${d.commentaires.length} commentaire(s) du client">💬</span>` : ''}</td><td>${esc(d.clientNom)}</td><td>${esc(d.evenement?.type || '—')}</td><td class="nw">${d.evenement?.date ? dateFr(d.evenement.date) : '—'}</td><td class="n nw">${d.evenement?.invites ? esc(d.evenement.invites) + ' pers.' : '—'}</td><td>${comDe(d) ? esc(comDe(d)) : d.auto ? '<span class="pill ia-pill" title="Devis créé et envoyé automatiquement par l’IA">✨ IA</span>' : '—'}</td><td class="k4c">${k4Html(chiffres(d), '#/devis/' + d.id)}</td><td><span class="pill d-${d.statut}">${DSTAT[d.statut]}</span></td><td>${d.vuLe ? dateH(d.vuLe) : '—'}</td></tr>`).join('')}</tbody></table></div>` : '<div class="vide"><p>Aucun devis.</p><p class="muted">Créez un devis depuis une demande (les lignes sont reprises) ou partez d’un devis vierge.</p></div>');
   }
   devis.after = id => {
     if (id && id !== 'nouveau') return devisEdit.after(id);
@@ -741,6 +744,58 @@
     });
   };
 
+  /* ---------- les 4 chiffres d'un devis (Jean-Luc, 2026-11-25) : HT · TTC · Marge HT · Marge % — INTERNE à l'équipe ----------
+     Une ligne sans prix d'achat n'est jamais comptée à 0 : point d'exclamation rouge, avec la liste des produits et un lien vers leur fiche. */
+  const ficheDe = slug => slug && (cache.produits || []).find(x => x.slug === slug);
+  const coutDepuisFiche = (l, p) => { /* même règle que le serveur (server/devis.js, coutLigne) */
+    if (!p || p.coutCents == null) return null;
+    const q = Math.max(1, +l.qte || 1); let c = p.coutCents;
+    for (const g of p.groupes || []) for (const id of l.choix?.[g.id] || []) {
+      const [oid, n] = String(id).split(':'); const o = (g.options || []).find(x => x.id === oid);
+      if (!o || (g.mode === 'quantites' && o.supCents)) continue;
+      if (o.coutCents == null) { if (o.supCents) return null; continue; }
+      c += n ? Math.round(o.coutCents * n / q) : o.coutCents;
+    }
+    return c;
+  };
+  /* lignes d'un devis, avec le prix d'achat repris de la fiche s'il a été tapé après la création du devis (comme à l'ouverture du devis) */
+  const lignesChiffrees = d => (d.lignes || []).map(l => {
+    if (l.type === 'titre' || l.coutCents != null || !l.produit) return l;
+    const p = ficheDe(l.produit);
+    return p && p.coutCents != null && (p.prixCents == null || l.puCents === p.prixCents) ? { ...l, coutCents: p.coutCents } : l;
+  });
+  /* demande du site sans devis : estimation à partir de la sélection du client et des fiches du catalogue */
+  const lignesDemande = d => (d.lignes || []).filter(l => !l.surDevis).flatMap(l => {
+    const p = ficheDe(l.slug), q = +l.qte || 1, pu = (l.prixCents ?? p?.prixCents ?? 0) + (l.supCents || 0), nom = titreTexte(l.titre || p?.titre || '');
+    const out = [{ designation: nom, produit: l.slug, qte: q, puCents: pu, coutCents: coutDepuisFiche(l, p), tva: p?.tva ?? 10 }];
+    const reste = (l.totalCents ?? pu * q) - pu * q; /* personnel, pack… compris dans l'estimation : sans prix d'achat */
+    if (reste > 0) out.push({ designation: nom + ' · ' + (l.personnel ? 'personnel' : 'pack et suppléments'), qte: 1, puCents: reste, coutCents: null, tva: 10 });
+    return out;
+  });
+  function chiffres(d, opt = {}) {
+    const L = (opt.lignes || lignesChiffrees(d)).filter(l => l.type !== 'titre');
+    const t = tot({ ...d, lignes: L }); const g = t.mg;
+    let ht = t.ht, ttc = t.ttc;
+    if (opt.ttc != null && opt.ttc > ttc) { ht += Math.round((opt.ttc - ttc) / 1.2); ttc = opt.ttc; } /* livraison, etc. de l'estimation du site (TVA 20 %) */
+    const manq = L.filter(l => +l.qte && (l.coutCents == null || l.coutCents === '')).map(l => ({ nom: String(l.designation || 'Ligne sans nom').replace(/\*\*/g, ''), p: ficheDe(l.produit) }));
+    return { ht, ttc, marge: g.connu ? g.marge : null, pct: g.connu && g.vHt ? Math.round(1000 * g.marge / g.vHt) / 10 : null, manq };
+  }
+  const k4Html = (c, lien) => {
+    if (!c || !c.ttc) return '<div class="k4 vide"><span class="muted sm">Montant à définir</span></div>';
+    const pc = c.pct == null ? '—' : String(c.pct).replace('.', ',') + ' %', cl = c.marge == null ? '' : c.marge < 0 ? ' neg' : ' pos';
+    const pop = c.manq.length ? `<span class="k4m" data-k4m tabindex="0" role="button" aria-label="Produits sans prix d’achat" title="${c.manq.length} produit${c.manq.length > 1 ? 's' : ''} sans prix d’achat : ${esc(c.manq.map(x => x.nom).join(', '))}">!<span class="k4pop"><b>⚠ ${c.manq.length} produit${c.manq.length > 1 ? 's' : ''} sans prix d’achat</b><small>non compté${c.manq.length > 1 ? 's' : ''} dans la marge : elle est partielle</small>${c.manq.map(x => x.p ? `<a href="#/catalogue/${esc(x.p.id || x.p.slug)}">${esc(x.nom)} <i>✏ corriger la fiche</i></a>` : `<span>${esc(x.nom)} <i>${lien ? `<a href="${lien}">ligne libre : à taper dans le devis</a>` : 'ligne libre'}</i></span>`).join('')}</span></span>` : '';
+    return `<div class="k4${c.manq.length ? ' partiel' : ''}" title="🔒 Visible seulement par l’équipe">
+      <div><small>HT</small><b>${euros(c.ht)}</b></div><div class="ttc"><small>TTC</small><b>${euros(c.ttc)}</b></div>
+      <div class="mg${cl}"><small>Marge HT${pop}</small><b>${c.marge == null ? '—' : euros(c.marge)}</b></div><div class="mg${cl}"><small>Marge</small><b>${pc}</b></div></div>`;
+  };
+  /* clic sur le point d'exclamation : ouvre la liste (sans ouvrir la carte ou la ligne) ; un lien de la liste mène à la fiche */
+  document.addEventListener('click', e => {
+    const m = e.target.closest('[data-k4m]');
+    if (!m) { $$('[data-k4m].on').forEach(x => x.classList.remove('on')); return; }
+    e.stopPropagation();
+    if (e.target.closest('.k4pop a')) return;
+    e.preventDefault(); const on = !m.classList.contains('on'); $$('[data-k4m].on').forEach(x => x.classList.remove('on')); m.classList.toggle('on', on);
+  }, true);
   function tot(d) {
     const L = (d.lignes || []).filter(l => l.type !== 'titre');
     const brut = L.reduce((s, l) => s + Math.round((l.puCents || 0) * (+l.qte || 0)), 0);
