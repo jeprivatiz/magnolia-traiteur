@@ -1117,7 +1117,7 @@ async function initSousRubriques(store, { log = console } = {}) {
   if (RAv && !RAv.animationsVideos1) {
     const VA = {
       'pizzaiolo-a-domicile': 'pizzaiolo', 'bar-a-burrata': 'burrata', 'animation-barbecue': 'barbecue-flammes', 'animation-ti-punch-acras-et-boudins': 'acras',
-      'stand-a-burgers': 'burgers', 'bar-a-pates': 'bar-a-pates', 'chef-sushi-a-domicile': 'sushi', 'bar-a-saumon-fume': 'saumon',
+      'stand-a-burgers': 'burgers-2', 'bar-a-pates': 'bar-a-pates', 'chef-sushi-a-domicile': 'sushi', 'bar-a-saumon-fume': 'saumon',
       'bar-a-foie-gras': 'foie-gras', 'bar-a-huitres': 'huitres', 'saint-jacques-a-la-plancha': 'saint-jacques', 'stand-show-a-volonte-pieces-chaudes': 'show',
       'animation-barbe-a-papa-a-volonte': 'barbe-a-papa', 'animation-fontaine-a-chocolat': 'fontaine-chocolat', 'crepes-a-volonte': 'crepes',
       'stand-de-churros': 'churros', 'brioche-perdue': 'brioche-perdue', 'animation-pop-corn': 'pop-corn', 'animation-de-gaufre': 'gaufres'
@@ -1631,6 +1631,16 @@ async function initSousRubriques(store, { log = console } = {}) {
     if (cb && (!cb.bandeauVideo || cb.bandeauVideo === '/site/v/bandeaux/cocktails-buffets.mp4'))
       await store.set('rubriques/cocktails-buffets', { ...cb, bandeauVideo: '/site/v/bandeaux/cocktails-buffets-2.mp4', bandeauPoster: '/site/v/bandeaux/cocktails-buffets-2.jpg' });
     await store.set('site/reglages', { ...(await store.get('site/reglages')), bandeauxVideos4: true });
+  }
+  /* Stand à burgers (Jean-Luc, 2026-11-25) : on doit vraiment voir le burger, sur une plaque à snacker, pain posé sur
+     la viande : burgers coiffés de leur pain sur la plaque (Pexels 37284846), puis le chef pose le steak au cheddar
+     sur le pain (Pexels 32092904). Une fois, seulement si la fiche a encore l'ancienne vidéo. */
+  const RBb = await store.get('site/reglages');
+  if (RBb && !RBb.burgerVideo2) {
+    const p = await store.get('produits/stand-a-burgers');
+    if (p && (!p.video || p.video.src === '/site/v/animations/burgers.mp4'))
+      await store.set('produits/stand-a-burgers', { ...p, video: { src: '/site/v/animations/burgers-2.mp4', poster: '/site/v/animations/burgers-2.jpg' } });
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), burgerVideo2: true });
   }
 }
 
