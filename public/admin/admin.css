@@ -1750,7 +1750,6 @@ body.avec-psbar .content { padding-bottom: 120px; }
 .st-plus { display: flex; justify-content: center; margin-top: 10px; }
 @media (min-width: 1001px) { .st-prods { display: grid; grid-template-columns: 1fr 1fr; column-gap: 18px; } }
 .st-prods .st-rt b { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.25; }
-<<<<<<< HEAD
 
 /* remises du devis (ligne et total) */
 .lines td.rem{white-space:nowrap;text-align:right}.lines td.rem .remi{display:inline-flex;align-items:center;gap:3px}
@@ -1764,5 +1763,3 @@ body.avec-psbar .content { padding-bottom: 120px; }
 .st-loupe input { width: 100%; min-height: 0; border: 1px solid var(--db-line); background: #fff; color: var(--db-ink); border-radius: 999px; padding: 7px 14px 7px 36px; font: 500 13.5px var(--sans); }
 .st-loupe input:focus { outline: 2px solid var(--db-or); outline-offset: -1px; }
 @media (max-width: 700px) { .st-loupe { max-width: none; flex-basis: 100%; } }
-=======
->>>>>>> 3e054c8856b940ba32c90084d2a444184a2ee2e9
