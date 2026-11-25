@@ -287,6 +287,57 @@ async function createApp(opts = {}) {
   }
   /* La cave de Magnolia refaite (Jean-Luc, 2026-11-25) : catégories avec photo, boissons reprises d'une carte de traiteur, champagne André Diligent en grand (server/cave.js) */
   { const n = await require('./cave').initCave(store); if (n) console.log(`[demarrage] La cave de Magnolia : ${n} boissons créées`); }
+  /* une seule fois (Jean-Luc, 2026-11-25) : la fiche « Verres à vin et flûtes à champagne » devient TROIS fiches louées au rack, 36 € TTC le rack,
+     achat 12 € HT le rack (coutCents en TTC, TVA 20 % comme partout) : Verres à vin (rack de 36), Flûtes à champagne (rack de 49), Verres tumbler (rack de 36).
+     L'ancienne fiche est masquée et renvoie (301) vers Verres à vin ; partout où elle était proposée (open bars, Mobilier et matériel à la location),
+     les nouvelles fiches prennent sa place. */
+  if (!(await store.get('_migr/verresTroisRacks'))) {
+    const ANCIEN = 'verres-en-verre-vin-coupes-a-champagne';
+    const base = await store.get('produits/' + ANCIEN);
+    if (base) {
+      const caution = (base.details || []).filter(d => /caution/i.test(d));
+      const VERRES = [
+        { slug: 'verres-a-vin', titre: 'Verres à vin', n: 36, nom: 'verres à vin', photo: 'verres-a-vin', alt: 'Rangées de verres à vin en verre sur un comptoir de bar',
+          pour: 'pour servir vos vins rouges, blancs et rosés lors d’un vin d’honneur, d’un cocktail ou d’un dîner' },
+        { slug: 'flutes-a-champagne', titre: 'Flûtes à champagne', n: 49, nom: 'flûtes à champagne', photo: 'flutes-a-champagne', alt: 'Flûtes à champagne en verre alignées sur une table de réception nappée de blanc',
+          pour: 'pour servir le champagne et les vins pétillants à vos invités, au vin d’honneur comme au moment des toasts' },
+        { slug: 'verres-tumbler', titre: 'Verres tumbler', n: 36, nom: 'verres tumbler', photo: 'verres-tumbler', alt: 'Verres tumbler en verre empilés sur un plateau de bar',
+          pour: 'pour l’eau, les softs, les jus et les cocktails, au bar comme à table' },
+      ];
+      let i = 0;
+      for (const v of VERRES) {
+        const p = { ...base, id: v.slug, slug: v.slug, titre: v.titre, statut: 'visible', fusionneDans: undefined,
+          prixCents: 3600, coutCents: Math.round(1200 * 1.2) /* 12 € HT le rack */, tva: 20, prixTexte: null, unite: 'rack', min: 1, minimumTexte: null, aCompleter: false,
+          extrait: `Rack de ${v.n} ${v.nom} en verre, 36 € TTC le rack.`,
+          description: [`Rack de ${v.n} ${v.nom} en verre, 36 € TTC le rack.`],
+          sousPhoto: [`Nos ${v.nom} en verre sont loués par rack de ${v.n}, ${v.pour}. Livrés propres dans leur rack et repris après votre événement : vous n’avez rien à laver.`],
+          sousPhotoAuto: false,
+          photos: [{ src: `/site/c/materiel/${v.photo}.webp`, alt: v.alt }],
+          sections: [{ note: null, apres: null, titre: 'Caractéristiques', paragraphes: [], items: [`${v.titre} en verre`, `Conditionnement : rack de ${v.n} ${v.nom}`, 'Prix : 36 € TTC le rack']}],
+          details: [`Location par rack de ${v.n} ${v.nom}. Hors frais de livraison.`, ...caution],
+          ordre: (base.ordre ?? 0) + i * 0.01, seoTitre: '', seoDescription: '', createdAt: new Date().toISOString() };
+        delete p.seoAuto; delete p.fusionneDans;
+        if (!(await store.get('produits/' + v.slug))) await store.set('produits/' + v.slug, p);
+        i++;
+      }
+      await store.set('produits/' + ANCIEN, { ...(await store.get('produits/' + ANCIEN)), statut: 'masque', fusionneDans: 'verres-a-vin' });
+      /* les fiches qui proposaient l'ancienne */
+      const LIEES = [
+        { slug: 'verres-a-vin', titre: 'Verres à vin', texte: 'Rack de 36 verres à vin en verre, 36 € TTC le rack.' },
+        { slug: 'flutes-a-champagne', titre: 'Flûtes à champagne', texte: 'Rack de 49 flûtes à champagne en verre, 36 € TTC le rack.' },
+      ];
+      for (const { id, data: x } of await store.list('produits')) {
+        if (!x || id === ANCIEN) continue;
+        let change = false; const y = { ...x };
+        if ((x.liees || []).some(l => l.slug === ANCIEN)) { y.liees = x.liees.flatMap(l => l.slug === ANCIEN ? LIEES : [l]); change = true; }
+        if ((x.propositions || []).some(b => (b.slugs || []).includes(ANCIEN))) {
+          y.propositions = x.propositions.map(b => ({ ...b, slugs: (b.slugs || []).flatMap(s => s === ANCIEN ? VERRES.map(v => v.slug) : [s]) })); change = true;
+        }
+        if (change) await store.set('produits/' + id, y);
+      }
+    }
+    await store.set('_migr/verresTroisRacks', { at: new Date().toISOString() });
+  }
 
   /* ---------- titres et descriptions « dans Google » (Jean-Luc, 2026-11-24) ----------
      À chaque démarrage : les cases vides des produits, rubriques et spécialités sont remplies (jamais un texte tapé à la main).
