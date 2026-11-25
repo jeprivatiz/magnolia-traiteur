@@ -1527,3 +1527,19 @@ input.verrou { background: var(--doux); color: var(--gris); cursor: not-allowed;
 .sm-acc.ouvert .smlist{border-top:1px solid var(--bo-line);padding-top:12px}
 .sm-rech label{display:block}.sm-rech input{display:block;width:100%;max-width:none}
 @media (max-width:860px){.sm-cats{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px;scrollbar-width:none}.sm-cats::-webkit-scrollbar{display:none}.sm-cats .btn{flex:0 0 auto}}
+
+/* 🔍 Trouver un produit (Catalogue) */
+.trouve { background: var(--vert); border: 2px solid var(--or); border-radius: var(--r); padding: 14px 18px; margin-bottom: 18px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+.trouve label { color: #f6f3ec; font-weight: 600; font-size: 1.05rem; flex: none; }
+.trouve label small { display: block; font-weight: 400; font-size: .75rem; color: var(--or-2); }
+.trouve input[type=search] { flex: 1 1 320px; min-width: 0; max-width: none; width: auto; font-size: 1.05rem; padding: 12px 16px; background: #fffdf8; color: #1f2a24; border: 1px solid var(--or-2); border-radius: 10px; }
+.qnb { margin: 0 0 10px; color: var(--texte); }
+.qlist { display: grid; gap: 8px; }
+.qrow { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; text-decoration: none; color: inherit; background: var(--carte); border: 1px solid var(--ligne); border-radius: 10px; padding: 8px; }
+.qrow:hover { border-color: var(--or); }
+.qrow img, .qrow .ph0 { width: 64px; height: 64px; border-radius: 7px; object-fit: cover; flex: none; background: var(--doux); }
+.qtx { flex: 1 1 220px; min-width: 0; }
+.qtx b { display: block; font-weight: 500; }
+.qtx small { display: block; color: var(--gris); }
+.qrub { display: inline-block; margin-top: 4px; font-size: .78rem; padding: 2px 9px; border-radius: 999px; background: var(--doux); color: var(--texte); }
+.catg[hidden], #qres[hidden] { display: none; }
