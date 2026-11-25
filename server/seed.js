@@ -1001,6 +1001,23 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('site/reglages', { ...(await store.get('site/reglages')), buffetsPortions: true });
   }
 
+  /* Buffet chinois sans « Produits divers » (Jean-Luc, 2026-11-25) : une fois. Un produit venu d'une autre rubrique
+     (Coffret chinois aux neuf saveurs, de Coffrets & plateaux) quitte seulement la page du buffet chinois ;
+     un produit propre au buffet chinois rangé en « divers » est masqué (réversible dans sa fiche). */
+  const RChd = await store.get('site/reglages');
+  if (RChd && !RChd.chinoisSansDivers) {
+    for (const { id, data: p } of await store.list('produits')) {
+      const ici = p.sous === 'buffet-chinois' || (p.autresSous || []).includes('buffet-chinois');
+      if (!ici || rangementDe(p) !== 'divers') continue;
+      if (p.rubrique === 'saveurs-du-monde' && p.sous === 'buffet-chinois') { await store.set('produits/' + id, { ...p, statut: 'masque' }); continue; }
+      const autresSous = (p.autresSous || []).filter(x => x !== 'buffet-chinois');
+      const sous = p.sous === 'buffet-chinois' ? (autresSous.shift() || '') : p.sous;
+      const resteSm = p.rubrique === 'saveurs-du-monde' || !!sous;
+      await store.set('produits/' + id, { ...p, sous, autresSous, autresRubriques: resteSm ? (p.autresRubriques || []) : (p.autresRubriques || []).filter(x => x !== 'saveurs-du-monde') });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), chinoisSansDivers: true });
+  }
+
   /* Musique & animations et Les indispensables en rubriques (Jean-Luc, 2026-11-25) : plus de 20 produits, donc des têtes
      de rubrique sur téléphone. Une fois ; chaque fiche reste modifiable (liste « Section » de la fiche). */
   const RMi = await store.get('site/reglages');
