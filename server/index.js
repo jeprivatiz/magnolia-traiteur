@@ -264,6 +264,15 @@ async function createApp(opts = {}) {
     }
     await store.set('_migr/gobeletBierePhoto', { at: new Date().toISOString() });
   }
+  /* une seule fois (Jean-Luc, 2026-11-25) : nos verres réutilisables sont blancs translucides, pas rouges → photo de son propre verre en polypropylène givré (fond blanc) */
+  if (!(await store.get('_migr/verresReutilisablesPhoto'))) {
+    const SLUG = 'verres-reutilisables-eco-responsables';
+    for (const { id, data: p } of await store.list('produits')) {
+      if (!p || (p.slug !== SLUG && id !== SLUG)) continue;
+      await store.set('produits/' + id, { ...p, photos: [{ src: '/site/c/materiel/verres-reutilisables-blancs.webp', alt: 'Verre réutilisable en polypropylène blanc translucide' }] });
+    }
+    await store.set('_migr/verresReutilisablesPhoto', { at: new Date().toISOString() });
+  }
   /* La cave de Magnolia refaite (Jean-Luc, 2026-11-25) : catégories avec photo, boissons reprises d'une carte de traiteur, champagne André Diligent en grand (server/cave.js) */
   { const n = await require('./cave').initCave(store); if (n) console.log(`[demarrage] La cave de Magnolia : ${n} boissons créées`); }
 
