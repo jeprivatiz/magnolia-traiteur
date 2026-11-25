@@ -1,0 +1,35 @@
+name: Aperçu de photos libres (temporaire)
+
+# Outil temporaire (méthode acceptée par Jean-Luc le 2026-11-23) : télécharge des photos libres candidates
+# (écailler pour le bandeau fruits de mer, crevettes en bol). Retiré avant la fusion.
+on:
+  push:
+    branches: [claude/project-thread-f3rcgg]
+    paths:
+      - .github/workflows/apercu-photos.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apercu:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Téléchargement
+        run: |
+          mkdir -p apercu-photos
+          for id in 2819899 2814828 14537699 14387795; do
+            curl -sfL -o apercu-photos/p$id.jpg "https://images.pexels.com/photos/$id/pexels-photo-$id.jpeg?auto=compress&cs=tinysrgb&w=2400" || echo "echec $id"
+          done
+          for u in photo-1680404915561-441754f32ef5 photo-1564851287887-96031a235bf5 photo-1717251722094-f3cc5c7213b0; do
+            curl -sfL -o apercu-photos/u-$u.jpg "https://images.unsplash.com/$u?w=2600&q=85&fm=jpg" || echo "echec $u"
+          done
+          ls -la apercu-photos
+      - name: Enregistrer
+        run: |
+          git config user.name "magnolia-bot"
+          git config user.email "magnolia-bot@users.noreply.github.com"
+          git add apercu-photos
+          git commit -m "Aperçu temporaire de photos libres" && git push || echo rien
