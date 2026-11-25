@@ -241,6 +241,18 @@ async function createApp(opts = {}) {
     }
     await store.set('_migr/verresFlutes', { at: new Date().toISOString() });
   }
+  /* une seule fois (Jean-Luc, 2026-11-25) : plus de « (par personne) » dans les noms des fiches et des vignettes (ex. Set de vaisselle
+     complet) : l'unité « personne » s'affiche déjà au prix et au choix de la quantité. Adresses des fiches inchangées. */
+  if (!(await store.get('_migr/sansParPersonne'))) {
+    const PP = /\s*\(\s*par\s+pers(?:onne|\.)?\s*\)/gi;
+    for (const { id, data: p } of await store.list('produits')) {
+      if (!p || !PP.test(String(p.titre || '') + ' ' + String(p.seoTitre || ''))) continue;
+      PP.lastIndex = 0;
+      await store.set('produits/' + id, { ...p, titre: String(p.titre || '').replace(PP, '').trim(), ...(p.seoTitre ? { seoTitre: String(p.seoTitre).replace(PP, '').replace(/\s{2,}/g, ' ').trim() } : {}) });
+      PP.lastIndex = 0;
+    }
+    await store.set('_migr/sansParPersonne', { at: new Date().toISOString() });
+  }
   /* une seule fois (Jean-Luc, 2026-11-25) : chaise pliante de luxe en velours bordeaux = sa propre photo (rangs de chaises dans un salon doré, piano à queue), à la place de l'ancienne */
   if (!(await store.get('_migr/chaiseVeloursPhoto'))) {
     const SLUG = 'chaise-pliante-de-luxe-en-velours-bordeaux';
