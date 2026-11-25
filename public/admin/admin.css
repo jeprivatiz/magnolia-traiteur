@@ -341,6 +341,10 @@ details[open] summary { margin-bottom: 12px; }
 .toast.bad { background: var(--rouge); }
 @media (max-width: 900px) { .toast { bottom: max(80px, calc(env(safe-area-inset-bottom) + 70px)); } }
 @media print { .side, .mtop, .actions { display: none !important; } .bo { display: block; } .box { box-shadow: none; break-inside: avoid; } }
+.nbcat { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; vertical-align: middle; margin-right: 12px; padding: 4px 12px 5px; min-width: 64px; border-radius: 10px; background: var(--vert); color: #f6f3ec; border: 2px solid var(--or); font-family: var(--sans); line-height: 1; cursor: help; }
+.nbcat b { font-size: 1.25rem; font-weight: 600; color: var(--or-2); }
+.nbcat small { font-size: .62rem; text-transform: uppercase; letter-spacing: .08em; margin-top: 3px; }
+.nbmasq { font-family: var(--sans); font-size: .8rem; font-weight: 400; color: var(--gris); margin-left: 10px; vertical-align: middle; }
 .ph h1 .pill { font-family: var(--sans); font-size: .8rem; vertical-align: middle; margin-left: 6px; }
 .kcol[data-col=demande] { --c: var(--or); } .kcol[data-col=devis_envoye] { --c: var(--bleu); } .kcol[data-col=relance] { --c: var(--orange); }
 .kcol[data-col=accord] { --c: var(--violet); } .kcol[data-col=reserve] { --c: var(--vert-ok); } .kcol[data-col=refuse] { --c: var(--rouge); }

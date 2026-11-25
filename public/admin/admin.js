@@ -1869,7 +1869,10 @@
     cache.catR = r;
     const liste = prods.filter(p => p.rubrique === r).sort((a, b) => (b.maison ? 1 : 0) - (a.maison ? 1 : 0) || (a.ordre ?? 0) - (b.ordre ?? 0));
     const rub = rubs.find(x => x.slug === r) || {};
-    return page('Catalogue', `<input type="search" placeholder="Rechercher dans tout le catalogue…" data-q>`, `
+    /* petite case à gauche du titre : nombre de produits visibles sur le site (les masqués sont indiqués à part) */
+    const nbVis = prods.filter(p => p.statut !== 'masque').length, nbMasq = prods.length - nbVis;
+    const titreCat = `<span class="nbcat" title="${nbVis} produit${nbVis > 1 ? 's' : ''} visible${nbVis > 1 ? 's' : ''} sur le site${nbMasq ? ` · ${nbMasq} masqué${nbMasq > 1 ? 's' : ''} · ${prods.length} au total` : ''}"><b>${nbVis.toLocaleString('fr-FR')}</b><small>produit${nbVis > 1 ? 's' : ''}</small></span>Catalogue${nbMasq ? `<small class="nbmasq">+ ${nbMasq} masqué${nbMasq > 1 ? 's' : ''}</small>` : ''}`;
+    return page(titreCat, `<input type="search" placeholder="Rechercher dans tout le catalogue…" data-q>`, `
       <div class="catg"><nav class="rubs">${rubs.map(x => `<a href="#/catalogue?r=${x.slug}" class="${x.slug === r ? 'on' : ''}${x.statut === 'masque' ? ' hid' : ''}">${esc(x.nom)}<small>${nbRub(x.slug)}</small></a>`).join('')}<button class="lnk" data-newrub>+ Nouvelle rubrique</button></nav>
       <div><section class="box rubbox"><div class="bh"><h2>${esc(rub.nom || '')}</h2><a class="btn voir-site" href="/${esc(r)}?apercu=1" target="_blank">👁 Voir la présentation sur le site</a>${r === 'lieux' ? `<a class="btn" href="#/lieux">Gérer les ${nbLieux} lieux</a>` : `<button class="btn" data-new="${esc(r)}">+ Créer dans « ${esc(rub.nom || '')} »</button>`}</div>
         <form id="rf" class="g3"><label>Nom<input name="nom" value="${esc(rub.nom || '')}"></label><label>Accroche (sur la vignette)<input name="accroche" value="${esc(rub.accroche || '')}" placeholder="ex. Le monde entier à votre table"></label><label>Statut<select name="statut"><option value="visible">Visible</option><option value="masque"${rub.statut === 'masque' ? ' selected' : ''}>Masquée</option></select></label>
