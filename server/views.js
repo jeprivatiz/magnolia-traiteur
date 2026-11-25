@@ -126,6 +126,7 @@ ${schema ? `<script type="application/ld+json">${JSON.stringify(schema).replace(
   </div>
   <div class="foot-bas"><p>${esc(R.mentionPied || '')}</p><p><a href="/mentions-legales">Mentions légales</a> · <a href="/confidentialite">Confidentialité</a> · <a href="/cgv">CGV</a> · <a href="/allergenes">Allergènes</a><span data-cookies> · <a href="#cookies">Gérer mes cookies</a></span> · © ${new Date().getFullYear()} ${esc(R.nom)}</p></div>
 </footer>
+${path === '/' ? '' : `<button type="button" class="retour" data-retour aria-label="Revenir à la page précédente"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5m6-6-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Revenir à la<br>page précédente</span></button>`}
 ${/^\/(espace-client|ma-selection)/.test(path) ? '' : `<button type="button" class="partage" data-partage aria-label="Partager cette page">${icon.share}<span>Partager</span></button>`}
 <div class="toast" data-toast role="status" aria-live="polite"></div>
 <script>window.MG=${JSON.stringify({ tel: R.telephone, tarifs: R.tarifs, origine: R.origine, evenements: R.evenements }).replace(/</g, '\\u003c')};</script>
