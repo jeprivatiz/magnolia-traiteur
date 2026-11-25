@@ -1955,7 +1955,7 @@
     if (new URLSearchParams(location.hash.split('?')[1] || '').get('sansmarge')) return pageSansMarge(rubs, prods);
     const r = new URLSearchParams(location.hash.split('?')[1] || '').get('r') || cache.catR || rubs[0]?.slug;
     cache.catR = r;
-    const liste = prods.filter(p => p.rubrique === r).sort((a, b) => (b.maison ? 1 : 0) - (a.maison ? 1 : 0) || (a.ordre ?? 0) - (b.ordre ?? 0));
+    const liste = masquesALaFin(prods.filter(p => p.rubrique === r).sort(ordreSite));
     const rub = rubs.find(x => x.slug === r) || {};
     const titreCat = 'Catalogue' + pavesCat(prods, 'produits');
     return page(titreCat, `<input type="search" placeholder="Rechercher dans tout le catalogue…" data-q>`, `
@@ -2150,13 +2150,16 @@
   const LIEUX_CARTE = [['espagne', 'Espagne'], ['portugal', 'Portugal'], ['italie', 'Italie'], ['grece', 'Grèce'], ['france', 'France'], ['liban', 'Liban'], ['turquie', 'Turquie'], ['maghreb', 'Maghreb (Maroc, Algérie, Tunisie)'], ['maroc', 'Maroc'], ['algerie', 'Algérie'], ['tunisie', 'Tunisie'], ['afrique', 'Afrique (tout le continent)'], ['senegal', 'Sénégal'], ['cote-d-ivoire', 'Côte d’Ivoire'], ['cameroun', 'Cameroun'], ['congo', 'Congo'], ['antilles', 'Antilles'], ['reunion', 'La Réunion'], ['polynesie', 'Polynésie'], ['mexique', 'Mexique'], ['bresil', 'Brésil'], ['perou', 'Pérou'], ['argentine', 'Argentine'], ['etats-unis', 'États-Unis'], ['inde', 'Inde'], ['chine', 'Chine'], ['japon', 'Japon'], ['coree', 'Corée'], ['vietnam', 'Vietnam'], ['thailande', 'Thaïlande']];
   const fournisseursConnus = () => [...new Set((cache.produits || []).flatMap(x => [...(x.fournisseurs || []), ...(x.fournisseur ? [x.fournisseur] : [])]).map(x => String(x).trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
   const sansMarge = p => p.statut !== 'masque' && p.prixCents != null && (p.coutCents == null || p.coutCents >= p.prixCents);
+  /* produits visibles d'abord, masqués à la fin, en gardant l'ordre choisi dans chaque groupe (Jean-Luc 2026-11-25) */
+  const masquesALaFin = L => [...L.filter(p => p.statut !== 'masque'), ...L.filter(p => p.statut === 'masque')];
+  const ordreSite = (a, b) => (b.maison ? 1 : 0) - (a.maison ? 1 : 0) || (a.ordre ?? 0) - (b.ordre ?? 0);
   const prow = p => `<a class="prow${p.statut === 'masque' ? ' hid' : ''}" href="#/catalogue/${p.id || p.slug}">${p.photos?.[0]?.src ? `<img src="${esc(p.photos[0].src)}" alt="" loading="lazy">` : '<span class="ph0"></span>'}<span><b>${titreHtml(p.titre)}</b><small>${p.prixCents == null ? 'Sur devis' : euros(p.prixCents) + (p.unite ? ' / ' + esc(p.unite) : '')}${p.min > 1 ? ' · min. ' + p.min : ''}</small></span><span class="pill ${p.statut === 'masque' ? 'd-refuse' : 'd-accepte'}">${p.statut === 'masque' ? 'Masqué' : 'Visible'}</span>${p.maison ? '<span class="pill" title="Réglage « Ordre sur le site » de la fiche : produit affiché en premier">★ En premier sur le site</span>' : ''}${sansMarge(p) ? `<span class="pill smpill">${p.coutCents == null ? 'Prix d’achat manquant' : 'Vendu à perte'}</span>` : ''}${p.sous ? `<span class="pill">${esc(((cache.rubriques || []).find(r => r.slug === p.rubrique)?.sous || []).find(x => x.slug === p.sous)?.nom || '')}</span>` : ''}</a>`;
   catalogue.after = () => {
     if (new URLSearchParams(location.hash.split('?')[1] || '').get('masques')) return apresMasques();
     if (new URLSearchParams(location.hash.split('?')[1] || '').get('sansmarge')) return apresSansMarge();
     $('[data-q]').addEventListener('input', e => {
       const q = e.target.value.toLowerCase().trim(); if (cache.catR === 'lieux') $('.prodbox').hidden = !q;
-      $('#plist').innerHTML = (q ? cache.produits.filter(p => (p.titre + ' ' + (p.extrait || '')).toLowerCase().includes(q)) : cache.produits.filter(p => p.rubrique === cache.catR)).map(prow).join('') || '<p class="muted">Aucun résultat.</p>';
+      $('#plist').innerHTML = masquesALaFin(q ? cache.produits.filter(p => (p.titre + ' ' + (p.extrait || '')).toLowerCase().includes(q)) : cache.produits.filter(p => p.rubrique === cache.catR).sort(ordreSite)).map(prow).join('') || '<p class="muted">Aucun résultat.</p>';
     });
     $('[data-new]')?.addEventListener('click', async e => {
       const titre = prompt('Nom de la nouvelle prestation ?'); if (!titre) return;
@@ -2202,8 +2205,9 @@
       const tri = $('[data-tri]').value, vis = $('[data-vis]').value;
       if (vis) L = L.filter(p => (p.statut === 'masque') === (vis === 'masque'));
       const nom = (a, b) => String(a.titre || '').localeCompare(String(b.titre || ''), 'fr', { sensitivity: 'base' });
-      if (tri === 'az') L.sort(nom); else if (tri === 'za') L.sort((a, b) => nom(b, a));
+      if (tri === 'az') L.sort(nom); else if (tri === 'za') L.sort((a, b) => nom(b, a)); else if (!tri) L.sort(ordreSite);
       else if (tri === 'p+' || tri === 'p-') L.sort((a, b) => (a.prixCents == null) - (b.prixCents == null) || (tri === 'p-' ? -1 : 1) * ((a.prixCents || 0) - (b.prixCents || 0)) || nom(a, b));
+      L = masquesALaFin(L);
       $('#plist').innerHTML = L.map(prow).join('') || '<p class="muted">Aucune prestation ne correspond.</p>';
       $('[data-pqn]').textContent = q || vis ? `${L.length} résultat${L.length > 1 ? 's' : ''}` : '';
     };
