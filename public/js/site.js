@@ -390,7 +390,7 @@
       formule();
       const r = read();
       const t = $('[data-conf-total]', form);
-      if (t) t.textContent = r.total == null ? 'Sur devis' : euros(r.total);
+      if (t) t.textContent = r.total == null ? (P.prixAffiche || 'Sur devis') : euros(r.total);
       const u = $('[data-unit]', form); if (u) u.textContent = plur(P.unite || '', r.qte);
       $$('[data-g]', form).forEach(fs => {
         if ($('[data-oq]', fs)) return portions(fs, r.qte);
