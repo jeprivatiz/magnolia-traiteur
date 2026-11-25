@@ -314,7 +314,9 @@
       return `<li class="st-cr${sousL ? ' st-sous' : ''}" title="${esc(x.nom)} : ${c?.pct == null ? 'marge inconnue' : pctTxt(c.pct) + ' de marge moyenne'}">${photo(x.photo, 'st-av')}<span class="st-cn"><b>${esc(x.nom)}</b><small>${lab}</small></span>
         <span class="st-ct"><i class="st-gx" style="width:${c?.pct == null ? 0 : Math.max(1.5, Math.min(100, c.pct))}%"></i></span><span class="st-cv${c?.pct == null ? ' vide' : ''}">${pctTxt(c?.pct)}</span></li>`;
     };
-    const lignesCat = s.rubriques.map(r => barreCat(r) + (r.sous || []).map(x => barreCat(x, true)).join('')).join('');
+    /* du plus fort au plus faible (Jean-Luc 2026-11-25) : rubriques triées par marge moyenne, et les spécialités de Saveurs du monde aussi, sous leur rubrique ; sans marge connue = en bas */
+    const parMarge = L => L.slice().sort((a, b) => (b.catalogue?.pct ?? -1) - (a.catalogue?.pct ?? -1));
+    const lignesCat = parMarge(s.rubriques).map(r => barreCat(r) + parMarge(r.sous || []).map(x => barreCat(x, true)).join('')).join('');
     /* courbe par mois : la barre = CA HT signé, la partie dorée = la marge HT */
     const histo = (v, grand) => {
       const max = Math.max(1, ...v.serie.map(x => x.venteHtCents));
@@ -354,7 +356,7 @@
           <select class="st-sel" data-strubp aria-label="Rubrique"><option value="">Toutes les rubriques</option>${[...new Set((s.produits || []).map(x => x.rubrique).filter(Boolean))].map(n => `<option${statistiques.rubP === n ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select>
           <label class="st-loupe"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg><input type="search" data-stqp placeholder="Rechercher un produit…" aria-label="Rechercher un produit" value="${esc(statistiques.qP || '')}" autocomplete="off"></label></div>
           <p class="muted sm" data-stpinfo></p><ol class="st-rank st-prods" data-stprods></ol><div class="st-plus" data-stplus></div>`)}
-      ${pli('rubriques', 'Marge moyenne du catalogue par rubrique', `<p class="muted sm">Moyenne des marges des produits visibles qui ont un prix d’achat, en % du prix de vente HT (le même calcul que le pavé « marge moyenne » du Catalogue). <a href="#/catalogue">Ouvrir le Catalogue →</a></p>
+      ${pli('rubriques', 'Marge moyenne du catalogue par rubrique', `<p class="muted sm">Moyenne des marges des produits visibles qui ont un prix d’achat, en % du prix de vente HT (le même calcul que le pavé « marge moyenne » du Catalogue), <b>de la meilleure à la plus faible</b>. <a href="#/catalogue">Ouvrir le Catalogue →</a></p>
         <ul class="st-cl">${lignesCat}</ul>`)}
       ${pli('rapporte', 'Ce que chaque rubrique rapporte', `<p class="st-leg st-leg0"><span><i class="ca"></i>CA HT par mois</span><span><i class="mg"></i>dont marge</span></p>
         <div class="st-grid">${cartes}</div>
