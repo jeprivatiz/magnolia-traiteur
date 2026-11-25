@@ -572,12 +572,20 @@ function allergenesHtml(p) {
     ? `<p class="pastilles">${l.map(a => `<span>${esc(a)}</span>`).join('')}</p>`
     : '<p class="small">Liste détaillée sur simple demande.</p>'}<p class="small">Préparé dans un laboratoire qui travaille aussi les 14 allergènes réglementaires : des traces sont possibles. <a href="/allergenes">En savoir plus</a></p><p class="allerg-contact">Merci de nous contacter pour parler des produits qui vous sont contre-indiqués avant validation de votre devis.</p></section>`;
 }
+/* Fiches liées (Jean-Luc, 2026-11-25, modèle : Open bar vins et champagnes) : au lieu d'afficher le prix des barmans ou des verres,
+   une vignette mène à la fiche correspondante, où le client choisit lui-même (nombre de barmans et d'heures, verres) et l'ajoute à sa demande.
+   Champ produit `liees` : [{ slug, titre?, texte }]. */
+function fichesLiees(c, p) {
+  const L = (p.liees || []).map(l => ({ l, x: c.produits.find(y => y.slug === l.slug && y.statut !== 'masque') })).filter(o => o.x);
+  if (!L.length) return '';
+  return `<div class="liees">${L.map(({ l, x }) => { const ph = x.photos?.[0]; return `<a class="liee" href="${prodHref(x)}">${img(ph?.src, ph?.alt || titreTexte(x.titre))}<span><b>${esc(l.titre || titreTexte(x.titre))}</b><small>${esc(l.texte || '')}</small><em>Choisir ${icon.arrow}</em></span></a>`; }).join('')}</div>`;
+}
 function produit(c, p) {
   const r = c.rubriques.find(x => x.slug === p.rubrique) || { nom: '', slug: p.rubrique };
   const R = c.reglages, T = R.tarifs || {};
   const photos = p.photos || [];
   const proches = (c.byRub.get(p.rubrique) || []).filter(x => x.slug !== p.slug).slice(0, 8);
-  const prixTxt = p.prixCents == null ? 'Sur devis' : euros(p.prixCents);
+  const prixTxt = p.prixCents == null ? (p.prixAffiche || 'Sur devis') : euros(p.prixCents);
   /* prix selon la contenance (corbeilles) : fourchette « 78,00 € – 156,00 € » */
   const gR = (p.groupes || []).find(g => g.radio && (g.options || []).length > 1);
   const prixMax = gR && p.prixCents != null ? p.prixCents + Math.max(...gR.options.map(o => o.supCents || 0)) : null;
@@ -602,6 +610,7 @@ function produit(c, p) {
       <h1>${titreHtml(p.titre)}</h1>
       <p class="fiche-prix"><b>${esc(prixHaut)}</b>${p.prixCents != null ? ` <span>TTC${p.unite ? ' par ' + esc(p.unite) : ''}${p.contenuPortion ? ` <strong class="portion">(${esc(p.contenuPortion)})</strong>` : ''}</span>` : ''}${p.min > 1 ? `<span class="min">· dès ${p.min} ${esc(p.unite || '')}${p.min > 1 && p.unite && !/s$/.test(p.unite) ? 's' : ''}</span>` : ''}</p>
       ${(p.description || [p.extrait]).filter(Boolean).map(t => `<p class="desc">${esc(t)}</p>`).join('')}
+      ${fichesLiees(c, p)}
       <form class="conf" data-conf='${esc(JSON.stringify(conf))}' novalidate>
         <div data-conf-body></div>
         <div class="conf-tot"><span>Total estimé</span><b data-conf-total>${esc(prixTxt)}</b></div>

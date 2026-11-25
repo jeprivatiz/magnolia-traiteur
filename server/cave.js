@@ -122,9 +122,79 @@ async function ajoutsCave(store) {
   return n;
 }
 
+/* Open bar vins et champagnes (Jean-Luc, 2026-11-25, texte de son ancien site) : aucun prix de barman ni de verre sur la fiche ;
+   des vignettes mènent à la fiche Barman (nombre de barmans et d'heures) et à la fiche Verres en verre.
+   Fiche Barman : forfait de son ancien site, 229 € HT pour un barman, lu comme 4 heures minimum → 57,25 € HT = 68,70 € TTC de l'heure (TVA 20 %). */
+const BARMAN_HEURE = 6870;
+const BARMAN = {
+  id: 'barman', slug: 'barman', rubrique: 'personnel', autresRubriques: ['boissons'], sous: '', autresSous: [], rangement: 'bars', titre: 'Barman',
+  prixCents: BARMAN_HEURE, coutCents: null, prixTexte: null, unite: 'heure', min: 4, minimumTexte: null,
+  extrait: 'Un barman pour servir vos invités au bar : open bar, cocktails, champagne. Un barman pour 30 à 40 invités environ.',
+  description: ['Nos barmans tiennent votre bar pendant toute la durée de l’événement : ils servent vos invités, ouvrent et rafraîchissent les bouteilles, gardent le bar propre et rangé.',
+    'Comptez un barman pour 30 à 40 invités environ, selon l’événement. Choisissez le nombre de barmans, puis le nombre d’heures (4 heures minimum).'],
+  sections: [], details: [], photos: [{ src: px(5531479), alt: 'Barman qui sert un cocktail au bar' }], video: null,
+  groupes: [{ id: 'barmans', titre: 'Nombre de barmans', radio: true, max: 1, exact: true, aide: 'Un barman pour 30 à 40 invités environ.',
+    options: [1, 2, 3, 4, 5].map(n => ({ id: n + 'b', label: n === 1 ? '1 barman (jusqu’à 40 invités)' : `${n} barmans (jusqu’à ${n * 40} invités)`, supCents: (n - 1) * BARMAN_HEURE })) }],
+  variantes: [], regles: { horaire: true }, ordre: 5, statut: 'visible', maison: true, tva: 20, allergenes: [], aCompleter: false,
+};
+const OPEN_BAR_VC = {
+  prixAffiche: 'Selon consommation',
+  extrait: 'Un open bar vins et champagnes pour toute la durée de votre événement : vous ne payez que les bouteilles consommées.',
+  description: [
+    'Mise en place d’un open bar vins et champagnes pour toute la durée de votre événement.',
+    'L’avantage de cette formule : vous ne payez que les bouteilles que vous aurez consommées, après un minimum de consommation demandé.',
+    'Les bouteilles sont comptées avant le début de votre événement et un inventaire est fait à la fin, tout cela en votre présence.',
+  ],
+  sections: [{ titre: 'Nous vous installons un stand avec', note: null, apres: null, paragraphes: [], items: [
+    'Un ou plusieurs barmans pour servir vos invités (1 pour 30 à 40 personnes environ, selon l’événement)',
+    'Un espace bar avec son nappage',
+    'Des vasques à champagne',
+    'Des glaçons et un bac isotherme pour refroidir les bouteilles',
+    'Des verres éco-responsables (vrais verres en option)'] }],
+  details: ['Personnel Magnolia obligatoire ; chèque de caution ; seuls les vins et champagnes Magnolia sont servis.'],
+  liees: [
+    { slug: 'barman', titre: 'Vos barmans', texte: 'Validez le nombre de barmans et d’heures sur la fiche Barman (1 barman pour 30 à 40 invités).' },
+    { slug: 'verres-en-verre-vin-coupes-a-champagne', titre: 'Vrais verres en option', texte: 'Pour servir dans de vrais verres, ajoutez-les à votre demande depuis la fiche Verres.' },
+  ],
+};
+async function openBarCave(store) {
+  if (await store.get('_migr/openBarVC1')) return;
+  if (!(await store.get('produits/barman'))) await store.set('produits/barman', { ...BARMAN, createdAt: new Date().toISOString() });
+  const x = await store.get('produits/open-bar-vins-et-champagnes');
+  if (x) await store.set('produits/open-bar-vins-et-champagnes', { ...x, ...OPEN_BAR_VC });
+  await store.set('_migr/openBarVC1', { at: new Date().toISOString() });
+}
+
+/* Sodas (Jean-Luc, 2026-11-25) : plus de Paris Cola ni de Parismonade ; Coca-Cola et Coca-Cola Zéro en bouteille de 1,5 L.
+   Prix : environ 4,50 € HT chez les traiteurs → TTC (10 %) + 10 % = 5,50 €. */
+const SODAS_RETIRES = ['paris-cola-33-cl', 'paris-cola-zero-33-cl', 'parismonade-33-cl', 'parismonade-75-cl', 'paris-cola-75-cl'];
+const SODAS_COCA = [
+  { slug: 'coca-cola-1-5-l', titre: 'Coca-Cola (1,5 L)', ordre: 14, photo: [px(35020136), 'Bouteille de Coca-Cola'],
+    extrait: 'Coca-Cola original, grande bouteille de 1,5 litre à partager.', description: ['Coca-Cola original, grande bouteille de 1,5 litre à partager.', FRAIS] },
+  { slug: 'coca-cola-zero-1-5-l', titre: 'Coca-Cola Zéro (1,5 L)', ordre: 14.5, photo: [px(19504042), 'Coca-Cola Zéro Sucre bien frais'],
+    extrait: 'Coca-Cola Zéro sucre, grande bouteille de 1,5 litre à partager.', description: ['Coca-Cola Zéro sucre, grande bouteille de 1,5 litre à partager.', FRAIS] },
+];
+async function sodasCave(store) {
+  if (await store.get('_migr/caveSodas1')) return;
+  for (const slug of SODAS_RETIRES) {
+    const x = await store.get('produits/' + slug);
+    if (x && x.statut !== 'masque') await store.set('produits/' + slug, { ...x, statut: 'masque', masqueCave: true });
+  }
+  for (const x of SODAS_COCA) {
+    if (await store.get('produits/' + x.slug)) continue;
+    await store.set('produits/' + x.slug, {
+      id: x.slug, slug: x.slug, rubrique: 'boissons', autresRubriques: [], sous: '', autresSous: [], rangement: 'sodas', titre: x.titre, prixCents: ttc(4.5, 10), coutCents: null, prixTexte: null,
+      unite: 'bouteille', min: 1, minimumTexte: null, extrait: x.extrait, description: x.description, sections: [], details: [],
+      photos: [{ src: x.photo[0], alt: x.photo[1] }], video: null, groupes: [], variantes: [], regles: {}, ordre: x.ordre, statut: 'visible', maison: false, tva: 10,
+      allergenes: [], aCompleter: false, createdAt: new Date().toISOString(),
+    });
+  }
+  await store.set('_migr/caveSodas1', { at: new Date().toISOString() });
+}
+
 async function initCave(store) {
   await prixCave(store);
-  if (await store.get('_migr/caveCercle')) return ajoutsCave(store);
+  if (await store.get('_migr/caveCercle')) { await openBarCave(store); await sodasCave(store); return ajoutsCave(store); }
   const now = new Date().toISOString();
   let n = 0;
   for (const d of await store.list('produits')) {
@@ -161,7 +231,9 @@ async function initCave(store) {
     });
   }
   await store.set('_migr/caveCercle', { at: now, crees: n });
+  await openBarCave(store);
+  await sodasCave(store);
   return n + await ajoutsCave(store);
 }
 
-module.exports = { CAVE_SECTIONS, CAVE_PRODUITS, AJOUTS_CAVE, CAVE_GARDEES, INTRO_CAVE, ttc, initCave };
+module.exports = { BARMAN, OPEN_BAR_VC, CAVE_SECTIONS, CAVE_PRODUITS, AJOUTS_CAVE, CAVE_GARDEES, INTRO_CAVE, ttc, initCave };

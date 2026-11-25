@@ -41,5 +41,9 @@ test('initCave : anciens vins masqués, nos open bars gardés, nouvelles fiches 
   assert.ok(r.parSections && r.tuilesSections);
   assert.deepEqual(r.sectionsVedette, ['champagne']);
   assert.match(r.introTitre, /cave/);
+  assert.equal(docs.get('produits/paris-cola-33-cl').statut, 'masque');
+  assert.equal(docs.get('produits/coca-cola-1-5-l').prixCents, 550);
+  assert.ok(docs.get('produits/barman').groupes[0].options.length === 5);
+  assert.equal(docs.get('produits/barman').prixCents, 6870);
   assert.equal(await initCave(store), 0);
 });
