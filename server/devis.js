@@ -22,12 +22,20 @@ const totalSupplements = s => (s || []).reduce((t, x) => t + x.n * x.puCents, 0)
 /* ligne de livraison (Jean-Luc, 2026-11-25) : vendue volontairement sous son coût (remise des paliers), jamais bloquée par le contrôle de marge,
    jamais touchée par la remise globale du devis, et seulement modifiable par un administrateur */
 const estLivraison = l => !!(l && (l.livraison || l.unite === 'km'));
-/* part de chaque ligne après la remise sur le total : la remise ne porte que sur les lignes hors livraison */
+/* ligne de personnel (Jean-Luc, 2026-11-25) : personnel de service, barman, maître d'hôtel, régisseur, heures supplémentaires…
+   prix et remise réservés à l'administrateur, jamais touchée par la remise globale. Repérée par son drapeau `personnel`
+   (posé à la création et à chaque enregistrement), ou par la rubrique Personnel de sa fiche catalogue. */
+const RUB_PERSONNEL = 'personnel';
+const produitPersonnel = p => !!(p && (p.rubrique === RUB_PERSONNEL || (p.autresRubriques || []).includes(RUB_PERSONNEL)));
+const estPersonnel = (l, bySlug) => !!(l && l.type !== 'titre' && (l.personnel === true || (bySlug && produitPersonnel(bySlug.get(l.produit)))));
+/* lignes protégées : hors remise globale */
+const horsRemise = l => estLivraison(l) || l?.personnel === true;
+/* part de chaque ligne après la remise sur le total : la remise ne porte que sur les lignes hors livraison et hors personnel */
 function ratioRemise(lignes, remiseCents) {
-  const hors = lignes.filter(l => !estLivraison(l)).reduce((s, l) => s + Math.round((l.puCents || 0) * (Number(l.qte) || 0)), 0);
+  const hors = lignes.filter(l => !horsRemise(l)).reduce((s, l) => s + Math.round((l.puCents || 0) * (Number(l.qte) || 0)), 0);
   const remise = Math.min(hors, Math.max(0, Math.round(remiseCents || 0)));
   const r = hors ? (hors - remise) / hors : 1;
-  return { remise, ratio: l => (estLivraison(l) ? 1 : r) };
+  return { remise, ratio: l => (horsRemise(l) ? 1 : r) };
 }
 
 /* l'IA (devis préparé au téléphone) ne coche pas les portions : on retrouve dans sa note les plats à supplément
@@ -152,13 +160,13 @@ function lignesDepuisDemande(demande, catalogue, tarifs = {}) {
       detail: [l.resume, l.note ? 'Note : ' + l.note : ''].filter(Boolean).join(' — '),
       qte: Number(l.qte) || 1, unite: l.unite || p?.unite || '',
       puCents: (l.prixCents ?? p?.prixCents ?? 0) + (l.supCents || 0), coutCents: coutLigne(l, p),
-      tva: p?.tva ?? 10, produit: l.slug,
+      tva: p?.tva ?? 10, produit: l.slug, ...(produitPersonnel(p) ? { personnel: true } : {}),
     });
     for (const x of supplementsParPart(l, p)) {
       out.push({ designation: 'Supplément ' + x.label.toLowerCase(), detail: `${titreTexte(l.titre)} · ${x.n} part${x.n > 1 ? 's' : ''} × ${(x.puCents / 100).toLocaleString('fr-FR')} € TTC`, qte: x.n, unite: 'part', puCents: x.puCents, coutCents: x.coutCents, tva: p?.tva ?? 10, supplement: x.id });
     }
     if (l.personnel?.nb) {
-      out.push({ designation: tarifs.personnel?.label || 'Personnel de service', detail: `${l.personnel.nb} pers. × ${l.personnel.heures} h`, qte: l.personnel.nb * l.personnel.heures, unite: 'heure', puCents: tarifs.personnel?.heureCents || 4188, coutCents: null, tva: 20 });
+      out.push({ designation: tarifs.personnel?.label || 'Personnel de service', detail: `${l.personnel.nb} pers. × ${l.personnel.heures} h`, qte: l.personnel.nb * l.personnel.heures, unite: 'heure', personnel: true, puCents: tarifs.personnel?.heureCents || 4188, coutCents: null, tva: 20 });
     }
     if (l.pack?.id) {
       const pk = (tarifs.packs || []).find(x => x.id === l.pack.id);
@@ -209,6 +217,33 @@ function verrouLivraison(avant, lignes, tarifs = {}) {
   });
   if (restantes.length) return { erreur: 'La ligne de livraison ne peut être modifiée ou retirée que par un administrateur.' };
   return { lignes: out };
+}
+
+/* Personnel verrouillé (Jean-Luc, 2026-11-25) : sans le droit Administrateur, le prix, la remise, le prix d'achat et la TVA
+   d'une ligne de personnel ne changent pas. Le nombre (personnes × heures) reste libre, la ligne peut être retirée.
+   Une ligne déjà enregistrée garde ses prix ; une nouvelle prend le prix du catalogue (ou le tarif horaire du personnel). */
+function verrouPersonnel(avant, lignes, catalogue = {}, tarifs = {}) {
+  const bySlug = catalogue.bySlug || new Map();
+  const id = l => l.produit ? 'p:' + l.produit : 'd:' + String(l.designation || '').trim().toLowerCase();
+  const prix = l => ({ puCents: l.puCents ?? 0, puBaseCents: l.puBaseCents, remisePct: l.remisePct, coutCents: l.coutCents ?? null, tva: l.tva });
+  const anciens = new Map();
+  for (const l of (avant && avant.lignes) || []) if (estPersonnel(l, bySlug) && !anciens.has(id(l))) anciens.set(id(l), prix(l));
+  return (lignes || []).map(l => {
+    if (!estPersonnel(l, bySlug)) return l;
+    const n = { ...l, personnel: true };
+    delete n.puBaseCents; delete n.remisePct;
+    const a = anciens.get(id(l));
+    if (a) { Object.assign(n, { puCents: a.puCents, coutCents: a.coutCents, tva: a.tva }); if (a.remisePct) Object.assign(n, { puBaseCents: a.puBaseCents, remisePct: a.remisePct }); return n; }
+    const p = bySlug.get(l.produit);
+    if (p) Object.assign(n, { puCents: p.prixCents ?? 0, coutCents: p.coutCents ?? null, tva: p.tva ?? 20 });
+    else Object.assign(n, { puCents: tarifs.personnel?.heureCents || 4188, tva: 20 });
+    return n;
+  });
+}
+/* drapeau `personnel` posé sur les lignes venues de la rubrique Personnel (pour la remise globale et l'écran Devis) */
+function marquerPersonnel(lignes, catalogue = {}) {
+  const bySlug = catalogue.bySlug || new Map();
+  return (lignes || []).map(l => (l.personnel !== true && estPersonnel(l, bySlug) ? { ...l, personnel: true } : l));
 }
 
 /* estimation d'une ligne de sélection (contrôle serveur du total affiché au client) */
@@ -263,4 +298,4 @@ function raisonsDevisManuel(demande, catalogue, T = {}, now = new Date()) {
   return [...new Set(r)];
 }
 
-module.exports = { estLivraison, verrouLivraison, prixLivraison, raisonsDevisManuel, regleAcompte, totaux, controleMarge, prochainNumero, lignesDepuisDemande, estimerLigne, marge, coutLigne, supplementsParPart, totalSupplements, choixDepuisNote };
+module.exports = { estLivraison, estPersonnel, verrouPersonnel, marquerPersonnel, verrouLivraison, prixLivraison, raisonsDevisManuel, regleAcompte, totaux, controleMarge, prochainNumero, lignesDepuisDemande, estimerLigne, marge, coutLigne, supplementsParPart, totalSupplements, choixDepuisNote };

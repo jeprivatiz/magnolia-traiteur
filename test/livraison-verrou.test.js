@@ -34,3 +34,21 @@ test('un commercial ne touche pas à la ligne de livraison ; l’administrateur 
     assert.equal((await chef('/api/admin/devis/' + id, { method: 'PUT', body: { ...d2, lignes: [buffet, { ...liv, puCents: 0, remisePct: 100 }] } })).status, 200, 'l’administrateur peut l’offrir');
   } finally { srv.close(); }
 });
+
+test('personnel : prix et remise verrouillés pour un commercial, quantité libre, hors remise globale', () => {
+  const { verrouPersonnel, totaux, marquerPersonnel } = require('../server/devis');
+  const cat = { bySlug: new Map([['barman', { slug: 'barman', rubrique: 'personnel', prixCents: 3500, coutCents: 2000, tva: 20 }]]) };
+  const serv = { designation: 'Personnel de service polyvalent', qte: 8, unite: 'heure', puCents: 4188, tva: 20, personnel: true };
+  const bar = { designation: 'Barman', qte: 4, unite: 'heure', puCents: 3500, coutCents: 2000, tva: 20, produit: 'barman' };
+  const avant = { lignes: [serv, bar] };
+  /* remise et prix changés par un commercial : remis comme avant ; quantité gardée */
+  const apres = verrouPersonnel(avant, [{ ...serv, qte: 12, puCents: 3000 }, { ...bar, puBaseCents: 3500, remisePct: 50, puCents: 1750 }], cat, {});
+  assert.equal(apres[0].qte, 12); assert.equal(apres[0].puCents, 4188);
+  assert.equal(apres[1].puCents, 3500); assert.equal(apres[1].remisePct, undefined); assert.equal(apres[1].personnel, true);
+  /* nouvelle ligne de personnel : prix du catalogue */
+  const neuf = verrouPersonnel({ lignes: [] }, [{ ...bar, puCents: 100 }], cat, {});
+  assert.equal(neuf[0].puCents, 3500);
+  /* remise globale : ni livraison ni personnel */
+  const doc = { remiseCents: 10000, lignes: marquerPersonnel([{ designation: 'Buffet', qte: 1, puCents: 100000, tva: 10 }, bar], cat) };
+  assert.equal(totaux(doc).ttcCents, 100000 - 10000 + 14000);
+});
