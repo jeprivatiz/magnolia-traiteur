@@ -6,6 +6,7 @@
  * Le serveur revérifie tout ce qu'elle propose : prestation existante et visible, quantité au moins égale au minimum.
  */
 const { avecPortion } = require('./util');
+const LIVR = require('../public/js/livraison-paliers');
 
 /* client Anthropic : clé ANTHROPIC_API_KEY (variable Railway). opts.ask permet aux tests de simuler l'IA. */
 function createIa({ env = process.env, ask, log = console } = {}) {
@@ -71,7 +72,7 @@ function promptProduits(fiche, texte, compact, tarifs) {
 Règles :
 - Reprends d'abord ce que le client a demandé explicitement (plats, buffets, quantités). S'il reste vague (« un buffet antillais pour 40 »), propose la formule la plus adaptée et les quantités pour ses invités.
 - Quantité : pour une prestation « par personne », mets le nombre d'invités ; pour une prestation à la pièce ou à la portion, une quantité raisonnable pour le nombre d'invités ; JAMAIS moins que le minimum indiqué.
-- Ne propose pas le personnel, la livraison ni la vaisselle (déjà gérés à part : personnel ${euro(tarifs.personnel?.heureCents || 4188)} TTC/h, livraison ${euro(tarifs.kmCents || 100)} TTC/km aller-retour).
+- Ne propose pas le personnel, la livraison ni la vaisselle (déjà gérés à part : personnel ${euro(tarifs.personnel?.heureCents || 4188)} TTC/h, livraison au km aller-retour selon le total de la commande : ${LIVR.tranches(tarifs).map(t => `${t.libelle} → ${t.prix}`).join(', ')} ; hors Île-de-France : sur consultation).
 - Si le client donne un budget, respecte-le autant que possible.
 - note : les choix du client pour cette prestation (ex. « entrées : accras, boudins »), sinon "". Pour un plat « supplément … la part » (ex. coq roussi), écris le nombre de parts : « plats : colombo de poulet × 20, coq roussi × 20 » (le supplément est ajouté tout seul sur le devis).
 - pourquoi : raison courte en français (12 mots maximum).

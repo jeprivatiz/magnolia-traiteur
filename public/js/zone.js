@@ -1,5 +1,5 @@
 /* Page Zone de livraison : carte 3D de l'Île-de-France (MapLibre, sans fond de carte externe),
-   simulateur de frais (1 € TTC du km aller-retour, offerte dès 700 € TTC), trajet animé en arc. */
+   simulateur de frais (prix du km aller-retour par paliers selon le montant de la commande, livraison-paliers.js), trajet animé en arc. */
 (function () {
   'use strict';
   const root = document.querySelector('[data-zl]');
@@ -8,6 +8,7 @@
   const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
   const euros = c => (c / 100).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: c % 100 ? 2 : 0, maximumFractionDigits: 2 });
   const O = JSON.parse(root.dataset.zlOrigine), KM = +root.dataset.zlKm || 100, SEUIL = +root.dataset.zlSeuil || 0;
+  const TP = { livraisonPaliers: JSON.parse(root.dataset.zlPaliers || 'null') }, L = window.MGLivr;
   const TEL = (window.MG && MG.tel) || '';
   const IDF = ['75', '77', '78', '91', '92', '93', '94', '95'];
   const calme = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -27,7 +28,7 @@
     const v = +m.value;
     mout.textContent = euros(v);
     m.style.setProperty('--p', Math.min(100, v / +m.max * 100) + '%');
-    m.classList.toggle('ok', SEUIL > 0 && v >= SEUIL);
+    m.classList.toggle('ok', SEUIL > 0 && v > SEUIL);
     rendre();
   };
   m.addEventListener('input', majMontant);
@@ -40,16 +41,16 @@
     if (!IDF.includes(choix.dep)) {
       res.className = 'zl-res hors';
       res.innerHTML = `<p class="zl-res-v">${esc(choix.nom)}${choix.dep ? ` <small>${esc(choix.dep)}</small>` : ''}</p>
-        <p class="zl-res-p">Hors zone de livraison</p><p>Nous pouvons souvent livrer plus loin : contactez-nous, nous vous faisons une proposition.</p>
+        <p class="zl-res-p">Hors Île-de-France : nous consulter</p><p>Nous pouvons souvent livrer plus loin : contactez-nous, nous vous faisons une proposition.</p>
         <p class="row"><a class="btn btn-or" href="tel:${esc(TEL.replace(/\s/g, ''))}">Appeler le ${esc(TEL)}</a><a class="btn btn-ghost-light" href="/contact">Nous écrire</a></p>`;
       return;
     }
-    const km = kmAR(choix.lat, choix.lon), prix = km * KM, offerte = SEUIL > 0 && v >= SEUIL;
+    const pu = L ? L.kmCents(TP, v) : KM, km = kmAR(choix.lat, choix.lon), prix = km * (pu || KM), offerte = pu === 0;
     res.className = 'zl-res' + (offerte ? ' offerte' : '');
     res.innerHTML = `<p class="zl-res-v">${esc(choix.nom)} <small>${esc(choix.dep)}</small></p>
       <p class="zl-res-p">${offerte ? `<s>${euros(prix)}</s> Livraison offerte` : `${euros(prix)} <small>TTC</small>`}</p>
-      <p>Environ <b>${km} km</b> aller-retour depuis ${esc(O.nom)}${offerte ? '' : `, à ${euros(KM)} TTC du km`}.</p>
-      ${SEUIL > 0 && !offerte ? `<p class="zl-res-plus">Plus que <b>${euros(SEUIL - v)}</b> de commande pour une livraison offerte.</p>` : ''}
+      <p>Environ <b>${km} km</b> aller-retour depuis ${esc(O.nom)}${offerte ? '' : `, à ${euros(pu)} TTC du km pour ce montant de commande`}.</p>
+      ${L && !offerte && L.suivant(TP, v) ? `<p class="zl-res-plus">${esc(L.message(TP, v))}</p>` : ''}
       <p class="row"><a class="btn btn-or" href="/boutique">Composer ma sélection</a></p>`;
   }
 
@@ -169,7 +170,7 @@
         if (survol !== f.id) { if (survol != null) map.setFeatureState({ source: 'idf', id: survol }, { survol: false }); survol = f.id; map.setFeatureState({ source: 'idf', id: survol }, { survol: true }); }
         map.getCanvas().style.cursor = 'pointer';
         const km = kmAR(e.lngLat.lat, e.lngLat.lng);
-        tip.innerHTML = `<b>${esc(f.properties.nom)} <small>${esc(f.properties.code)}</small></b><span>Ici : environ ${km} km A/R · ${euros(km * KM)} TTC</span>`;
+        tip.innerHTML = `<b>${esc(f.properties.nom)} <small>${esc(f.properties.code)}</small></b><span>Ici : environ ${km} km A/R · ${euros(km * (L ? L.kmCents(TP, +m.value) || 0 : KM))} TTC</span>`;
         tip.style.transform = `translate(${e.point.x + 14}px, ${e.point.y + 14}px)`; tip.hidden = false;
       });
       map.on('mouseleave', 'deps', () => { if (survol != null) map.setFeatureState({ source: 'idf', id: survol }, { survol: false }); survol = null; tip.hidden = true; map.getCanvas().style.cursor = ''; });
@@ -192,7 +193,7 @@
         const dansIdf = IDF.includes(v.dep);
         if (dest) dest.remove();
         const el = document.createElement('div'); el.className = 'zl-dest' + (dansIdf ? '' : ' hors');
-        el.innerHTML = `<span>${esc(v.nom)}<small>${dansIdf ? `${kmAR(v.lat, v.lon)} km A/R` : 'Hors zone : nous contacter'}</small></span><i></i>`;
+        el.innerHTML = `<span>${esc(v.nom)}<small>${dansIdf ? `${kmAR(v.lat, v.lon)} km A/R` : 'Hors Île-de-France : nous consulter'}</small></span><i></i>`;
         dest = new ml.Marker({ element: el, anchor: 'bottom' }).setLngLat([v.lon, v.lat]).addTo(map);
         const d = volOiseau(v.lat, v.lon), N = 160, haut = 3500 + Math.min(16000, d * 260);
         const h0 = 2200, h1 = dansIdf ? (v.dep === '91' ? 2200 : 1500) : 0;

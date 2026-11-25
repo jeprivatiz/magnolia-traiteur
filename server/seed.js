@@ -75,8 +75,9 @@ const REGLAGES_DEFAUT = {
   logosClients: ['aircaraibes', 'doctolib', 'villedeparis', 'nestle', 'bnpparibas', 'loreal', 'accenture', 'armani', 'radisson', 'canon', 'cnrs', 'bpifrance', 'creditagricole', 'lcl']
     .map(k => ({ src: `/site/logos/${k}.svg`, nom: { aircaraibes: 'Air Caraïbes', doctolib: 'Doctolib', villedeparis: 'Ville de Paris', nestle: 'Nestlé', bnpparibas: 'BNP Paribas', loreal: 'L’Oréal', accenture: 'Accenture', armani: 'Giorgio Armani', radisson: 'Radisson Blu', canon: 'Canon', cnrs: 'CNRS', bpifrance: 'Bpifrance', creditagricole: 'Crédit Agricole', lcl: 'LCL' }[k] })),
   tarifs: {
-    kmCents: 100,
-    livraisonOfferteCents: 70000, /* livraison offerte dès 700 € TTC de commande (0 = jamais) */
+    kmCents: 100, /* ancien prix unique, remplacé par livraisonPaliers */
+    /* frais de livraison par paliers (Jean-Luc, 2026-11-25) : prix du km A/R selon le total TTC de la commande */
+    livraisonPaliers: require('../public/js/livraison-paliers').DEFAUT,
     personnel: { label: 'Personnel de service polyvalent', heureCents: 4188, minHeures: 4 },
     packs: [
       { id: 'petit', label: 'Petit Pack Traiteur éco-responsable', prixCents: 450, detail: 'Matériel de buffet, verres éco-responsables, assiettes biodégradables, couverts en bois et serviettes.' },
