@@ -282,9 +282,22 @@ async function cristalinePlate(store) {
   await store.set('_migr/caveCristalinePlate1', { at: new Date().toISOString() });
 }
 
+/* Jean-Luc (2026-11-25) : plus de Badoit ni de Perrier ; bandeau de la cave = vidéo sombre où l'on sert du champagne dans des flûtes
+   (montage de 2 vidéos Pexels, sources dans data/credits-photos-univers.md) */
+async function caveBandeauBadoit(store) {
+  if (await store.get('_migr/caveBandeau1')) return;
+  for (const slug of ['eau-badoit-50-cl', 'perrier-fines-bulles-1-l']) {
+    const x = await store.get('produits/' + slug);
+    if (x && x.statut !== 'masque') await store.set('produits/' + slug, { ...x, statut: 'masque', masqueCave: true });
+  }
+  const rb = await store.get('rubriques/boissons');
+  if (rb) await store.set('rubriques/boissons', { ...rb, bandeauVideo: '/site/v/bandeaux/cave-champagne.mp4', bandeauPoster: '/site/v/bandeaux/cave-champagne.jpg' });
+  await store.set('_migr/caveBandeau1', { at: new Date().toISOString() });
+}
+
 async function initCave(store) {
   await prixCave(store);
-  if (await store.get('_migr/caveCercle')) { await openBarCave(store); await sodasCave(store); await vinsCave(store); await eauxCave(store); await cocaPhotos(store); await cristalineGaz(store); await cristalinePlate(store); return ajoutsCave(store); }
+  if (await store.get('_migr/caveCercle')) { await openBarCave(store); await sodasCave(store); await vinsCave(store); await eauxCave(store); await cocaPhotos(store); await cristalineGaz(store); await cristalinePlate(store); await caveBandeauBadoit(store); return ajoutsCave(store); }
   const now = new Date().toISOString();
   let n = 0;
   for (const d of await store.list('produits')) {
@@ -328,6 +341,7 @@ async function initCave(store) {
   await cocaPhotos(store);
   await cristalineGaz(store);
   await cristalinePlate(store);
+  await caveBandeauBadoit(store);
   return n + await ajoutsCave(store);
 }
 
