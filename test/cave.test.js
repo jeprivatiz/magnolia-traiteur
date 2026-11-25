@@ -60,6 +60,7 @@ test('initCave : anciens vins masqués, nos open bars gardés, nouvelles fiches 
   assert.match(docs.get('produits/eau-plate-cristaline-1-5-l').photos[0].src, /cristaline-plate-1-5-l\.webp/);
   assert.equal(docs.get('produits/eau-badoit-50-cl').statut, 'masque');
   assert.equal(docs.get('produits/chateau-minuty-prestige-rose').prixCents, 3590);
+  { const g = docs.get('produits/barman').groupes.find(x => x.id === 'duree'); assert.equal(g.titre, 'Heures supplémentaires'); assert.equal(g.options.find(o => o.id === '6h').supCents, 7800); assert.match(g.options.find(o => o.id === '6h').label, /^2 heures supplémentaires/); }
   assert.equal(docs.get('produits/chateau-minuty-prestige-rose').coutCents, 1548);
   assert.equal(docs.get('produits/chateau-minuty-prestige-rose').fournisseurs[0], 'Metro');
   assert.equal(docs.get('produits/marrenon-luberon-classique-rose').prixCents, 1908);
