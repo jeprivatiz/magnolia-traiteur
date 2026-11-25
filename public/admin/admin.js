@@ -79,16 +79,16 @@
 
   /* ---------- structure ---------- */
   /* menu « Espace équipe » comme Je Privatise : CRM regroupe Demandes de devis, Suivi client, Devis et Factures */
-  const CRM = ['demandes', 'suivi', 'devis', 'factures', 'clients'];
+  const CRM = ['demandes', 'suivi', 'devis', 'factures', 'clients', 'statistiques'];
   const MENU = [
     ['', 'Tableau de bord'],
-    ['statistiques', 'Statistiques'],
     ['crm', 'CRM'],
     ['demandes', 'Demandes de devis'],
     ['suivi', 'Suivi client'],
     ['devis', 'Devis'],
     ['factures', 'Factures'],
     ['clients', 'Clients'],
+    ['statistiques', 'Statistiques'],
     ['agenda', 'Agenda'],
     ['-'],
     ['catalogue', 'Catalogue'],
@@ -106,7 +106,7 @@
     const open = CRM.includes(cur) || mem.get('mg_crm') === '1';
     const nb = cache.nouvelles ? String(cache.nouvelles) : '';
     const item = m => m[0] !== '-' && m[0] !== 'crm' && !voitEcran(m[0]) ? '' : m[0] === '-' ? '<hr>'
-      : m[0] === 'crm' ? `<button type="button" class="chip crm-btn" data-tab="crm" data-crm aria-expanded="${open}" title="Demandes de devis, Suivi client, Devis, Factures, Clients">CRM<span>${nb}</span></button>`
+      : m[0] === 'crm' ? `<button type="button" class="chip crm-btn" data-tab="crm" data-crm aria-expanded="${open}" title="Demandes de devis, Suivi client, Devis, Factures, Clients, Statistiques">CRM<span>${nb}</span></button>`
       : `<a href="#/${m[0]}" data-tab="${m[0]}" class="chip${CRM.includes(m[0]) ? ' crm-sub' : ''}${cur === m[0] ? ' on' : ''}"${cur === m[0] ? ' aria-current="page"' : ''}>${m[1]}${m[0] === 'demandes' ? `<span>${nb}</span>` : ''}</a>`;
     return `<div class="bo">
       <aside class="side" id="side"><a class="logo" href="#/"><img src="/brand/monogramme.svg" alt=""><span>Magnolia<small>Back-office</small></span></a><a class="go-site" href="/" target="_blank" rel="noopener">🌐 Aller sur le site ↗</a>
@@ -329,6 +329,9 @@
         : '<p class="st-foot">Aucun devis signé sur les 12 derniers mois.</p>'}</div></article>`;
     };
     const cartes = s.rubriques.flatMap(r => r.sous?.length ? [carte(r), ...r.sous.map(x => carte(x, r.nom))] : [carte(r)]).join('');
+    /* sections repliables (Jean-Luc 2026-11-25) : le back-office se souvient de ce qui est replié (mémoire du navigateur) */
+    const replie = statistiques.replie();
+    const pli = (k, titre, corps, cls = '') => `<details class="db-card st-pli ${cls}" data-pli="${k}"${replie.includes(k) ? '' : ' open'}><summary class="db-h"><h2>${titre}</h2><span class="st-chev" aria-hidden="true"></span></summary><div class="st-pc">${corps}</div></details>`;
     const p1 = s.mois[0], p2 = s.mois[s.mois.length - 1];
     return `<div class="db st">
       <section class="db-hero st-hero"><div class="db-hero-in">
@@ -340,20 +343,21 @@
           <span><b>${anim(T.venteHtCents, 'e')}</b><small>vendus HT en 12 mois</small></span>
           <span><b>${anim(T.margeHtCents, 'e')}</b><small>de marge HT · ${pctTxt(T.pct)}</small></span>
         </div></section>
+      <div class="st-outils"><button type="button" class="st-tc" data-stplier="1">▴ Tout replier</button><button type="button" class="st-tc" data-stplier="0">▾ Tout déplier</button></div>
       <div class="st-duo">
-        <section class="db-card st-podium"><div class="db-h"><h2>🏆 Le classement</h2></div>
-          <div class="st-tri">${[['e', 'Marge en €'], ['r', 'Marge réelle %'], ['c', 'Marge catalogue %']].map(([k, l]) => `<button type="button" class="st-tc${(statistiques.tri || 'e') === k ? ' on' : ''}" data-sttri="${k}" aria-pressed="${(statistiques.tri || 'e') === k}">${l}</button>`).join('')}</div>
-          <ol class="st-rank" data-strank></ol></section>
-        <section class="db-card"><div class="db-h"><h2>${ico('euro')} Ventes signées par mois</h2></div>
-          ${T.venteHtCents ? histo(T, true) : '<div class="db-vide"><p>Aucun devis signé sur les 12 derniers mois : les courbes se rempliront avec les premières signatures.</p></div>'}
-          <p class="st-leg"><span><i class="ca"></i>Chiffre d’affaires HT</span><span><i class="mg"></i>dont marge HT</span></p></section>
+        ${pli('classement', '🏆 Le classement', `<div class="st-tri">${[['e', 'Marge en €'], ['r', 'Marge réelle %'], ['c', 'Marge catalogue %']].map(([k, l]) => `<button type="button" class="st-tc${(statistiques.tri || 'e') === k ? ' on' : ''}" data-sttri="${k}" aria-pressed="${(statistiques.tri || 'e') === k}">${l}</button>`).join('')}</div>
+          <ol class="st-rank" data-strank></ol>`, 'st-podium')}
+        ${pli('mois', `${ico('euro')} Ventes signées par mois`, `${T.venteHtCents ? histo(T, true) : '<div class="db-vide"><p>Aucun devis signé sur les 12 derniers mois : les courbes se rempliront avec les premières signatures.</p></div>'}
+          <p class="st-leg"><span><i class="ca"></i>Chiffre d’affaires HT</span><span><i class="mg"></i>dont marge HT</span></p>`, 'st-mois')}
       </div>
-      <section class="db-card"><div class="db-h"><h2>Marge moyenne du catalogue par rubrique</h2><a class="db-lien" href="#/catalogue">Catalogue ${ico('arrow')}</a></div>
-        <p class="muted sm">Moyenne des marges des produits visibles qui ont un prix d’achat, en % du prix de vente HT (le même calcul que le pavé « marge moyenne » du Catalogue).</p>
-        <ul class="st-cl">${lignesCat}</ul></section>
-      <section><div class="st-sh"><h2>Ce que chaque rubrique rapporte</h2><p class="st-leg"><span><i class="ca"></i>CA HT par mois</span><span><i class="mg"></i>dont marge</span></p></div>
+      ${pli('produits', '⭐ Meilleurs produits', `<div class="st-tri">${[['p', 'Marge %'], ['ca', 'Chiffre d’affaires'], ['m', 'Marge en €'], ['f', 'Marge la plus faible']].map(([k, l]) => `<button type="button" class="st-tc${(statistiques.triP || 'p') === k ? ' on' : ''}" data-sttrip="${k}" aria-pressed="${(statistiques.triP || 'p') === k}">${l}</button>`).join('')}
+          <select class="st-sel" data-strubp aria-label="Rubrique"><option value="">Toutes les rubriques</option>${[...new Set((s.produits || []).map(x => x.rubrique).filter(Boolean))].map(n => `<option${statistiques.rubP === n ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select></div>
+          <p class="muted sm" data-stpinfo></p><ol class="st-rank st-prods" data-stprods></ol><div class="st-plus" data-stplus></div>`)}
+      ${pli('rubriques', 'Marge moyenne du catalogue par rubrique', `<p class="muted sm">Moyenne des marges des produits visibles qui ont un prix d’achat, en % du prix de vente HT (le même calcul que le pavé « marge moyenne » du Catalogue). <a href="#/catalogue">Ouvrir le Catalogue →</a></p>
+        <ul class="st-cl">${lignesCat}</ul>`)}
+      ${pli('rapporte', 'Ce que chaque rubrique rapporte', `<p class="st-leg st-leg0"><span><i class="ca"></i>CA HT par mois</span><span><i class="mg"></i>dont marge</span></p>
         <div class="st-grid">${cartes}</div>
-        <p class="muted sm st-note">Devis signés, au mois de la signature. Un produit rangé dans deux rubriques (par exemple une chaise dans « Indispensables » et « Mobilier et matériel à la location ») compte dans les deux ; le total du haut le compte une seule fois.${s.autres.venteHtCents ? ` Livraison, packs et lignes hors catalogue : ${eurosRond(s.autres.venteHtCents)} HT.` : ''}</p></section>
+        <p class="muted sm st-note">Devis signés, au mois de la signature. Un produit rangé dans deux rubriques (par exemple une chaise dans « Indispensables » et « Mobilier et matériel à la location ») compte dans les deux ; le total du haut le compte une seule fois.${s.autres.venteHtCents ? ` Livraison, packs et lignes hors catalogue : ${eurosRond(s.autres.venteHtCents)} HT.` : ''}</p>`, 'st-rapp')}
     </div>`;
   }
   /* classement : Saveurs du monde est remplacée par ses spécialités (Buffet antillais, Paëlla party…) */
@@ -370,8 +374,38 @@
     el.innerHTML = R.length ? R.map((x, i) => `<li class="st-ri${i < 3 ? ' top' : ''}" style="--i:${i}"><span class="st-rn">${['🥇', '🥈', '🥉'][i] || i + 1}</span>${x.photo ? `<img class="st-av" src="${esc(x.photo)}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'st-av st-sansphoto'}))">` : '<span class="st-av st-sansphoto"></span>'}<span class="st-rt"><b>${esc(x.nom)}</b><small>${esc(det(x))}</small><span class="st-rb"><i style="width:${Math.max(3, val(x) / max * 100)}%"></i></span></span><span class="st-rv">${fmt(val(x))}</span></li>`).join('')
       : `<li class="db-vide"><p>${tri === 'c' ? 'Aucun prix d’achat saisi pour le moment.' : 'Le classement se remplira avec les premiers devis signés.'}</p></li>`;
   };
+  statistiques.replie = () => { try { return JSON.parse(mem.get('mg_st_replie') || '[]'); } catch { return []; } };
+  /* meilleurs produits : marge % du catalogue (pour l'instant), puis chiffre d'affaires quand les devis signés arriveront */
+  statistiques.produits = () => {
+    const s = cache.stats, el = $('[data-stprods]'); if (!s || !el) return;
+    const tri = statistiques.triP || 'p', rub = statistiques.rubP || '', nb = statistiques.nbP || 20;
+    const val = x => tri === 'p' || tri === 'f' ? x.pct : tri === 'ca' ? x.venteHtCents : x.margeHtCents;
+    const L = (s.produits || []).filter(x => (!rub || x.rubrique === rub) && val(x) != null && (tri === 'f' || tri === 'p' || val(x) > 0))
+      .sort((a, b) => tri === 'f' ? val(a) - val(b) : val(b) - val(a));
+    const max = Math.max(1, ...L.map(x => Math.abs(val(x))));
+    const pc = v => v == null ? '—' : v.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' %';
+    const fmt = v => tri === 'p' || tri === 'f' ? pc(v) : eurosRond(v);
+    const det = x => [x.rubrique, x.prixCents != null ? euros(x.prixCents) + (x.unite ? ' / ' + x.unite : '') : '', tri === 'ca' || tri === 'm' ? `${x.devis} devis · marge ${pc(x.pct)}` : x.venteHtCents ? eurosRond(x.venteHtCents) + ' vendus' : ''].filter(Boolean).join(' · ');
+    const info = $('[data-stpinfo]');
+    if (info) info.textContent = tri === 'p' || tri === 'f' ? `${L.length} produit${L.length > 1 ? 's' : ''} avec prix d’achat : marge en % du prix de vente HT.` : `Devis signés des 12 derniers mois, hors taxes : ${L.length} produit${L.length > 1 ? 's' : ''} vendu${L.length > 1 ? 's' : ''}.`;
+    el.innerHTML = L.length ? L.slice(0, nb).map((x, i) => `<li class="st-ri${i < 3 && tri !== 'f' ? ' top' : ''}${tri === 'f' && val(x) < 15 ? ' bas' : ''}" style="--i:${Math.min(i, 12)}"><span class="st-rn">${tri !== 'f' ? ['🥇', '🥈', '🥉'][i] || i + 1 : i + 1}</span>${x.photo ? `<img class="st-av" src="${esc(x.photo)}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'st-av st-sansphoto'}))">` : '<span class="st-av st-sansphoto"></span>'}<a class="st-rt" href="#/catalogue/${esc(x.slug)}"><b>${esc(x.titre)}</b><small>${esc(det(x))}</small><span class="st-rb"><i style="width:${Math.max(3, Math.abs(val(x)) / max * 100)}%"></i></span></a><span class="st-rv">${fmt(val(x))}</span></li>`).join('')
+      : `<li class="db-vide"><p>${tri === 'ca' || tri === 'm' ? 'Le chiffre d’affaires par produit apparaîtra avec les premiers devis signés. En attendant, le classement par marge % est à jour.' : 'Aucun produit avec prix d’achat dans cette rubrique.'}</p></li>`;
+    const plus = $('[data-stplus]');
+    if (plus) plus.innerHTML = L.length > nb ? `<button type="button" class="st-tc" data-stplusb>Voir ${Math.min(20, L.length - nb)} de plus (${L.length - nb} restants)</button>` : '';
+    $('[data-stplusb]')?.addEventListener('click', () => { statistiques.nbP = nb + 20; statistiques.produits(); });
+  };
   statistiques.after = () => {
     statistiques.classement();
+    statistiques.produits();
+    const sauve = () => mem.set('mg_st_replie', JSON.stringify($$('[data-pli]').filter(d => !d.open).map(d => d.dataset.pli)));
+    $$('[data-pli]').forEach(d => d.addEventListener('toggle', sauve));
+    $$('[data-stplier]').forEach(b => b.addEventListener('click', () => { const r = b.dataset.stplier === '1'; $$('[data-pli]').forEach(d => { d.open = !r; }); sauve(); }));
+    $$('[data-sttrip]').forEach(b => b.addEventListener('click', () => {
+      statistiques.triP = b.dataset.sttrip; statistiques.nbP = 20;
+      $$('[data-sttrip]').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', x === b); });
+      statistiques.produits();
+    }));
+    $('[data-strubp]')?.addEventListener('change', e => { statistiques.rubP = e.target.value; statistiques.nbP = 20; statistiques.produits(); });
     $$('[data-sttri]').forEach(b => b.addEventListener('click', () => {
       statistiques.tri = b.dataset.sttri;
       $$('[data-sttri]').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', x === b); });

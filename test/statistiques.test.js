@@ -54,3 +54,16 @@ test('ventes signées : CA et marge HT par rubrique et par mois, remise réparti
   assert.equal(s.total.venteHtCents, 10000 + 1000 + 20000 + 1000 + 10000 + 9000, 'total compté une seule fois');
   assert.equal(s.autres.venteHtCents, 1000);
 });
+
+test('meilleurs produits : marge % du catalogue et ventes signées par produit (suppléments rattachés)', () => {
+  const devis = [signe('d1', '2026-11-10T10:00:00Z', [
+    { produit: 'mini', designation: 'Mini burgers', qte: 10, puCents: 1100, coutCents: 550, tva: 10 },
+    { designation: 'Supplément cheddar', supplement: 'x', qte: 10, puCents: 110, coutCents: 0, tva: 10 },
+  ])];
+  const s = statistiques({ rubriques, produits, devis, maintenant: new Date('2026-11-25T12:00:00Z') });
+  const mini = s.produits.find(p => p.slug === 'mini'), verrine = s.produits.find(p => p.slug === 'verrine');
+  assert.equal(mini.pct, 40); assert.equal(mini.venteHtCents, 11000); assert.equal(mini.margeHtCents, 6000); assert.equal(mini.devis, 1);
+  assert.equal(verrine.pct, 80); assert.equal(verrine.venteHtCents, 0);
+  assert.equal(s.produits.find(p => p.slug === 'colombo').rubrique, 'Buffet antillais');
+  assert.ok(!s.produits.some(p => p.slug === 'sans' || p.slug === 'masque'), 'sans prix d’achat ni vente, ou masqué : absent');
+});
