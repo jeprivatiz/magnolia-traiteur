@@ -16,6 +16,7 @@ const views = require('./views');
 const { preparerAlerte } = require('./relances');
 const { raisonsDevisManuel, regleAcompte, totaux, controleMarge, prochainNumero, lignesDepuisDemande, estimerLigne, choixDepuisNote, totalSupplements } = require('./devis');
 const { rid, sha, esc, euros, limiter, dateFr, slugify, nomPropre, dateNaissance, titreTexte } = require('./util');
+const LIVR = require('../public/js/livraison-paliers');
 const ACHATS = require('./achats');
 const { creerImportClients, normTel, departementDe } = require('./import-clients');
 const IA = require('./ia');
@@ -435,7 +436,7 @@ async function createApp(opts = {}) {
   /* pages du site trouvées par la recherche (ex. « zone de livraison » sur téléphone → la page, pas la boutique) */
   const norm = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(' ').map(w => w.length > 3 ? w.replace(/s$/, '') : w).join(' '); /* « livraisons » = « livraison » */
   const PAGES_RECHERCHE = [
-    { titre: 'Nos zones de livraison', href: '/zone-de-livraison', info: 'Carte, frais de livraison, livraison offerte dès 700 € TTC', mots: ['zone de livraison', 'zones de livraison', 'livraison', 'livrer', 'livrez', 'frais de livraison', 'tarif livraison', 'prix livraison', 'zone', 'livraison offerte', 'livraison gratuite', 'flotte', 'camion', 'vehicule'] },
+    { titre: 'Nos zones de livraison', href: '/zone-de-livraison', info: 'Carte, frais de livraison par paliers, offerte au-delà de 2 500 € TTC', mots: ['zone de livraison', 'zones de livraison', 'livraison', 'livrer', 'livrez', 'frais de livraison', 'tarif livraison', 'prix livraison', 'zone', 'livraison offerte', 'livraison gratuite', 'flotte', 'camion', 'vehicule'] },
     { titre: 'Avis clients', href: '/temoignages', info: 'Ce que disent nos clients', mots: ['avis', 'avis clients', 'temoignages', 'temoignage', 'note google'] },
     { titre: 'La maison', href: '/maison', info: 'Qui sommes-nous', mots: ['la maison', 'maison', 'qui sommes nous'] },
     { titre: 'Comment commander', href: '/comment-commander', info: 'Les étapes de votre demande', mots: ['comment commander', 'commander', 'commande', 'devis'] },
@@ -512,8 +513,7 @@ async function createApp(opts = {}) {
     });
     const km = Math.min(2000, Math.max(0, Math.round(+b.km || 0)));
     const sousTotal = lignes.reduce((t, l) => t + l.totalCents, 0);
-    const seuil = T.livraisonOfferteCents ?? 70000; /* livraison offerte dès ce montant TTC (0 = jamais) */
-    const offerte = !!(km && seuil > 0 && sousTotal >= seuil);
+    const hz = LIVR.horsZone(b.cp), kmC = hz ? 0 : LIVR.kmCents(T, sousTotal), offerte = !!(km && !hz && kmC === 0); /* prix du km selon le palier ; hors Île-de-France = nous consulter */
     const { id: clientId, nouveau } = await upsertClient(contact);
     if (b.offres === true || b.offres === '1' || b.offres === 'on') { const cl = await store.get('clients/' + clientId); if (cl && !cl.consentement?.email) await store.set('clients/' + clientId, { ...cl, consentement: { email: true, sms: true, le: new Date().toISOString(), source: 'case cochée sur le site', base: 'consentement' } }); }
     const id = 'd_' + rid(8);
@@ -521,8 +521,8 @@ async function createApp(opts = {}) {
     const demande = {
       id, ref, type: b.type === 'contact' ? 'contact' : 'devis', clientId, contact,
       evenement: { type: s(b.evenement, 40), date: /^\d{4}-\d{2}-\d{2}$/.test(b.date) ? b.date : '', invites: Math.min(10000, Math.max(0, +b.invites | 0)), cp: s(b.cp, 5), ville: s(b.ville, 80), horaire: s(b.horaire, 60) },
-      livraison: km ? { km, cents: offerte ? 0 : km * (T.kmCents || 100), ...(offerte ? { offerte: true } : {}) } : null,
-      lignes, sousTotalCents: sousTotal, totalEstimeCents: sousTotal + (km && !offerte ? km * (T.kmCents || 100) : 0),
+      livraison: km ? { km, kmCents: kmC, cents: km * kmC, ...(offerte ? { offerte: true } : {}), ...(hz ? { horsZone: true } : {}) } : null,
+      lignes, sousTotalCents: sousTotal, totalEstimeCents: sousTotal + km * kmC,
       message: s(b.message, 3000), sujet: s(b.sujet, 80), statut: 'demande', historique: [{ at: new Date().toISOString(), statut: 'demande', par: 'site' }],
       createdAt: new Date().toISOString(), ip: req.ip,
     };
@@ -1229,7 +1229,7 @@ async function createApp(opts = {}) {
   /* ---------- commande préparée par l'IA (Suivi client › « ✨ Commande avec l'IA ») ---------- */
   const iaLimit = limiter(+(env.AI_LIMIT_PER_HOUR || 300), 3600e3);
   const iaErreur = (res, e) => res.status(e.code === 'not_granted' ? 503 : 502).json({ error: e.code === 'not_granted' ? 'L’IA n’est pas encore activée : ajoutez la variable ANTHROPIC_API_KEY dans Railway.' : e.code === 'refused' ? 'L’IA a refusé cette demande. Reformulez le texte.' : 'L’IA n’a pas répondu correctement. Réessayez.', code: e.code || 'ai_failed' });
-  A.get('/ia/etat', wrap(async (req, res) => { const R = (await cat.get()).reglages; res.json({ actif: ia.actif, evenements: R.evenements || [], tarifs: R.tarifs || {}, origine: R.origine || null }); }));
+  A.get('/ia/etat', wrap(async (req, res) => { const R = (await cat.get()).reglages; res.json({ actif: ia.actif, evenements: R.evenements || [], tarifs: { ...(R.tarifs || {}), livraisonPaliers: LIVR.paliers(R.tarifs) }, origine: R.origine || null }); }));
   A.post('/ia/fiche', sameSite, json, wrap(async (req, res) => {
     if (!iaLimit(req.ctx.uid)) return res.status(429).json({ error: 'Trop de demandes : réessayez dans une minute.' });
     const texte = s(req.body?.texte, 6000);
@@ -1329,13 +1329,13 @@ async function createApp(opts = {}) {
     if (f.serveurs) lignes[0].personnel = { nb: f.serveurs, heures: Math.max(T.personnel?.minHeures || 4, +f.heures || 0) };
     if (f.vaisselle && (T.packs || []).some(x => x.id === f.vaisselle)) lignes[0].pack = { id: f.vaisselle, nb: +f.invites || lignes[0].qte };
     const km = Math.min(2000, Math.max(0, Math.round(+req.body?.km || 0)));
-    const sousTotal = lignes.reduce((t, l) => t + l.totalCents, 0), seuil = T.livraisonOfferteCents ?? 70000, offerte = !!(km && seuil > 0 && sousTotal >= seuil);
+    const sousTotal = lignes.reduce((t, l) => t + l.totalCents, 0), hz = LIVR.horsZone(f.cp), kmC = hz ? 0 : LIVR.kmCents(T, sousTotal), offerte = !!(km && !hz && kmC === 0);
     const id = 'd_' + rid(8), ref = await prochainNumero(store, 'demande'), par = req.ctx.name || req.ctx.email || 'équipe';
     const demande = {
       id, ref, type: 'devis', source: 'Téléphone (IA)', clientId, contact: { nom, email: f.email, tel: f.tel, societe: f.societe },
       evenement: { type: f.type, date: f.date, invites: +f.invites || 0, cp: f.cp, ville: f.ville, adresse: f.adresse, horaire: f.horaire },
-      livraison: km ? { km, cents: offerte ? 0 : km * (T.kmCents || 100), ...(offerte ? { offerte: true } : {}) } : null,
-      lignes, sousTotalCents: sousTotal, totalEstimeCents: sousTotal + (km && !offerte ? km * (T.kmCents || 100) : 0),
+      livraison: km ? { km, kmCents: kmC, cents: km * kmC, ...(offerte ? { offerte: true } : {}), ...(hz ? { horsZone: true } : {}) } : null,
+      lignes, sousTotalCents: sousTotal, totalEstimeCents: sousTotal + km * kmC,
       message: [f.notes, 'Commande préparée avec l’IA à partir de : ' + s(req.body?.texte, 6000)].filter(Boolean).join('\n\n'), statut: 'demande',
       historique: [{ at: now, statut: 'demande', par }], createdAt: now, commercial: par, priseEnCharge: { at: now, par, quoi: 'commande prise par l’équipe' },
     };

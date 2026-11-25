@@ -1597,3 +1597,12 @@ body.avec-psbar .content { padding-bottom: 120px; }
 .mrow.on { border-color: var(--rouge); background: rgba(180, 65, 47, .07); }
 .smrow .psrow { flex: 1; min-width: 0; }
 @media (max-width: 600px) { .psbar { padding: 8px 10px; gap: 6px; } .psbar b { width: 100%; text-align: center; font-size: .92rem; } .psbtns { flex-wrap: nowrap; gap: 6px; } .psbar .btn { min-height: 38px; padding: 6px 10px; font-size: .84rem; white-space: nowrap; } }
+
+/* Frais de livraison par paliers (Réglages > Tarifs communs) */
+.lp-t { margin: 22px 0 10px; font-size: 1.05rem; }
+.lp-t small { display: block; font-weight: 400; font-size: .8rem; margin-top: 3px; }
+.lp { display: grid; gap: 8px; }
+.lp-r { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; align-items: end; background: #faf6ee; border: 1px solid #e8dcc6; border-radius: 12px; padding: 10px 12px; }
+.lp-r > span { font-size: .85rem; color: #5b5f57; align-self: center; }
+.lp-fin { grid-template-columns: 1fr 2fr; background: #eef4ef; border-color: #cfe0d4; }
+@media (max-width: 640px) { .lp-r, .lp-fin { grid-template-columns: 1fr 1fr; } .lp-r > span { grid-column: 1 / -1; } }

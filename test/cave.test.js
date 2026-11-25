@@ -26,10 +26,16 @@ test('initCave : anciens vins masqués, nos open bars gardés, nouvelles fiches 
   docs.set('produits/vieille-eau', { slug: 'vieille-eau', rubrique: 'boissons', titre: 'Eau', description: ['Eau.', 'Livré frais avec le reste de votre commande.'] });
   docs.set('produits/barman', { ...require('../server/cave').BARMAN, sousPhoto: ['Prévoyez environ un barman pour 30 à 40 invités, jusqu’à 5 barmans, pour 4 heures minimum.'] });
   docs.set('produits/bar-a-cocktails-4-h-au-cocktail', { slug: 'bar-a-cocktails-4-h-au-cocktail', rubrique: 'boissons', titre: 'Bar à cocktails (tarif au cocktail)', unite: 'cocktail', min: 1 });
+  docs.set('produits/nos-open-bars', { slug: 'nos-open-bars', rubrique: 'boissons', titre: 'Open bar champagne', prixCents: null, prixAffiche: 'Sur devis', statut: 'visible' });
   docs.set('produits/chablis', { slug: 'chablis', rubrique: 'boissons', titre: 'Chablis', statut: 'visible' });
   docs.set('produits/sangria-maison-au-litre', { slug: 'sangria-maison-au-litre', rubrique: 'boissons', titre: 'Sangria', statut: 'visible' });
   docs.set('produits/champagne-andre-diligent', { slug: 'champagne-andre-diligent', rubrique: 'boissons', titre: 'Champagne André Diligent', prixCents: 2850, statut: 'visible' });
   assert.equal(await initCave(store), CAVE_PRODUITS.length + AJOUTS_CAVE.length);
+  const obc = docs.get('produits/nos-open-bars');
+  assert.equal(obc.prixCents, 27000);
+  assert.equal(obc.prixAffiche, undefined);
+  assert.equal(obc.groupes[0].id, 'duree');
+  assert.ok(obc.propositions[0].slugs.includes('bar-a-cocktails-4-h-au-cocktail'));
   const rhum = docs.get('produits/rhum-trois-rivieres-blanc-50-70-cl');
   assert.equal(rhum.prixCents, 2490);
   assert.equal(rhum.statut, 'visible');

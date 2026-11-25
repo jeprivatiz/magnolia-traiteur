@@ -75,8 +75,9 @@ const REGLAGES_DEFAUT = {
   logosClients: ['aircaraibes', 'doctolib', 'villedeparis', 'nestle', 'bnpparibas', 'loreal', 'accenture', 'armani', 'radisson', 'canon', 'cnrs', 'bpifrance', 'creditagricole', 'lcl']
     .map(k => ({ src: `/site/logos/${k}.svg`, nom: { aircaraibes: 'Air Caraïbes', doctolib: 'Doctolib', villedeparis: 'Ville de Paris', nestle: 'Nestlé', bnpparibas: 'BNP Paribas', loreal: 'L’Oréal', accenture: 'Accenture', armani: 'Giorgio Armani', radisson: 'Radisson Blu', canon: 'Canon', cnrs: 'CNRS', bpifrance: 'Bpifrance', creditagricole: 'Crédit Agricole', lcl: 'LCL' }[k] })),
   tarifs: {
-    kmCents: 100,
-    livraisonOfferteCents: 70000, /* livraison offerte dès 700 € TTC de commande (0 = jamais) */
+    kmCents: 100, /* ancien prix unique, remplacé par livraisonPaliers */
+    /* frais de livraison par paliers (Jean-Luc, 2026-11-25) : prix du km A/R selon le total TTC de la commande */
+    livraisonPaliers: require('../public/js/livraison-paliers').DEFAUT,
     personnel: { label: 'Personnel de service polyvalent', heureCents: 4188, minHeures: 4 },
     packs: [
       { id: 'petit', label: 'Petit Pack Traiteur éco-responsable', prixCents: 450, detail: 'Matériel de buffet, verres éco-responsables, assiettes biodégradables, couverts en bois et serviettes.' },
@@ -1016,6 +1017,7 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('site/reglages', { ...(await store.get('site/reglages')), fruitsDeMerBlanc: true });
   }
 
+
   /* « Cocktails & buffets français » + paragraphe de présentation (Jean-Luc, 2026-11-22). Une fois : modifiable ensuite dans le back-office. */
   const RCb = await store.get('site/reglages');
   if (RCb && !RCb.cocktailsFrancais) {
@@ -1607,6 +1609,22 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('site/reglages', { ...(await store.get('site/reglages')), vignettesFaites: [...faites, ...nouvelles] });
   }
 
+  /* Retouches de Jean-Luc (2026-11-25) : tarama dans un bol blanc, crevettes roses dans un bol, Gillardeau sans la glace ;
+     bandeau de la page = un écailler qui ouvre une huître (Unsplash, Louis Hansel). Une fois, seulement si rien n'a été changé depuis. */
+  const RFm2 = await store.get('site/reglages');
+  if (RFm2 && !RFm2.fruitsDeMerBlanc2) {
+    const B = '/site/c/seafood30/blanc/';
+    const v2 = { [B + 'tarama.webp']: B + 'tarama-v2.webp', [B + 'crevettes-roses.webp']: B + 'crevettes-roses-v2.webp', [B + 'gillardeau.webp']: B + 'gillardeau-v2.webp' };
+    for (const { id, data: pr } of await store.list('produits')) {
+      const avant = pr.photos || [];
+      const ph = avant.map(x => v2[x.src] ? { ...x, src: v2[x.src] } : x);
+      if (JSON.stringify(ph) !== JSON.stringify(avant)) await store.set('produits/' + id, { ...pr, photos: ph });
+    }
+    const gl = await store.get('rubriques/grand-large');
+    if (gl && (!gl.bandeauPhoto || gl.bandeauPhoto === pexels(39143859)) && !gl.bandeauVideo) await store.set('rubriques/grand-large', { ...gl, bandeauPhoto: '/site/c/seafood30/bandeau-ecailler.webp', bandeauPosition: '80% 45%' /* le geste de l'écailler est à droite de la photo */ });
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), fruitsDeMerBlanc2: true });
+  }
+
   /* page Zone de livraison (Jean-Luc, 2026-11-22) : départ exact avenue de Norvège et livraison offerte dès 700 € TTC.
      Posé une fois : modifiable ensuite dans le back-office (Réglages > Tarifs communs). */
   const RL = await store.get('site/reglages');
@@ -1710,6 +1728,95 @@ async function initSousRubriques(store, { log = console } = {}) {
     if (p && (!p.video || p.video.src === '/site/v/animations/burgers.mp4'))
       await store.set('produits/stand-a-burgers', { ...p, video: { src: '/site/v/animations/burgers-2.mp4', poster: '/site/v/animations/burgers-2.jpg' } });
     await store.set('site/reglages', { ...(await store.get('site/reglages')), burgerVideo2: true });
+  }
+
+  /* Mini pâtés antillais (morue, bœuf, porc) : 2,90 € TTC la pièce, et non 3,90 € la portion (Jean-Luc, 2026-11-25).
+     Vendus à la pièce, minimum 5 (règle des produits à l'unité) ; plus aucune mention de portion dans la fiche. Une fois. */
+  const RMp = await store.get('site/reglages');
+  if (RMp && !RMp.miniPatesPiece) {
+    const piece = t => String(t ?? '').replace(/\s*\(minimum \d+ portions?\)/ig, '').replace(/\bportions?\b/ig, m => /s$/i.test(m) ? 'pièces' : 'pièce');
+    const vendu = t => /pièce/i.test(t) ? t : t.replace(/^(Mini pâtés antillais [^:,.]+?)(\s*[:,])/, '$1, vendus à la pièce$2');
+    for (const { id, data: p } of await store.list('produits')) {
+      if (!/^mini p[âa]t[ée]s? antillais/i.test(p.titre || '')) continue;
+      const seo = {}; /* textes Google posés automatiquement avec l'ancien prix : vidés, ils sont refaits au démarrage */
+      if (p.seoAuto) {
+        if (p.seoTitre === p.seoAuto.titre) seo.seoTitre = '';
+        if (p.seoDescription === p.seoAuto.description) seo.seoDescription = '';
+        seo.seoAuto = null;
+      }
+      await store.set('produits/' + id, { ...p, ...seo, prixCents: 290, prixTexte: '2,90 € TTC', unite: 'pièce', min: 5, minimumTexte: 'Minimum de commande : 5 pièces',
+        titre: piece(p.titre), extrait: vendu(piece(p.extrait)), description: (p.description || []).map((l, i) => i ? piece(l) : vendu(piece(l))),
+        ...(p.sousPhoto ? { sousPhoto: Array.isArray(p.sousPhoto) ? p.sousPhoto.map(piece) : piece(p.sousPhoto) } : {}), photos: (p.photos || []).map(ph => ({ ...ph, alt: piece(ph.alt) })) });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), miniPatesPiece: true });
+  }
+
+  /* Buffet antillais (Jean-Luc, 2026-11-25) : l'assiette créole est une entrée, sans « minim 6 portions » dans son nom ;
+     nouveaux prix TTC des plats et accompagnements à l'unité, à la portion. Une fois ; modifiable ensuite au back-office. */
+  const RAp = await store.get('site/reglages');
+  if (RAp && !RAp.antillaisPrix1) {
+    const sans = t => String(t ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z]+/g, ' ').trim();
+    const PRIX = [[/^colombo de poulet$/, 1990], [/^colombo de porc$/, 1990], [/^cuisses? de poulet grillees?$/, 1490], [/^cuisses? de poulet boucanes?$/, 1590],
+      [/^fricassee? de chatrou[sx]?$/, 1990], [/^coq roussi$/, 2190], [/^rougail saucisses?$/, 1990], [/^colombo de cabri$/, 2190],
+      [/^vivaneau a la creme de curcuma$/, 2300], [/^vivaneau au court bouillon$/, 2390], [/^dombres? aux crevettes$/, 1490],
+      /* accompagnements (même jour) ; « Riz aux légumes, c'est bon » : la fiche courte garde son prix */
+      [/^riz nature$/, 290], [/^gratin de bananes? plantains?$/, 500], [/^gratin de christophines?/, 690], [/^gratin de patates? douces?/, 790],
+      [/^gratin d igname$/, 690], [/^haricots rouges$/, 390], [/^mini brochettes? de banane$/, 490], [/^riz aux legumes courgettes/, 490]];
+    const euros = c => (c / 100).toFixed(2).replace('.', ',') + ' € TTC';
+    const sansSeoAuto = p => p.seoAuto ? { ...(p.seoTitre === p.seoAuto.titre ? { seoTitre: '' } : {}), ...(p.seoDescription === p.seoAuto.description ? { seoDescription: '' } : {}), seoAuto: null } : {};
+    for (const { id, data: p } of await store.list('produits')) {
+      if (p.sous !== 'buffet-antillais' && !(p.autresSous || []).includes('buffet-antillais')) continue;
+      const t = sans(p.titre);
+      if (/^assiette creole/.test(t)) {
+        const net = x => String(x ?? '').replace(/\s*\(minim(?:um)? \d+ portions?\)/ig, '');
+        await store.set('produits/' + id, { ...p, ...sansSeoAuto(p), titre: net(p.titre), rangement: 'entrees', min: 5, minimumTexte: 'Minimum de commande : 5 portions',
+          photos: (p.photos || []).map(ph => ({ ...ph, alt: net(ph.alt) })) });
+        continue;
+      }
+      const x = PRIX.find(([re]) => re.test(t));
+      if (!x || !['plats', 'accompagnements'].includes(rangementDe(p))) continue;
+      await store.set('produits/' + id, { ...p, ...sansSeoAuto(p), prixCents: x[1], prixTexte: euros(x[1]), unite: p.unite || 'portion', aCompleter: false });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), antillaisPrix1: true });
+  }
+
+  /* Buffet antillais, « Produits divers à l'unité » (Jean-Luc, 2026-11-25) : les plateaux de mini wraps et de mini club
+     sandwichs ne s'affichent plus sur cette page (ils restent sur le buffet africain et dans Coffrets & plateaux) ; le grand
+     pack traiteur de la page est masqué (le pack est proposé dans le panier) ; l'animation sorbet coco passe aux desserts.
+     Le coffret antillais et le piment restent. Rien n'est effacé. Une fois. */
+  const RAd = await store.get('site/reglages');
+  if (RAd && !RAd.antillaisDivers1) {
+    const sans = t => String(t ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    for (const { id, data: p } of await store.list('produits')) {
+      const t = sans(p.titre), ici = p.sous === 'buffet-antillais', aussi = (p.autresSous || []).includes('buffet-antillais');
+      if (!ici && !aussi) continue;
+      if (/^plateau de (48 mini wraps|80 mini club)/.test(t)) {
+        if (aussi) await store.set('produits/' + id, { ...p, autresSous: p.autresSous.filter(x => x !== 'buffet-antillais') });
+        else if (p.statut !== 'masque') await store.set('produits/' + id, { ...p, statut: 'masque' });
+      } else if (ici && /^grand pack traiteur/.test(t)) await store.set('produits/' + id, { ...p, statut: 'masque' });
+      else if (ici && /^animation sorbet coco/.test(t)) await store.set('produits/' + id, { ...p, rangement: 'desserts' });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), antillaisDivers1: true });
+  }
+
+  /* Doublons du Buffet antillais (Jean-Luc, 2026-11-25) : une seule fiche de riz aux légumes (4,90 € TTC la portion) et une
+     seule de fricassée de chatrou ; on garde la mieux renseignée (description, allergènes, photos), l'autre est masquée.
+     À égalité, « Fricassée » (orthographe juste) est gardée. Une fois. */
+  const RAx = await store.get('site/reglages');
+  if (RAx && !RAx.antillaisDoublons1) {
+    const sans = t => String(t ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const remplie = x => Array.isArray(x) ? x.some(l => String(l || '').trim()) : !!String(x || '').trim();
+    const score = p => (remplie(p.description) ? 4 : 0) + (remplie(p.sousPhoto) ? 2 : 0) + ((p.allergenes || []).length ? 2 : 0) + (p.photos || []).length;
+    const tous = (await store.list('produits')).filter(({ data: p }) => p.statut !== 'masque' && (p.sous === 'buffet-antillais' || (p.autresSous || []).includes('buffet-antillais')));
+    for (const [re, prixCents] of [[/^riz aux legumes/, 490], [/^fricassee? de chatrou/, null]]) {
+      const lot = tous.filter(({ data: p }) => re.test(sans(p.titre))).sort((a, b) => score(b.data) - score(a.data) || /fricassee/.test(sans(b.data.titre)) - /fricassee/.test(sans(a.data.titre)));
+      if (!lot.length) continue;
+      const [garde, ...autres] = lot;
+      if (prixCents) await store.set('produits/' + garde.id, { ...garde.data, prixCents, prixTexte: (prixCents / 100).toFixed(2).replace('.', ',') + ' € TTC', aCompleter: false,
+        ...(garde.data.seoAuto ? { seoTitre: garde.data.seoTitre === garde.data.seoAuto.titre ? '' : garde.data.seoTitre, seoDescription: garde.data.seoDescription === garde.data.seoAuto.description ? '' : garde.data.seoDescription, seoAuto: null } : {}) });
+      for (const { id, data: p } of autres) await store.set('produits/' + id, { ...p, statut: 'masque' });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), antillaisDoublons1: true });
   }
 }
 

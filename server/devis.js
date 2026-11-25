@@ -1,6 +1,7 @@
 'use strict';
 /* Calculs des devis et factures. Tous les prix sont saisis et affichés TTC ; la TVA est déduite ligne par ligne. */
 const { avecPortion, norm, titreTexte } = require('./util');
+const LIVR = require('../public/js/livraison-paliers');
 
 /* Suppléments « par part » (Jean-Luc, 2026-11-25 : coq roussi + 5 € TTC la part dans les buffets antillais).
    Une option d'un groupe « en portions » (mode quantites) qui a un supplément ne change pas le prix par personne :
@@ -158,8 +159,15 @@ function lignesDepuisDemande(demande, catalogue, tarifs = {}) {
     }
   }
   if (demande.livraison?.km) {
-    const offerte = !!demande.livraison.offerte;
-    out.push({ designation: offerte ? 'Livraison et reprise (offerte)' : 'Livraison et reprise', detail: `${demande.evenement?.ville || ''} · ${demande.livraison.km} km aller-retour${offerte ? ` · offerte dès ${(tarifs.livraisonOfferteCents ?? 70000) / 100} € TTC de commande` : ''}`, qte: demande.livraison.km, unite: 'km', puCents: offerte ? 0 : tarifs.kmCents || 100, coutCents: null, tva: 20 });
+    /* prix du km du palier de la commande (Jean-Luc, 2026-11-25) : celui enregistré avec la demande, sinon recalculé */
+    if (demande.livraison.horsZone || LIVR.horsZone(demande.evenement?.cp)) {
+      out.push({ designation: 'Livraison hors Île-de-France (sur consultation)', detail: `${demande.evenement?.ville || ''} · environ ${demande.livraison.km} km aller-retour · tarif à préciser par l’équipe`, qte: 1, unite: 'forfait', puCents: 0, coutCents: null, tva: 20 });
+      return out;
+    }
+    const pu = demande.livraison.kmCents ?? (demande.livraison.offerte ? 0 : LIVR.kmCents(tarifs, demande.sousTotalCents || 0));
+    const offerte = pu === 0;
+    const des = LIVR.offerteDes(tarifs);
+    out.push({ designation: offerte ? 'Livraison et reprise (offerte)' : 'Livraison et reprise', detail: `${demande.evenement?.ville || ''} · ${demande.livraison.km} km aller-retour${offerte ? (des != null ? ` · offerte au-delà de ${LIVR.eur(des)} TTC de commande` : '') : ` · ${LIVR.eur(pu)} TTC du km selon le montant de la commande`}`, qte: demande.livraison.km, unite: 'km', puCents: pu, coutCents: null, tva: 20 });
   }
   return out;
 }
@@ -211,6 +219,7 @@ function raisonsDevisManuel(demande, catalogue, T = {}, now = new Date()) {
   else if ((ev - auj) / 86400e3 < jours) r.push(`événement dans moins de ${jours} jours : disponibilité à vérifier`);
   if (!(+e.invites > 0)) r.push('nombre d’invités manquant');
   if (!e.ville || !(+demande.livraison?.km > 0)) r.push('adresse de livraison manquante (distance inconnue)');
+  if (LIVR.horsZone(e.cp)) r.push('livraison hors Île-de-France : tarif à proposer au client');
   if (!String(demande.contact?.tel || '').replace(/\D/g, '')) r.push('pas de téléphone pour rappeler le client');
   return [...new Set(r)];
 }

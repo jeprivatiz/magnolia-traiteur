@@ -468,9 +468,11 @@
     const upd = () => {
       const c = list.find(x => x.nom === v.value);
       const km = c ? kmAR(c.lat, c.lon) : 0;
-      const seuil = T.livraisonOfferteCents ?? 70000;
-      if (out && c) out.innerHTML = `Livraison à ${esc(c.nom)} : environ <b>${km} km</b> aller-retour, soit <b>${euros(km * (T.kmCents || 100))}</b> TTC (confirmé dans votre devis)${seuil > 0 ? `, <b>offerte dès ${euros(seuil)} TTC</b> de commande` : ''}.`;
-      onKm && onKm(km, c);
+      const L = window.MGLivr, hors = L && L.horsZone(cp.value);
+      if (out && (c || hors)) out.innerHTML = hors ? `<b>${esc(c ? c.nom : 'Ce lieu')} est hors Île-de-France : nous consulter</b> pour la livraison (au ${esc(MG.tel || '')}). Votre demande de devis reste possible.`
+        : L ? `Livraison à ${esc(c.nom)} : environ <b>${km} km</b> aller-retour, soit de <b>${euros(L.frais(T, 0, km))}</b> à <b>${euros(km * Math.min(...L.paliers(T).map(x => x.kmCents).filter(Boolean)))}</b> TTC selon le montant de la commande${L.offerteDes(T) != null ? `, <b>offerte au-delà de ${euros(L.offerteDes(T))} TTC</b>` : ''} (confirmé dans votre devis).`
+        : `Livraison à ${esc(c.nom)} : environ <b>${km} km</b> aller-retour (confirmé dans votre devis).`;
+      onKm && onKm(km, c, hors);
     };
     cp.addEventListener('input', async () => {
       const val = cp.value.replace(/\D/g, '').slice(0, 5); cp.value = val;
@@ -498,7 +500,7 @@
     if (evt.invites) form.invites.value = evt.invites;
     form.date.min = new Date().toISOString().slice(0, 10);
     for (const k of ['nom', 'email', 'tel', 'societe', 'cp']) if (contact[k]) form[k].value = contact[k];
-    let km = 0;
+    let km = 0, hors = false;
     const lineTotal = l => {
       if (l.prixCents == null) return null;
       let t = (l.prixCents + (l.supCents || 0)) * l.qte + (l.supplements || []).reduce((s, x) => s + x.n * x.puCents, 0);
@@ -525,12 +527,17 @@
         }).join('') + '<p class="row"><a class="lnk" href="/boutique">+ Ajouter une autre prestation</a></p>';
       }
       const sub = items.reduce((s, l) => s + (lineTotal(l) || 0), 0);
-      const seuil = T.livraisonOfferteCents ?? 70000, offerte = km && seuil > 0 && sub >= seuil;
-      const fl = offerte ? 0 : km * (T.kmCents || 100);
+      /* paliers de livraison (Jean-Luc, 2026-11-25) : prix du km selon le total, et message à chaque palier suivant */
+      const L = window.MGLivr, pu = hors ? 0 : L ? L.kmCents(T, sub) : 100, offerte = km && !hors && pu === 0;
+      const fl = km * pu;
       $('[data-sel-sub]').textContent = euros(sub);
-      $('[data-sel-livr]').textContent = km ? (offerte ? 'Offerte' : euros(fl)) : '—';
+      $('[data-sel-livr]').textContent = hors ? 'Nous consulter' : km ? (offerte ? 'Offerte' : euros(fl)) : '—';
       const rest = $('[data-sel-offerte]');
-      if (rest) rest.textContent = seuil > 0 ? (sub >= seuil ? 'La livraison vous est offerte.' : `Livraison offerte dès ${euros(seuil)} TTC : plus que ${euros(seuil - sub)}.`) : '';
+      if (rest) {
+        const msg = hors ? 'Livraison hors Île-de-France : nous consulter, le tarif sera précisé dans votre devis.' : L ? L.message(T, sub) : '';
+        rest.innerHTML = msg ? `${hors || offerte || !L ? '' : `Livraison à <b>${euros(pu)} TTC du km</b> aller-retour pour ce montant. `}${esc(msg)}` : '';
+        rest.classList.toggle('proche', !!(L && !hors && L.suivant(T, sub) && L.suivant(T, sub).manqueCents <= 10000));
+      }
       $('[data-sel-total]').textContent = euros(sub + fl) + (items.some(l => l.prixCents == null) ? ' + sur devis' : '');
     };
     list.addEventListener('click', e => {
@@ -545,7 +552,7 @@
       const items = sel.all(), it = items.find(x => x.key === e.target.closest('[data-k]').dataset.k);
       it.qte = Math.max(it.min || 1, +e.target.value || 1); if (it.pack) it.pack.nb = it.qte; sel.save(items); render();
     });
-    villes(form, k => { km = k; render(); });
+    villes(form, (k, c, h) => { km = k; hors = !!h; render(); });
     render();
     form.addEventListener('submit', async e => {
       e.preventDefault();
