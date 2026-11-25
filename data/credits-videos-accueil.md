@@ -18,6 +18,6 @@ Branchement : `VIDEOS_ACCUEIL` dans `server/views.js`, lecture dans `public/js/s
 | Plateaux de fruits de mer | huitres | https://www.pexels.com/video/4084096/ (Close-Up Shot of a Seafood Platter : grand plateau filmé en mouvement) | Catherine Franken |
 | Mobilier et matériel à la location | mobilier | https://www.pexels.com/video/39846486/ (Elegant Indoor Wedding Reception Setup : tables nappées, chaises habillées) | Mir Burhan |
 | Coffrets & plateaux | coffrets | https://www.pexels.com/video/7550987/ (personne qui referme un coffret blanc) | Hanna Pad |
-| Lieux de réception | peniche | https://www.pexels.com/video/9756181/ (Friends Having Fun Together, sur un bateau) | KoolShooters |
+| Lieux de réception | peniche | https://www.pexels.com/video/39354183/ (Luxury River Cruise Evening Event : bateau qui navigue avec une réception sur le pont) | Lena Netkach |
 
 Non trouvé en vidéo libre : quelqu'un qui FABRIQUE des churros (seulement des churros prêts), une serveuse qui présente un plateau de petits fours aux invités (Jean-Luc ne veut plus de service au plateau), un buffet traiteur avec nappe et rehausseurs (on a des petits fours salés en gros plan), un coffret repas garni qu'on referme (on a un coffret blanc élégant).
