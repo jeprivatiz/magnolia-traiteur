@@ -1415,3 +1415,9 @@ input.verrou { background: var(--doux); color: var(--gris); cursor: not-allowed;
 .lines input.manq { background: #fff4dc; border-color: #e0b45a; } .lines input.manq::placeholder { color: #a8782a; }
 .pf-marge { margin: 4px 0 10px; font-size: .92rem; } .pf-marge.pos b { color: var(--vert-ok, #1f7a45); } .pf-marge.neg { color: var(--rouge, #b3261e); } .pf-marge.manq { color: #8a5a00; }
 .pf-marge small { color: var(--gris); }
+.smpill { background: #fff1d6 !important; color: #8a5a00 !important; }
+.smbox { border: 2px solid var(--or); }
+.ach-res .pill { font-size: .9rem; } .ach-p { background: #fff1d6; color: #8a5a00; }
+.lines.ach td { vertical-align: middle; } .lines.ach .wide { min-width: 240px; width: 100%; }
+.ach-e { font-size: .78rem; font-weight: 600; } .ach-e.ok { color: var(--vert-ok, #1f7a45); } .ach-e.proche, .ach-e.douteux { color: #8a5a00; } .ach-e.manq { color: var(--rouge, #b3261e); }
+.lines.ach tr.st-introuvable td, .lines.ach tr.st-douteux td { background: #fff8ec; }
