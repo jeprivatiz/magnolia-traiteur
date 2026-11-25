@@ -60,6 +60,7 @@ test('initCave : anciens vins masqués, nos open bars gardés, nouvelles fiches 
   assert.match(docs.get('produits/eau-plate-cristaline-1-5-l').photos[0].src, /cristaline-plate-1-5-l\.webp/);
   assert.equal(docs.get('produits/eau-badoit-50-cl').statut, 'masque');
   assert.equal(docs.get('produits/bar-a-cocktails-4-h-au-cocktail').min, 30);
+  assert.equal(docs.get('produits/bar-a-cocktails-4-h-au-cocktail').video.src, '/site/v/produits/bar-a-cocktails.mp4');
   assert.equal(docs.get('produits/nuiton-beaunoy-hautes-cotes-de-beaune-grande-cuvee-rouge').prixCents, 2400);
   assert.equal(docs.get('produits/gin-bombay-sapphire-70-cl').prixCents, 3790);
   assert.equal(docs.get('produits/rhum-havana-club-especial-70-cl').statut, 'masque');
