@@ -81,7 +81,7 @@ test('entreprises : reprise des Sociétés, liens, renommage, détacher, supprim
   } finally { srv.close(); await app.locals.store?.close?.(); }
 });
 
-test('vue « Clients » : ont commandé en leur nom, sans entreprise', async () => {
+test('vue « Clients » : toutes les personnes sans entreprise', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mg-'));
   fs.writeFileSync(path.join(dir, 'db.clients.json'), JSON.stringify({
     'clients/c_a': { data: { id: 'c_a', nom: 'Anne PETIT', email: 'a@x.test' }, updatedAt: 1 },
@@ -109,8 +109,8 @@ test('vue « Clients » : ont commandé en leur nom, sans entreprise', async () 
   try {
     assert.equal((await call('/api/auth/login', { method: 'POST', body: { email: 'chef@magnolia.test', password: 'mot-de-passe-essai' } })).status, 200);
     const r = (await call('/api/admin/clients?par=50&page=1&vue=clients&q=')).j;
-    assert.deepEqual(r.items.map(c => c.id).sort(), ['c_a', 'c_d']);
-    assert.equal(r.acheteurs, 2); assert.equal(r.tous, 4);
+    assert.deepEqual(r.items.map(c => c.id).sort(), ['c_a', 'c_c', 'c_d']);
+    assert.equal(r.acheteurs, 3); assert.equal(r.tous, 4);
     /* tri par colonne sur toute la liste */
     const noms = async (tri, sens) => (await call(`/api/admin/clients?par=50&page=1&tri=${tri}&sens=${sens}&q=`)).j.items.map(c => c.nom);
     assert.deepEqual(await noms('nom', 'asc'), ['Anne PETIT', 'Claire MARTIN', 'Marc LEROY', 'Paul DURAND']);
