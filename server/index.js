@@ -1035,14 +1035,16 @@ async function createApp(opts = {}) {
     const v = (await Promise.all(['clients', 'demandes', 'devis', 'factures'].map(k => store.version(k)))).join('|');
     if (idxClients?.v === v) return idxClients;
     const [cl, dem, dv, fac] = await Promise.all(['clients', 'demandes', 'devis', 'factures'].map(k => store.list(k)));
-    const nbDem = new Map(), lies = new Set(), extra = new Map();
+    const nbDem = new Map(), lies = new Set(), extra = new Map(), commande = new Set();
     const plus = (id, t) => { if (!id) return; extra.set(id, (extra.get(id) || '') + ' ' + t); };
     for (const { data: d } of dem) { if (!d.clientId) continue; lies.add(d.clientId); if (d.type !== 'contact') nbDem.set(d.clientId, (nbDem.get(d.clientId) || 0) + 1); plus(d.clientId, [d.ref, d.contact?.nom, d.contact?.email].join(' ')); }
-    for (const { data: d } of dv) { if (d.clientId) { lies.add(d.clientId); plus(d.clientId, d.numero); } }
-    for (const { data: d } of fac) { if (d.clientId) { lies.add(d.clientId); plus(d.clientId, d.numero); } }
+    for (const { data: d } of dv) { if (d.clientId) { lies.add(d.clientId); plus(d.clientId, d.numero); if (d.statut === 'accepte' || d.signature) commande.add(d.clientId); } }
+    for (const { data: d } of fac) { if (d.clientId) { lies.add(d.clientId); plus(d.clientId, d.numero); if (d.type !== 'avoir' && !d.annulee && !d.annuleeParAvoir) commande.add(d.clientId); } }
     const items = cl.map(({ id, data: c }) => ({
       c: { ...c, id, journal: undefined, canal: SRC.canalClient(c) }, id, nb: nbDem.get(id) || 0, lie: lies.has(id) || (c.journal || []).length > 0,
       importe: c.source === 'import CRM', last: String(c.derniereActivite || ''), verrou: lies.has(id),
+      /* « Clients » (Jean-Luc, 2026-11-26) : ont commandé (devis signé, facture ou ancien CRM) en leur nom, sans entreprise */
+      acheteur: (commande.has(id) || Number(c.caCrmCents) > 0) && !c.entrepriseId && !String(c.societe || '').trim(),
       hay: sansAcc(texteFiche(c) + ' ' + (extra.get(id) || '')),
       tels: [c.tel, c.telE164, c.telAutre].map(telK).filter(Boolean),
       k: critereClient(c),
@@ -1124,9 +1126,17 @@ async function createApp(opts = {}) {
     if (q.vue === 'actifs') return res.json(items.filter(a => !a.importe || a.lie).map(a => a.c));
     if (q.ids) { const ids = new Set(String(q.ids).split(',').slice(0, 200)); return res.json(items.filter(a => ids.has(a.id)).map(a => a.c)); }
     let l = filtrerCriteres(filtrerClients(items, String(q.q || '').slice(0, 80)), q);
+    if (q.vue === 'clients') l = l.filter(a => a.acheteur);
+    /* tri par colonne sur toute la liste (Jean-Luc, 2026-11-26) ; cases vides toujours à la fin */
+    const TRI = { nom: a => a.c.nom, societe: a => a.c.societe, contact: a => a.c.email || a.c.tel, ville: a => a.c.ville || a.c.cp, demandes: a => a.nb, activite: a => a.last };
+    if (TRI[q.tri] && !(q.tri === 'activite' && q.sens !== 'asc')) {
+      const f = TRI[q.tri], sens = q.sens === 'desc' ? -1 : 1, col = new Intl.Collator('fr', { sensitivity: 'base', numeric: true });
+      const vide = v => v === '' || v == null || (q.tri === 'demandes' && !v);
+      l = [...l].sort((x, y) => { const a = f(x), b = f(y), va = vide(a), vb = vide(b); if (va || vb) return va === vb ? 0 : va ? 1 : -1; return sens * (typeof a === 'number' ? a - b : col.compare(String(a).trim(), String(b).trim())); });
+    }
     if (q.filtre === 'importes') l = l.filter(a => a.importe); else if (q.filtre === 'autres') l = l.filter(a => !a.importe);
     const par = Math.min(200, Math.max(10, parseInt(q.par, 10) || 50)), page = Math.max(1, parseInt(q.page, 10) || 1);
-    res.json({ total: l.length, tous: items.length, importes: items.filter(a => a.importe).length, entreprises: await ENT.nombre(), facettes, page, par, items: l.slice((page - 1) * par, page * par).map(a => ({ ...a.c, nbDemandes: a.nb, verrou: a.verrou })), effacables: q.ids === undefined && q.avecIds ? l.filter(a => !a.verrou).map(a => a.id) : undefined });
+    res.json({ total: l.length, tous: items.length, importes: items.filter(a => a.importe).length, acheteurs: items.filter(a => a.acheteur).length, entreprises: await ENT.nombre(), facettes, page, par, items: l.slice((page - 1) * par, page * par).map(a => ({ ...a.c, nbDemandes: a.nb, verrou: a.verrou })), effacables: q.ids === undefined && q.avecIds ? l.filter(a => !a.verrou).map(a => a.id) : undefined });
   }));
 
   /* effacer des contacts cochés (Jean-Luc, 2026-11-24) : jamais un contact qui a une demande, un devis ou une facture ;

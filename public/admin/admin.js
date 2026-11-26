@@ -134,7 +134,7 @@
     ['suivi', 'Suivi client'],
     ['devis', 'Devis'],
     ['factures', 'Factures'],
-    ['clients', 'Clients'],
+    ['clients', 'Contacts'],
     ['statistiques', 'Statistiques'],
     ['tarifs', 'Validation tarifs'],
     ['agenda', 'Agenda'],
@@ -1862,9 +1862,9 @@
   };
 
   /* ---------- clients (liste en pages : le fichier importé compte des dizaines de milliers de fiches) ---------- */
-  const CL = { q: '', page: 1, filtre: '', k: {}, sel: new Set() };
+  const CL = { q: '', page: 1, filtre: '', k: {}, sel: new Set(), vue: '', tri: 'activite', sens: 'desc' };
   /* recherche multicritère de la liste Clients (demande de Jean-Luc, 2026-11-24) */
-  const urlClients = () => `${A}/clients?par=50&page=${CL.page}&filtre=${CL.filtre}&q=${encodeURIComponent(CL.q)}${Object.entries(CL.k).filter(([, v]) => v).map(([k, v]) => `&${k}=${encodeURIComponent(v)}`).join('')}`;
+  const urlClients = () => `${A}/clients?par=50&page=${CL.page}&filtre=${CL.filtre}${CL.vue ? '&vue=' + CL.vue : ''}&tri=${CL.tri}&sens=${CL.sens}&q=${encodeURIComponent(CL.q)}${Object.entries(CL.k).filter(([, v]) => v).map(([k, v]) => `&${k}=${encodeURIComponent(v)}`).join('')}`;
   const compteClients = n => `<b>${Number(n).toLocaleString('fr-FR')}</b> contact${n > 1 ? 's' : ''}`;
   function filtresClients(F, total) {
     const n = x => Number(x).toLocaleString('fr-FR');
@@ -1895,11 +1895,13 @@
     if (id === 'email' || id === 'sms') return diffusion(id);
     if (id === 'importer') return importerClients();
     if (id === 'appels') return appelsClients();
-    if (id) return client(id);
+    const vueNouv = id === 'clients' ? 'clients' : '';
+    if (id && !vueNouv) return client(id);
+    if (CL.vue !== vueNouv) { CL.vue = vueNouv; CL.page = 1; CL.sel.clear(); }
     const r = await api(urlClients());
-    return page('Clients', `${peut('fichiers') ? '<a class="btn ghost" href="#/clients/importer">⬆ Importer des clients</a>' : ''}<a class="btn" href="#/clients/nouveau">+ Nouveau client</a>`, `
-      ${ongletsClients('')}${bandeauClients('', r.tous, r.entreprises)}<div class="cl-bar"><input type="search" placeholder="🔍 Chercher dans toutes les cases des fiches : nom, téléphone, e-mail, société, ville, métier, remarque, rue…" data-q value="${esc(CL.q)}" aria-label="Rechercher un client">
-        <div class="cl-f">${[['', `Tous (${r.tous.toLocaleString('fr-FR')})`], ['importes', `Fichier importé (${r.importes.toLocaleString('fr-FR')})`], ['autres', 'Site et back-office']].map(([k, l]) => `<button type="button" class="qs-own-b${CL.filtre === k ? ' on' : ''}" data-clf="${k}">${l}</button>`).join('')}</div></div>
+    return page(CL.vue ? 'Clients' : 'Liste des contacts', `${peut('fichiers') ? '<a class="btn ghost" href="#/clients/importer">⬆ Importer des contacts</a>' : ''}<a class="btn" href="#/clients/nouveau">+ Nouveau contact</a>`, `
+      ${ongletsClients('')}${bandeauClients(CL.vue, r.tous, r.entreprises, r.acheteurs)}${CL.vue ? '<p class="muted sm cl-vue-txt">🛍 Les clients qui ont déjà commandé (devis signé, facture ou ancien CRM) en leur nom propre, sans passer par une entreprise.</p>' : ''}<div class="cl-bar"><input type="search" placeholder="🔍 Chercher dans toutes les cases des fiches : nom, téléphone, e-mail, société, ville, métier, remarque, rue…" data-q value="${esc(CL.q)}" aria-label="Rechercher un client">
+        <div class="cl-f">${[['', `Tous (${(CL.vue ? r.acheteurs : r.tous).toLocaleString('fr-FR')})`], ['importes', `Fichier importé (${r.importes.toLocaleString('fr-FR')})`], ['autres', 'Site et back-office']].map(([k, l]) => `<button type="button" class="qs-own-b${CL.filtre === k ? ' on' : ''}" data-clf="${k}">${l}</button>`).join('')}</div></div>
       ${CL.dernier ? `<div class="okbox cl-remet"><span>🗑 ${CL.dernier.nb.toLocaleString('fr-FR')} contact${CL.dernier.nb > 1 ? 's' : ''} effacé${CL.dernier.nb > 1 ? 's' : ''}.</span><button type="button" class="btn ghost sm" data-clremet>↶ Remettre</button></div>` : ''}<div id="clMulti">${filtresClients(r.facettes, r.total)}</div><div id="clTable">${tableClients(r)}</div>`);
   }
   function tableClients(r) {
@@ -1907,16 +1909,16 @@
     const ef = peut('effacerContacts'), libres = r.items.filter(c => !c.verrou);
     const ckTete = ef ? `<th class="ck"><input type="checkbox" data-cltout aria-label="Cocher toute la page" title="Cocher toute la page"${libres.length && libres.every(c => CL.sel.has(c.id)) ? ' checked' : ''}></th>` : '';
     const ck = c => !ef ? '' : c.verrou ? '<td class="ck" title="A une demande, un devis ou une facture : ne peut pas être effacé">🔒</td>' : `<td class="ck"><input type="checkbox" data-clsel="${esc(c.id)}" aria-label="Cocher ${esc(c.nom || '')}"${CL.sel.has(c.id) ? ' checked' : ''}></td>`;
-    return `${ef ? `<div class="row sel-bar cl-sel"><button type="button" class="btn danger sm" data-cleff${CL.sel.size ? '' : ' disabled'}>🗑 Effacer${CL.sel.size ? ' ' + CL.sel.size.toLocaleString('fr-FR') + ' contact' + (CL.sel.size > 1 ? 's' : '') : ''}</button><span class="muted sm">${CL.sel.size ? `${CL.sel.size.toLocaleString('fr-FR')} coché${CL.sel.size > 1 ? 's' : ''} · <button type="button" class="lnk" data-clnone>Tout décocher</button>` : 'Cochez les contacts à effacer.'}${r.total > libres.length ? ` · <button type="button" class="lnk" data-clall>Cocher les ${r.total.toLocaleString('fr-FR')} contacts de cette recherche</button>` : ''}</span></div>` : ''}<div class="table"><table><thead><tr>${ckTete}<th>Nom</th><th>Société</th><th>Contact</th><th>Ville</th><th class="n">Demandes</th><th>Dernière activité</th><th></th></tr></thead><tbody>
+    return `${ef ? `<div class="row sel-bar cl-sel"><button type="button" class="btn danger sm" data-cleff${CL.sel.size ? '' : ' disabled'}>🗑 Effacer${CL.sel.size ? ' ' + CL.sel.size.toLocaleString('fr-FR') + ' contact' + (CL.sel.size > 1 ? 's' : '') : ''}</button><span class="muted sm">${CL.sel.size ? `${CL.sel.size.toLocaleString('fr-FR')} coché${CL.sel.size > 1 ? 's' : ''} · <button type="button" class="lnk" data-clnone>Tout décocher</button>` : 'Cochez les contacts à effacer.'}${r.total > libres.length ? ` · <button type="button" class="lnk" data-clall>Cocher les ${r.total.toLocaleString('fr-FR')} contacts de cette recherche</button>` : ''}</span></div>` : ''}<div class="table"><table><thead><tr>${ckTete}${[['nom', 'Nom'], ['societe', 'Société'], ['contact', 'Contact'], ['ville', 'Ville'], ['demandes', 'Demandes', 'n'], ['activite', CL.tri === 'activite' && CL.sens === 'asc' ? 'Première activité' : 'Dernière activité']].map(([k, l, cls]) => `<th class="cl-th${cls ? ' ' + cls : ''}${CL.tri === k ? ' on' : ''}"${CL.tri === k ? ` aria-sort="${CL.sens === 'asc' ? 'ascending' : 'descending'}"` : ''}><button type="button" data-cltri="${k}" title="Trier par ${esc(l.toLowerCase())}">${l}<span class="cl-fl">${CL.tri === k ? (CL.sens === 'asc' ? '▲' : '▼') : '▲▼'}</span></button></th>`).join('')}<th></th></tr></thead><tbody>
       ${r.items.map(c => `<tr data-href="#/clients/${esc(c.id)}">${ck(c)}<td><b>${esc(c.nom || '—')}</b>${c.nePasContacter ? ' <span class="pill d-refuse" title="NE PAS CONTACTER">⛔</span>' : ''}${(c.metiers || []).length ? `<small class="cl-met">🎭 ${esc(c.metiers.join(', '))}</small>` : ''}${c.source === 'import CRM' ? '<small class="cl-imp">fichier importé</small>' : ''}${canalDe(c) && canalDe(c) !== 'Import' ? `<small class="cl-src">${pillSource(canalDe(c))}</small>` : ''}</td><td>${esc(c.societe || '')}</td><td>${esc(c.email || '')}<small>${esc(c.tel || '')}</small></td><td>${esc([c.cp, c.ville].filter(Boolean).join(' '))}</td><td class="n">${c.nbDemandes || ''}</td><td>${dateFr(c.derniereActivite)}</td><td class="n"><a class="qs-back cl-edit" href="#/clients/${esc(c.id)}?edit=1" title="Modifier la fiche">✏ Modifier</a></td></tr>`).join('') || `<tr><td colspan="${ef ? 8 : 7}" class="muted">${r.tous ? 'Aucun client ne correspond.' : 'Aucun client pour le moment.'}</td></tr>`}</tbody></table></div>
-      ${r.total > r.par ? `<div class="cl-pages"><button type="button" class="btn ghost sm" data-clp="-1"${r.page <= 1 ? ' disabled' : ''}>‹ Précédents</button><span>${((r.page - 1) * r.par + 1).toLocaleString('fr-FR')} à ${Math.min(r.total, r.page * r.par).toLocaleString('fr-FR')} sur ${r.total.toLocaleString('fr-FR')}</span><button type="button" class="btn ghost sm" data-clp="1"${r.page >= pages ? ' disabled' : ''}>Suivants ›</button></div>` : `<p class="muted sm cl-nb">${r.total.toLocaleString('fr-FR')} client${r.total > 1 ? 's' : ''}</p>`}`;
+      ${r.total > r.par ? `<div class="cl-pages"><button type="button" class="btn ghost sm" data-clp="-1"${r.page <= 1 ? ' disabled' : ''}>‹ Précédents</button><span>${((r.page - 1) * r.par + 1).toLocaleString('fr-FR')} à ${Math.min(r.total, r.page * r.par).toLocaleString('fr-FR')} sur ${r.total.toLocaleString('fr-FR')}</span><button type="button" class="btn ghost sm" data-clp="1"${r.page >= pages ? ' disabled' : ''}>Suivants ›</button></div>` : `<p class="muted sm cl-nb">${r.total.toLocaleString('fr-FR')} ${CL.vue ? 'client' : 'contact'}${r.total > 1 ? 's' : ''}</p>`}`;
   }
   clients.after = (id, sub) => {
     if (id === 'entreprises') return sub ? ficheEntreprise.after(sub) : entreprises.after();
     if (id === 'email' || id === 'sms') return diffusion.after(id);
     if (id === 'importer') return importerClients.after();
     if (id === 'appels') return appelsClients.after();
-    if (id) return client.after(id);
+    if (id && id !== 'clients') return client.after(id);
     const recharger = async (multi) => { try { const r = await api(urlClients()); $('#clTable').innerHTML = tableClients(r); if (multi) { $('#clMulti').innerHTML = filtresClients(r.facettes, r.total); brancherMulti(); } else $$('[data-clcpt]').forEach(x => { x.innerHTML = compteClients(r.total); x.classList.remove('pop'); void x.offsetWidth; x.classList.add('pop'); }); brancher(); } catch (e) { toast(e.message, true); } };
     const brancherMulti = () => {
       $$('[data-ck]').forEach(x => x.addEventListener('change', () => { CL.k[x.dataset.ck] = x.value; CL.page = 1; recharger(true); }));
@@ -1926,6 +1928,8 @@
     brancherMulti();
     const brancher = () => {
       $$('tr[data-href]').forEach(tr => tr.addEventListener('click', e => { if (!e.target.closest('a') && !e.target.closest('.ck')) location.hash = tr.dataset.href; }));
+      /* tri : 1er clic = A → Z (ou le plus récent / le plus grand), 2e clic = l'inverse */
+      $$('[data-cltri]').forEach(b => b.addEventListener('click', () => { const k = b.dataset.cltri; if (CL.tri === k) CL.sens = CL.sens === 'asc' ? 'desc' : 'asc'; else { CL.tri = k; CL.sens = k === 'activite' || k === 'demandes' ? 'desc' : 'asc'; } CL.page = 1; recharger(); }));
       /* cases à cocher + « Effacer » (Jean-Luc, 2026-11-24) */
       const majSel = () => { const b = $('[data-cleff]'); if (!b) return; b.disabled = !CL.sel.size; b.textContent = '🗑 Effacer' + (CL.sel.size ? ` ${CL.sel.size.toLocaleString('fr-FR')} contact${CL.sel.size > 1 ? 's' : ''}` : ''); };
       $$('[data-clsel]').forEach(x => x.addEventListener('change', () => { if (x.checked) CL.sel.add(x.dataset.clsel); else CL.sel.delete(x.dataset.clsel); majSel(); }));
@@ -1957,12 +1961,12 @@
 
   /* ---------- entreprises : bandeau « Contacts / Entreprises » (Jean-Luc, 2026-11-24) ----------
      une fiche entreprise (nom, SIRET, adresse…) à laquelle plusieurs contacts sont reliés */
-  const bandeauClients = (cur, nC, nE) => `<div class="cl-vue"><span class="cl-vue-lab">Afficher</span><div class="cl-vue-rail">${[['', '👤', 'Contacts', nC], ['entreprises', '🏢', 'Entreprises', nE]].map(([k, i, l, n]) => `<a href="#/clients${k ? '/' + k : ''}" class="cl-vue-c${cur === k ? ' on' : ''}"${cur === k ? ' aria-current="page"' : ''}><span class="cl-vue-i">${i}</span>${l}${n != null ? ` <small>${Number(n).toLocaleString('fr-FR')}</small>` : ''}</a>`).join('')}</div></div>`;
+  const bandeauClients = (cur, nC, nE, nA) => `<div class="cl-vue"><span class="cl-vue-lab">Afficher</span><div class="cl-vue-rail">${[['', '👥', 'Tous les contacts', nC], ['entreprises', '🏢', 'Entreprises', nE], ['clients', '🛍', 'Clients', nA]].map(([k, i, l, n]) => `<a href="#/clients${k ? '/' + k : ''}" class="cl-vue-c${cur === k ? ' on' : ''}"${cur === k ? ' aria-current="page"' : ''}><span class="cl-vue-i">${i}</span>${l}${n != null ? ` <small>${Number(n).toLocaleString('fr-FR')}</small>` : ''}</a>`).join('')}</div></div>`;
   const EN = { q: '', page: 1, filtre: '' };
   async function entreprises() {
     const [r, rc] = await Promise.all([api(`${A}/entreprises?par=50&page=${EN.page}&filtre=${EN.filtre}&q=${encodeURIComponent(EN.q)}`), api(`${A}/clients?par=10&page=1&q=`).catch(() => ({ tous: null }))]);
-    return page('Clients', `<a class="btn" href="#/clients/entreprises/nouvelle">+ Nouvelle entreprise</a>`, `
-      ${ongletsClients('')}${bandeauClients('entreprises', rc.tous, r.tous)}<div class="cl-bar"><input type="search" placeholder="🔍 Nom de l’entreprise, SIRET, ville, nom d’un contact…" data-q value="${esc(EN.q)}" aria-label="Rechercher une entreprise">
+    return page('Entreprises', `<a class="btn" href="#/clients/entreprises/nouvelle">+ Nouvelle entreprise</a>`, `
+      ${ongletsClients('')}${bandeauClients('entreprises', rc.tous, r.tous, rc.acheteurs)}<div class="cl-bar"><input type="search" placeholder="🔍 Nom de l’entreprise, SIRET, ville, nom d’un contact…" data-q value="${esc(EN.q)}" aria-label="Rechercher une entreprise">
         <div class="cl-f">${[['', `Toutes (${r.tous.toLocaleString('fr-FR')})`], ['avec', 'Avec des contacts'], ['sans', 'Sans contact']].map(([k, l]) => `<button type="button" class="qs-own-b${EN.filtre === k ? ' on' : ''}" data-enf="${k}">${l}</button>`).join('')}</div></div>
       <div id="enTable">${tableEntreprises(r)}</div>`);
   }
@@ -2129,7 +2133,7 @@
     brancherAnnul();
   };
   /* ---------- Clients › « Envoyer un e-mail » / « Envoyer un SMS » : sélection multicritère, rédaction par l'IA, aperçu, essai, envoi ---------- */
-  const ongletsClients = cur => `<nav class="df-tabs" aria-label="Clients">${[['', '👥 Liste des clients'], ['email', '✉️ Envoyer un e-mail'], ['sms', '💬 Envoyer un SMS'], ['appels', '📞 Programmer un appel']].filter(([k]) => peut('diffusion') || !['email', 'sms'].includes(k)).map(([k, l]) => `<a href="#/clients${k ? '/' + k : ''}" class="df-tab${cur === k ? ' on' : ''}"${cur === k ? ' aria-current="page"' : ''}>${l}</a>`).join('')}</nav>`;
+  const ongletsClients = cur => `<nav class="df-tabs" aria-label="Contacts">${[['', '👥 Liste des contacts'], ['email', '✉️ Envoyer un e-mail'], ['sms', '💬 Envoyer un SMS'], ['appels', '📞 Programmer un appel']].filter(([k]) => peut('diffusion') || !['email', 'sms'].includes(k)).map(([k, l]) => `<a href="#/clients${k ? '/' + k : ''}" class="df-tab${cur === k ? ' on' : ''}"${cur === k ? ' aria-current="page"' : ''}>${l}</a>`).join('')}</nav>`;
   const DFK = canal => 'mg_dif_' + canal;
   const MONTANTS = [[0, 'Peu importe'], [10000, 'Plus de 100 €'], [30000, 'Plus de 300 €'], [50000, 'Plus de 500 €'], [100000, 'Plus de 1 000 €'], [200000, 'Plus de 2 000 €'], [500000, 'Plus de 5 000 €'], ['autre', 'Autre montant…']];
   const IDF = ['75', '77', '78', '91', '92', '93', '94', '95'];
@@ -2147,7 +2151,7 @@
     const deps = [...conf.deps].sort((a, b) => (IDF.includes(b[0]) - IDF.includes(a[0])) || a[0].localeCompare(b[0], 'fr', { numeric: true }));
     const chip = (attr, v, l, on) => `<button type="button" class="qs-own-b df-chip${on ? ' on' : ''}" data-${attr}="${esc(v)}" aria-pressed="${on}">${l}</button>`;
     const joignables = sms ? conf.sms : conf.email;
-    return page('Clients', '<a class="btn ghost" href="#/clients/nouveau">+ Nouveau client</a>', `${ongletsClients(canal)}
+    return page('Contacts', '<a class="btn ghost" href="#/clients/nouveau">+ Nouveau contact</a>', `${ongletsClients(canal)}
       <p class="df-intro">${sms ? 'Un SMS d’information (nouveautés, offres, fêtes…) envoyé aux clients choisis. Le SMS part au nom de <b>Magnolia</b> avec la mention obligatoire « STOP au 36173 » pour se désabonner.' : 'Un e-mail d’information aux couleurs de Magnolia, envoyé aux clients choisis depuis infos@magnoliatraiteur.fr. Un lien « Se désinscrire » est ajouté en bas, comme la loi l’exige.'} ${joignables} client${joignables > 1 ? 's' : ''} sur ${conf.total} ${sms ? 'ont un numéro de portable' : 'ont une adresse e-mail'}${(sms ? conf.stopSms : conf.stopEmail) ? ` (${sms ? conf.stopSms : conf.stopEmail} désinscrit${(sms ? conf.stopSms : conf.stopEmail) > 1 ? 's' : ''} jamais contacté${(sms ? conf.stopSms : conf.stopEmail) > 1 ? 's' : ''})` : ''}.</p>
       ${conf.brevo ? '' : '<p class="aq-warn">Brevo n’est pas branché sur ce site : rien ne partira vraiment (mode essai). La clé BREVO_API_KEY doit être dans les variables Railway.</p>'}
       <div class="df-cols">
@@ -2429,7 +2433,7 @@
     if (eq) cache.equipe = eq.filter(u => !u.desactive); if (R0) cache.R = R0;
     const maintenant = new Date().toLocaleString('sv-SE').slice(0, 16).replace(' ', 'T');
     const l = ag.filter(x => x.clientId && ['appel', 'visio'].includes(x.type) && !x.fait && (x.date + 'T' + x.heure) >= maintenant);
-    return page('Clients', '<a class="btn ghost" href="#/clients/nouveau">+ Nouveau client</a>', `${ongletsClients('appels')}
+    return page('Contacts', '<a class="btn ghost" href="#/clients/nouveau">+ Nouveau contact</a>', `${ongletsClients('appels')}
       <section class="box ap-box"><h2>📞 Programmer un appel ou une visio</h2><p class="muted sm">1. Cherchez le client. 2. Choisissez la date, l’heure, le motif et le commercial. Le rendez-vous va dans l’agenda et le commercial reçoit ses rappels par SMS (24 h, 4 h et 1 h avant).</p>
         <div class="cf-in"><input type="search" id="apQ" autocomplete="off" placeholder="🔍 Nom, prénom, téléphone, e-mail ou société du client…" aria-label="Rechercher le client"><div class="cf-res" id="apRes" hidden></div></div>
         <div id="apForm"></div></section>
