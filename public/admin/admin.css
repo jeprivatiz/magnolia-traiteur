@@ -2091,3 +2091,4 @@ small.cl-src { display: block; }
 .vt-envois { margin: 6px 0 0; padding-left: 18px; }
 .vt-h3 { margin: 18px 0 4px; font-size: 1rem; }
 @media (max-width: 860px) { .vt-mg { grid-template-columns: 1fr; } .vt-ap iframe { height: 460px; } }
+.vt-box.vt-flash { box-shadow: 0 0 0 3px var(--or); transition: box-shadow .4s; }
