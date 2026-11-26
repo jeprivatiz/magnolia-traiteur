@@ -20,6 +20,7 @@ const CHAMPS = [
   ['nomFamille', 'Nom de famille'],
   ['nom', 'Nom et prénom (dans la même case)'],
   ['societe', 'Société'],
+  ['fonction', 'Fonction (dans l’entreprise)'],
   ['email', 'E-mail'],
   ['tel', 'Téléphone portable'],
   ['tel2', 'Autre téléphone (fixe…)'],
@@ -70,6 +71,7 @@ function devinerChamp(titre, dejaPris) {
     if (/(^| )pays$|^country/.test(t)) return 'pays';
     if (/^(n|no|numero|num|n de rue|numero de rue)$/.test(t) && /adr|adresse|rue/.test(tout)) return 'numero';
     if (PC.metierDe(t)) return 'metier';
+    if (/^(fonction|poste|job ?title|intitule du poste|role)$/.test(t)) return dejaPris.has('fonction') ? 'notes' : 'fonction';
     if (/^(civ|civilite|titre|genre|sexe)$/.test(t)) return 'civilite';
     if (/^(prenom|first ?name|prenoms)/.test(t)) return 'prenom';
     if (/(nom (et|&)? ?prenom|prenom (et|&)? ?nom|nom complet|full ?name|contact|client)$/.test(t) && !/societe|entreprise/.test(t)) return 'nom';
@@ -265,7 +267,7 @@ function creerImportClients({ store, log }) {
     return { email, tel };
   }
 
-  const CHAMPS_FICHE = ['civilite', 'prenom', 'nomFamille', 'nom', 'societe', 'email', 'tel', 'telE164', 'telAutre', 'adresse', 'cp', 'ville', 'departement', 'pays', 'caCrmCents', 'derniereCommande', 'independant', 'permis', 'nePasContacter', 'remuneration', 'djDepuis', 'djTarifs', 'contactDe', 'siteWeb'];
+  const CHAMPS_FICHE = ['civilite', 'prenom', 'nomFamille', 'nom', 'societe', 'fonction', 'email', 'tel', 'telE164', 'telAutre', 'adresse', 'cp', 'ville', 'departement', 'pays', 'caCrmCents', 'derniereCommande', 'independant', 'permis', 'nePasContacter', 'remuneration', 'djDepuis', 'djTarifs', 'contactDe', 'siteWeb'];
   /* cases vides de la fiche qu'on peut remplir avec la ligne */
   function completer(c, f) {
     const p = {};
