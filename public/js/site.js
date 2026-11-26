@@ -320,6 +320,8 @@
     if ((P.variantes || []).length) html += `<label class="conf-l">Formule<select name="variante">${P.variantes.map(v => `<option>${esc(v)}</option>`).join('')}</select></label>`;
     for (const g of P.groupes || []) {
       const opts = (g.options || []).map(o => ({ ...o, label: avecPortion(o.label) }));
+      /* « compris dans la formule » (Buffet des traditions) : simple liste cochée d'avance, rien à choisir */
+      if (g.compris) { if (opts.length) html += `<div class="conf-inc"${(g.variantes || []).length && (P.variantes || []).length ? ` data-var="${esc(JSON.stringify(g.variantes))}"` : ''}><p class="conf-inc-t">${esc(g.titre || 'Compris dans la formule')}</p><ul>${opts.map(o => `<li>${esc(o.label)}</li>`).join('')}</ul></div>`; continue; }
       const max = g.max || opts.length;
       html += `<fieldset class="conf-g" data-g="${esc(g.id)}"${(g.variantes || []).length && (P.variantes || []).length ? ` data-var="${esc(JSON.stringify(g.variantes))}"` : ''} data-max="${max}" data-exact="${g.exact ? 1 : 0}"><legend>${esc(g.titre || 'Vos choix')} <small>${g.radio ? '' : g.mode === 'quantites' ? `${g.minParVariete || 1} portions minimum par ${esc(g.singulier || 'choix')}` : g.exact ? `${max} au choix` : max < opts.length ? `jusqu’à ${max} au choix` : 'au choix'}${g.facultatif ? ' · facultatif' : ''}</small></legend>
         ${g.aide ? `<p class="small">${esc(g.aide)}</p>` : ''}

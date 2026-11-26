@@ -1085,6 +1085,23 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('site/reglages', { ...(await store.get('site/reglages')), coqRoussiSupp: true });
   }
 
+  /* Buffet des traditions (Jean-Luc, 2026-11-26) : le client choisit exactement 3 salades parmi celles de la description ;
+     le cake, le plateau de charcuteries, le plateau de fromages et le dessert sont affichés « compris dans la formule » (rien à choisir).
+     Une fois, seulement si la fiche n'a pas encore de choix ; modifiable ensuite dans « Choix proposés au client ». */
+  const RTr = await store.get('site/reglages');
+  if (RTr && !RTr.traditionsSalades) {
+    const p = await store.get('produits/buffet-des-traditions');
+    if (p && !(p.groupes || []).length) {
+      const opt = (label, i) => ({ id: 'o' + i + '-' + label.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-').slice(0, 30), label, supCents: 0, coutCents: null });
+      const salades = ['Taboulé au poulet rôti', 'Salade grecque', 'Salade à l’italienne (mini penne, tomates, mozzarella, basilic)', 'Salade niçoise au thon', 'Salade piémontaise', 'Salade de pommes de terre au thon', 'Salade de tagliatelles aux deux saumons'];
+      const compris = ['Cake chèvre et courgette', 'Plateau de charcuteries', 'Plateau de fromages', 'Dessert : 5 pièces sucrées par personne'];
+      await store.set('produits/buffet-des-traditions', { ...p, groupes: [
+        { id: 'salades', titre: 'Vos salades', max: 3, exact: true, facultatif: false, options: salades.map(opt) },
+        { id: 'compris', titre: 'Compris dans la formule', max: null, exact: false, facultatif: false, compris: true, options: compris.map(opt) }] });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), traditionsSalades: true });
+  }
+
   /* Musique & animations et Les indispensables en rubriques (Jean-Luc, 2026-11-25) : plus de 20 produits, donc des têtes
      de rubrique sur téléphone. Une fois ; chaque fiche reste modifiable (liste « Section » de la fiche). */
   const RMi = await store.get('site/reglages');

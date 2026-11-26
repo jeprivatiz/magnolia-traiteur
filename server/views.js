@@ -602,7 +602,7 @@ function propositionsDe(c, p) {
     items: (b.slugs || []).map(sl => c.produits.find(y => y.slug === sl && y.statut !== 'masque' && y.slug !== p.slug)).filter(Boolean).map(x => {
       const rr = c.rubriques.find(y => y.slug === x.rubrique) || { nom: '' };
       return { slug: x.slug, titre: x.titre, nom: titreTexte(x.titre), photo: x.photos?.[0]?.src || x.video?.poster || '', prixCents: x.prixCents ?? null, prixAffiche: x.prixAffiche || null, unite: x.unite || '', min: x.min || 1, contenuPortion: x.contenuPortion || '', rubrique: rr.nom, href: prodHref(x),
-        choix: (x.variantes || []).length > 0 || (x.groupes || []).some(g => !g.facultatif && (g.options || []).length) };
+        choix: (x.variantes || []).length > 0 || (x.groupes || []).some(g => !g.facultatif && !g.compris && (g.options || []).length) };
     }),
   })).filter(b => b.items.length);
 }

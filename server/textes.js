@@ -16,6 +16,7 @@ function infosProduit(p, nomsRub = {}, nomsSous = {}) {
   const choix = (p.groupes || []).map(g => {
     const opts = (g.options || []).map(o => o.label).filter(Boolean);
     if (!opts.length) return '';
+    if (g.compris) return `${g.titre || 'Compris dans la formule'} : ${opts.join(', ')}`;
     const n = g.parPersonne ? ` (${g.parPersonne} ${g.uniteQuantite || 'pièces'} par personne)` : g.max ? ` (${g.max} au choix)` : '';
     return `${g.titre || 'Au choix'}${n} : ${opts.slice(0, 25).join(', ')}`;
   }).filter(Boolean);

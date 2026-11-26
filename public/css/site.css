@@ -433,6 +433,12 @@ textarea:focus, input:focus, select:focus { outline: 2px solid color-mix(in srgb
 .opt img { width: 40px; height: 40px; border-radius: 6px; object-fit: cover; flex: none; }
 .opt small { display: block; color: var(--or); }
 .opt:has(input:disabled) { opacity: .5; cursor: not-allowed; }
+/* « Compris dans la formule » (rien à choisir) */
+.conf-inc { margin-top: 18px; background: var(--creme); border: 1px solid var(--ligne); border-radius: 10px; padding: 12px 14px; }
+.conf-inc-t { margin: 0 0 6px; font-weight: 500; }
+.conf-inc ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: .9rem; }
+.conf-inc li { display: flex; gap: 8px; align-items: baseline; }
+.conf-inc li::before { content: '✓'; color: var(--vert); font-weight: 700; flex: none; }
 .conf-x { margin-top: 14px; background: var(--carte); border: 1px solid var(--ligne); border-radius: 10px; padding: 12px 14px; }
 .conf-x summary { cursor: pointer; font-weight: 500; }
 .conf-x summary small { color: var(--gris); font-weight: 400; }
