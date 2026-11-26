@@ -1877,6 +1877,7 @@
         ${sel('pro', 'Particulier ou entreprise', [['', 'Tous'], ['part', 'Particuliers'], ['pro', 'Entreprises (société renseignée)']])}
         ${sel('civ', 'Civilité', [['', 'Toutes'], ['Mme', 'Madame'], ['M.', 'Monsieur'], ['aucune', 'Non renseignée']])}
         ${sel('dep', 'Département', [['', 'Tous'], ['idf', 'Toute l’Île-de-France'], ...F.dep.map(([v, c]) => [v, `${esc(v)} (${n(c)})`]), ['aucun', 'Inconnu']])}
+        ${sel('fonction', '💼 Fonction (ex. Responsable de salle)', liste(F.fonction || [], 'Toutes'))}
         ${sel('contactDe', 'Contact de (apporté par)', liste(F.contactDe, 'Tout le monde'))}</div></div>
       <div class="cl-gr"><p class="cl-gt">🎭 Prestataires et talents</p><div class="cl-crits">
         ${sel('metier', 'Métier', [['', 'Tous (clients compris)'], ['*', 'Tous les prestataires'], ...F.metiers.map(([v, c]) => [v, `${esc(v)} (${n(c)})`])])}

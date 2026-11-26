@@ -1068,7 +1068,7 @@ async function createApp(opts = {}) {
   function critereClient(c) {
     const dep = String(c.departement || DIF.departement(c.cp) || '').toUpperCase();
     return {
-      metiers: Array.isArray(c.metiers) ? c.metiers : [], dj: Array.isArray(c.djStyles) ? c.djStyles : [], contactDe: String(c.contactDe || '').trim(),
+      metiers: Array.isArray(c.metiers) ? c.metiers : [], dj: Array.isArray(c.djStyles) ? c.djStyles : [], contactDe: String(c.contactDe || '').trim(), fonction: String(c.fonction || '').replace(/\s+/g, ' ').trim(),
       dep, civ: c.civilite === 'Mme' || c.civilite === 'M.' ? c.civilite : '', pro: !!String(c.societe || '').trim(),
       email: /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(String(c.email || '').trim()), mobile: !!DIF.mobile(c.telE164 || c.tel),
       stopEmail: !!c.desinscrit?.email, stopSms: !!c.desinscrit?.sms, npc: !!c.nePasContacter || !!(c.desinscrit?.email && c.desinscrit?.sms),
@@ -1076,16 +1076,16 @@ async function createApp(opts = {}) {
     };
   }
   function facettesClients(items) {
-    const m = { metiers: new Map(), dj: new Map(), contactDe: new Map(), dep: new Map(), canal: new Map() };
+    const m = { metiers: new Map(), dj: new Map(), contactDe: new Map(), dep: new Map(), canal: new Map(), fonction: new Map() };
     const n = (map, x) => { if (x) map.set(x, (map.get(x) || 0) + 1); };
-    for (const { k } of items) { k.metiers.forEach(x => n(m.metiers, x)); k.dj.forEach(x => n(m.dj, x)); n(m.contactDe, k.contactDe); n(m.dep, k.dep); n(m.canal, k.canal); }
+    for (const { k } of items) { k.metiers.forEach(x => n(m.metiers, x)); k.dj.forEach(x => n(m.dj, x)); n(m.contactDe, k.contactDe); n(m.dep, k.dep); n(m.canal, k.canal); n(m.fonction, k.fonction); }
     const tri = map => [...map].sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0]), 'fr'));
     return {
-      metiers: tri(m.metiers), dj: tri(m.dj), canal: tri(m.canal), sansCanal: items.filter(a => !a.k.canal).length, contactDe: tri(m.contactDe), dep: [...m.dep].sort((a, b) => a[0].localeCompare(b[0], 'fr', { numeric: true })),
+      metiers: tri(m.metiers), dj: tri(m.dj), canal: tri(m.canal), sansCanal: items.filter(a => !a.k.canal).length, contactDe: tri(m.contactDe), fonction: tri(m.fonction).slice(0, 300), dep: [...m.dep].sort((a, b) => a[0].localeCompare(b[0], 'fr', { numeric: true })),
       indep: items.filter(a => a.k.indep).length, permis: items.filter(a => a.k.permis).length, npc: items.filter(a => a.k.npc).length,
     };
   }
-  const CRIT_CLIENTS = ['canal', 'metier', 'dj', 'contactDe', 'dep', 'civ', 'pro', 'joignable', 'indep', 'permis', 'npc'];
+  const CRIT_CLIENTS = ['canal', 'metier', 'dj', 'contactDe', 'fonction', 'dep', 'civ', 'pro', 'joignable', 'indep', 'permis', 'npc'];
   function filtrerCriteres(items, q) {
     const v = x => String(q[x] || '').slice(0, 80);
     if (!CRIT_CLIENTS.some(x => v(x))) return items;
@@ -1093,6 +1093,7 @@ async function createApp(opts = {}) {
       if (v('metier') && !(v('metier') === '*' ? k.metiers.length : k.metiers.includes(v('metier')))) return false;
       if (v('dj') && !k.dj.includes(v('dj'))) return false;
       if (v('contactDe') && k.contactDe !== v('contactDe')) return false;
+      if (v('fonction') && sansAcc(k.fonction) !== sansAcc(v('fonction'))) return false;
       if (v('canal') && k.canal !== (v('canal') === 'aucune' ? '' : v('canal'))) return false;
       if (v('dep') && !(v('dep') === 'idf' ? ['75', '77', '78', '91', '92', '93', '94', '95'].includes(k.dep) : v('dep') === 'aucun' ? !k.dep : k.dep === v('dep'))) return false;
       if (v('civ') && k.civ !== (v('civ') === 'aucune' ? '' : v('civ'))) return false;
