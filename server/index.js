@@ -2550,6 +2550,11 @@ async function createApp(opts = {}) {
   const catalogueBrut = async () => { const [rub, prod] = await Promise.all([store.list('rubriques'), store.list('produits')]); return { rubriques: rub.map(d => d.data).filter(Boolean), produits: prod.map(d => d.data).filter(Boolean) }; };
   const fournisseursTarifs = async () => (await store.list('tarifsFournisseurs')).map(d => ({ ...d.data, id: d.data?.id || d.id })).sort((a, b) => TAR.libelleFournisseur(a).localeCompare(TAR.libelleFournisseur(b), 'fr'));
   const cleOk = c => /^[a-z0-9-]+$/.test(String(c || ''));
+  /* Jean-Luc (2026-11-26) : tarifs garantis 6 mois reconductibles (matières premières), et non 12 : une fois, les choix déjà enregistrés à 12 passent à 6 */
+  if (!(await store.get('_migr/tarifs6mois'))) {
+    for (const d of await store.list('tarifsSpecialites')) if (d.data?.duree === 12) await store.set('tarifsSpecialites/' + d.id, { ...d.data, duree: TAR.DUREE_DEFAUT });
+    await store.set('_migr/tarifs6mois', { at: new Date().toISOString() });
+  }
   A.get('/tarifs', peut('prix'), wrap(async (req, res) => {
     const { rubriques, produits } = await catalogueBrut();
     const choix = new Map((await store.list('tarifsSpecialites')).map(d => [d.id, d.data]));
@@ -2570,12 +2575,12 @@ async function createApp(opts = {}) {
     /* fournisseurs déjà notés sur les fiches produits de cette spécialité (Catalogue) : proposés pour remplir la fiche */
     const bySlug = new Map(produits.map(p => [p.slug, p]));
     const notes = [...new Set(L.flatMap(x => ACHATS.fournisseursDe(bySlug.get(x.slug) || {})))];
-    res.set('Cache-Control', 'no-store').json({ spe, produits: L.map(x => ({ ...x, quantite: (c.quantites || {})[x.slug] || x.quantite, quantiteDefaut: x.quantite, retire: (c.exclus || []).includes(x.slug) })), choix: { fournisseurId: c.fournisseurId || '', duree: c.duree || 12, imprimeLe: c.imprimeLe || '' }, fournisseursFiches: notes });
+    res.set('Cache-Control', 'no-store').json({ spe, produits: L.map(x => ({ ...x, quantite: (c.quantites || {})[x.slug] || x.quantite, quantiteDefaut: x.quantite, retire: (c.exclus || []).includes(x.slug) })), choix: { fournisseurId: c.fournisseurId || '', duree: c.duree || TAR.DUREE_DEFAUT, imprimeLe: c.imprimeLe || '' }, fournisseursFiches: notes });
   }));
   const choixSpe = async (cle, b = {}) => {
     const avant = (await store.get('tarifsSpecialites/' + cle)) || {};
     const q = {}; for (const [k, v] of Object.entries(b.quantites || {})) if (cleOk(k) && String(v || '').trim()) q[k] = String(v).trim().slice(0, 80);
-    const c = { ...avant, fournisseurId: String(b.fournisseurId ?? avant.fournisseurId ?? '').slice(0, 40), exclus: Array.isArray(b.exclus) ? b.exclus.filter(cleOk).slice(0, 2000) : avant.exclus || [], quantites: b.quantites ? q : avant.quantites || {}, duree: TAR.DUREES.includes(+b.duree) ? +b.duree : avant.duree || 12, updatedAt: new Date().toISOString() };
+    const c = { ...avant, fournisseurId: String(b.fournisseurId ?? avant.fournisseurId ?? '').slice(0, 40), exclus: Array.isArray(b.exclus) ? b.exclus.filter(cleOk).slice(0, 2000) : avant.exclus || [], quantites: b.quantites ? q : avant.quantites || {}, duree: TAR.DUREES.includes(+b.duree) ? +b.duree : avant.duree || TAR.DUREE_DEFAUT, updatedAt: new Date().toISOString() };
     await store.set('tarifsSpecialites/' + cle, c);
     return c;
   };
@@ -2595,7 +2600,7 @@ async function createApp(opts = {}) {
     const lignes = L.filter(x => !(c.exclus || []).includes(x.slug)).map(x => ({ ...x, quantite: (c.quantites || {})[x.slug] || x.quantite }));
     await store.set('tarifsSpecialites/' + spe.cle, { ...c, imprimeLe: new Date().toISOString() });
     audit(req.ctx, 'document tarifs préparé', 'tarifs/' + spe.cle, lignes.length + ' produit(s)');
-    res.set('Cache-Control', 'no-store').set('X-Robots-Tag', 'noindex').type('html').send(TAR.documentHtml({ spe, lignes, fournisseur: f || {}, R: (await store.get('site/reglages')) || {}, duree: c.duree || 12, prepareur: req.ctx.name || '' }));
+    res.set('Cache-Control', 'no-store').set('X-Robots-Tag', 'noindex').type('html').send(TAR.documentHtml({ spe, lignes, fournisseur: f || {}, R: (await store.get('site/reglages')) || {}, duree: c.duree || TAR.DUREE_DEFAUT, prepareur: req.ctx.name || '' }));
   }));
   A.get('/tarifs/fournisseurs/:id', peut('prix'), wrap(async (req, res) => {
     const f = await store.get('tarifsFournisseurs/' + req.params.id);

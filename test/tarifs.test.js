@@ -39,6 +39,7 @@ test('Validation tarifs : fiche fournisseur, choix, document, scan privé', asyn
     const spe = L.specialites.find(s => s.n >= 3) || L.specialites[0];
     const d = (await req('/api/admin/tarifs/specialite/' + spe.cle)).j;
     assert.equal(d.produits.length, spe.n);
+    assert.equal(d.choix.duree, 6, 'tarifs garantis 6 mois par défaut');
 
     const f = (await req('/api/admin/tarifs/fournisseurs', { method: 'POST', body: { prenom: 'marie', nom: 'Exemple', entreprise: 'Fournisseur Secret Essai', profil: 'Restaurant', ville: 'Évry' } })).j.fournisseur;
     assert.equal(f.nom, 'EXEMPLE'); assert.equal(f.prenom, 'Marie');

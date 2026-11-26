@@ -374,7 +374,7 @@
       <section class="box vt-box"><h2><span class="vt-n">1</span> Spécialité</h2>${selSpe}${VT.data?.choix.imprimeLe ? `<p class="muted sm vt-der">Dernier document préparé le ${dateFr(VT.data.choix.imprimeLe, { day: 'numeric', month: 'long', year: 'numeric' })}.</p>` : ''}</section>
       <section class="box vt-box" id="vtF">${vtBlocFournisseur()}</section>
       <section class="box vt-box" id="vtP">${vtBlocProduits()}</section>
-      <div class="actions sticky vt-act"><label class="vt-duree">Tarifs garantis<select data-vtduree>${L.durees.map(d => `<option value="${d}"${(VT.data?.choix.duree || 12) === d ? ' selected' : ''}>${d} mois</option>`).join('')}</select></label><button type="button" class="btn vt-or" data-vtdoc>🖨 Préparer le document A4</button><span class="muted sm" id="vtInfo"></span></div>
+      <div class="actions sticky vt-act"><label class="vt-duree">Tarifs garantis<select data-vtduree>${L.durees.map(d => `<option value="${d}"${(VT.data?.choix.duree || 6) === d ? ' selected' : ''}>${d} mois</option>`).join('')}</select></label><button type="button" class="btn vt-or" data-vtdoc>🖨 Préparer le document A4</button><span class="muted sm" id="vtInfo"></span></div>
       <section class="box vt-box"><h2>📁 Fiches fournisseurs</h2>${fiches}</section>`);
   }
   function vtBlocFournisseur() {

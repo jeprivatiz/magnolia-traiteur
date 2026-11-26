@@ -12,6 +12,7 @@ const { RANGEMENTS, rangementDe } = require('./seed');
 
 const PROFILS = ['Restaurant', 'Traiteur', 'Pâtissier', 'Boulanger', 'Chocolatier', 'Producteur', 'Grossiste', 'Caviste', 'Prestataire', 'Autre'];
 const DUREES = [6, 12, 24, 36];
+const DUREE_DEFAUT = 6; /* Jean-Luc (2026-11-26) : 6 mois reconductibles, à cause des variations des matières premières */
 const CHAMPS = ['civilite', 'prenom', 'nom', 'fonction', 'entreprise', 'profil', 'adresse', 'cp', 'ville', 'telephone', 'portable', 'email', 'siret', 'tva', 'notes'];
 
 const visible = x => x && x.statut !== 'masque' && !x.fusionneDans;
@@ -112,7 +113,7 @@ const dateLongue = d => new Date(d).toLocaleDateString('fr-FR', { day: 'numeric'
 const pointilles = '<span class="pt"></span>';
 
 /* le document à imprimer : page HTML autonome */
-function documentHtml({ spe, lignes, fournisseur = {}, R = {}, duree = 12, prepareur = '', maintenant = new Date() }) {
+function documentHtml({ spe, lignes, fournisseur = {}, R = {}, duree = DUREE_DEFAUT, prepareur = '', maintenant = new Date() }) {
   const E = R.entreprise || {};
   const nomM = E.raisonSociale || 'Magnolia Traiteur';
   const site = String(E.site ?? 'magnoliatraiteur.fr').replace(/^https?:\/\//i, '').replace(/\/$/, '');
@@ -234,4 +235,4 @@ ${pages}
 </body></html>`;
 }
 
-module.exports = { nomSpecialite, PROFILS, DUREES, CHAMPS, specialites, produitsDe, quantiteDefaut, ficheFournisseur, libelleFournisseur, pagination, documentHtml, MM };
+module.exports = { nomSpecialite, PROFILS, DUREES, DUREE_DEFAUT, CHAMPS, specialites, produitsDe, quantiteDefaut, ficheFournisseur, libelleFournisseur, pagination, documentHtml, MM };
