@@ -2095,3 +2095,10 @@ small.cl-src { display: block; }
 .vt-specs { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px 14px; }
 .vt-spk { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border: 1px solid var(--ligne); border-radius: 10px; background: var(--doux); font-weight: 500; cursor: pointer; }
 .vt-spk:has(input:checked) { border-color: var(--or); background: color-mix(in srgb, var(--or) 14%, var(--carte)); }
+.vt-lbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 12px; }
+.vt-lbar input { flex: 1; min-width: 240px; max-width: 620px; }
+.vt-sub { display: block; font-size: .78rem; color: var(--texte-doux, #6b6b6b); }
+.vt-lf td { vertical-align: middle; }
+.vt-lf tr[data-href] { cursor: pointer; }
+.vt-chip { display: inline-block; margin: 2px 4px 2px 0; padding: 4px 10px; border: 1px solid var(--or); border-radius: 999px; background: color-mix(in srgb, var(--or) 10%, var(--carte)); color: var(--texte); font: 500 .8rem var(--sans); cursor: pointer; }
+.vt-chip:hover { background: color-mix(in srgb, var(--or) 22%, var(--carte)); }
