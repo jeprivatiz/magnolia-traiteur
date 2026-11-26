@@ -2601,6 +2601,19 @@ async function createApp(opts = {}) {
     for (const d of await store.list('tarifsSpecialites')) if (d.data?.duree === 12) await store.set('tarifsSpecialites/' + d.id, { ...d.data, duree: TAR.DUREE_DEFAUT });
     await store.set('_migr/tarifs6mois', { at: new Date().toISOString() });
   }
+  /* Plusieurs fournisseurs pour une même spécialité (Jean-Luc, 2026-11-26) : une grille par fournisseur (`grilles[id]`, '_' = sans fournisseur) ;
+     `fournisseurId` = la grille ouverte à l'écran. Une fois, l'ancienne grille unique devient celle de son fournisseur. */
+  const GRILLE = ['exclus', 'quantites', 'habituels', 'accordes', 'duree', 'imprimeLe'];
+  const grilleDe = (c, fid = c.fournisseurId) => (c.grilles || {})[fid || '_'] || {};
+  if (!(await store.get('_migr/tarifsGrilles'))) {
+    for (const d of await store.list('tarifsSpecialites')) {
+      const c = d.data || {}; if (c.grilles) continue;
+      const g = {}; for (const k of GRILLE) if (c[k] !== undefined) g[k] = c[k];
+      await store.set('tarifsSpecialites/' + d.id, { fournisseurId: c.fournisseurId || '', grilles: { [c.fournisseurId || '_']: g }, updatedAt: c.updatedAt || new Date().toISOString() });
+    }
+    await store.set('_migr/tarifsGrilles', { at: new Date().toISOString() });
+  }
+  const centsOk = o => Object.fromEntries(Object.entries(o || {}).filter(([k, v]) => cleOk(k) && Number.isInteger(v) && v > 0 && v < 1e7));
   /* liste des profils (Restaurant, Traiteur, Poissonnier…) : modifiable depuis la fiche (Jean-Luc, 2026-11-26) ; retirer un profil ne touche pas les fiches qui l'ont */
   const profilsTarifs = async () => { const d = await store.get('tarifsProfils/liste'); return d?.liste ? d.liste : [...TAR.PROFILS]; };
   const majuscule = t => t.charAt(0).toLocaleUpperCase('fr-FR') + t.slice(1);
@@ -2624,7 +2637,7 @@ async function createApp(opts = {}) {
     const choix = new Map((await store.list('tarifsSpecialites')).map(d => [d.id, d.data]));
     const F = await fournisseursTarifs(), parId = new Map(F.map(f => [f.id, f]));
     res.set('Cache-Control', 'no-store').json({
-      specialites: TAR.specialites(rubriques, produits).map(s => { const c = choix.get(s.cle); const f = c?.fournisseurId && parId.get(c.fournisseurId); return { ...s, fournisseur: f ? TAR.libelleFournisseur(f) : '', imprimeLe: c?.imprimeLe || '' }; }),
+      specialites: TAR.specialites(rubriques, produits).map(s => { const c = choix.get(s.cle); const f = c?.fournisseurId && parId.get(c.fournisseurId); const autres = Object.keys(c?.grilles || {}).filter(k => k !== '_' && parId.get(k)); return { ...s, fournisseur: f ? TAR.libelleFournisseur(f) : '', nbFournisseurs: autres.length, imprimeLe: c ? grilleDe(c).imprimeLe || '' : '' }; }),
       fournisseurs: F.map(f => ({ id: f.id, libelle: TAR.libelleFournisseur(f), profil: f.profil || '', ville: f.ville || '', scans: (f.scans || []).length })),
       profils: await profilsTarifs(), durees: TAR.DUREES,
     });
@@ -2635,18 +2648,28 @@ async function createApp(opts = {}) {
     const spe = TAR.specialites(rubriques, produits).find(s => s.cle === req.params.cle);
     const L = spe && TAR.produitsDe(spe.cle, rubriques, produits);
     if (!L) return res.status(404).json({ error: 'Spécialité introuvable.' });
-    const c = (await store.get('tarifsSpecialites/' + spe.cle)) || {};
+    const c0 = (await store.get('tarifsSpecialites/' + spe.cle)) || {}, c = grilleDe(c0);
+    const grilles = Object.entries(c0.grilles || {}).filter(([k]) => k !== '_').map(([id, g]) => ({ id, accordes: Object.keys(g.accordes || {}).length, habituels: Object.keys(g.habituels || {}).length }));
     /* fournisseurs déjà notés sur les fiches produits de cette spécialité (Catalogue) : proposés pour remplir la fiche */
     const bySlug = new Map(produits.map(p => [p.slug, p]));
     const notes = [...new Set(L.flatMap(x => ACHATS.fournisseursDe(bySlug.get(x.slug) || {})))];
-    res.set('Cache-Control', 'no-store').json({ spe, produits: L.map(x => ({ ...x, quantite: (c.quantites || {})[x.slug] || x.quantite, quantiteDefaut: x.quantite, habituelCents: (c.habituels || {})[x.slug] ?? null, retire: (c.exclus || []).includes(x.slug) })), choix: { fournisseurId: c.fournisseurId || '', duree: c.duree || TAR.DUREE_DEFAUT, imprimeLe: c.imprimeLe || '' }, fournisseursFiches: notes });
+    res.set('Cache-Control', 'no-store').json({ spe, produits: L.map(x => ({ ...x, quantite: (c.quantites || {})[x.slug] || x.quantite, quantiteDefaut: x.quantite, habituelCents: (c.habituels || {})[x.slug] ?? null, accordeCents: (c.accordes || {})[x.slug] ?? null, retire: (c.exclus || []).includes(x.slug) })), grilles, choix: { fournisseurId: c0.fournisseurId || '', duree: c.duree || TAR.DUREE_DEFAUT, imprimeLe: c.imprimeLe || '' }, fournisseursFiches: notes });
   }));
   const choixSpe = async (cle, b = {}) => {
-    const avant = (await store.get('tarifsSpecialites/' + cle)) || {};
-    const q = {}; for (const [k, v] of Object.entries(b.quantites || {})) if (cleOk(k) && String(v || '').trim()) q[k] = String(v).trim().slice(0, 80);
-    const c = { ...avant, fournisseurId: String(b.fournisseurId ?? avant.fournisseurId ?? '').slice(0, 40), exclus: Array.isArray(b.exclus) ? b.exclus.filter(cleOk).slice(0, 2000) : avant.exclus || [], quantites: b.quantites ? q : avant.quantites || {}, habituels: b.habituels ? Object.fromEntries(Object.entries(b.habituels).filter(([k, v]) => cleOk(k) && Number.isInteger(v) && v > 0 && v < 1e7)) : avant.habituels || {}, duree: TAR.DUREES.includes(+b.duree) ? +b.duree : avant.duree || TAR.DUREE_DEFAUT, updatedAt: new Date().toISOString() };
+    const avant = (await store.get('tarifsSpecialites/' + cle)) || { grilles: {} };
+    const grilles = { ...(avant.grilles || {}) };
+    const fid = String(b.fournisseurId ?? avant.fournisseurId ?? '').slice(0, 40), k = fid || '_';
+    /* première fois qu'on ouvre ce fournisseur pour cette spécialité : il reprend la grille « sans fournisseur » si elle existe, sinon les produits cochés et quantités de la grille ouverte (jamais ses prix) */
+    if (!grilles[k]) {
+      if (fid && grilles._) { grilles[k] = grilles._; delete grilles._; }
+      else { const prec = grilles[avant.fournisseurId || '_'] || {}; grilles[k] = { exclus: prec.exclus || [], quantites: prec.quantites || {}, duree: prec.duree }; }
+    }
+    const g = grilles[k];
+    const q = {}; for (const [kk, v] of Object.entries(b.quantites || {})) if (cleOk(kk) && String(v || '').trim()) q[kk] = String(v).trim().slice(0, 80);
+    grilles[k] = { ...g, exclus: Array.isArray(b.exclus) ? b.exclus.filter(cleOk).slice(0, 2000) : g.exclus || [], quantites: b.quantites ? q : g.quantites || {}, habituels: b.habituels ? centsOk(b.habituels) : g.habituels || {}, accordes: b.accordes ? centsOk(b.accordes) : g.accordes || {}, duree: TAR.DUREES.includes(+b.duree) ? +b.duree : g.duree || TAR.DUREE_DEFAUT, updatedAt: new Date().toISOString() };
+    const c = { ...avant, fournisseurId: fid, grilles, updatedAt: new Date().toISOString() };
     await store.set('tarifsSpecialites/' + cle, c);
-    return c;
+    return { fournisseurId: fid, ...grilles[k] };
   };
   A.put('/tarifs/specialite/:cle', sameSite, json, peut('prix'), wrap(async (req, res) => {
     if (!cleOk(req.params.cle)) return res.status(400).json({ error: 'Spécialité inconnue.' });
@@ -2661,10 +2684,35 @@ async function createApp(opts = {}) {
     const lignes = TAR.lireListePrix(req.body?.texte);
     if (!lignes.length) return res.status(400).json({ error: 'Aucune ligne lisible : une ligne par produit, le nom puis le prix (ex. « Chicken Tikka ; 12,50 »).' });
     const r = TAR.rapprocherPrix(lignes, L);
-    const avant = (await store.get('tarifsSpecialites/' + req.params.cle)) || {};
-    await store.set('tarifsSpecialites/' + req.params.cle, { ...avant, habituels: { ...(avant.habituels || {}), ...r.prix }, updatedAt: new Date().toISOString() });
+    const c0 = (await store.get('tarifsSpecialites/' + req.params.cle)) || {}, avant = grilleDe(c0);
+    await choixSpe(req.params.cle, { fournisseurId: c0.fournisseurId || '', habituels: { ...(avant.habituels || {}), ...r.prix } });
     audit(req.ctx, 'tarifs clients habituels importés', 'tarifs/' + req.params.cle, Object.keys(r.prix).length + ' produit(s)');
     res.json({ ok: true, ...r, sansPrix: L.filter(x => !(x.slug in r.prix) && !(avant.habituels || {})[x.slug]).map(x => x.titre) });
+  }));
+  /* Comparatif (Jean-Luc, 2026-11-26) : pour chaque produit, les tarifs de chaque fournisseur côte à côte et le meilleur.
+     On compare le tarif préférentiel accordé ; à défaut (aucun accordé), le tarif client habituel. */
+  A.get('/tarifs/comparatif', peut('prix'), wrap(async (req, res) => {
+    const { rubriques, produits } = await catalogueBrut();
+    const S = TAR.specialites(rubriques, produits), F = await fournisseursTarifs(), parId = new Map(F.map(f => [f.id, f]));
+    const choix = new Map((await store.list('tarifsSpecialites')).map(d => [d.id, d.data]));
+    const lignes = [], vus = new Map();
+    for (const spe of S) {
+      const c = choix.get(spe.cle); if (!c?.grilles) continue;
+      const G = Object.entries(c.grilles).filter(([id]) => parId.has(id));
+      if (!G.length) continue;
+      for (const x of TAR.produitsDe(spe.cle, rubriques, produits) || []) {
+        const prix = {};
+        for (const [id, g] of G) { const acc = (g.accordes || {})[x.slug] || null, hab = (g.habituels || {})[x.slug] || null; if (acc || hab) prix[id] = { acc, hab }; }
+        if (!Object.keys(prix).length) continue;
+        const type = Object.values(prix).some(p => p.acc) ? 'acc' : 'hab';
+        const cand = Object.entries(prix).filter(([, p]) => p[type]).sort((a, b) => a[1][type] - b[1][type]);
+        const l = { spe: spe.cle, speNom: spe.nom, slug: x.slug, titre: x.titre, photo: x.photo, prix, meilleur: { id: cand[0][0], cents: cand[0][1][type], type }, ecart: cand.length > 1 ? cand[1][1][type] - cand[0][1][type] : 0 };
+        if (vus.has(x.slug)) { const o = vus.get(x.slug); Object.assign(o.prix, prix); continue; } // un même produit vu dans deux spécialités
+        vus.set(x.slug, l); lignes.push(l);
+      }
+    }
+    const utiles = new Set(lignes.flatMap(l => Object.keys(l.prix)));
+    res.set('Cache-Control', 'no-store').json({ specialites: S.filter(s => lignes.some(l => l.spe === s.cle)).map(s => ({ cle: s.cle, nom: s.nom })), fournisseurs: F.filter(f => utiles.has(f.id)).map(f => ({ id: f.id, libelle: TAR.libelleFournisseur(f) })), lignes });
   }));
   /* le document A4 : enregistre la date d'impression et sert une page autonome (Imprimer / Enregistrer en PDF) */
   A.get('/tarifs/document/:cle', peut('prix'), wrap(async (req, res) => {
@@ -2673,17 +2721,17 @@ async function createApp(opts = {}) {
     const spe = TAR.specialites(rubriques, produits).find(s => s.cle === req.params.cle);
     const L = spe && TAR.produitsDe(spe.cle, rubriques, produits);
     if (!L) return res.status(404).send('Spécialité introuvable.');
-    const c = (await store.get('tarifsSpecialites/' + spe.cle)) || {};
-    const f = c.fournisseurId ? await store.get('tarifsFournisseurs/' + c.fournisseurId) : null;
+    const c0 = (await store.get('tarifsSpecialites/' + spe.cle)) || {}, c = grilleDe(c0);
+    const f = c0.fournisseurId ? await store.get('tarifsFournisseurs/' + c0.fournisseurId) : null;
     const lignes = L.filter(x => !(c.exclus || []).includes(x.slug)).map(x => ({ ...x, quantite: (c.quantites || {})[x.slug] || x.quantite, habituelCents: (c.habituels || {})[x.slug] || null }));
-    await store.set('tarifsSpecialites/' + spe.cle, { ...c, imprimeLe: new Date().toISOString() });
+    await store.set('tarifsSpecialites/' + spe.cle, { ...c0, grilles: { ...(c0.grilles || {}), [c0.fournisseurId || '_']: { ...c, imprimeLe: new Date().toISOString() } } });
     audit(req.ctx, 'document tarifs préparé', 'tarifs/' + spe.cle, lignes.length + ' produit(s)');
     res.set('Cache-Control', 'no-store').set('X-Robots-Tag', 'noindex').type('html').send(TAR.documentHtml({ spe, lignes, fournisseur: f || {}, R: (await store.get('site/reglages')) || {}, duree: c.duree || TAR.DUREE_DEFAUT, prepareur: req.ctx.name || '' }));
   }));
   A.get('/tarifs/fournisseurs/:id', peut('prix'), wrap(async (req, res) => {
     const f = await store.get('tarifsFournisseurs/' + req.params.id);
     if (!f) return res.status(404).json({ error: 'Fiche introuvable.' });
-    const specs = (await store.list('tarifsSpecialites')).filter(d => d.data?.fournisseurId === req.params.id).map(d => d.id);
+    const specs = (await store.list('tarifsSpecialites')).filter(d => d.data?.grilles?.[req.params.id]).map(d => d.id);
     res.set('Cache-Control', 'no-store').json({ ...f, id: req.params.id, specialites: specs });
   }));
   A.post('/tarifs/fournisseurs', sameSite, json, peut('prix'), wrap(async (req, res) => {
@@ -2708,7 +2756,7 @@ async function createApp(opts = {}) {
     if (!f) return res.status(404).json({ error: 'Fiche introuvable.' });
     if ((f.scans || []).length) return res.status(409).json({ error: 'Cette fiche contient des documents signés : retirez-les d’abord si vous voulez vraiment la supprimer.' });
     await store.delete('tarifsFournisseurs/' + req.params.id);
-    for (const d of await store.list('tarifsSpecialites')) if (d.data?.fournisseurId === req.params.id) await store.set('tarifsSpecialites/' + d.id, { ...d.data, fournisseurId: '' });
+    for (const d of await store.list('tarifsSpecialites')) if (d.data?.grilles?.[req.params.id] || d.data?.fournisseurId === req.params.id) { const g = { ...(d.data.grilles || {}) }; delete g[req.params.id]; await store.set('tarifsSpecialites/' + d.id, { ...d.data, grilles: g, fournisseurId: d.data.fournisseurId === req.params.id ? '' : d.data.fournisseurId }); }
     audit(req.ctx, 'fiche fournisseur supprimée', 'tarifsFournisseurs/' + req.params.id, TAR.libelleFournisseur(f));
     res.json({ ok: true });
   }));
