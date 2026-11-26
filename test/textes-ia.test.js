@@ -13,6 +13,7 @@ test('description sous la photo posée par l’IA sur les fiches vides, jamais s
     prompts.push(prompt);
     const slugs = [...prompt.matchAll(/^([a-z0-9-]+) \| /gm)].map(m => m[1]);
     if (prompt.includes('le petit texte affiché sous la photo')) return JSON.stringify(slugs.map(s => ({ slug: s, texte: `Un texte appétissant pour ${s}, à partager entre invités lors de vos réceptions. Idéal pour un cocktail comme pour un buffet.` })));
+    if (prompt.includes('donne envie au client de commander')) return JSON.stringify({ lignes: ['**Accroche** gourmande : des accras croustillants à partager pour vos réceptions.'] });
     if (prompt.includes('Tu améliores un texte')) return JSON.stringify({ lignes: ['**NOS PIÈCES**', 'Une version enrichie, claire et gourmande, de la description actuelle.'] });
     return '[]';
   };
@@ -55,9 +56,12 @@ test('description sous la photo posée par l’IA sur les fiches vides, jamais s
     /* bouton « Améliorer avec l'IA » */
     const r1 = (await call('/api/admin/ia/texte-produit', { method: 'POST', body: { id: a.slug, champ: 'sousPhoto', lignes: ['Texte actuel'] } })).j;
     assert.deepEqual(r1.lignes, ['**NOS PIÈCES**', 'Une version enrichie, claire et gourmande, de la description actuelle.']);
-    const r2 = (await call('/api/admin/ia/texte-produit', { method: 'POST', body: { id: a.slug, champ: 'description', lignes: 'Texte actuel' } })).j;
-    assert.equal(r2.lignes[0], 'NOS PIÈCES', 'pas de gras dans la Description');
-    assert.ok(prompts.at(-1).includes('Texte actuel'));
+    /* Description : une phrase d'accroche écrite d'après la Description sous la photo (Jean-Luc, 2026-11-26) */
+    const r2 = (await call('/api/admin/ia/texte-produit', { method: 'POST', body: { id: a.slug, champ: 'description', lignes: 'Texte actuel', sousPhoto: '**NOS MINI PIÈCES**\n- Accras de morue\n- Boudin créole' } })).j;
+    assert.equal(r2.lignes[0], 'Accroche gourmande : des accras croustillants à partager pour vos réceptions.', 'pas de gras dans la Description');
+    const pd = prompts.at(-1);
+    assert.ok(pd.includes('Texte actuel') && pd.includes('NOS MINI PIÈCES\nAccras de morue\nBoudin créole'), 'la description sous la photo est la source');
+    assert.doesNotMatch(pd, /\*\*|^- Accras/m);
   } finally { srv.close(); }
 });
 

@@ -49,6 +49,33 @@ Produits (slug | nom | rubrique | spécialité | vente | infos | choix proposés
 ${items.map(i => [i.slug, i.nom, i.rubrique, i.specialite || '-', i.vente || '-', i.infos || '-', i.choix || '-', i.plus || '-'].join(' | ')).join('\n')}`;
 }
 
+/* « Description sous la photo » en texte simple (puces « - » et gras ** retirés) */
+const sousPhotoTexte = v => (Array.isArray(v) ? v : String(v || '').split('\n')).map(x => String(x || '').replace(/\*\*/g, '').replace(/^[-•]\s+/, '').trim()).filter(Boolean).join('\n').slice(0, 2500);
+
+/* « ✨ Améliorer la description avec l'IA » (Jean-Luc, 2026-11-26) : la Description (sous le tarif) devient une phrase
+   d'accroche qui donne envie de commander, écrite d'après la « Description sous la photo » (la description complète du produit). */
+function promptDescription(info, sousPhoto, lignes) {
+  const sp = sousPhotoTexte(sousPhoto);
+  return `Tu rédiges la « Description » de la fiche produit « ${info.nom} » du site de Magnolia Traiteur (traiteur événementiel à Villebon-sur-Yvette, livraison 7 j/7 dans toute l'Île-de-France). Ce texte s'affiche juste sous le prix, à côté du bouton de commande.
+But : UNE phrase (deux au maximum, 260 caractères maximum en tout) qui donne envie au client de commander ce produit : ce qui le rend appétissant ou pratique, et pour quelle occasion.
+Source principale : la « Description sous la photo » ci-dessous, qui décrit tout le produit. Appuie-toi d'abord sur elle ; n'en recopie pas la liste, résume-la en une accroche. Les autres infos de la fiche servent seulement de complément.
+${REGLES}
+Réponds UNIQUEMENT avec un objet JSON, sans texte autour : {"lignes":["la phrase"]}
+
+Description sous la photo :
+${sp || '(vide : appuie-toi sur les infos de la fiche)'}
+
+Infos de la fiche :
+nom : ${info.nom}
+rubrique : ${info.rubrique}${info.specialite ? ' / ' + info.specialite : ''}
+vente : ${info.vente || '-'}
+choix proposés : ${info.choix || '-'}
+autres détails : ${info.plus || '-'}
+
+Description actuelle (à remplacer) :
+${lignes.length ? lignes.join('\n') : '(vide)'}`;
+}
+
 function promptAmeliorer(info, champ, lignes) {
   const sp = champ === 'sousPhoto';
   return `Tu améliores un texte de la fiche produit « ${info.nom} » du site de Magnolia Traiteur (traiteur événementiel à Villebon-sur-Yvette, livraison 7 j/7 dans toute l'Île-de-France).
@@ -85,4 +112,4 @@ function lignesValides(l, champ) {
   return champ === 'sousPhoto' ? lignes : lignes.map(x => x.replace(/\*\*/g, ''));
 }
 
-module.exports = { infosProduit, promptSousPhoto, promptAmeliorer, texteValide, lignesValides };
+module.exports = { infosProduit, promptSousPhoto, promptAmeliorer, promptDescription, sousPhotoTexte, texteValide, lignesValides };
