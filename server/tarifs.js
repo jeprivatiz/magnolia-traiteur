@@ -111,6 +111,38 @@ function pagination(n) {
 
 const dateLongue = d => new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Paris' });
 const pointilles = '<span class="pt"></span>';
+const prixFr = c => (c / 100).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+
+/* « Tarif client habituel TTC » pré-rempli depuis une liste collée (une ligne par produit : nom puis prix).
+   Chaque ligne est rapprochée d'un produit de la spécialité par son nom (mots en commun) ; les prix restent dans la base, jamais dans le code. */
+const mots = t => norm(String(t || '').replace(/\*\*/g, '').replace(/\([^)]*\)/g, ' ')).replace(/[^a-z0-9]+/g, ' ').trim().split(' ').filter(w => w.length > 1 && !['de', 'du', 'des', 'la', 'le', 'les', 'au', 'aux', 'et', 'en', 'a'].includes(w));
+function lireListePrix(texte) {
+  const out = [];
+  for (const brut of String(texte || '').split(/\r?\n/)) {
+    const l = brut.trim(); if (!l) continue;
+    const m = l.match(/^(.*?)[\s;:|\t-]*(\d{1,4}(?:[.,]\d{1,2})?)\s*(?:€|eur|euros)?\s*$/i);
+    if (!m || !m[1].trim()) continue;
+    out.push({ nom: m[1].replace(/[;:|\t]+$/, '').trim(), cents: Math.round(parseFloat(m[2].replace(',', '.')) * 100) });
+  }
+  return out;
+}
+function rapprocherPrix(lignes, produits) {
+  const P = produits.map(p => ({ slug: p.slug, titre: p.titre, m: new Set(mots(p.titre)), exact: mots(p.titre).join(' ') }));
+  const res = { prix: {}, trouves: [], nonTrouves: [] };
+  for (const l of lignes) {
+    const lm = mots(l.nom), exact = lm.join(' ');
+    let best = null, score = 0;
+    for (const p of P) {
+      if (!p.m.size || !lm.length) continue;
+      const commun = lm.filter(w => p.m.has(w)).length;
+      const sc = p.exact === exact ? 2 : commun / Math.max(lm.length, p.m.size);
+      if (sc > score) { score = sc; best = p; }
+    }
+    if (best && score >= 0.6) { res.prix[best.slug] = l.cents; res.trouves.push({ nom: l.nom, produit: best.titre, cents: l.cents }); }
+    else res.nonTrouves.push(l);
+  }
+  return res;
+}
 
 /* le document à imprimer : page HTML autonome */
 function documentHtml({ spe, lignes, fournisseur = {}, R = {}, duree = DUREE_DEFAUT, prepareur = '', maintenant = new Date() }) {
@@ -141,13 +173,13 @@ function documentHtml({ spe, lignes, fournisseur = {}, R = {}, duree = DUREE_DEF
   const P = pagination(lignes.length);
   const L = P.ligne, photo = Math.max(8, Math.min(20, L - 2));
   const fs = L >= 18 ? 10 : L >= 14 ? 9 : 8.4;
-  const ligneHtml = (x, i) => `<tr style="height:${L}mm"><td class="no">${i + 1}</td><td class="ph">${x.photo ? `<img src="${esc(x.photo)}" alt="" style="width:${photo}mm;height:${photo}mm">` : `<span class="noph" style="width:${photo}mm;height:${photo}mm"></span>`}</td><td class="nm"><b>${esc(x.titre)}</b>${x.sectionNom && L >= 14 ? `<small>${esc(x.sectionNom.replace(/ à l’unité$/, ''))}</small>` : ''}</td><td class="qt"></td><td class="px hab"><span>€ TTC</span></td><td class="px"><span>€ TTC</span></td><td class="ob"></td></tr>`;
+  const ligneHtml = (x, i) => `<tr style="height:${L}mm"><td class="no">${i + 1}</td><td class="ph">${x.photo ? `<img src="${esc(x.photo)}" alt="" style="width:${photo}mm;height:${photo}mm">` : `<span class="noph" style="width:${photo}mm;height:${photo}mm"></span>`}</td><td class="nm"><b>${esc(x.titre)}</b>${x.sectionNom && L >= 14 ? `<small>${esc(x.sectionNom.replace(/ à l’unité$/, ''))}</small>` : ''}</td><td class="qt"></td><td class="px hab">${x.habituelCents ? `<b class="pre">${prixFr(x.habituelCents)}</b>` : '<span>€ TTC</span>'}</td><td class="px"><span>€ TTC</span></td><td class="ob"></td></tr>`;
   const thead = `<thead><tr style="height:${MM.th}mm"><th class="no">N°</th><th class="ph">Photo</th><th class="nm">Produit</th><th class="qt">Quantité du produit<br><small>(poids, nombre)</small></th><th class="px hab">Tarif client habituel TTC</th><th class="px">Tarif préférentiel TTC accordé à Magnolia Traiteur</th><th class="ob">Observation</th></tr></thead>`;
   const titre = 'TARIFS PRÉFÉRENTIELS ACCORDÉS À MAGNOLIA TRAITEUR';
   const sousTitre = `pour la commercialisation de nos produits sur le site ${esc(www)}`;
   const ref = 'TP-' + String(spe.cle || norm(spe.nom)).split('--').pop().replace(/^buffet-/, '').replace(/[^a-z0-9]+/gi, '-').toUpperCase().slice(0, 16) + '-' + maintenant.toLocaleDateString('sv-SE', { timeZone: 'Europe/Paris' }).replace(/-/g, '');
   const fin = `<div class="fin" style="height:${MM.fin}mm">
-    <p class="accord">Tarifs accordés le : <span class="blanc"></span> / <span class="blanc c"></span> / <span class="blanc l"></span></p>
+    <p class="accord">Tarifs accordés le : <span class="blanc"></span> / <span class="blanc c"></span> / <span class="blanc l"></span> &nbsp;à <span class="blanc lieu"></span></p>
     <p class="clause"><b>Engagement.</b> Par leur signature, ${esc(nomM)} et le fournisseur désigné ci-dessus conviennent que les tarifs préférentiels TTC inscrits dans ce tableau, pour la quantité indiquée, s’appliquent à toutes les commandes passées par ${esc(nomM)} en vue de la revente de ces produits, notamment sur ${esc(www)}. ${esc(nomM)} fixe librement ses prix de vente à ses clients : sa rémunération provient exclusivement de la marge ainsi réalisée. Ces tarifs sont garantis pendant <b>${duree} mois</b> à compter de la date ci-dessus, puis reconduits par périodes de ${duree} mois, sauf modification annoncée par écrit au moins deux mois à l’avance ; une commande déjà passée reste due au tarif accordé. Le fournisseur garantit que ses produits respectent la réglementation en vigueur (hygiène, traçabilité, information sur les allergènes). <b>Confidentialité :</b> les deux parties gardent confidentiels ces tarifs et le contenu de ce document ; ${esc(nomM)} ne communique jamais le nom ni les coordonnées du fournisseur à ses clients. Les produits non tarifés ne sont pas concernés. Fait en deux exemplaires originaux, dont un pour chaque partie.</p>
     <div class="sig"><div><h4>Pour le fournisseur</h4><p>Nom, fonction et cachet de l’entreprise</p><p>Date et signature, précédées de la mention « Bon pour accord »</p></div><div><h4>Pour ${esc(nomM)}</h4><p>Nom et fonction</p><p>Date et signature</p></div></div></div>`;
 
@@ -215,12 +247,14 @@ th.no { text-align: center; }
 .qt { width: 24mm; }
 .px.hab { width: 25mm; }
 .px { width: 32mm; position: relative; }
+.px .pre { font-weight: 500; font-size: .95em; color: #1d2a24; }
 .px span { position: absolute; right: 1.6mm; bottom: 1mm; font-size: 6.6pt; color: #9a9a90; }
 .ob { width: auto; }
 .fin { flex: none; display: flex; flex-direction: column; margin-top: 2.5mm; overflow: hidden; }
 .accord { margin: 0 0 1.6mm; font-size: 10pt; font-weight: 600; color: #1d3b2f; }
 .blanc { display: inline-block; width: 10mm; border-bottom: .3mm solid #333; height: 4mm; }
 .blanc.l { width: 16mm; }
+.blanc.lieu { width: 60mm; }
 .clause { margin: 0 0 2mm; font-size: 6.9pt; line-height: 1.32; color: #33352f; text-align: justify; }
 .sig { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; flex: 1; min-height: 0; }
 .sig > div { border: .3mm solid #b08a4f; border-radius: 2mm; padding: 1.8mm 3mm; }
@@ -239,4 +273,4 @@ ${pages}
 </body></html>`;
 }
 
-module.exports = { nomSpecialite, PROFILS, DUREES, DUREE_DEFAUT, CHAMPS, specialites, produitsDe, quantiteDefaut, ficheFournisseur, libelleFournisseur, pagination, documentHtml, MM };
+module.exports = { lireListePrix, rapprocherPrix, prixFr, nomSpecialite, PROFILS, DUREES, DUREE_DEFAUT, CHAMPS, specialites, produitsDe, quantiteDefaut, ficheFournisseur, libelleFournisseur, pagination, documentHtml, MM };

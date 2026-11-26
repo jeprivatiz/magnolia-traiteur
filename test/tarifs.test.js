@@ -62,6 +62,14 @@ test('Validation tarifs : fiche fournisseur, choix, document, scan privé', asyn
     assert.ok(!doc.t.includes('>' + d.produits[0].titre + '<'), 'produit décoché absent du document');
     assert.equal((doc.t.match(/<td class="no">/g) || []).length, spe.n - 1);
 
+    /* tarif client habituel : liste collée, rapprochée par le nom */
+    const t1 = d.produits[1].titre.replace(/\s*\(.*\)\s*$/, '');
+    const im = (await req('/api/admin/tarifs/specialite/' + spe.cle + '/habituels', { method: 'POST', body: { texte: `${t1} ; 12,50\nProduit qui n’existe pas ; 3` } })).j;
+    assert.equal(im.trouves.length, 1); assert.equal(im.nonTrouves.length, 1);
+    const doc2 = await req('/api/admin/tarifs/document/' + spe.cle);
+    assert.match(doc2.t, /12,50 €/, 'tarif habituel imprimé');
+    assert.equal((await req('/api/admin/tarifs/specialite/' + spe.cle)).j.produits[1].habituelCents, 1250);
+
     /* scan signé : déposé dans le dossier, servi seulement à l'équipe */
     const fd = new FormData();
     fd.append('fichier', new Blob(['%PDF-1.4 essai'], { type: 'application/pdf' }), 'tableau-signe.pdf');

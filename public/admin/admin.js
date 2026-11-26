@@ -426,8 +426,9 @@
   function vtBlocProduits() {
     const D = VT.data; if (!D) return '<p class="muted">Aucune spécialité.</p>';
     let sec = null;
-    const rows = D.produits.map(p => { const h = p.sectionNom && p.sectionNom !== sec ? `<li class="vt-sec">${esc(p.sectionNom)}</li>` : ''; sec = p.sectionNom; return h + `<li class="vt-p${p.retire ? ' off' : ''}"><label class="vt-ck"><input type="checkbox" data-vtck="${esc(p.slug)}"${p.retire ? '' : ' checked'} aria-label="Garder ${esc(p.titre)} sur le document"></label>${p.photo ? `<img src="${esc(p.photo)}" alt="" loading="lazy">` : '<span class="vt-noph"></span>'}<span class="vt-t">${esc(p.titre)}</span></li>`; }).join('');
+    const rows = D.produits.map(p => { const h = p.sectionNom && p.sectionNom !== sec ? `<li class="vt-sec">${esc(p.sectionNom)}</li>` : ''; sec = p.sectionNom; return h + `<li class="vt-p${p.retire ? ' off' : ''}"><label class="vt-ck"><input type="checkbox" data-vtck="${esc(p.slug)}"${p.retire ? '' : ' checked'} aria-label="Garder ${esc(p.titre)} sur le document"></label>${p.photo ? `<img src="${esc(p.photo)}" alt="" loading="lazy">` : '<span class="vt-noph"></span>'}<span class="vt-t">${esc(p.titre)}</span><label class="vt-q">Tarif client habituel<span class="vt-eu"><input data-vthab="${esc(p.slug)}" value="${p.habituelCents ? (p.habituelCents / 100).toFixed(2).replace('.', ',') : ''}" inputmode="decimal" placeholder="vide" maxlength="9"> €</span></label></li>`; }).join('');
     return `<h2><span class="vt-n">3</span> Produits du tableau</h2><p class="muted sm">Décochez les produits à retirer avant d’imprimer. Les colonnes Quantité, Tarif client habituel, Tarif préférentiel et Observation restent vides : le restaurateur ou le traiteur les remplit.</p>
+      <details class="vt-imp"><summary>📋 Remplir « Tarif client habituel » depuis une liste de prix</summary><p class="muted sm">Collez la carte du fournisseur : une ligne par produit, le nom puis le prix TTC (ex. « Chicken Tikka ; 12,50 »). Chaque ligne est rapprochée du produit qui porte le même nom. La case reste vide sur le document si aucun prix n’est trouvé.</p><textarea data-vtimp rows="6" placeholder="Samossa poulet ; 6,50&#10;Chicken Tandoori ; 14,90"></textarea><div class="row"><label class="btn ghost sm vt-fic">📄 Ouvrir un fichier (.txt, .csv)<input type="file" accept=".txt,.csv,text/plain,text/csv" data-vtimpf hidden></label><button type="button" class="btn sm" data-vtimpgo>Remplir les prix</button><button type="button" class="btn ghost sm" data-vthabx>Vider tous les tarifs habituels</button></div><div data-vtimpres></div></details>
       <div class="vt-bar"><span id="vtNb"></span><button type="button" class="btn ghost sm" data-vttout="1">Tout cocher</button><button type="button" class="btn ghost sm" data-vttout="0">Tout décocher</button></div><ul class="vt-list">${rows}</ul>`;
   }
   tarifs.after = (id, sub) => {
@@ -435,16 +436,28 @@
     $$('tr[data-href]').forEach(tr => tr.addEventListener('click', e => { if (!e.target.closest('a')) location.hash = tr.dataset.href; }));
     const D = VT.data; if (!D) return;
     const exclus = () => $$('[data-vtck]').filter(c => !c.checked).map(c => c.dataset.vtck);
+    const habituels = () => Object.fromEntries($$('[data-vthab]').map(i => [i.dataset.vthab, Math.round(parseFloat(i.value.replace(/\s/g, '').replace(',', '.')) * 100)]).filter(([, v]) => v > 0));
     const quantites = () => Object.fromEntries($$('[data-vtq]').map(i => [i.dataset.vtq, i.value.trim()]).filter(([k, v]) => v && v !== D.produits.find(p => p.slug === k)?.quantiteDefaut));
     const compte = () => { const n = $$('[data-vtck]').filter(c => c.checked).length, p = vtPages(n); $('#vtNb').innerHTML = `<b>${n}</b> produit${n > 1 ? 's' : ''} sur ${D.produits.length} dans le tableau`; $('#vtInfo').textContent = n ? `${n} produit${n > 1 ? 's' : ''} · ${p === 1 ? 'tient sur 1 page A4' : p + ' pages A4, numérotées'}` : 'Cochez au moins un produit.'; $('[data-vtdoc]').disabled = !n; };
     let t = null;
-    const sauver = (immediat) => { clearTimeout(t); const go = () => api(A + '/tarifs/specialite/' + VT.spe, { method: 'PUT', body: { fournisseurId: $('[data-vtf]').value === '+' ? D.choix.fournisseurId : $('[data-vtf]').value, exclus: exclus(), quantites: quantites(), duree: +$('[data-vtduree]').value } }); if (immediat) return go(); t = setTimeout(() => go().catch(e => toast(e.message, true)), 500); };
+    const sauver = (immediat) => { clearTimeout(t); const go = () => api(A + '/tarifs/specialite/' + VT.spe, { method: 'PUT', body: { fournisseurId: $('[data-vtf]').value === '+' ? D.choix.fournisseurId : $('[data-vtf]').value, exclus: exclus(), quantites: quantites(), habituels: habituels(), duree: +$('[data-vtduree]').value } }); if (immediat) return go(); t = setTimeout(() => go().catch(e => toast(e.message, true)), 500); };
     compte();
     $('[data-vtspe]').addEventListener('change', e => { VT.spe = e.target.value; mem.set('mg_vt_spe', VT.spe); render(); });
     $$('[data-vtck]').forEach(c => c.addEventListener('change', () => { c.closest('.vt-p').classList.toggle('off', !c.checked); compte(); sauver(); }));
     $$('[data-vttout]').forEach(b => b.addEventListener('click', () => { $$('[data-vtck]').forEach(c => { c.checked = b.dataset.vttout === '1'; c.closest('.vt-p').classList.toggle('off', !c.checked); }); compte(); sauver(); }));
     $$('[data-vtq]').forEach(i => i.addEventListener('input', () => sauver()));
     $('[data-vtduree]').addEventListener('change', () => sauver());
+    $$('[data-vthab]').forEach(i => { i.addEventListener('input', () => sauver()); i.addEventListener('change', () => { const v = parseFloat(i.value.replace(/\s/g, '').replace(',', '.')); i.value = v > 0 ? v.toFixed(2).replace('.', ',') : ''; }); });
+    $('[data-vthabx]')?.addEventListener('click', () => { if (!confirm('Vider tous les tarifs clients habituels de cette spécialité ?')) return; $$('[data-vthab]').forEach(i => { i.value = ''; }); sauver(true).then(() => toast('Tarifs habituels vidés.')).catch(e => toast(e.message, true)); });
+    $('[data-vtimpf]')?.addEventListener('change', async e => { const f = e.target.files[0]; if (!f) return; $('[data-vtimp]').value = await f.text(); toast('Fichier chargé : cliquez sur « Remplir les prix ».'); });
+    $('[data-vtimpgo]')?.addEventListener('click', async () => {
+      try {
+        await sauver(true);
+        const r = await api(A + '/tarifs/specialite/' + VT.spe + '/habituels', { method: 'POST', body: { texte: $('[data-vtimp]').value } });
+        VT.dernierImport = r; toast(r.trouves.length + ' prix posés.'); render();
+      } catch (e) { toast(e.message, true); }
+    });
+    if (VT.dernierImport) { const r = VT.dernierImport; VT.dernierImport = null; const d = $('.vt-imp'); d.open = true; d.querySelector('[data-vtimpres]').innerHTML = `<p class="vt-ok">✓ ${r.trouves.length} prix posé${r.trouves.length > 1 ? 's' : ''}.</p>${r.nonTrouves.length ? `<p class="muted sm"><b>${r.nonTrouves.length} ligne${r.nonTrouves.length > 1 ? 's' : ''} de la liste sans produit correspondant :</b> ${r.nonTrouves.map(x => esc(x.nom)).join(', ')}.</p>` : ''}${r.sansPrix.length ? `<p class="muted sm"><b>${r.sansPrix.length} produit${r.sansPrix.length > 1 ? 's' : ''} sans tarif habituel :</b> ${r.sansPrix.map(esc).join(', ')}.</p>` : ''}`; }
     const nouveau = (pre = '') => { $('#vtNew').hidden = false; const f = $('#vtNf'); f.reset(); if (pre) f.entreprise.value = pre; f.querySelector(pre ? '[name=prenom]' : '[name=entreprise]').focus(); };
     $('[data-vtf]').addEventListener('change', async e => {
       if (e.target.value === '+') return nouveau();
