@@ -1963,3 +1963,4 @@ small.cl-src { display: block; }
 .vt-imp summary { cursor: pointer; font-weight: 500; color: var(--texte); }
 .vt-imp textarea { width: 100%; margin: 6px 0 10px; font: .9rem var(--sans); }
 .vt-ok { color: var(--vert-ok); font-weight: 600; margin: 10px 0 4px; }
+.vt-imp textarea.vt-drop { outline: 2px dashed var(--or); background: color-mix(in srgb, var(--or) 10%, var(--carte)); }
