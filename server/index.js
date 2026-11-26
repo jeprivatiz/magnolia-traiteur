@@ -967,7 +967,8 @@ async function createApp(opts = {}) {
     const demandesL = dm.map(d => ({ ...d.data, id: d.data?.id || d.id })).filter(d => !vis || vis.demandes.has(d.id));
     const sources = SRC.parSource({ demandes: demandesL, devis, clients: (await annuaireServeur()).canaux, totaux });
     const affaires = await affairesVisibles(req);
-    const historiqueStats = affaires.length ? HIST.statistiques(affaires, { clients: (await annuaireServeur()).canaux }) : null;
+    const factTl = await facturesTlVisibles(req), annu = await annuaireServeur();
+    const historiqueStats = affaires.length || factTl.length ? { ...(affaires.length ? HIST.statistiques(affaires, { clients: annu.canaux }) : { vide: true, ans: [], parAn: [], parMois: [], parMoisEvt: [], sources: [], commerciaux: [], evenements: [], lieux: [], motifs: [], meilleurs: [], endormis: [], reviennent: [], total: null }), factures: HIST.statsFactures(factTl, { clients: annu.canaux }) } : null;
     res.set('Cache-Control', 'no-store').json({ ...STATS.statistiques({ rubriques: rub.map(d => d.data).filter(Boolean), produits: prod.map(d => d.data).filter(Boolean), lieux: li.map(d => d.data).filter(Boolean), devis }), sources, historique: historiqueStats, siennes: !!vis });
   }));
 
@@ -1034,6 +1035,11 @@ async function createApp(opts = {}) {
     const L = (await store.list('affaires')).map(d => d.data).filter(Boolean);
     return vis ? L.filter(a => !nomCle(a.commercial) || vis.moi.has(nomCle(a.commercial))) : L;
   }
+  /* factures de l'ancien CRM : seulement pour qui a le droit « Factures » */
+  async function facturesTlVisibles(req) {
+    if (!req.ctx.droits?.factures) return [];
+    return (await store.list('facturesTl')).map(d => d.data).filter(Boolean);
+  }
 
   /* ---------- entreprises : plusieurs contacts reliés à une même fiche entreprise (server/entreprises.js) ---------- */
   const ENT = creerEntreprises({ store, log, totaux });
@@ -1044,9 +1050,10 @@ async function createApp(opts = {}) {
   const telK = t => { const d = String(t || '').replace(/\D/g, ''); return d.length >= 9 ? d.slice(-9) : ''; };
   let idxClients = null;
   async function annuaireServeur() {
-    const v = (await Promise.all(['clients', 'demandes', 'devis', 'factures', 'affaires'].map(k => store.version(k)))).join('|') + '|' + new Date().toISOString().slice(0, 10);
+    const v = (await Promise.all(['clients', 'demandes', 'devis', 'factures', 'affaires', 'facturesTl'].map(k => store.version(k)))).join('|') + '|' + new Date().toISOString().slice(0, 10);
     if (idxClients?.v === v) return idxClients;
-    const [cl, dem, dv, fac, aff] = await Promise.all(['clients', 'demandes', 'devis', 'factures', 'affaires'].map(k => store.list(k)));
+    const [cl, dem, dv, fac, aff, ftl] = await Promise.all(['clients', 'demandes', 'devis', 'factures', 'affaires', 'facturesTl'].map(k => store.list(k)));
+    const histoFac = HIST.parClientFactures(ftl.map(d => d.data).filter(Boolean));
     /* historique commercial (Teamleader) : a commandé, combien de fois, pour combien, quand */
     const histo = HIST.parClient(aff.map(d => d.data).filter(Boolean)), jourIci = new Date().toISOString().slice(0, 10);
     const nbDem = new Map(), lies = new Set(), extra = new Map(), commande = new Set();
@@ -1055,14 +1062,14 @@ async function createApp(opts = {}) {
     for (const { data: d } of dv) { if (d.clientId) { lies.add(d.clientId); plus(d.clientId, d.numero); if (d.statut === 'accepte' || d.signature) commande.add(d.clientId); } }
     for (const { data: d } of fac) { if (d.clientId) { lies.add(d.clientId); plus(d.clientId, d.numero); if (d.type !== 'avoir' && !d.annulee && !d.annuleeParAvoir) commande.add(d.clientId); } }
     const items = cl.map(({ id, data: c }) => ({
-      c: { ...c, id, journal: undefined, canal: SRC.canalClient(c) }, id, nb: nbDem.get(id) || 0, lie: lies.has(id) || histo.has(id) || (c.journal || []).length > 0,
-      importe: c.source === 'import CRM', last: String(c.derniereActivite || ''), verrou: lies.has(id) || histo.has(id),
+      c: { ...c, id, journal: undefined, canal: SRC.canalClient(c) }, id, nb: nbDem.get(id) || 0, lie: lies.has(id) || histo.has(id) || histoFac.has(id) || (c.journal || []).length > 0,
+      importe: c.source === 'import CRM', last: String(c.derniereActivite || ''), verrou: lies.has(id) || histo.has(id) || histoFac.has(id),
       /* « Clients » (Jean-Luc, 2026-11-26) : toutes les personnes sans entreprise renseignée, qu'elles aient commandé ou non */
       acheteur: !c.entrepriseId && !String(c.societe || '').trim(),
       hay: sansAcc(texteFiche(c) + ' ' + (extra.get(id) || '')),
       tels: [c.tel, c.telE164, c.telAutre].map(telK).filter(Boolean),
-      k: { ...critereClient(c), h: HIST.critere(histo.get(id), jourIci) },
-      histo: histo.get(id) || null,
+      k: { ...critereClient(c), h: HIST.critere(histo.get(id), jourIci, histoFac.get(id)) },
+      histo: histo.get(id) || null, fac: histoFac.get(id) || null,
     }));
     items.sort((a, b) => b.last.localeCompare(a.last));
     idxClients = { v, items, facettes: { ...facettesClients(items), histo: HIST.facettes(items.map(a => a.k.h)) }, canaux: new Map(items.map(a => [a.id, a.c])) };
@@ -1153,7 +1160,7 @@ async function createApp(opts = {}) {
     }
     if (q.filtre === 'importes') l = l.filter(a => a.importe); else if (q.filtre === 'autres') l = l.filter(a => !a.importe);
     const par = Math.min(200, Math.max(10, parseInt(q.par, 10) || 50)), page = Math.max(1, parseInt(q.page, 10) || 1);
-    res.json({ total: l.length, tous: items.length, importes: items.filter(a => a.importe).length, acheteurs: items.filter(a => a.acheteur).length, entreprises: await ENT.nombre(), facettes, page, par, items: l.slice((page - 1) * par, page * par).map(a => ({ ...a.c, nbDemandes: a.nb, verrou: a.verrou, histo: a.histo ? { commandes: a.histo.commandes, perdues: a.histo.perdues, caHtCents: a.histo.caHtCents, derniere: a.histo.derniere } : null })), effacables: q.ids === undefined && q.avecIds ? l.filter(a => !a.verrou).map(a => a.id) : undefined });
+    res.json({ total: l.length, tous: items.length, importes: items.filter(a => a.importe).length, acheteurs: items.filter(a => a.acheteur).length, entreprises: await ENT.nombre(), facettes, page, par, items: l.slice((page - 1) * par, page * par).map(a => ({ ...a.c, nbDemandes: a.nb, verrou: a.verrou, histo: a.histo ? { commandes: a.histo.commandes, perdues: a.histo.perdues, caHtCents: a.histo.caHtCents, derniere: a.histo.derniere } : null, fac: a.fac ? { factures: a.fac.factures, netHtCents: a.fac.netHtCents, duCents: a.fac.duCents } : null })), effacables: q.ids === undefined && q.avecIds ? l.filter(a => !a.verrou).map(a => a.id) : undefined });
   }));
 
   /* effacer des contacts cochés (Jean-Luc, 2026-11-24) : jamais un contact qui a une demande, un devis ou une facture ;
@@ -2136,6 +2143,8 @@ async function createApp(opts = {}) {
     for (const j of c.journal || []) add(j.at, j.type === 'appel' ? 'appel' : 'note', j.type === 'appel' ? 'Appel téléphonique' : 'Note', { detail: j.texte, par: j.par, jid: j.id });
     if (c.creeLe) add(c.creeLe, 'client', 'Fiche client créée', { par: c.source || '' });
     /* historique commercial de l'ancien CRM (Teamleader) : une ligne par affaire, au jour de la signature (ou du refus) */
+    const factTlC = (await facturesTlVisibles(req)).filter(f => f.clientId === c.id).sort((a, b) => String(b.date).localeCompare(String(a.date)));
+    for (const f of factTlC) add(f.date + 'T11:00:00', 'factureTl', `Facture ${f.numero}${f.oppTitre ? ' · ' + f.oppTitre : ''}`, { montantCents: f.netTtcCents, montantLib: 'TTC', detail: [f.entite, f.duCents ? `Reste dû ${euros(f.duCents)}` : f.payeLe ? 'Payée le ' + dateFr(f.payeLe) : 'Payée', f.creditHtCents ? 'avoir ' + euros(f.creditHtCents) + ' HT' : '', 'Ancien CRM (Teamleader)'].filter(Boolean).join(' · ') });
     const affaires = (await affairesVisibles(req)).filter(a => a.clientId === c.id).sort((a, b) => String(b.dateEvt || b.accepteLe).localeCompare(String(a.dateEvt || a.accepteLe)));
     for (const a of affaires) {
       const quoi = [a.evenement || 'Événement', a.age ? a.age + ' ans' : '', a.dateEvt ? 'le ' + dateFr(a.dateEvt) : '', a.invites ? a.invites + ' pers.' : ''].filter(Boolean).join(' · ');
@@ -2147,6 +2156,7 @@ async function createApp(opts = {}) {
     const signes = devisL.filter(d => d.statut === 'accepte');
     res.json({
       client: { ...c, canalAuto: SRC.canalClient(c) }, events: ev,
+      facturesTl: factTlC.length ? { ...HIST.resumeFactures(factTlC), liste: factTlC.map(f => ({ numero: f.numero, entite: f.entite, date: f.date, netHtCents: f.netHtCents, netTtcCents: f.netTtcCents, duCents: f.duCents, payeLe: f.payeLe, oppTitre: f.oppTitre, creditHtCents: f.creditHtCents })) } : null,
       historique: affaires.length ? { ...HIST.resumeClient(affaires), affaires: affaires.map(a => ({ id: a.id, statut: a.statut, evenement: a.evenement, age: a.age, dateEvt: a.dateEvt, accepteLe: a.accepteLe, refuseLe: a.refuseLe, invites: a.invites, lieu: a.lieu, montantHtCents: a.montantHtCents, margeHtCents: a.margeHtCents, facture: a.facture, source: a.source, commercial: a.commercial, motif: a.motif })) } : null,
       rdv: rdv.filter(r => r.clientId === c.id && r.type).sort((a, b) => (a.date + a.heure).localeCompare(b.date + b.heure)),
       demandes: demandes.map(d => ({ id: d.id, ref: d.ref, statut: d.statut, type: d.type, evenement: d.evenement, createdAt: d.createdAt, commercial: d.commercial || '', canal: SRC.canalDemande(d, c) })),

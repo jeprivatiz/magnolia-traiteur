@@ -112,7 +112,57 @@ function lireAffaire(ligne, pos) {
   a.ok = !!(brutNom || a.email || a.tel);
   return a;
 }
+/* ---------- export des FACTURES (Teamleader) : une ligne = une facture ----------
+   Elles donnent le chiffre réellement facturé (HT, TTC, avoirs déduits), payé ou non, le reste dû, la société qui facture. */
+const COLONNES_FACT = [
+  ['numero', /^numero de (la )?facture$/], ['entite', /^(entite|societe emettrice)$/], ['client', /^client$/], ['attn', /^(attn|a l attention de|contact)$/],
+  ['email', /^(e ?mail|adresse e ?mail)$/], ['tel', /^(telephone|tel|mobile|portable)$/], ['adresse', /^adresse du client/],
+  ['date', /^date de comptabilisation$/], ['dateFacture', /^date de la facture$/], ['echeance', /^echeance$/],
+  ['paye', /^paye$/], ['payeLe', /^date du paiement$/], ['ht', /^total ht$/], ['ttc', /^total ttc$/],
+  ['creditHt', /^montant total credite ht$/], ['creditTtc', /^montant total credite ttc$/], ['du', /^total du$/], ['totalPaye', /^total paye$/],
+  ['rappels', /^nombre de rappels$/], ['oppNum', /^numero de l ?opportunite liee$/], ['oppTitre', /^titre de l ?opportunite liee$/],
+  ['modes', /^modes de paiement disponibles$/], ['mode', /^mode de paiement$/], ['comm', /^communication structuree$/],
+];
+function colonnesFact(entetes) {
+  const pos = {};
+  entetes.forEach((h, i) => { const t = titreNet(h); const c = COLONNES_FACT.find(([k, re]) => pos[k] == null && re.test(t)); if (c) pos[c[0]] = i; });
+  return pos;
+}
+const estExportFactures = pos => pos.numero != null && pos.ht != null && (pos.paye != null || pos.du != null) && pos.client != null;
+function lireFacture(ligne, pos) {
+  const g = k => (pos[k] == null ? '' : String(ligne[pos[k]] ?? '').trim());
+  const brut = g('client').replace(/\s+/g, ' ').trim(), attn = g('attn').replace(/\s+/g, ' ').trim();
+  const emails = g('email').split(/[\s;,]+/).map(x => x.toLowerCase()).filter(x => /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(x));
+  const tels = [g('tel')].map(t => IC.normTel(t)).filter(t => t?.ok);
+  const adr = g('adresse'), m = adr.match(/\b(\d{5})\s+([^,]+)/);
+  /* « ACCENTURE SAS » + « Attn : Sarah OUERTANI » : la fiche est celle de la personne, la société à côté */
+  const soc = estSociete(brut) || (attn && brut && nomPropre(attn) !== nomPropre(brut)) ? brut : '';
+  const qui = attn && soc ? attn : brut;
+  const date = jour(g('date')) || jour(g('dateFacture'));
+  const htC = euroCents(g('ht')) || 0, creditC = euroCents(g('creditHt')) || 0, ttcC = euroCents(g('ttc')) || 0, creditTtcC = euroCents(g('creditTtc')) || 0;
+  const duC = Math.max(0, euroCents(g('du')) || 0), payeC = euroCents(g('totalPaye')) || 0;
+  const f = {
+    genre: 'facture', numero: g('numero').slice(0, 40), entite: enTitre(g('entite').replace(/^[.\s]+/, '')).slice(0, 60),
+    client: estSociete(qui) ? qui : nomPropre(qui), societe: soc,
+    email: emails[0] || '', autresEmails: emails.slice(1), tel: tels[0]?.tel || '', telE164: tels[0]?.e164 || '', tels: tels.map(t => t.e164),
+    ville: m ? m[2].trim().slice(0, 60) : '', cp: m ? m[1] : '', adresse: adr.replace(/,?\s*France$/i, '').slice(0, 200),
+    date, ajouteLe: date, accepteLe: '', refuseLe: '', dateEvt: '', statut: 'facture',
+    htCents: htC, ttcCents: ttcC, creditHtCents: creditC, creditTtcCents: creditTtcC, netHtCents: htC - creditC, netTtcCents: ttcC - creditTtcC,
+    payee: g('paye') === '1' || /^(oui|vrai|true)$/i.test(g('paye')) || (duC === 0 && ttcC > 0), payeLe: jour(g('payeLe')), payeCents: payeC, duCents: duC < 2 ? 0 : duC,
+    rappels: +g('rappels') || 0, oppNum: g('oppNum').slice(0, 20), oppTitre: g('oppTitre').slice(0, 120), mode: (g('mode') || g('modes')).slice(0, 60), source: '', commercial: '',
+  };
+  f.cle = 'tf_' + sha([sansAcc(f.entite), f.numero, f.date, g('comm')].join('|')).slice(0, 20);
+  f.ok = !!(brut || f.email) && !!f.numero;
+  return f;
+}
+
 function lireFichier(lignes) {
+  const pf = colonnesFact(lignes[0] || []);
+  if (estExportFactures(pf)) {
+    const vus = new Set(), affaires = []; let doublons = 0, vides = 0;
+    for (const l of lignes.slice(1)) { if (!l.some(c => c)) continue; const f = lireFacture(l, pf); if (!f.ok) { vides++; continue; } if (vus.has(f.cle)) { doublons++; continue; } vus.add(f.cle); affaires.push(f); }
+    return { pos: pf, genre: 'factures', affaires, doublons, vides };
+  }
   const pos = colonnesDe(lignes[0] || []);
   if (!estExportAffaires(pos)) return { pos, affaires: null };
   const vus = new Set(), affaires = [];
@@ -124,7 +174,7 @@ function lireFichier(lignes) {
     if (vus.has(a.cle)) { doublons++; continue; }
     vus.add(a.cle); affaires.push(a);
   }
-  return { pos, affaires, doublons, vides };
+  return { pos, genre: 'affaires', affaires, doublons, vides };
 }
 
 /* ---------- calculs (fonctions pures) ---------- */
@@ -230,11 +280,42 @@ function statistiques(affaires, { clients = new Map(), aujourdHui = new Date().t
   };
 }
 
+/* ---------- factures : résumé d'un client, statistiques ---------- */
+function resumeFactures(L) {
+  const d = L.map(f => f.date).filter(Boolean).sort();
+  return { factures: L.length, netHtCents: L.reduce((t, f) => t + f.netHtCents, 0), netTtcCents: L.reduce((t, f) => t + f.netTtcCents, 0), duCents: L.reduce((t, f) => t + f.duCents, 0), impayees: L.filter(f => f.duCents > 0).length, premiere: d[0] || '', derniere: d[d.length - 1] || '' };
+}
+function parClientFactures(factures) {
+  const m = new Map();
+  for (const f of factures) if (f.clientId) { if (!m.has(f.clientId)) m.set(f.clientId, []); m.get(f.clientId).push(f); }
+  return new Map([...m].map(([id, L]) => [id, resumeFactures(L)]));
+}
+function statsFactures(factures, { clients = new Map() } = {}) {
+  if (!factures.length) return null;
+  const an = f => (f.date || '').slice(0, 4);
+  const ans = [...new Set(factures.map(an).filter(Boolean))].sort();
+  const parAn = ans.map(a => { const L = factures.filter(f => an(f) === a); return { an: a, factures: L.length, netHtCents: L.reduce((t, f) => t + f.netHtCents, 0), netTtcCents: L.reduce((t, f) => t + f.netTtcCents, 0), payeCents: L.reduce((t, f) => t + f.payeCents, 0), duCents: L.reduce((t, f) => t + f.duCents, 0), impayees: L.filter(f => f.duCents > 0).length, avoirs: L.filter(f => f.creditHtCents > 0).length }; });
+  /* même forme que le CA signé par mois : on peut comparer les années de la même façon */
+  const parMois = ans.map(a => {
+    const mois = Array.from({ length: 12 }, () => ({ caHtCents: 0, commandes: 0 }));
+    for (const f of factures) if (an(f) === a) { const m = mois[+f.date.slice(5, 7) - 1]; m.caHtCents += f.netHtCents; m.commandes++; }
+    let c = 0; mois.forEach(m => { c += m.caHtCents; m.cumulHtCents = c; });
+    return { an: a, mois };
+  });
+  const entites = [...new Set(factures.map(f => f.entite || ''))].map(e => { const L = factures.filter(f => (f.entite || '') === e); return { nom: e, commandes: L.length, perdues: 0, caHtCents: L.reduce((t, f) => t + f.netHtCents, 0), parAn: Object.fromEntries(ans.map(a => [a, L.filter(f => an(f) === a).reduce((t, f) => t + f.netHtCents, 0)])), duCents: L.reduce((t, f) => t + f.duCents, 0), taux: null, panierHtCents: L.length ? Math.round(L.reduce((t, f) => t + f.netHtCents, 0) / L.length) : 0 }; }).sort((x, y) => y.caHtCents - x.caHtCents);
+  const impayees = factures.filter(f => f.duCents > 0).sort((x, y) => y.date.localeCompare(x.date)).slice(0, 300).map(f => { const c = clients.get(f.clientId); return { id: f.clientId || '', nom: c?.nom || f.client, societe: c?.societe || f.societe || '', tel: c?.tel || f.tel, email: c?.email || f.email, numero: f.numero, entite: f.entite, date: f.date, ttcCents: f.netTtcCents, duCents: f.duCents, rappels: f.rappels, oppTitre: f.oppTitre }; });
+  return {
+    total: { factures: factures.length, netHtCents: factures.reduce((t, f) => t + f.netHtCents, 0), netTtcCents: factures.reduce((t, f) => t + f.netTtcCents, 0), payeCents: factures.reduce((t, f) => t + f.payeCents, 0), duCents: factures.reduce((t, f) => t + f.duCents, 0), impayees: factures.filter(f => f.duCents > 0).length, depuis: factures.map(f => f.date).filter(Boolean).sort()[0] || '' },
+    ans, parAn, parMois, entites, impayees,
+  };
+}
+
 /* critères de recherche d'une fiche (liste Clients) */
-function critere(r, aujourdHui = new Date().toISOString().slice(0, 10)) {
-  if (!r) return { aff: 0, cmd: 0, ca: 0, an: '', types: [], com: '', motifs: [], mois: null };
+function critere(r, aujourdHui = new Date().toISOString().slice(0, 10), rf = null) {
+  const fac = { fnb: rf?.factures || 0, fdu: rf?.duCents || 0 };
+  if (!r) return { aff: 0, cmd: 0, ca: 0, an: '', types: [], com: '', motifs: [], mois: null, ...fac };
   const mois = r.derniere ? Math.floor((Date.parse(aujourdHui) - Date.parse(r.derniere)) / (30.44 * 864e5)) : null;
-  return { aff: r.affaires, cmd: r.commandes, ca: r.caHtCents, an: (r.derniere || '').slice(0, 4), types: r.types, com: r.commercial, motifs: r.motifs, mois };
+  return { aff: r.affaires, cmd: r.commandes, ca: r.caHtCents, an: (r.derniere || '').slice(0, 4), types: r.types, com: r.commercial, motifs: r.motifs, mois, ...fac };
 }
 function filtre(k, q) {
   const v = x => String(q[x] || '').slice(0, 80);
@@ -251,15 +332,18 @@ function filtre(k, q) {
   if (v('hevt') && !k.types.includes(v('hevt'))) return false;
   if (v('hcom') && k.com !== v('hcom')) return false;
   if (v('hmotif') && !k.motifs.includes(v('hmotif'))) return false;
+  if (v('hfac') === 'impaye' && !(k.fdu > 0)) return false;
+  if (v('hfac') === 'oui' && !k.fnb) return false;
+  if (v('hfac') === 'non' && k.fnb) return false;
   return true;
 }
-const CRITERES = ['hcmd', 'hmontant', 'hder', 'hevt', 'hcom', 'hmotif'];
+const CRITERES = ['hcmd', 'hmontant', 'hder', 'hevt', 'hcom', 'hmotif', 'hfac'];
 function facettes(ks) {
   const n = (m, x) => { if (x) m.set(x, (m.get(x) || 0) + 1); };
   const evt = new Map(), com = new Map(), an = new Map(), mot = new Map();
   for (const k of ks) { k.types.forEach(x => n(evt, x)); n(com, k.com); n(an, k.an); k.motifs.forEach(x => n(mot, x)); }
   const tri = m => [...m].sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0]), 'fr'));
-  return { evt: tri(evt), com: tri(com), ans: [...an].sort((a, b) => b[0].localeCompare(a[0])), motifs: tri(mot), commande: ks.filter(k => k.cmd).length, perdus: ks.filter(k => k.aff && !k.cmd).length };
+  return { evt: tri(evt), com: tri(com), ans: [...an].sort((a, b) => b[0].localeCompare(a[0])), motifs: tri(mot), commande: ks.filter(k => k.cmd).length, perdus: ks.filter(k => k.aff && !k.cmd).length, factures: ks.filter(k => k.fnb).length, impayes: ks.filter(k => k.fdu > 0).length };
 }
 
 /* ---------- import (routes du back-office) ---------- */
@@ -301,7 +385,14 @@ function creerHistorique({ store, sources, log }) {
   async function analyser(S) {
     const I = await index();
     const groupes = regrouper(S.affaires, I);
-    const deja = new Set((await store.list('affaires')).map(d => d.id));
+    const deja = new Set((await store.list(collDe(S))).map(d => d.id));
+    if (S.genre === 'factures') {
+      const F = S.affaires, ans = {}; for (const f of F) { const y = (f.date || '').slice(0, 4); if (y) ans[y] = (ans[y] || 0) + 1; }
+      const ent = {}; for (const f of F) if (f.entite) ent[f.entite] = (ent[f.entite] || 0) + f.netHtCents;
+      return { genre: 'factures', affaires: F.length, factures: F.length, netHtCents: F.reduce((t, f) => t + f.netHtCents, 0), duCents: F.reduce((t, f) => t + f.duCents, 0), impayees: F.filter(f => f.duCents > 0).length, avoirs: F.filter(f => f.creditHtCents > 0).length,
+        entites: Object.entries(ent).sort((a, b) => b[1] - a[1]), ans, doublons: S.doublons, vides: S.vides,
+        clients: groupes.length, retrouves: groupes.filter(g => g.id).length, nouveaux: groupes.filter(g => !g.id).length, dejaImportees: F.filter(f => deja.has(f.cle)).length, colonnes: Object.keys(S.pos) };
+    }
     const G = S.affaires.filter(a => a.statut === 'gagnee'), P = S.affaires.filter(a => a.statut === 'perdue');
     const ans = {}; for (const a of S.affaires) { const y = anDe(a); if (y) ans[y] = (ans[y] || 0) + 1; }
     return {
@@ -315,7 +406,9 @@ function creerHistorique({ store, sources, log }) {
     };
   }
 
+  const collDe = S => (S.genre === 'factures' ? 'facturesTl' : 'affaires');
   async function importer(S, meta) {
+    const COLL = collDe(S);
     const I = await index();
     const groupes = regrouper(S.affaires, I);
     const now = new Date().toISOString(), liste = new Set((await sources.liste()).map(x => x.toLowerCase()));
@@ -369,9 +462,9 @@ function creerHistorique({ store, sources, log }) {
       }
       for (const a of L) {
         const { ok, cle, ...doc } = a;
-        const avant = await store.get('affaires/' + cle);
+        const avant = await store.get(COLL + '/' + cle);
         if (avant) { await store.set('_histimports/' + meta.id + '/prec/' + cle, avant); R.affairesMaj++; } else R.affairesCrees++;
-        await store.set('affaires/' + cle, { ...doc, id: cle, clientId: avant?.clientId && avant.clientId !== cid && I.fiches.has(avant.clientId) ? avant.clientId : cid, impId: meta.id, origine: 'Teamleader', majLe: now, ...(avant ? { creeImp: avant.creeImp || avant.impId } : { creeImp: meta.id }) });
+        await store.set(COLL + '/' + cle, { ...doc, id: cle, clientId: avant?.clientId && avant.clientId !== cid && I.fiches.has(avant.clientId) ? avant.clientId : cid, impId: meta.id, origine: 'Teamleader', majLe: now, ...(avant ? { creeImp: avant.creeImp || avant.impId } : { creeImp: meta.id }) });
       }
     }
     return R;
@@ -384,8 +477,8 @@ function creerHistorique({ store, sources, log }) {
       let lignes;
       try { lignes = lireTableau(req.file.buffer, req.file.originalname); } catch (e) { return res.status(400).json({ error: e.message }); }
       const r = lireFichier(lignes);
-      if (!r.affaires) return res.status(400).json({ error: 'Ce fichier ne ressemble pas à un export d’affaires (opportunités) : il faut au moins les colonnes « Client », « Montant HT » et une date (« Date acceptée », « Date ajoutée » ou « Date refusé »). Pour un fichier de contacts, utilisez « ⬆ Importer des contacts ».' });
-      if (!r.affaires.length) return res.status(400).json({ error: 'Aucune affaire lisible dans ce fichier.' });
+      if (!r.affaires) return res.status(400).json({ error: 'Ce fichier ne ressemble ni à un export d’affaires (opportunités : colonnes « Client », « Montant HT » et « Date acceptée ») ni à un export de factures (« Numéro de facture », « Client », « Total HT », « Payé »). Pour un fichier de contacts, utilisez « ⬆ Importer des contacts ».' });
+      if (!r.affaires.length) return res.status(400).json({ error: 'Aucune ligne lisible dans ce fichier.' });
       for (const [k, s] of sessions) if (Date.now() - s.at > 3 * 36e5 || sessions.size > 3) sessions.delete(k);
       const tok = rid(12), S = { tok, fichier: String(req.file.originalname || 'fichier').slice(0, 120), ...r, at: Date.now(), par: req.ctx.name || req.ctx.email || '' };
       sessions.set(tok, S);
@@ -398,7 +491,7 @@ function creerHistorique({ store, sources, log }) {
       S.enCours = true;
       const id = 'hist_' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '_' + rid(4).replace(/[^A-Za-z0-9]/g, 'x');
       const meta = { id, fichier: S.fichier, par: S.par };
-      await store.set('_histimports/' + id, { id, fichier: S.fichier, at: new Date().toISOString(), par: S.par, total: S.affaires.length, statut: 'en cours' });
+      await store.set('_histimports/' + id, { id, fichier: S.fichier, genre: S.genre, at: new Date().toISOString(), par: S.par, total: S.affaires.length, statut: 'en cours' });
       try {
         const R = await importer(S, meta);
         await store.set('_histimports/' + id, { ...(await store.get('_histimports/' + id)), statut: 'terminé', finiLe: new Date().toISOString(), compteurs: R });
@@ -417,12 +510,12 @@ function creerHistorique({ store, sources, log }) {
       if (doc.statut === 'annulé') return res.status(400).json({ error: 'Cet import a déjà été annulé.' });
       let affaires = 0, remises = 0, retires = 0, gardes = 0, remis = 0;
       const prec = new Map((await store.list('_histimports/' + id + '/prec')).map(d => [d.id, d.data]));
-      for (const { id: k, data: a } of await store.list('affaires')) {
+      for (const COLL of ['affaires', 'facturesTl']) for (const { id: k, data: a } of await store.list(COLL)) {
         if (a.impId !== id) continue;
-        if (prec.has(k)) { await store.set('affaires/' + k, prec.get(k)); remises++; } else { await store.delete('affaires/' + k); affaires++; }
+        if (prec.has(k)) { await store.set(COLL + '/' + k, prec.get(k)); remises++; } else { await store.delete(COLL + '/' + k); affaires++; }
       }
       for (const k of prec.keys()) await store.delete('_histimports/' + id + '/prec/' + k);
-      const restantes = new Set((await store.list('affaires')).map(d => d.data?.clientId));
+      const restantes = new Set([...(await store.list('affaires')), ...(await store.list('facturesTl'))].map(d => d.data?.clientId));
       const lies = new Set();
       for (const k of ['demandes', 'devis', 'factures']) for (const { data } of await store.list(k)) if (data.clientId) lies.add(data.clientId);
       for (const { id: cid, data: c } of await store.list('clients')) {
@@ -446,4 +539,4 @@ function creerHistorique({ store, sources, log }) {
   return { routes, sessions };
 }
 
-module.exports = { creerHistorique, lireFichier, lireAffaire, colonnesDe, sourceNette, lieuNet, resumeClient, parClient, statistiques, critere, filtre, facettes, CRITERES, prochaineFois };
+module.exports = { resumeFactures, parClientFactures, statsFactures, lireFacture, creerHistorique, lireFichier, lireAffaire, colonnesDe, sourceNette, lieuNet, resumeClient, parClient, statistiques, critere, filtre, facettes, CRITERES, prochaineFois };

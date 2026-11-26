@@ -100,3 +100,41 @@ test('import de l’historique dans le back-office', async () => {
     assert.equal((await q('q=chloe')).total, 0);
   } finally { srv.close(); }
 });
+
+test('factures de l’ancien CRM : lecture, rattachement, impayés, CA facturé par mois, séparé du signé', async () => {
+  const TF = ['Numéro de facture', 'Client', 'Attn', 'E-mail', 'Téléphone', 'Adresse du client', 'Date de comptabilisation', 'Entité', 'Payé', 'Date du paiement', 'Total HT', 'Total TTC', 'Montant total crédité HT', 'Montant total crédité TTC', 'Total dû', 'Total payé', 'Nombre de rappels', "Titre de l'opportunité liée", 'Communication structurée'];
+  const F = o => TF.map(t => o[t] ?? '');
+  const lignes = [TF,
+    F({ 'Numéro de facture': '101', Client: 'Alice ESSAI', 'E-mail': 'alice@essai.test', 'Date de comptabilisation': '2025-03-12', Entité: 'JLB EVENT', Payé: '1', 'Date du paiement': '2025-03-20', 'Total HT': '1000', 'Total TTC': '1200', 'Total dû': '0', 'Total payé': '1200', 'Communication structurée': 'a1' }),
+    F({ 'Numéro de facture': '101', Client: 'ACME SAS', Attn: 'Paul NOUVEAU', 'E-mail': 'paul@acme.test', 'Adresse du client': '5 rue X, 75015 Paris, France', 'Date de comptabilisation': '2026-03-02', Entité: '.LIAM EVENT', Payé: '0', 'Total HT': '2000', 'Total TTC': '2400', 'Total dû': '1400', 'Total payé': '1000', 'Nombre de rappels': '2', 'Communication structurée': 'a2' }),
+  ];
+  const r = H.lireFichier(lignes);
+  assert.equal(r.genre, 'factures'); assert.equal(r.affaires.length, 2, 'même numéro, sociétés différentes : 2 factures');
+  const p = r.affaires[1];
+  assert.equal(p.client, 'Paul NOUVEAU'); assert.equal(p.societe, 'ACME SAS'); assert.equal(p.cp, '75015'); assert.equal(p.entite, 'Liam Event'); assert.equal(p.duCents, 140000);
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mg-fac-'));
+  const { createApp } = require('../server/index');
+  const app = await createApp({ env: { DB_FILE: path.join(dir, 'db.json'), UPLOAD_DIR: path.join(dir, 'up'), ADMIN_EMAIL: 'chef@magnolia.test', ADMIN_PASSWORD: 'mot-de-passe-essai', BREVO_API_KEY: '', DB_HOST: '', ANTHROPIC_API_KEY: '' }, noTimers: true, log: { log() {}, warn() {}, error() {}, info() {} } });
+  const srv = app.listen(0); const base = 'http://127.0.0.1:' + srv.address().port; let cookie = '';
+  const call = async (u, { method = 'GET', body, form } = {}) => { const x = await fetch(base + u, { method, headers: { ...(form ? {} : { 'content-type': 'application/json' }), 'x-mg': '1', cookie }, body: form || (body ? JSON.stringify(body) : undefined) }); const sc = x.headers.get('set-cookie'); if (sc) cookie = sc.split(';')[0]; return { status: x.status, j: await x.json().catch(() => ({})) }; };
+  try {
+    await call('/api/auth/login', { method: 'POST', body: { email: 'chef@magnolia.test', password: 'mot-de-passe-essai' } });
+    const a = (await call('/api/admin/clients', { method: 'POST', body: { nom: 'Alice ESSAI', email: 'alice@essai.test', notes: '' } })).j;
+    const fd = new FormData(); fd.append('fichier', new Blob([ecrireXlsx([{ nom: 'Factures', lignes }])]), 'factures.xlsx');
+    const up = (await call('/api/admin/actions/historique/fichier', { method: 'POST', form: fd })).j;
+    assert.equal(up.genre, 'factures'); assert.equal(up.impayees, 1); assert.equal(up.retrouves, 1); assert.equal(up.nouveaux, 1);
+    const imp = (await call('/api/admin/actions/historique/importer', { method: 'POST', body: { tok: up.tok } })).j;
+    assert.equal(imp.affairesCrees, 2); assert.equal(imp.clientsCrees, 1);
+    const st = (await call('/api/admin/statistiques')).j.historique;
+    assert.equal(st.vide, true, 'aucune affaire : seulement les factures');
+    assert.equal(st.factures.total.netHtCents, 300000); assert.equal(st.factures.total.duCents, 140000);
+    assert.equal(st.factures.parMois.find(x => x.an === '2026').mois[2].caHtCents, 200000);
+    assert.equal(st.factures.impayees[0].nom, 'Paul NOUVEAU');
+    const h = (await call('/api/admin/actions/historique-client/' + a.id)).j;
+    assert.equal(h.facturesTl.factures, 1); assert.equal(h.historique, null);
+    assert.equal((await call('/api/admin/clients?page=1&hfac=impaye')).j.total, 1);
+    assert.equal((await call(`/api/admin/actions/historique/${imp.id}/annuler`, { method: 'POST' })).status, 200);
+    assert.equal((await call('/api/admin/statistiques')).j.historique, null);
+  } finally { srv.close(); }
+});
