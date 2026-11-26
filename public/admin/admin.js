@@ -602,6 +602,7 @@
         ${pli('mois', `${ico('euro')} Ventes signées par mois`, `${T.venteHtCents ? histo(T, true) : '<div class="db-vide"><p>Aucun devis signé sur les 12 derniers mois : les courbes se rempliront avec les premières signatures.</p></div>'}
           <p class="st-leg"><span><i class="ca"></i>Chiffre d’affaires HT</span><span><i class="mg"></i>dont marge HT</span></p>`, 'st-mois')}
       </div>
+      ${pli('historique', '📜 Historique commercial depuis 2017', blocHistorique(s.historique), 'st-hist')}
       ${pli('sources', '🧭 D’où viennent nos clients', blocSources)}
       ${pli('produits', '⭐ Meilleurs produits', `<div class="st-tri">${[['p', 'Marge %'], ['ca', 'Chiffre d’affaires'], ['m', 'Marge en €'], ['f', 'Marge la plus faible']].map(([k, l]) => `<button type="button" class="st-tc${(statistiques.triP || 'p') === k ? ' on' : ''}" data-sttrip="${k}" aria-pressed="${(statistiques.triP || 'p') === k}">${l}</button>`).join('')}
           <select class="st-sel" data-strubp aria-label="Rubrique"><option value="">Toutes les rubriques</option>${[...new Set((s.produits || []).map(x => x.rubrique).filter(Boolean))].map(n => `<option${statistiques.rubP === n ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select>
@@ -614,6 +615,68 @@
         <p class="muted sm st-note">Devis signés, au mois de la signature. Un produit rangé dans deux rubriques (par exemple une chaise dans « Indispensables » et « Mobilier et matériel à la location ») compte dans les deux ; le total du haut le compte une seule fois.${s.autres.venteHtCents ? ` Livraison, packs et lignes hors catalogue : ${eurosRond(s.autres.venteHtCents)} HT.` : ''}</p>`, 'st-rapp')}
     </div>`;
   }
+  /* ---------- historique commercial de l'ancien CRM (Teamleader), Jean-Luc 2026-11-26 ----------
+     CA HT par année (et marge quand elle est connue), sources, commerciaux, événements, lieux, motifs de refus, meilleurs clients,
+     clients à relancer. Calcul : server/historique.js (statistiques). */
+  function blocHistorique(H) {
+    if (!H) return `<div class="db-vide"><p>Importez l’export des affaires de l’ancien CRM pour voir ici le chiffre d’affaires année par année, les sources, les commerciaux, les meilleurs clients et les clients à relancer.</p>${peut('fichiers') ? '<p><a class="btn" href="#/clients/historique">📜 Importer l’historique commercial</a></p>' : ''}</div>`;
+    const T = H.total, n = v => (v || 0).toLocaleString('fr-FR');
+    const pc = v => v == null ? '—' : v.toLocaleString('fr-FR', { maximumFractionDigits: 1 }) + ' %';
+    const maxCa = Math.max(1, ...H.parAn.map(x => x.caHtCents));
+    const barres = `<div class="st-h grand hs-ans" role="img" aria-label="Chiffre d’affaires HT signé par année">${H.parAn.map((x, i) => `<span class="st-hb${i === H.parAn.length - 1 ? ' cur' : ''}" style="--i:${i}" title="${x.an} : ${eurosRond(x.caHtCents)} HT signés · ${n(x.commandes)} commandes${x.margeHtCents != null ? ' · marge ' + eurosRond(x.margeHtCents) : ''}"><b class="hs-v">${x.caHtCents ? (x.caHtCents / 1e8).toLocaleString('fr-FR', { maximumFractionDigits: 2 }) + ' M€' : ''}</b><span class="st-hc"><i class="ca" style="height:${Math.max(3, x.caHtCents / maxCa * 100)}%"><i class="mg" style="height:${x.margeHtCents != null && x.caHtCents ? Math.max(0, Math.min(100, x.margeHtCents / x.caHtCents * 100)) : 0}%"></i></i></span><em>${x.an}</em></span>`).join('')}</div>
+      <p class="st-leg"><span><i class="ca"></i>Chiffre d’affaires HT signé</span><span><i class="mg"></i>dont marge HT (saisie à partir de 2020)</span></p>`;
+    const tableAns = `<div class="hs-wrap"><table class="hs-t"><thead><tr><th>Année</th><th class="n">Commandes</th><th class="n">Clients</th><th class="n">CA HT signé</th><th class="n">Panier moyen</th><th class="n">Marge</th>${T.perdues ? '<th class="n">Perdues</th><th class="n">Taux de signature</th>' : ''}</tr></thead><tbody>${H.parAn.slice().reverse().map(x => `<tr><td><b>${x.an}</b></td><td class="n">${n(x.commandes)}</td><td class="n">${n(x.clients)}</td><td class="n"><b>${eurosRond(x.caHtCents)}</b></td><td class="n">${eurosRond(x.panierHtCents)}</td><td class="n">${x.margePct == null ? '—' : pc(x.margePct)}</td>${T.perdues ? `<td class="n">${n(x.perdues)}</td><td class="n">${x.taux == null ? '—' : x.taux + ' %'}</td>` : ''}</tr>`).join('')}</tbody></table></div>`;
+    /* classements : sources, commerciaux, événements, lieux (une ligne cliquable ouvre les contacts correspondants) */
+    const groupe = (L, crit) => {
+      const max = Math.max(1, ...L.map(x => x.caHtCents));
+      return `<div class="hs-wrap"><table class="hs-t hs-g"><thead><tr><th></th><th class="n">Commandes</th><th class="n">CA HT</th><th class="n">Panier moyen</th>${T.perdues ? '<th class="n">Taux</th>' : ''}<th class="hs-sp">${esc(H.ans[0] || '')} → ${esc(H.ans[H.ans.length - 1] || '')}</th></tr></thead><tbody>${L.filter(x => x.commandes || x.perdues).map(x => { const vals = H.ans.map(a => x.parAn[a] || 0), mx = Math.max(1, ...vals); return `<tr><td>${crit && x.nom ? `<a href="#/clients" data-hsk="${crit}" data-hsv="${esc(x.nom)}" title="Voir ces contacts">${esc(x.nom)}</a>` : esc(x.nom || 'Non renseigné')}<i class="src-bar or" style="width:${Math.round(100 * x.caHtCents / max)}%"></i></td><td class="n">${n(x.commandes)}</td><td class="n"><b>${eurosRond(x.caHtCents)}</b></td><td class="n">${eurosRond(x.panierHtCents)}</td>${T.perdues ? `<td class="n">${x.taux == null ? '—' : x.taux + ' %'}</td>` : ''}<td class="hs-sp"><span class="hs-spark" aria-hidden="true">${vals.map(v => `<i style="height:${Math.max(v ? 8 : 2, v / mx * 100)}%"></i>`).join('')}</span></td></tr>`; }).join('')}</tbody></table></div>`;
+    };
+    const motifs = H.motifs.length ? `<ul class="hs-mot">${H.motifs.map(m => `<li><span>${esc(m.nom)}</span><i class="src-bar" style="width:${Math.round(100 * m.nb / H.motifs[0].nb)}%"></i><b>${n(m.nb)}</b></li>`).join('')}</ul>` : '<div class="db-vide"><p>Pas encore de motifs de refus : l’export importé ne contient que des affaires signées. Exportez aussi les affaires <b>perdues</b> de Teamleader (avec la colonne « Motif du refus ») et déposez-les dans Contacts › 📜 Importer l’historique commercial.</p></div>';
+    const ligneClient = (c, extra) => `<li class="hs-c">${c.id ? `<a class="hs-cn" href="#/clients/${esc(c.id)}">` : '<span class="hs-cn">'}<b>${esc(c.nom || '—')}</b><small>${esc([c.societe, c.tel, c.email].filter(Boolean).join(' · '))}</small>${c.id ? '</a>' : '</span>'}<span class="hs-cm">${extra}</span><span class="hs-ca"><b>${eurosRond(c.caHtCents)}</b><small>${c.commandes} commande${c.commandes > 1 ? 's' : ''}</small></span></li>`;
+    const meilleurs = `<ol class="hs-cl">${H.meilleurs.slice(0, 30).map((c, i) => ligneClient(c, `<span class="st-rn">${['🥇', '🥈', '🥉'][i] || i + 1}</span> ${esc(c.types.slice(0, 3).join(', '))}${c.derniere ? ' · dernière le ' + dateFr(c.derniere) : ''}`)).join('')}</ol>`;
+    const quand = d => d === 0 ? '<b>aujourd’hui</b>' : d === 1 ? '<b>demain</b>' : `dans <b>${d} jours</b>`;
+    const reviennent = H.reviennent.length ? `<p class="muted sm">Leur événement a eu lieu à cette période de l’année (anniversaire, fête d’entreprise, gala…) et rien n’est prévu depuis : le bon moment pour les rappeler.</p><ol class="hs-cl">${H.reviennent.map(c => ligneClient(c, `🔔 ${quand(c.dans)} · ${esc(c.evtType || 'événement')}${c.evtAge ? ' ' + esc(c.evtAge) + ' ans' : ''} le ${dateFr(c.evtPasse)} (${eurosRond(c.evtHtCents)} HT)`)).join('')}</ol>` : '<div class="db-vide"><p>Aucun dans les 60 prochains jours.</p></div>';
+    const endormis = H.endormis.length ? `<p class="muted sm">Clients qui ont commandé au moins 2 fois, mais plus rien depuis plus d’un an. <a href="#/clients" data-hsk="relance" class="lnk">Voir les ${n(H.endormis.length)} dans Contacts (pour un e-mail ou un SMS groupé) →</a></p><ol class="hs-cl">${H.endormis.map(c => ligneClient(c, `💤 dernière commande le ${dateFr(c.derniere)} · ${esc(c.types.slice(0, 2).join(', '))}`)).join('')}</ol>` : '<div class="db-vide"><p>Aucun client fidèle endormi.</p></div>';
+    const onglets = [['mois', '📅 Par mois (comparer)', '<div data-hsmois></div>'], ['ans', '📈 Par année', barres + tableAns], ['sources', '🧭 Sources', groupe(H.sources, 'canal')], ['commerciaux', '👤 Commerciaux', groupe(H.commerciaux, 'hcom')], ['evenements', '🎉 Événements', groupe(H.evenements, 'hevt')], ['lieux', '📍 Lieux', groupe(H.lieux, '')], ['motifs', '✕ Motifs de refus', motifs], ['meilleurs', '🏆 Meilleurs clients', meilleurs], ['reviennent', `🔔 À relancer : la date revient (${H.reviennent.length})`, reviennent], ['endormis', `💤 Fidèles endormis (${H.endormis.length})`, endormis]];
+    const on = statistiques.hOng || 'mois';
+    return `<div class="st-kpis hs-kpis"><span><b><span data-n="${T.caHtCents}" data-f="e">${eurosRond(T.caHtCents)}</span></b><small>signés HT · ${dateFr(T.depuis, { month: 'short', year: 'numeric' })} → ${dateFr(T.jusque, { month: 'short', year: 'numeric' })}</small></span><span><b>${n(T.commandes)}</b><small>commandes</small></span><span><b>${eurosRond(T.panierHtCents)}</b><small>panier moyen HT</small></span><span><b>${n(T.clients)}</b><small>clients · ${n(T.recurrents)} ont commandé plusieurs fois</small></span><span><b>${T.taux == null ? '—' : T.taux + ' %'}</b><small>${T.taux == null ? 'taux de signature (il manque les affaires perdues)' : 'taux de signature'}</small></span></div>
+      <div class="st-tri hs-ong" role="tablist">${onglets.map(([k, l]) => `<button type="button" class="st-tc${on === k ? ' on' : ''}" data-hsong="${k}" role="tab" aria-selected="${on === k}">${l}</button>`).join('')}</div>
+      ${onglets.map(([k, , c]) => `<div class="hs-pane" data-hspane="${k}"${on === k ? '' : ' hidden'}>${c}</div>`).join('')}
+      ${T.nonFacturees ? `<p class="muted sm st-note">${n(T.nonFacturees)} commandes signées sont marquées « non facturées » dans l’ancien CRM (souvent des annulations) : elles comptent dans le chiffre signé.</p>` : ''}`;
+  }
+  /* CA par mois (Jean-Luc, 2026-11-26 : « très important pour faire des comparaisons ») :
+     deux années côte à côte mois par mois, écart, cumul depuis janvier à la même date, et le tableau de toutes les années */
+  statistiques.hMois = () => {
+    const H = cache.stats?.historique, el = $('[data-hsmois]'); if (!H || !el) return;
+    const base = statistiques.hBase || 'sig', L = base === 'evt' ? H.parMoisEvt : H.parMois;
+    if (!L?.length) { el.innerHTML = '<div class="db-vide"><p>Aucune commande.</p></div>'; return; }
+    const ans = L.map(x => x.an), auj = H.aujourdHui || new Date().toISOString().slice(0, 10), anCour = auj.slice(0, 4), moisCour = +auj.slice(5, 7);
+    const a1 = ans.includes(statistiques.hA1) ? statistiques.hA1 : ans.includes(anCour) ? anCour : ans[ans.length - 1];
+    const a2 = ans.includes(statistiques.hA2) ? statistiques.hA2 : ans[Math.max(0, ans.indexOf(a1) - 1)];
+    const D = Object.fromEntries(L.map(x => [x.an, x.mois]));
+    const M1 = D[a1], M2 = D[a2] || M1;
+    const max = Math.max(1, ...M1.map(m => m.caHtCents), ...M2.map(m => m.caHtCents));
+    const ecart = (x, y) => !y ? (x ? '<span class="hs-up">nouveau</span>' : '—') : (() => { const p = Math.round(100 * (x - y) / y); return `<span class="${p >= 0 ? 'hs-up' : 'hs-dn'}">${p > 0 ? '+' : ''}${p} %</span>`; })();
+    const sel = (k, v) => `<select class="st-sel" data-hsan="${k}" aria-label="Année">${ans.slice().reverse().map(a => `<option${a === v ? ' selected' : ''}>${a}</option>`).join('')}</select>`;
+    /* cumul depuis janvier à la même date : pour l'année en cours, jusqu'au mois en cours */
+    const jusque = a1 === anCour ? moisCour : 12;
+    const c1 = M1[jusque - 1].cumulHtCents, c2 = M2[jusque - 1].cumulHtCents;
+    const MOISL = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+    const groupes = `<div class="hs-cmp" role="img" aria-label="Chiffre d’affaires HT par mois : ${a1} comparé à ${a2}">${M1.map((m, i) => `<span class="hs-cm${a1 === anCour && i + 1 === moisCour ? ' cur' : ''}" title="${MOISL[i]} ${a1} : ${eurosRond(m.caHtCents)} HT (${m.commandes} commandes) · ${MOISL[i]} ${a2} : ${eurosRond(M2[i].caHtCents)} HT"><span class="hs-cb"><i class="b2" style="height:${M2[i].caHtCents / max * 100}%"></i><i class="b1" style="height:${m.caHtCents / max * 100}%"></i></span><em>${MOIS_C[i]}</em></span>`).join('')}</div>
+      <p class="st-leg"><span><i class="b1"></i>${a1}</span><span><i class="b2"></i>${a2}</span></p>`;
+    const table = `<div class="hs-wrap"><table class="hs-t"><thead><tr><th>Mois</th><th class="n">${a1}</th><th class="n">${a2}</th><th class="n">Écart</th><th class="n">Cumul ${a1}</th><th class="n">Cumul ${a2}</th><th class="n">Écart</th></tr></thead><tbody>${M1.map((m, i) => `<tr${a1 === anCour && i + 1 === moisCour ? ' class="hs-cur"' : ''}><td><b>${MOISL[i]}</b></td><td class="n"><b>${eurosRond(m.caHtCents)}</b><small>${m.commandes} cmd</small></td><td class="n">${eurosRond(M2[i].caHtCents)}<small>${M2[i].commandes} cmd</small></td><td class="n">${ecart(m.caHtCents, M2[i].caHtCents)}</td><td class="n">${a1 === anCour && i + 1 > moisCour ? '—' : eurosRond(m.cumulHtCents)}</td><td class="n">${eurosRond(M2[i].cumulHtCents)}</td><td class="n">${a1 === anCour && i + 1 > moisCour ? '—' : ecart(m.cumulHtCents, M2[i].cumulHtCents)}</td></tr>`).join('')}</tbody></table></div>`;
+    /* toutes les années : un tableau mois × année, plus la case est foncée, plus le mois a rapporté */
+    const tout = Math.max(1, ...L.flatMap(x => x.mois.map(m => m.caHtCents)));
+    const ansR = ans.slice().reverse();
+    const carte = `<div class="hs-wrap"><table class="hs-t hs-heat"><thead><tr><th>Mois</th>${ansR.map(a => `<th class="n">${a}</th>`).join('')}</tr></thead><tbody>${MOISL.map((ml, i) => `<tr><td><b>${MOIS_C[i]}</b></td>${ansR.map(a => { const v = D[a][i].caHtCents; return `<td class="n" style="--h:${(v / tout).toFixed(3)}" title="${ml} ${a} : ${eurosRond(v)} HT · ${D[a][i].commandes} commandes">${v ? Math.round(v / 100000).toLocaleString('fr-FR') + ' k€' : '—'}</td>`; }).join('')}</tr>`).join('')}<tr class="tot"><td>Total</td>${ansR.map(a => `<td class="n">${Math.round(D[a][11].cumulHtCents / 100000).toLocaleString('fr-FR')} k€</td>`).join('')}</tr></tbody></table></div>`;
+    el.innerHTML = `<div class="hs-bar"><span class="st-tri">${[['sig', 'Au mois de la signature'], ['evt', 'Au mois de l’événement']].map(([k, l]) => `<button type="button" class="st-tc${base === k ? ' on' : ''}" data-hsbase="${k}" aria-pressed="${base === k}">${l}</button>`).join('')}</span><span class="hs-vs">Comparer ${sel('1', a1)} avec ${sel('2', a2)}</span></div>
+      <div class="st-kpis hs-kpis hs-cumul"><span><b>${eurosRond(c1)}</b><small>${a1} · de janvier à fin ${MOISL[jusque - 1]}${a1 === anCour ? ' (mois en cours compris)' : ''}</small></span><span><b>${eurosRond(c2)}</b><small>${a2} · même période</small></span><span><b>${ecart(c1, c2)}</b><small>d’une année à l’autre</small></span></div>
+      ${groupes}${table}
+      <h3 class="hs-h3">Toutes les années, mois par mois (HT, en milliers d’euros)</h3>${carte}
+      <p class="muted sm st-note">${base === 'evt' ? 'Rangé au mois de l’événement : le chiffre réellement réalisé ce mois-là (les événements à venir déjà signés sont comptés dans leur mois).' : 'Rangé au mois de la signature (date acceptée) : le chiffre vendu ce mois-là par l’équipe.'} Ancien CRM (Teamleader), montants hors taxes.</p>`;
+    $$('[data-hsbase]', el).forEach(b => b.addEventListener('click', () => { statistiques.hBase = b.dataset.hsbase; statistiques.hMois(); }));
+    $$('[data-hsan]', el).forEach(x => x.addEventListener('change', () => { statistiques['hA' + x.dataset.hsan] = x.value; statistiques.hMois(); }));
+  };
   /* classement : Saveurs du monde est remplacée par ses spécialités (Buffet antillais, Paëlla party…) */
   statistiques.classement = () => {
     const s = cache.stats, el = $('[data-strank]'); if (!s || !el) return;
@@ -653,8 +716,12 @@
   };
   statistiques.after = () => {
     $$('[data-stsrc]').forEach(a => a.addEventListener('click', () => { CL.k = { canal: a.dataset.stsrc }; CL.page = 1; CL.q = ''; mem.set('mg_clmulti', '1'); }));
+    /* historique : onglets, et liens vers les contacts correspondants */
+    $$('[data-hsong]').forEach(b => b.addEventListener('click', () => { statistiques.hOng = b.dataset.hsong; $$('[data-hsong]').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-selected', x === b); }); $$('[data-hspane]').forEach(p => { p.hidden = p.dataset.hspane !== b.dataset.hsong; }); }));
+    $$('[data-hsk]').forEach(a => a.addEventListener('click', () => { const k = a.dataset.hsk; CL.k = k === 'relance' ? { hcmd: '2', hder: 'plus12' } : { [k]: a.dataset.hsv, ...(k === 'canal' ? {} : { hcmd: 'oui' }) }; CL.tri = 'montant'; CL.sens = 'desc'; CL.page = 1; CL.q = ''; CL.vue = ''; mem.set('mg_clmulti', '1'); }));
     statistiques.classement();
     statistiques.produits();
+    statistiques.hMois();
     const sauve = () => mem.set('mg_st_replie', JSON.stringify($$('[data-pli]').filter(d => !d.open).map(d => d.dataset.pli)));
     $$('[data-pli]').forEach(d => d.addEventListener('toggle', sauve));
     $$('[data-stplier]').forEach(b => b.addEventListener('click', () => { const r = b.dataset.stplier === '1'; $$('[data-pli]').forEach(d => { d.open = !r; }); sauve(); }));
@@ -1884,15 +1951,29 @@
         ${sel('dj', 'Style de DJ', liste(F.dj, 'Tous'))}
         ${sel('indep', 'Indépendant(e)', [['', 'Peu importe'], ['1', `Oui (${n(F.indep)})`]])}
         ${sel('permis', 'Permis de conduire', [['', 'Peu importe'], ['1', `Oui (${n(F.permis)})`]])}</div></div>
+      ${filtresHisto(F.histo, sel, liste, n)}
       <div class="cl-gr"><p class="cl-gt">✉ Pour le joindre</p><div class="cl-crits">
         ${sel('joignable', 'Joignable par', [['', 'Peu importe'], ['email', 'E-mail'], ['sms', 'SMS (portable)'], ['les2', 'E-mail et SMS'], ['aucun', 'Ni e-mail ni SMS']])}
         ${sel('npc', 'NE PAS CONTACTER', [['', 'Peu importe'], ['non', 'Sauf « ne pas contacter »'], ['oui', `Seulement « ne pas contacter » (${n(F.npc)})`]])}</div></div>
       <div class="row cl-res"><span class="cl-cpt grand" data-clcpt>${compteClients(total)}</span><span class="muted sm">correspondent à votre sélection</span>${nb ? '<button type="button" class="btn ghost sm" data-ckclear>✕ Effacer les critères</button>' : ''}</div></details>`;
   }
+  /* historique commercial de l'ancien CRM (Jean-Luc, 2026-11-26) : a commandé ou non, combien, quand, quel événement */
+  function filtresHisto(H, sel, liste, n) {
+    if (!H || !(H.commande || H.perdus)) return '';
+    const eu = v => Number(v).toLocaleString('fr-FR') + ' € HT et plus';
+    return `<div class="cl-gr cl-gr-h"><p class="cl-gt">🛍 Historique commercial (ancien CRM, depuis 2017)</p><div class="cl-crits">
+        ${sel('hcmd', 'A commandé', [['', 'Peu importe'], ['oui', `Oui, au moins une fois (${n(H.commande)})`], ['2', '2 fois ou plus'], ['3', '3 fois ou plus'], ['5', '5 fois ou plus'], ...(H.perdus ? [['non', `Devis refusé, jamais commandé (${n(H.perdus)})`]] : []), ['jamais', 'N’a jamais commandé']])}
+        ${sel('hder', 'Dernière commande', [['', 'Peu importe'], ['moins12', 'Dans les 12 derniers mois'], ['plus12', 'Il y a plus d’un an'], ['plus24', 'Il y a plus de 2 ans'], ['plus36', 'Il y a plus de 3 ans'], ...H.ans.map(([v, c]) => [v, `En ${v} (${n(c)})`])])}
+        ${sel('hmontant', 'Montant total commandé', [['', 'Peu importe'], ...[500, 1000, 2000, 3000, 5000, 10000, 20000].map(v => [String(v), eu(v)])])}
+        ${sel('hevt', 'Type d’événement', liste(H.evt, 'Tous'))}
+        ${sel('hcom', 'Commercial (ancien CRM)', liste(H.com, 'Tous'))}
+        ${H.motifs.length ? sel('hmotif', 'Motif du refus', liste(H.motifs, 'Tous')) : ''}</div></div>`;
+  }
   async function clients(id, sub) {
     if (id === 'entreprises') return sub ? ficheEntreprise(sub) : entreprises();
     if ((id === 'email' || id === 'sms') && !peut('diffusion')) return sansAcces();
-    if (id === 'importer' && !peut('fichiers')) return sansAcces();
+    if ((id === 'importer' || id === 'historique') && !peut('fichiers')) return sansAcces();
+    if (id === 'historique') return importerHistorique();
     if (id === 'email' || id === 'sms') return diffusion(id);
     if (id === 'importer') return importerClients();
     if (id === 'appels') return appelsClients();
@@ -1900,7 +1981,7 @@
     if (id && !vueNouv) return client(id);
     if (CL.vue !== vueNouv) { CL.vue = vueNouv; CL.page = 1; CL.sel.clear(); }
     const r = await api(urlClients());
-    return page(CL.vue ? 'Clients' : 'Liste des contacts', `${peut('fichiers') ? '<a class="btn ghost" href="#/clients/importer">⬆ Importer des contacts</a>' : ''}<a class="btn" href="#/clients/nouveau">+ Nouveau contact</a>`, `
+    return page(CL.vue ? 'Clients' : 'Liste des contacts', `${peut('fichiers') ? '<a class="btn ghost" href="#/clients/importer">⬆ Importer des contacts</a><a class="btn ghost" href="#/clients/historique">📜 Importer l’historique commercial</a>' : ''}<a class="btn" href="#/clients/nouveau">+ Nouveau contact</a>`, `
       ${ongletsClients('')}${bandeauClients(CL.vue, r.tous, r.entreprises, r.acheteurs)}${CL.vue ? '<p class="muted sm cl-vue-txt">🛍 Toutes les personnes qui n’ont pas d’entreprise renseignée.</p>' : ''}<div class="cl-bar"><input type="search" placeholder="🔍 Chercher dans toutes les cases des fiches : nom, téléphone, e-mail, société, ville, métier, remarque, rue…" data-q value="${esc(CL.q)}" aria-label="Rechercher un client">
         <div class="cl-f">${[['', `Tous (${(CL.vue ? r.acheteurs : r.tous).toLocaleString('fr-FR')})`], ['importes', `Fichier importé (${r.importes.toLocaleString('fr-FR')})`], ['autres', 'Site et back-office']].map(([k, l]) => `<button type="button" class="qs-own-b${CL.filtre === k ? ' on' : ''}" data-clf="${k}">${l}</button>`).join('')}</div></div>
       ${CL.dernier ? `<div class="okbox cl-remet"><span>🗑 ${CL.dernier.nb.toLocaleString('fr-FR')} contact${CL.dernier.nb > 1 ? 's' : ''} effacé${CL.dernier.nb > 1 ? 's' : ''}.</span><button type="button" class="btn ghost sm" data-clremet>↶ Remettre</button></div>` : ''}<div id="clMulti">${filtresClients(r.facettes, r.total)}</div><div id="clTable">${tableClients(r)}</div>`);
@@ -1910,14 +1991,15 @@
     const ef = peut('effacerContacts'), libres = r.items.filter(c => !c.verrou);
     const ckTete = ef ? `<th class="ck"><input type="checkbox" data-cltout aria-label="Cocher toute la page" title="Cocher toute la page"${libres.length && libres.every(c => CL.sel.has(c.id)) ? ' checked' : ''}></th>` : '';
     const ck = c => !ef ? '' : c.verrou ? '<td class="ck" title="A une demande, un devis ou une facture : ne peut pas être effacé">🔒</td>' : `<td class="ck"><input type="checkbox" data-clsel="${esc(c.id)}" aria-label="Cocher ${esc(c.nom || '')}"${CL.sel.has(c.id) ? ' checked' : ''}></td>`;
-    return `${ef ? `<div class="row sel-bar cl-sel"><button type="button" class="btn danger sm" data-cleff${CL.sel.size ? '' : ' disabled'}>🗑 Effacer${CL.sel.size ? ' ' + CL.sel.size.toLocaleString('fr-FR') + ' contact' + (CL.sel.size > 1 ? 's' : '') : ''}</button><span class="muted sm">${CL.sel.size ? `${CL.sel.size.toLocaleString('fr-FR')} coché${CL.sel.size > 1 ? 's' : ''} · <button type="button" class="lnk" data-clnone>Tout décocher</button>` : 'Cochez les contacts à effacer.'}${r.total > libres.length ? ` · <button type="button" class="lnk" data-clall>Cocher les ${r.total.toLocaleString('fr-FR')} contacts de cette recherche</button>` : ''}</span></div>` : ''}<div class="table"><table><thead><tr>${ckTete}${[['nom', 'Nom'], ['societe', 'Société'], ['contact', 'Contact'], ['ville', 'Ville'], ['demandes', 'Demandes', 'n'], ['activite', CL.tri === 'activite' && CL.sens === 'asc' ? 'Première activité' : 'Dernière activité']].map(([k, l, cls]) => `<th class="cl-th${cls ? ' ' + cls : ''}${CL.tri === k ? ' on' : ''}"${CL.tri === k ? ` aria-sort="${CL.sens === 'asc' ? 'ascending' : 'descending'}"` : ''}><button type="button" data-cltri="${k}" title="Trier par ${esc(l.toLowerCase())}">${l}<span class="cl-fl">${CL.tri === k ? (CL.sens === 'asc' ? '▲' : '▼') : '▲▼'}</span></button></th>`).join('')}<th></th></tr></thead><tbody>
-      ${r.items.map(c => `<tr data-href="#/clients/${esc(c.id)}">${ck(c)}<td><b>${esc(c.nom || '—')}</b>${c.nePasContacter ? ' <span class="pill d-refuse" title="NE PAS CONTACTER">⛔</span>' : ''}${(c.metiers || []).length ? `<small class="cl-met">🎭 ${esc(c.metiers.join(', '))}</small>` : ''}${c.source === 'import CRM' ? '<small class="cl-imp">fichier importé</small>' : ''}${canalDe(c) && canalDe(c) !== 'Import' ? `<small class="cl-src">${pillSource(canalDe(c))}</small>` : ''}</td><td>${esc(c.societe || '')}</td><td>${esc(c.email || '')}<small>${esc(c.tel || '')}</small></td><td>${esc([c.cp, c.ville].filter(Boolean).join(' '))}</td><td class="n">${c.nbDemandes || ''}</td><td>${dateFr(c.derniereActivite)}</td><td class="n"><a class="qs-back cl-edit" href="#/clients/${esc(c.id)}?edit=1" title="Modifier la fiche">✏ Modifier</a></td></tr>`).join('') || `<tr><td colspan="${ef ? 8 : 7}" class="muted">${r.tous ? 'Aucun client ne correspond.' : 'Aucun client pour le moment.'}</td></tr>`}</tbody></table></div>
+    return `${ef ? `<div class="row sel-bar cl-sel"><button type="button" class="btn danger sm" data-cleff${CL.sel.size ? '' : ' disabled'}>🗑 Effacer${CL.sel.size ? ' ' + CL.sel.size.toLocaleString('fr-FR') + ' contact' + (CL.sel.size > 1 ? 's' : '') : ''}</button><span class="muted sm">${CL.sel.size ? `${CL.sel.size.toLocaleString('fr-FR')} coché${CL.sel.size > 1 ? 's' : ''} · <button type="button" class="lnk" data-clnone>Tout décocher</button>` : 'Cochez les contacts à effacer.'}${r.total > libres.length ? ` · <button type="button" class="lnk" data-clall>Cocher les ${r.total.toLocaleString('fr-FR')} contacts de cette recherche</button>` : ''}</span></div>` : ''}<div class="table"><table><thead><tr>${ckTete}${[['nom', 'Nom'], ['societe', 'Société'], ['contact', 'Contact'], ['ville', 'Ville'], ['demandes', 'Demandes', 'n'], ['montant', 'Commandé (HT)', 'n'], ['activite', CL.tri === 'activite' && CL.sens === 'asc' ? 'Première activité' : 'Dernière activité']].map(([k, l, cls]) => `<th class="cl-th${cls ? ' ' + cls : ''}${CL.tri === k ? ' on' : ''}"${CL.tri === k ? ` aria-sort="${CL.sens === 'asc' ? 'ascending' : 'descending'}"` : ''}><button type="button" data-cltri="${k}" title="Trier par ${esc(l.toLowerCase())}">${l}<span class="cl-fl">${CL.tri === k ? (CL.sens === 'asc' ? '▲' : '▼') : '▲▼'}</span></button></th>`).join('')}<th></th></tr></thead><tbody>
+      ${r.items.map(c => `<tr data-href="#/clients/${esc(c.id)}">${ck(c)}<td><b>${esc(c.nom || '—')}</b>${c.nePasContacter ? ' <span class="pill d-refuse" title="NE PAS CONTACTER">⛔</span>' : ''}${(c.metiers || []).length ? `<small class="cl-met">🎭 ${esc(c.metiers.join(', '))}</small>` : ''}${c.source === 'import CRM' ? '<small class="cl-imp">fichier importé</small>' : ''}${canalDe(c) && canalDe(c) !== 'Import' ? `<small class="cl-src">${pillSource(canalDe(c))}</small>` : ''}</td><td>${esc(c.societe || '')}</td><td>${esc(c.email || '')}<small>${esc(c.tel || '')}</small></td><td>${esc([c.cp, c.ville].filter(Boolean).join(' '))}</td><td class="n">${c.nbDemandes || ''}</td><td class="n cl-cmd">${c.histo?.commandes ? `<b>${eurosRond(c.histo.caHtCents)}</b><small>${c.histo.commandes} commande${c.histo.commandes > 1 ? 's' : ''} · ${esc(String(c.histo.derniere || '').slice(0, 4))}</small>` : c.histo?.perdues ? '<small class="muted">n’a pas commandé</small>' : ''}</td><td>${dateFr(c.derniereActivite)}</td><td class="n"><a class="qs-back cl-edit" href="#/clients/${esc(c.id)}?edit=1" title="Modifier la fiche">✏ Modifier</a></td></tr>`).join('') || `<tr><td colspan="${ef ? 9 : 8}" class="muted">${r.tous ? 'Aucun client ne correspond.' : 'Aucun client pour le moment.'}</td></tr>`}</tbody></table></div>
       ${r.total > r.par ? `<div class="cl-pages"><button type="button" class="btn ghost sm" data-clp="-1"${r.page <= 1 ? ' disabled' : ''}>‹ Précédents</button><span>${((r.page - 1) * r.par + 1).toLocaleString('fr-FR')} à ${Math.min(r.total, r.page * r.par).toLocaleString('fr-FR')} sur ${r.total.toLocaleString('fr-FR')}</span><button type="button" class="btn ghost sm" data-clp="1"${r.page >= pages ? ' disabled' : ''}>Suivants ›</button></div>` : `<p class="muted sm cl-nb">${r.total.toLocaleString('fr-FR')} ${CL.vue ? 'client' : 'contact'}${r.total > 1 ? 's' : ''}</p>`}`;
   }
   clients.after = (id, sub) => {
     if (id === 'entreprises') return sub ? ficheEntreprise.after(sub) : entreprises.after();
     if (id === 'email' || id === 'sms') return diffusion.after(id);
     if (id === 'importer') return importerClients.after();
+    if (id === 'historique') return importerHistorique.after();
     if (id === 'appels') return appelsClients.after();
     if (id && id !== 'clients') return client.after(id);
     const recharger = async (multi) => { try { const r = await api(urlClients()); $('#clTable').innerHTML = tableClients(r); if (multi) { $('#clMulti').innerHTML = filtresClients(r.facettes, r.total); brancherMulti(); } else $$('[data-clcpt]').forEach(x => { x.innerHTML = compteClients(r.total); x.classList.remove('pop'); void x.offsetWidth; x.classList.add('pop'); }); brancher(); } catch (e) { toast(e.message, true); } };
@@ -1930,7 +2012,7 @@
     const brancher = () => {
       $$('tr[data-href]').forEach(tr => tr.addEventListener('click', e => { if (!e.target.closest('a') && !e.target.closest('.ck')) location.hash = tr.dataset.href; }));
       /* tri : 1er clic = A → Z (ou le plus récent / le plus grand), 2e clic = l'inverse */
-      $$('[data-cltri]').forEach(b => b.addEventListener('click', () => { const k = b.dataset.cltri; if (CL.tri === k) CL.sens = CL.sens === 'asc' ? 'desc' : 'asc'; else { CL.tri = k; CL.sens = k === 'activite' || k === 'demandes' ? 'desc' : 'asc'; } CL.page = 1; recharger(); }));
+      $$('[data-cltri]').forEach(b => b.addEventListener('click', () => { const k = b.dataset.cltri; if (CL.tri === k) CL.sens = CL.sens === 'asc' ? 'desc' : 'asc'; else { CL.tri = k; CL.sens = ['activite', 'demandes', 'montant'].includes(k) ? 'desc' : 'asc'; } CL.page = 1; recharger(); }));
       /* cases à cocher + « Effacer » (Jean-Luc, 2026-11-24) */
       const majSel = () => { const b = $('[data-cleff]'); if (!b) return; b.disabled = !CL.sel.size; b.textContent = '🗑 Effacer' + (CL.sel.size ? ` ${CL.sel.size.toLocaleString('fr-FR')} contact${CL.sel.size > 1 ? 's' : ''}` : ''); };
       $$('[data-clsel]').forEach(x => x.addEventListener('change', () => { if (x.checked) CL.sel.add(x.dataset.clsel); else CL.sel.delete(x.dataset.clsel); majSel(); }));
@@ -2035,6 +2117,70 @@
       }, 250);
     });
     res.addEventListener('click', e => { const a = e.target.closest('[data-enl]'); if (!a) return; e.preventDefault(); const c = a.dataset.enl; const cur = a.querySelector('.cf-go').textContent; if (cur !== 'Déjà relié') lier(c, false); });
+  };
+
+  /* ---------- importer l'historique commercial de l'ancien CRM (Teamleader : affaires depuis 2017) ----------
+     Jean-Luc dépose l'export des opportunités tel quel : chaque affaire est rattachée à la fiche du client (même e-mail ou portable),
+     les clients inconnus sont créés, la source va dans « Origine du contact » si elle est vide. Réimporter ne crée pas de doublon. */
+  const HIM = {};
+  async function importerHistorique() {
+    const hist = await api(A + '/actions/historique/imports').catch(() => []);
+    const n = v => (v || 0).toLocaleString('fr-FR');
+    return page('Importer l’historique commercial', '<a class="btn ghost" href="#/clients">← Contacts</a><a class="btn ghost" href="#/statistiques">📊 Statistiques</a>', `
+      <p class="muted intro">Déposez l’export des <b>affaires (opportunités)</b> de votre ancien CRM, tel quel. Chaque affaire est rangée sur la fiche du client (retrouvé par son e-mail, sinon son portable) : <b>a commandé ou non</b>, combien de fois, pour quel montant, quand, quel événement, quel lieu, quel commercial, et le <b>motif du refus</b> pour une affaire perdue. Les clients inconnus sont créés. La source va dans « 🧭 Origine du contact » seulement si la fiche n’en a pas. Rien d’autre n’est écrasé, réimporter un export plus complet ne crée aucun doublon, et un import peut toujours être annulé.</p>
+      <section class="box imp-step"><h2><span class="imp-n">1</span> Choisissez le fichier</h2>
+        <label class="imp-drop" id="himDrop"><input type="file" id="himFile" accept=".xlsx,.csv,.txt,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" hidden><b>📄 Cliquez ici ou glissez l’export des affaires</b><small>Excel (.xlsx) ou CSV · colonnes reconnues d’office : Client, Client: E-mail, Client: Mobile, Évènement, Date, Nombre PAX, Lieu, Date acceptée, Date refusé, Motif du refus, Montant HT, Facturé, Marge, Source, Responsabilité…</small></label>
+        <p class="imp-err" id="himErr" hidden></p></section>
+      <div id="himSuite"></div>
+      <section class="box"><h2>Historiques déjà importés</h2>${hist.length ? `<div class="table"><table><thead><tr><th>Date</th><th>Fichier</th><th class="n">Affaires</th><th class="n">Ajoutées</th><th class="n">Contacts créés</th><th>État</th><th></th></tr></thead><tbody>${hist.map(h => `<tr><td>${dateH(h.at)}<small>${esc(h.par || '')}</small></td><td>${esc(h.fichier)}</td><td class="n">${n(h.total)}</td><td class="n">${n(h.compteurs?.affairesCrees)}</td><td class="n">${n(h.compteurs?.clientsCrees)}</td><td>${h.statut === 'annulé' ? `<span class="pill d-refuse">Annulé</span><small>${dateH(h.annuleLe)}</small>` : h.statut === 'terminé' ? '<span class="pill d-accepte">Terminé</span>' : `<span class="pill d-envoye">${esc(h.statut || '')}</span>`}</td><td>${h.statut === 'terminé' ? `<button type="button" class="btn ghost sm" data-himannul="${esc(h.id)}">↶ Annuler cet import</button>` : ''}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Aucun pour le moment.</p>'}</section>`);
+  }
+  function etapeHisto(r) {
+    const n = x => (x || 0).toLocaleString('fr-FR');
+    const ans = Object.entries(r.ans || {}).sort();
+    const max = Math.max(1, ...ans.map(([, v]) => v));
+    return `<section class="box imp-step"><h2><span class="imp-n">2</span> Ce que contient « ${esc(r.fichier)} »</h2>
+      <div class="kpis qk imp-k"><div><b>${n(r.affaires)}</b><span>affaires</span></div><div><b>${n(r.gagnees)}</b><span>signées (commandes)</span></div><div><b>${n(r.perdues)}</b><span>perdues${r.motifs ? ` · ${n(r.motifs)} avec motif` : ''}</span></div><div><b>${eurosRond(r.caHtCents)}</b><span>signé HT</span></div></div>
+      <div class="him-ans" role="img" aria-label="Affaires par année">${ans.map(([a, v]) => `<span title="${a} : ${n(v)} affaires"><small>${n(v)}</small><i style="height:${Math.max(4, v / max * 100)}%"></i><em>${a}</em></span>`).join('')}</div>
+      <div class="kpis qk imp-k"><div><b>${n(r.clients)}</b><span>clients différents</span></div><div><b>${n(r.retrouves)}</b><span>déjà dans vos contacts (même e-mail ou portable)</span></div><div><b>${n(r.nouveaux)}</b><span>nouveaux contacts créés</span></div><div><b>${n(r.dejaImportees)}</b><span>affaires déjà importées (mises à jour)</span></div></div>
+      ${r.sources?.length ? `<p class="sm"><b>Sources :</b> ${r.sources.map(([s2, v]) => `${esc(s2)} (${n(v)})`).join(' · ')}</p>` : ''}
+      ${!r.perdues ? '<p class="okbox sm him-info">ℹ️ Ce fichier ne contient que des affaires <b>signées</b> : pas encore de taux de signature ni de motifs de refus. Pour les avoir, faites un 2e export Teamleader des affaires <b>perdues</b> (avec la colonne « Motif du refus ») et déposez-le ici : il s’ajoutera sans doublon.</p>' : ''}
+      ${r.doublons ? `<p class="muted sm">${n(r.doublons)} ligne(s) en double dans le fichier, comptées une seule fois.</p>` : ''}
+      <div class="row"><button type="button" class="btn" data-himgo>📜 Importer les ${n(r.affaires)} affaires</button><span class="muted sm">Quelques secondes à une minute.</span></div><div id="himProg"></div></section>`;
+  }
+  importerHistorique.after = () => {
+    const err = m => { const e = $('#himErr'); e.textContent = m || ''; e.hidden = !m; };
+    const envoyer = async file => {
+      err(''); if (!file) return;
+      $('#himSuite').innerHTML = `<section class="box"><p>Lecture de « ${esc(file.name)} »…</p></section>`;
+      const fd = new FormData(); fd.append('fichier', file);
+      try { HIM.r = await api(A + '/actions/historique/fichier', { method: 'POST', form: fd }); $('#himSuite').innerHTML = etapeHisto(HIM.r); brancher(); $('#himSuite').scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+      catch (e) { $('#himSuite').innerHTML = ''; err(e.message); }
+    };
+    const drop = $('#himDrop');
+    $('#himFile').addEventListener('change', e => envoyer(e.target.files[0]));
+    drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('on'); });
+    drop.addEventListener('dragleave', () => drop.classList.remove('on'));
+    drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('on'); envoyer(e.dataTransfer.files[0]); });
+    function brancher() {
+      const go = $('[data-himgo]');
+      go.addEventListener('click', async () => {
+        go.disabled = true; go.textContent = 'Import en cours… gardez cette page ouverte';
+        try {
+          const r = await api(A + '/actions/historique/importer', { method: 'POST', body: { tok: HIM.r.tok } });
+          const n = x => (x || 0).toLocaleString('fr-FR');
+          $('#himProg').innerHTML = `<div class="okbox imp-rap"><b>✓ Historique importé.</b><ul><li><b>${n(r.affairesCrees)}</b> affaires ajoutées${r.affairesMaj ? `, <b>${n(r.affairesMaj)}</b> mises à jour` : ''}</li><li><b>${n(r.clientsCrees)}</b> nouveaux contacts créés</li><li><b>${n(r.clientsCompletes)}</b> fiches existantes complétées (cases vides seulement)</li><li><b>${n(r.sourcesPosees)}</b> origines du contact renseignées</li></ul><p class="row"><a class="btn" href="#/statistiques">📊 Voir les statistiques</a><a class="btn ghost" href="#/clients" data-himvoir>👤 Voir les clients qui ont commandé</a></p></div>`;
+          go.hidden = true;
+          $('[data-himvoir]')?.addEventListener('click', () => { CL.k = { hcmd: 'oui' }; CL.tri = 'montant'; CL.sens = 'desc'; CL.page = 1; CL.q = ''; CL.vue = ''; mem.set('mg_clmulti', '1'); });
+          toast('Historique importé.');
+        } catch (x) { toast(x.message, true); go.disabled = false; go.textContent = 'Réessayer l’import'; }
+      });
+    }
+    $$('[data-himannul]').forEach(b => b.addEventListener('click', async () => {
+      if (!confirm('Annuler cet import ?\n\nLes affaires de cet import seront retirées des fiches, les contacts créés par lui seront retirés (sauf ceux qui ont depuis une demande, un devis ou une note), et les cases complétées seront remises comme avant.')) return;
+      b.disabled = true; b.textContent = 'Annulation…';
+      try { const r = await api(`${A}/actions/historique/${encodeURIComponent(b.dataset.himannul)}/annuler`, { method: 'POST' }); toast(`Import annulé : ${r.affaires.toLocaleString('fr-FR')} affaire(s) et ${r.retires.toLocaleString('fr-FR')} contact(s) retirés.`); render(); }
+      catch (x) { toast(x.message, true); b.disabled = false; b.textContent = '↶ Annuler cet import'; }
+    }));
   };
 
   /* ---------- importer le fichier clients de l'ancien CRM ---------- */
@@ -2370,8 +2516,9 @@
     demande: ['📥', 'Demande', 'dem'], statut: ['➜', 'Étape', 'st'], devis: ['📄', 'Devis', 'dv'], envoi: ['📨', 'Envoi', 'dv'], vu: ['👁', 'Vu', 'dv'], relance: ['🔔', 'Relance', 'msg'],
     signe: ['✍', 'Signature', 'ok'], commentaire: ['💬', 'Commentaire client', 'msg'], refus: ['✕', 'Refus', 'ko'], facture: ['🧾', 'Facture', 'pay'], paiement: ['💶', 'Règlement', 'ok'], email: ['✉', 'E-mail', 'msg'], sms: ['💬', 'SMS', 'msg'],
     appel: ['📞', 'Appel', 'note'], note: ['🗒', 'Note', 'note'], rdv: ['📅', 'Rendez-vous', 'note'], client: ['👤', 'Client', 'st'],
+    affaire: ['🛍', 'Commande (ancien CRM)', 'crm'], affairePerdue: ['✕', 'Affaire perdue (ancien CRM)', 'crm'],
   };
-  const HFILTRES = [['', 'Tout'], ['dv', 'Devis'], ['pay', 'Factures et règlements'], ['msg', 'E-mails, SMS et relances'], ['note', 'Notes et appels']];
+  const HFILTRES = [['', 'Tout'], ['dv', 'Devis'], ['pay', 'Factures et règlements'], ['msg', 'E-mails, SMS et relances'], ['note', 'Notes et appels'], ['crm', '🛍 Ancien CRM']];
   const HF = { f: '' };
   function friseClient(evs) {
     const l = evs.filter(e => !HF.f || (HTYPES[e.type] || [])[2] === HF.f || (HF.f === 'pay' && e.type === 'paiement') || (HF.f === 'dv' && ['signe', 'refus'].includes(e.type)));
@@ -2385,6 +2532,18 @@
         <div class="hc-l2">${esc(new Date(e.at).toLocaleString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }))}${e.par ? ' · ' + esc(e.par) : ''}${e.statutDevis ? ` <span class="pill d-${e.statutDevis}">${DSTAT[e.statutDevis] || ''}</span>` : ''}</div>
         ${e.detail ? `<div class="hc-d">${esc(e.detail)}</div>` : ''}${e.lien || e.jid ? `<div class="hc-a">${e.lien ? `<a class="lnk" href="${esc(e.lien)}"${ext ? ' target="_blank"' : ''}>${ext ? 'Voir comme le client ↗' : 'Ouvrir →'}</a>` : ''}${e.jid ? `<button type="button" class="lnk hc-del" data-hdel="${esc(e.jid)}">Supprimer</button>` : ''}</div>` : ''}</div></li>`;
     }).join('');
+  }
+  /* historique commercial de l'ancien CRM (Teamleader) sur la fiche client (Jean-Luc, 2026-11-26) */
+  function resumeHisto(H) {
+    if (!H) return '';
+    const an = d => String(d || '').slice(0, 4);
+    const periode = H.commandes ? (an(H.premiere) === an(H.derniere) ? 'en ' + an(H.derniere) : `de ${an(H.premiere)} à ${an(H.derniere)}`) : '';
+    return `<div class="hc-histo${H.commandes ? '' : ' non'}"><span class="hc-hb">${H.commandes ? `🛍 A commandé <b>${H.commandes} fois</b>` : '✕ N’a pas commandé'}</span>${H.commandes ? `<span><b>${eurosRond(H.caHtCents)}</b> HT ${esc(periode)}</span><span>dernière commande le <b>${dateFr(H.derniere)}</b></span>` : ''}${H.perdues ? `<span>${H.perdues} affaire${H.perdues > 1 ? 's' : ''} perdue${H.perdues > 1 ? 's' : ''}${H.motifs.length ? ' : ' + esc(H.motifs.join(', ')) : ''}</span>` : ''}${H.types.length ? `<span>${esc(H.types.join(', '))}</span>` : ''}${H.commercial ? `<span>suivi par ${esc(H.commercial)}</span>` : ''}<small>ancien CRM (Teamleader)</small></div>`;
+  }
+  function boxHisto(H) {
+    if (!H) return '';
+    const L = H.affaires || [];
+    return `<section class="box hc-aff"><div class="hc-th"><h2>🛍 Commandes passées <small class="muted">(ancien CRM)</small></h2><span class="muted sm">${L.length} affaire${L.length > 1 ? 's' : ''}</span></div><ul class="list">${L.map(a => `<li><span><b>${esc(a.evenement || 'Événement')}${a.age ? ' ' + esc(a.age) + ' ans' : ''}</b> · ${a.dateEvt ? dateFr(a.dateEvt) : '—'}${a.invites ? ' · ' + a.invites + ' pers.' : ''} · ${eurosRond(a.montantHtCents)} HT<small class="muted">${esc([a.lieu, a.source ? '🧭 ' + a.source : '', a.commercial, a.motif ? 'Motif : ' + a.motif : ''].filter(Boolean).join(' · '))}</small></span><span class="pill ${a.statut === 'gagnee' ? (/^non/i.test(a.facture) ? 'd-envoye' : 'd-accepte') : a.statut === 'perdue' ? 'd-refuse' : 'd-envoye'}">${a.statut === 'gagnee' ? (/^non/i.test(a.facture) ? 'Signée, non facturée' : 'Signée') : a.statut === 'perdue' ? 'Perdue' : 'En cours'}</span></li>`).join('')}</ul></section>`;
   }
   /* anniversaire : prochaine date, nombre de jours, âge atteint ce jour-là */
   function annivInfo(n) {
@@ -2480,7 +2639,7 @@
       <section class="box hc-head"><div class="hc-who"><span class="qs-av hc-av">${esc(initiales(c.nom))}</span><div><div class="hc-nm">${esc(c.nom || '—')} <button type="button" class="hc-pen" data-hedit title="Modifier la fiche" aria-label="Modifier la fiche">✏</button></div>${c.societe ? `<div class="hc-co">${c.entrepriseId ? `<a class="hc-ent" href="#/clients/entreprises/${esc(c.entrepriseId)}" title="Ouvrir la fiche de l’entreprise">🏢 ${esc(c.societe)} ›</a>` : esc(c.societe)}${c.fonction ? ' · ' + esc(c.fonction) : ''}</div>` : c.fonction ? `<div class="hc-co">${esc(c.fonction)}</div>` : ''}
         <div class="hc-ct">${tel ? `<a class="qs-pill" href="tel:${esc(tel)}" data-happel>📞 ${esc(c.tel)}</a>` : ''}${c.email ? `<a class="qs-pill" href="mailto:${esc(c.email)}">✉ ${esc(c.email)}</a>` : ''}</div>
         ${an ? `<div class="hc-anniv${an.dans <= 14 ? ' bientot' : ''}">🎂 Né(e) le ${dateFr(c.naissance, { day: 'numeric', month: 'long', year: 'numeric' })} · ${an.age - (an.dans ? 1 : 0)} ans · ${an.dans === 0 ? '<b>anniversaire aujourd’hui !</b>' : an.dans <= 14 ? `<b>anniversaire dans ${an.dans} jour${an.dans > 1 ? 's' : ''}</b>` : 'anniversaire le ' + dateFr(an.date, { day: 'numeric', month: 'long' })}${an.dans <= 14 ? ` <button type="button" class="qs-pill" data-anniv="${esc(c.id)}" data-canal="email">✉ Souhaiter par e-mail</button><button type="button" class="qs-pill" data-anniv="${esc(c.id)}" data-canal="sms">💬 par SMS</button>` : ''}</div>` : `<div class="hc-since"><button type="button" class="lnk" data-hedit>🎂 Ajouter sa date de naissance</button></div>`}<div class="hc-since">Client depuis le ${dateFr(c.creeLe || h.events[h.events.length - 1]?.at)}${coms.length ? ' · suivi par ' + esc(coms.join(', ')) : ''}</div><div class="hc-since hc-src">${canalDe(c) ? `${pillSource(canalDe(c))}${(() => { const a = [...new Set((h.demandes || []).filter(d => d.type !== 'contact').map(d => d.canal).filter(x => x && x !== canalDe(c)))]; return a.length ? ` <small class="muted">puis aussi : ${esc(a.join(', '))}</small>` : ''; })()}` : '<button type="button" class="lnk" data-hedit>🧭 Indiquer l’origine du contact (Site, Bouche à oreille…)</button>'}</div>${c.source === 'import CRM' || c.consentement ? `<div class="hc-since hc-cons">${c.source === 'import CRM' ? '📥 Repris du fichier clients de l’ancien CRM' : '✓ Client existant'}${c.consentement ? ` · accepte nos ${[c.consentement.email && !c.desinscrit?.email ? 'e-mails' : '', c.consentement.sms && !c.desinscrit?.sms ? 'SMS' : ''].filter(Boolean).join(' et ') || '—'}` : ''}${c.desinscrit?.email || c.desinscrit?.sms ? ` · <b>désinscrit des ${[c.desinscrit.email ? 'e-mails' : '', c.desinscrit.sms ? 'SMS' : ''].filter(Boolean).join(' et ')}</b>` : ''}${c.caCrmCents ? ` · déjà commandé (ancien CRM) : ${euros(c.caCrmCents)}` : ''}${c.derniereCommande ? ` · dernière commande le ${dateFr(c.derniereCommande)}` : ''}</div>` : ''}</div></div>
-        <div class="kpis qk hc-k"><div><b>${euros(r.signeCents)}</b><span>signé (TTC)</span></div><div><b>${euros(r.regleCents)}</b><span>déjà réglé</span></div><div><b>${euros(r.aEncaisserCents)}</b><span>factures à encaisser</span></div><div><b>${r.nbSignes} / ${r.nbDevis}</b><span>devis signés</span></div></div></section>
+        <div class="kpis qk hc-k"><div><b>${euros(r.signeCents)}</b><span>signé (TTC)</span></div><div><b>${euros(r.regleCents)}</b><span>déjà réglé</span></div><div><b>${euros(r.aEncaisserCents)}</b><span>factures à encaisser</span></div><div><b>${r.nbSignes} / ${r.nbDevis}</b><span>devis signés</span></div></div>${resumeHisto(h.historique)}</section>
       <div class="hc-cols">
         <section class="box hc-tl"><div class="hc-th"><h2>Tout l’historique</h2><span class="muted sm">${h.events.length} événement${h.events.length > 1 ? 's' : ''}</span></div>
           <div class="hc-add"><textarea rows="2" data-hnote placeholder="Ajouter une note : ce que le client a dit au téléphone, une préférence, un rappel…"></textarea><div class="row"><button type="button" class="btn sm" data-hadd="note">🗒 Ajouter la note</button><button type="button" class="btn ghost sm" data-hadd="appel">📞 Noter un appel</button></div></div>
@@ -2492,6 +2651,7 @@
           ${boxProfil(c)}
           <section class="box hc-rdvs"><div class="hc-th"><h2>Appels et visios</h2><button type="button" class="lnk" data-hrdv>+ Programmer</button></div>${listeRdv(h.rdv || [])}</section>
           <section class="box"><h2>Devis</h2>${h.devis.length ? `<ul class="list">${[...h.devis].sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).map(x => `<li><a href="#/devis/${x.id}"><b>${esc(x.numero)}</b> · ${euros(x.ttcCents)}<small class="muted"> ${esc([x.evenement?.type, x.evenement?.date ? dateFr(x.evenement.date) : ''].filter(Boolean).join(' · '))}</small></a><span class="pill d-${x.statut}">${DSTAT[x.statut]}</span></li>`).join('')}</ul>` : '<p class="muted">Aucun devis.</p>'}</section>
+          ${boxHisto(h.historique)}
           <section class="box"><h2>Factures et règlements</h2>${h.factures.length ? `<ul class="list">${h.factures.map(x => `<li><a href="#/factures/${x.id}"><b>${esc(x.numero)}</b> · ${x.type === 'avoir' ? '− ' : ''}${euros(x.totalCents)}<small class="muted"> ${{ acompte: 'acompte', solde: 'solde', totale: '', avoir: 'avoir' }[x.type] || ''}${x.type !== 'avoir' && !x.annulee && x.regleCents && x.resteCents ? ` · réglé ${euros(x.regleCents)}, reste ${euros(x.resteCents)}` : ''}</small></a><span class="pill ${x.annulee ? 'd-refuse' : x.type === 'avoir' ? 'd-expire' : x.payee ? 'd-accepte' : 'd-envoye'}">${x.annulee ? 'Annulée' : x.type === 'avoir' ? 'Avoir' : x.payee ? (x.archivee ? 'Archivée' : 'Réglée') + (x.moyen ? ' · ' + esc(x.moyen) : '') : x.regleCents ? 'Acompte reçu' : 'À encaisser'}</span></li>`).join('')}</ul>` : '<p class="muted">Aucune facture.</p>'}</section>
           <section class="box"><h2>Demandes</h2>${h.demandes.length ? `<ul class="list">${h.demandes.map(d => `<li><a href="#/demandes/${d.id}"><b>${esc(d.ref || '')}</b> · ${esc(d.evenement?.type || (d.type === 'contact' ? 'message' : ''))} ${d.evenement?.date ? dateFr(d.evenement.date) : ''}${d.canal ? `<small class="muted"> · 🧭 ${esc(d.canal)}</small>` : ''}</a><span class="pill st-${d.statut}">${STATUTS[d.statut] || ''}</span></li>`).join('')}</ul>` : '<p class="muted">Aucune demande.</p>'}</section>
         </div></div>`);
