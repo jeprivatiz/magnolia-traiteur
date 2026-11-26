@@ -31,6 +31,7 @@ const FAC = require('./factures');
 const { creerEntreprises } = require('./entreprises');
 const DR = require('./droits');
 const SRC = require('./sources');
+const HIST = require('./historique');
 const TAR = require('./tarifs');
 
 const ROOT = path.join(__dirname, '..');
@@ -965,7 +966,9 @@ async function createApp(opts = {}) {
     const devis = dv.map(d => ({ ...d.data, id: d.data?.id || d.id })).filter(v => !vis || vis.devis.has(v.id));
     const demandesL = dm.map(d => ({ ...d.data, id: d.data?.id || d.id })).filter(d => !vis || vis.demandes.has(d.id));
     const sources = SRC.parSource({ demandes: demandesL, devis, clients: (await annuaireServeur()).canaux, totaux });
-    res.set('Cache-Control', 'no-store').json({ ...STATS.statistiques({ rubriques: rub.map(d => d.data).filter(Boolean), produits: prod.map(d => d.data).filter(Boolean), lieux: li.map(d => d.data).filter(Boolean), devis }), sources, siennes: !!vis });
+    const affaires = await affairesVisibles(req);
+    const historiqueStats = affaires.length ? HIST.statistiques(affaires, { clients: (await annuaireServeur()).canaux }) : null;
+    res.set('Cache-Control', 'no-store').json({ ...STATS.statistiques({ rubriques: rub.map(d => d.data).filter(Boolean), produits: prod.map(d => d.data).filter(Boolean), lieux: li.map(d => d.data).filter(Boolean), devis }), sources, historique: historiqueStats, siennes: !!vis });
   }));
 
   A.get('/site', wrap(async (req, res) => res.json((await store.get('site/reglages')) || {})));
@@ -1022,6 +1025,15 @@ async function createApp(opts = {}) {
   /* ---------- import du fichier clients (Excel / CSV) ---------- */
   const importClients = creerImportClients({ store, log });
   importClients.routes(A, { sameSite, manager: peut('fichiers'), wrap, audit });
+  /* ---------- historique commercial de l'ancien CRM (Teamleader) : affaires depuis 2017 (server/historique.js) ---------- */
+  const historique = HIST.creerHistorique({ store, sources: { liste: () => SOURCES.liste(), ajouter: n => SOURCES.ajouter(n) }, log });
+  historique.routes(A, { sameSite, manager: peut('fichiers'), wrap, audit });
+  /* affaires visibles : toutes, ou « seulement ses opportunités » = les siennes et celles sans commercial */
+  async function affairesVisibles(req) {
+    const vis = await visibles(req);
+    const L = (await store.list('affaires')).map(d => d.data).filter(Boolean);
+    return vis ? L.filter(a => !nomCle(a.commercial) || vis.moi.has(nomCle(a.commercial))) : L;
+  }
 
   /* ---------- entreprises : plusieurs contacts reliés à une même fiche entreprise (server/entreprises.js) ---------- */
   const ENT = creerEntreprises({ store, log, totaux });
@@ -1032,25 +1044,28 @@ async function createApp(opts = {}) {
   const telK = t => { const d = String(t || '').replace(/\D/g, ''); return d.length >= 9 ? d.slice(-9) : ''; };
   let idxClients = null;
   async function annuaireServeur() {
-    const v = (await Promise.all(['clients', 'demandes', 'devis', 'factures'].map(k => store.version(k)))).join('|');
+    const v = (await Promise.all(['clients', 'demandes', 'devis', 'factures', 'affaires'].map(k => store.version(k)))).join('|') + '|' + new Date().toISOString().slice(0, 10);
     if (idxClients?.v === v) return idxClients;
-    const [cl, dem, dv, fac] = await Promise.all(['clients', 'demandes', 'devis', 'factures'].map(k => store.list(k)));
+    const [cl, dem, dv, fac, aff] = await Promise.all(['clients', 'demandes', 'devis', 'factures', 'affaires'].map(k => store.list(k)));
+    /* historique commercial (Teamleader) : a commandé, combien de fois, pour combien, quand */
+    const histo = HIST.parClient(aff.map(d => d.data).filter(Boolean)), jourIci = new Date().toISOString().slice(0, 10);
     const nbDem = new Map(), lies = new Set(), extra = new Map(), commande = new Set();
     const plus = (id, t) => { if (!id) return; extra.set(id, (extra.get(id) || '') + ' ' + t); };
     for (const { data: d } of dem) { if (!d.clientId) continue; lies.add(d.clientId); if (d.type !== 'contact') nbDem.set(d.clientId, (nbDem.get(d.clientId) || 0) + 1); plus(d.clientId, [d.ref, d.contact?.nom, d.contact?.email].join(' ')); }
     for (const { data: d } of dv) { if (d.clientId) { lies.add(d.clientId); plus(d.clientId, d.numero); if (d.statut === 'accepte' || d.signature) commande.add(d.clientId); } }
     for (const { data: d } of fac) { if (d.clientId) { lies.add(d.clientId); plus(d.clientId, d.numero); if (d.type !== 'avoir' && !d.annulee && !d.annuleeParAvoir) commande.add(d.clientId); } }
     const items = cl.map(({ id, data: c }) => ({
-      c: { ...c, id, journal: undefined, canal: SRC.canalClient(c) }, id, nb: nbDem.get(id) || 0, lie: lies.has(id) || (c.journal || []).length > 0,
-      importe: c.source === 'import CRM', last: String(c.derniereActivite || ''), verrou: lies.has(id),
+      c: { ...c, id, journal: undefined, canal: SRC.canalClient(c) }, id, nb: nbDem.get(id) || 0, lie: lies.has(id) || histo.has(id) || (c.journal || []).length > 0,
+      importe: c.source === 'import CRM', last: String(c.derniereActivite || ''), verrou: lies.has(id) || histo.has(id),
       /* « Clients » (Jean-Luc, 2026-11-26) : toutes les personnes sans entreprise renseignée, qu'elles aient commandé ou non */
       acheteur: !c.entrepriseId && !String(c.societe || '').trim(),
       hay: sansAcc(texteFiche(c) + ' ' + (extra.get(id) || '')),
       tels: [c.tel, c.telE164, c.telAutre].map(telK).filter(Boolean),
-      k: critereClient(c),
+      k: { ...critereClient(c), h: HIST.critere(histo.get(id), jourIci) },
+      histo: histo.get(id) || null,
     }));
     items.sort((a, b) => b.last.localeCompare(a.last));
-    idxClients = { v, items, facettes: facettesClients(items), canaux: new Map(items.map(a => [a.id, a.c])) };
+    idxClients = { v, items, facettes: { ...facettesClients(items), histo: HIST.facettes(items.map(a => a.k.h)) }, canaux: new Map(items.map(a => [a.id, a.c])) };
     return idxClients;
   }
   /* recherche au clavier : TOUTES les cases de la fiche (anciennes et nouvelles), sauf les données techniques */
@@ -1085,7 +1100,7 @@ async function createApp(opts = {}) {
       indep: items.filter(a => a.k.indep).length, permis: items.filter(a => a.k.permis).length, npc: items.filter(a => a.k.npc).length,
     };
   }
-  const CRIT_CLIENTS = ['canal', 'metier', 'dj', 'contactDe', 'fonction', 'dep', 'civ', 'pro', 'joignable', 'indep', 'permis', 'npc'];
+  const CRIT_CLIENTS = [...HIST.CRITERES, 'canal', 'metier', 'dj', 'contactDe', 'fonction', 'dep', 'civ', 'pro', 'joignable', 'indep', 'permis', 'npc'];
   function filtrerCriteres(items, q) {
     const v = x => String(q[x] || '').slice(0, 80);
     if (!CRIT_CLIENTS.some(x => v(x))) return items;
@@ -1108,6 +1123,7 @@ async function createApp(opts = {}) {
       if (v('permis') && !k.permis) return false;
       if (v('npc') === 'oui' && !k.npc) return false;
       if (v('npc') === 'non' && k.npc) return false;
+      if (!HIST.filtre(k.h, q)) return false;
       return true;
     });
   }
@@ -1129,15 +1145,15 @@ async function createApp(opts = {}) {
     let l = filtrerCriteres(filtrerClients(items, String(q.q || '').slice(0, 80)), q);
     if (q.vue === 'clients') l = l.filter(a => a.acheteur);
     /* tri par colonne sur toute la liste (Jean-Luc, 2026-11-26) ; cases vides toujours à la fin */
-    const TRI = { nom: a => a.c.nom, societe: a => a.c.societe, contact: a => a.c.email || a.c.tel, ville: a => a.c.ville || a.c.cp, demandes: a => a.nb, activite: a => a.last };
+    const TRI = { nom: a => a.c.nom, societe: a => a.c.societe, contact: a => a.c.email || a.c.tel, ville: a => a.c.ville || a.c.cp, demandes: a => a.nb, activite: a => a.last, commandes: a => a.k.h.cmd, montant: a => a.k.h.ca, derniere: a => a.histo?.derniere || '' };
     if (TRI[q.tri] && !(q.tri === 'activite' && q.sens !== 'asc')) {
       const f = TRI[q.tri], sens = q.sens === 'desc' ? -1 : 1, col = new Intl.Collator('fr', { sensitivity: 'base', numeric: true });
-      const vide = v => v === '' || v == null || (q.tri === 'demandes' && !v);
+      const vide = v => v === '' || v == null || (['demandes', 'commandes', 'montant'].includes(q.tri) && !v);
       l = [...l].sort((x, y) => { const a = f(x), b = f(y), va = vide(a), vb = vide(b); if (va || vb) return va === vb ? 0 : va ? 1 : -1; return sens * (typeof a === 'number' ? a - b : col.compare(String(a).trim(), String(b).trim())); });
     }
     if (q.filtre === 'importes') l = l.filter(a => a.importe); else if (q.filtre === 'autres') l = l.filter(a => !a.importe);
     const par = Math.min(200, Math.max(10, parseInt(q.par, 10) || 50)), page = Math.max(1, parseInt(q.page, 10) || 1);
-    res.json({ total: l.length, tous: items.length, importes: items.filter(a => a.importe).length, acheteurs: items.filter(a => a.acheteur).length, entreprises: await ENT.nombre(), facettes, page, par, items: l.slice((page - 1) * par, page * par).map(a => ({ ...a.c, nbDemandes: a.nb, verrou: a.verrou })), effacables: q.ids === undefined && q.avecIds ? l.filter(a => !a.verrou).map(a => a.id) : undefined });
+    res.json({ total: l.length, tous: items.length, importes: items.filter(a => a.importe).length, acheteurs: items.filter(a => a.acheteur).length, entreprises: await ENT.nombre(), facettes, page, par, items: l.slice((page - 1) * par, page * par).map(a => ({ ...a.c, nbDemandes: a.nb, verrou: a.verrou, histo: a.histo ? { commandes: a.histo.commandes, perdues: a.histo.perdues, caHtCents: a.histo.caHtCents, derniere: a.histo.derniere } : null })), effacables: q.ids === undefined && q.avecIds ? l.filter(a => !a.verrou).map(a => a.id) : undefined });
   }));
 
   /* effacer des contacts cochés (Jean-Luc, 2026-11-24) : jamais un contact qui a une demande, un devis ou une facture ;
@@ -2119,10 +2135,19 @@ async function createApp(opts = {}) {
     }
     for (const j of c.journal || []) add(j.at, j.type === 'appel' ? 'appel' : 'note', j.type === 'appel' ? 'Appel téléphonique' : 'Note', { detail: j.texte, par: j.par, jid: j.id });
     if (c.creeLe) add(c.creeLe, 'client', 'Fiche client créée', { par: c.source || '' });
+    /* historique commercial de l'ancien CRM (Teamleader) : une ligne par affaire, au jour de la signature (ou du refus) */
+    const affaires = (await affairesVisibles(req)).filter(a => a.clientId === c.id).sort((a, b) => String(b.dateEvt || b.accepteLe).localeCompare(String(a.dateEvt || a.accepteLe)));
+    for (const a of affaires) {
+      const quoi = [a.evenement || 'Événement', a.age ? a.age + ' ans' : '', a.dateEvt ? 'le ' + dateFr(a.dateEvt) : '', a.invites ? a.invites + ' pers.' : ''].filter(Boolean).join(' · ');
+      const detail = [a.lieu ? '📍 ' + a.lieu : '', a.source ? '🧭 ' + a.source : '', a.statut === 'gagnee' && a.facture ? 'Facturé : ' + a.facture : '', a.motif ? 'Motif : ' + a.motif : '', 'Ancien CRM (Teamleader)'].filter(Boolean).join(' · ');
+      const jourA = (a.statut === 'perdue' ? a.refuseLe : a.accepteLe) || a.ajouteLe || a.dateEvt;
+      add(jourA ? jourA + 'T12:00:00' : '', a.statut === 'perdue' ? 'affairePerdue' : 'affaire', `${a.statut === 'gagnee' ? 'Commande' : a.statut === 'perdue' ? 'Affaire perdue' : 'Affaire en cours'} : ${quoi}`, { montantCents: a.montantHtCents, montantLib: 'HT', detail, par: a.commercial || '' });
+    }
     ev.sort((a, b) => String(b.at).localeCompare(String(a.at)));
     const signes = devisL.filter(d => d.statut === 'accepte');
     res.json({
       client: { ...c, canalAuto: SRC.canalClient(c) }, events: ev,
+      historique: affaires.length ? { ...HIST.resumeClient(affaires), affaires: affaires.map(a => ({ id: a.id, statut: a.statut, evenement: a.evenement, age: a.age, dateEvt: a.dateEvt, accepteLe: a.accepteLe, refuseLe: a.refuseLe, invites: a.invites, lieu: a.lieu, montantHtCents: a.montantHtCents, margeHtCents: a.margeHtCents, facture: a.facture, source: a.source, commercial: a.commercial, motif: a.motif })) } : null,
       rdv: rdv.filter(r => r.clientId === c.id && r.type).sort((a, b) => (a.date + a.heure).localeCompare(b.date + b.heure)),
       demandes: demandes.map(d => ({ id: d.id, ref: d.ref, statut: d.statut, type: d.type, evenement: d.evenement, createdAt: d.createdAt, commercial: d.commercial || '', canal: SRC.canalDemande(d, c) })),
       devis: devisL.map(d => ({ id: d.id, numero: d.numero, statut: d.statut, ttcCents: totaux(d).ttcCents, token: d.statut !== 'brouillon' ? d.token : '', evenement: d.evenement, createdAt: d.createdAt, commercial: d.commercial?.nom || '' })),
