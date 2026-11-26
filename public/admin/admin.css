@@ -2105,3 +2105,23 @@ small.cl-src { display: block; }
 .vt-chip { display: inline-block; margin: 2px 4px 2px 0; padding: 4px 10px; border: 1px solid var(--or); border-radius: 999px; background: color-mix(in srgb, var(--or) 10%, var(--carte)); color: var(--texte); font: 500 .8rem var(--sans); cursor: pointer; }
 .vt-chip:hover { background: color-mix(in srgb, var(--or) 22%, var(--carte)); }
 .puce-ico { display: inline-block; width: .42em; height: .42em; margin-right: .2em; border-radius: 50%; background: currentColor; vertical-align: middle; }
+
+/* Journal d'activité : filtres + temps passé (2026-11-26) */
+.jrn-f { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: flex-end; background: var(--doux); border: 1px solid var(--ligne); border-radius: 12px; padding: 12px 14px; margin: 10px 0 14px; }
+.jrn-f label { display: flex; flex-direction: column; gap: 4px; font-size: .82rem; min-width: 150px; }
+.jrn-f select, .jrn-f input { background: var(--carte); }
+.jrn-per { display: flex; flex-wrap: wrap; gap: 6px; flex-basis: 100%; }
+.jrn-per .chip-mod { padding: 5px 11px; font-size: .8rem; }
+.jrn-temps { border: 1px solid var(--ligne); border-radius: 12px; padding: 12px 14px; margin-bottom: 14px; background: var(--carte, #fff); }
+.jrn-temps h3, .jrn-nb { margin: 0 0 8px; font-size: 1rem; }
+.jrn-temps h3 small { font-weight: 400; font-size: .82rem; }
+.jrn-tab { width: 100%; border-collapse: collapse; font-size: .9rem; margin-bottom: 8px; }
+.jrn-tab th { text-align: left; font-weight: 600; font-size: .78rem; color: var(--gris); border-bottom: 1px solid var(--ligne); padding: 6px 8px; }
+.jrn-tab td { padding: 7px 8px; border-bottom: 1px solid var(--ligne); }
+.jrn-tab tbody tr { cursor: pointer; }
+.jrn-tab tbody tr:hover, .jrn-tab tbody tr.on { background: rgba(201, 162, 39, .12); }
+.jrn-tab tfoot td { font-weight: 600; border-bottom: 0; }
+.jrn-h { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--vert); white-space: nowrap; }
+.journal li.jrn-jour { position: sticky; top: 0; background: var(--carte, #fff); font-weight: 600; color: var(--vert); padding-top: 12px; z-index: 1; }
+.journal li.jrn-jour::first-letter { text-transform: uppercase; }
+@media (max-width: 600px) { .jrn-f label { min-width: 0; flex: 1 1 45%; } .jrn-f label:first-child { flex-basis: 100%; } }

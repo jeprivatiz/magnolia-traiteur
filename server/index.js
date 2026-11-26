@@ -469,6 +469,32 @@ async function createApp(opts = {}) {
     return auditQueue;
   }
 
+  /* ---------- temps passé sur le back-office (Jean-Luc, 2026-11-26) ----------
+     Estimation : la page envoie un signe toutes les minutes tant que la personne s'en sert (clic, frappe,
+     défilement) et que l'onglet est visible ; après PAUSE sans signe, le compteur s'arrête.
+     Une plage = [début, fin] en millisecondes, rangée par personne et par jour (heure de Paris). */
+  const PRES_PAUSE = 6 * 60e3, PRES_ECRIT = 55e3;
+  const jourParis = t => new Date(t).toLocaleDateString('sv-SE', { timeZone: 'Europe/Paris' });
+  const presMem = new Map(); /* uid -> { cle, doc, ecrit } */
+  let presQueue = Promise.resolve();
+  function presence(ctx, t = Date.now()) {
+    if (!ctx?.uid) return presQueue;
+    presQueue = presQueue.then(async () => {
+      const jour = jourParis(t), cle = '_presence/' + ctx.uid + '_' + jour;
+      let m = presMem.get(ctx.uid);
+      if (!m || m.cle !== cle) { m = { cle, doc: (await store.get(cle)) || { uid: ctx.uid, jour, plages: [] }, ecrit: 0 }; presMem.set(ctx.uid, m); }
+      const d = m.doc, der = d.plages[d.plages.length - 1];
+      d.who = ctx.name || ctx.email || d.who || '';
+      let neuve = false;
+      if (der && t >= der[0] && t - der[1] <= PRES_PAUSE) der[1] = Math.max(der[1], t);
+      else if (!der || t > der[1]) { d.plages.push([t, t]); neuve = true; }
+      if (neuve || t - m.ecrit >= PRES_ECRIT) { m.ecrit = t; await store.set(cle, d); }
+    }).catch(e => log.error?.('[présence]', e.message));
+    return presQueue;
+  }
+  /* minutes d'une journée : chaque plage compte au moins la minute de son dernier signe */
+  const minutesPresence = d => Math.round((d.plages || []).reduce((s, [a, b]) => s + Math.max(0, b - a) + 60e3, 0) / 60e3);
+
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
@@ -899,6 +925,7 @@ async function createApp(opts = {}) {
     if (/^\/(?:diffusion\/|ia\/diffusion-)/.test(p) && !dr.diffusion) return refus(res, 'diffusion');
     if (/^\/ia\/(?:seo|texte-produit)$/.test(p) && !dr.produits) return refus(res, 'produits');
     if (/^\/actions\/(?:journal|envois)$/.test(p) && !dr.equipe) return refus(res, 'equipe');
+    if (req.method !== 'GET' && p !== '/actions/presence') presence(req.ctx); /* une action compte aussi comme un signe de vie */
     if (req.method !== 'GET') {
       const coll = p.split('/')[1];
       const besoin = { produits: 'produits', rubriques: 'produits', lieux: 'produits', avis: 'site', modeles: 'outils', pages: 'outils' }[coll];
@@ -2557,12 +2584,42 @@ async function createApp(opts = {}) {
     audit(req.ctx, 'prix d’achat et fournisseurs importés', 'produits', r.maj + ' fiche(s)');
     res.json({ ok: true, ...r });
   }));
+  /* journal : vérifié en entier (chaîne intacte), puis filtré par personne et par dates sans rien modifier */
   A.get('/actions/journal', wrap(async (req, res) => {
     const rows = (await store.list('_audit')).map(d => d.data).sort((a, b) => a.n - b.n);
     let prev = '0'.repeat(64), intact = true;
     for (const r of rows) { const { hash, ...rest } = r; if (r.prev !== prev || sha(JSON.stringify(rest)) !== hash) { intact = false; break; } prev = hash; }
-    res.json({ intact, total: rows.length, lignes: rows.slice(-300).reverse() });
+    const jourOk = j => /^\d{4}-\d{2}-\d{2}$/.test(j || '');
+    let du = jourOk(req.query.du) ? req.query.du : '', au = jourOk(req.query.au) ? req.query.au : '';
+    if (du && au && du > au) [du, au] = [au, du];
+    const qui = String(req.query.qui || '');
+    const cleDe = (uid, who) => uid || 'nom:' + (who || '');
+    const dansDates = j => (!du || j >= du) && (!au || j <= au);
+    /* personnes : comptes de l'équipe, puis noms vus dans le journal (anciens comptes, actions automatiques) */
+    const users = await store.list('_users');
+    const pers = new Map(users.map(u => [u.id, { cle: u.id, who: u.data.name || u.data.email || '', actions: 0, minutes: 0, jours: 0 }]));
+    const lignes = [];
+    for (const r of rows) {
+      const cle = cleDe(r.uid, r.who), j = jourParis(r.at);
+      if (!pers.has(cle)) pers.set(cle, { cle, who: r.who || 'Système', actions: 0, minutes: 0, jours: 0 });
+      if (!dansDates(j)) continue;
+      pers.get(cle).actions++;
+      if (!qui || qui === cle) lignes.push(r);
+    }
+    let depuis = '';
+    for (const { data: d } of await store.list('_presence')) {
+      if (!d?.uid || !d.jour) continue;
+      if (!depuis || d.jour < depuis) depuis = d.jour;
+      if (!dansDates(d.jour)) continue;
+      let p = pers.get(d.uid); if (!p) pers.set(d.uid, p = { cle: d.uid, who: d.who || '', actions: 0, minutes: 0, jours: 0 });
+      const mn = minutesPresence(d);
+      if (mn > 0) { p.minutes += mn; p.jours++; }
+    }
+    const personnes = [...pers.values()].sort((a, b) => b.minutes - a.minutes || b.actions - a.actions || a.who.localeCompare(b.who, 'fr'));
+    res.json({ intact, total: rows.length, nb: lignes.length, lignes: lignes.slice(-500).reverse(), personnes, depuis, du, au, qui });
   }));
+  /* signe de vie envoyé par la page du back-office tant que la personne s'en sert */
+  A.post('/actions/presence', sameSite, wrap(async (req, res) => { await presence(req.ctx); res.json({ ok: true }); }));
   A.get('/actions/envois', wrap(async (req, res) => res.json({ live: brevo.live, envois: (await store.list('_outbox')).map(d => d.data).sort((a, b) => b.at.localeCompare(a.at)).slice(0, 100) })));
 
   /* photos et vidéos : envoyées depuis le back-office, rangées hors du dossier de l'application */
