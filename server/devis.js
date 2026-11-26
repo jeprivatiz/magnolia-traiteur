@@ -277,7 +277,7 @@ function raisonsDevisManuel(demande, catalogue, T = {}, now = new Date()) {
     if (p.aCompleter) r.push(`${nom} est une fiche à compléter`);
     if ((Number(l.qte) || 0) < Math.max(1, +p.min || 1)) r.push(`${nom} : quantité sous le minimum (${p.min})`);
     for (const g of p.groupes || []) {
-      if (g.facultatif || (g.options || []).length < 2 && !g.mode) continue;
+      if (g.compris || g.facultatif || (g.options || []).length < 2 && !g.mode) continue;
       if ((g.variantes || []).length && (p.variantes || []).length && !g.variantes.includes(l.variante)) continue; /* groupe d'une autre formule */
       const ch = l.choix?.[g.id] || [];
       if (g.mode === 'quantites') { const n = ch.reduce((t, x) => t + (+String(x).split(':')[1] || 0), 0); if (n !== +l.qte) r.push(`${nom} : choix « ${g.titre || 'options'} » incomplets`); continue; }

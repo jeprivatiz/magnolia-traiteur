@@ -58,7 +58,7 @@ function catalogueCompact(c) {
   const rub = new Map((c.rubriques || []).map(r => [r.slug, r]));
   const visibles = (c.produits || []).filter(p => p.statut !== 'masque' && rub.get(p.rubrique)?.statut !== 'masque');
   const lignes = visibles.map(p => {
-    const choix = (p.groupes || []).flatMap(g => (g.options || []).map(o => o.label && (o.supCents && g.mode === 'quantites' ? `${o.label} (supplément + ${euro(o.supCents)} TTC la part)` : o.label))).filter(Boolean);
+    const choix = (p.groupes || []).filter(g => !g.compris).flatMap(g => (g.options || []).map(o => o.label && (o.supCents && g.mode === 'quantites' ? `${o.label} (supplément + ${euro(o.supCents)} TTC la part)` : o.label))).filter(Boolean);
     return [p.slug, p.titre, rub.get(p.rubrique)?.nom || p.rubrique,
       p.prixCents == null ? 'prix à confirmer' : euro(p.prixCents) + ' TTC / ' + (p.unite || 'unité'),
       'min ' + (p.min || 1),
