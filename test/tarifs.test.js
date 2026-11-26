@@ -39,6 +39,7 @@ test('Validation tarifs : fiche fournisseur, choix, document, scan privé', asyn
     const spe = L.specialites.find(s => s.n >= 3) || L.specialites[0];
     const d = (await req('/api/admin/tarifs/specialite/' + spe.cle)).j;
     assert.equal(d.produits.length, spe.n);
+    assert.equal(d.choix.duree, 6, 'tarifs garantis 6 mois par défaut');
 
     const f = (await req('/api/admin/tarifs/fournisseurs', { method: 'POST', body: { prenom: 'marie', nom: 'Exemple', entreprise: 'Fournisseur Secret Essai', profil: 'Restaurant', ville: 'Évry' } })).j.fournisseur;
     assert.equal(f.nom, 'EXEMPLE'); assert.equal(f.prenom, 'Marie');
@@ -48,7 +49,7 @@ test('Validation tarifs : fiche fournisseur, choix, document, scan privé', asyn
     assert.equal(doc.status, 200);
     assert.match(doc.t, /TARIFS PRÉFÉRENTIELS ACCORDÉS À MAGNOLIA TRAITEUR/);
     assert.match(doc.t, /pour la commercialisation de nos produits sur le site www\.magnoliatraiteur\.fr/);
-    assert.match(doc.t, /Fournisseur Secret Essai/); assert.ok(!/1 personne|1 kg/.test(doc.t), 'colonne Quantité vide'); assert.match(doc.t, /Tarif TTC accordé à Magnolia Traiteur/); assert.match(doc.t, /24 mois/); assert.match(doc.t, /Tarifs accordés le/);
+    assert.match(doc.t, /Fournisseur Secret Essai/); assert.ok(!/1 personne|1 kg/.test(doc.t), 'colonne Quantité vide'); assert.match(doc.t, /Tarif préférentiel TTC accordé à Magnolia Traiteur/); assert.match(doc.t, /24 mois/); assert.match(doc.t, /Tarifs accordés le/);
     assert.ok(!doc.t.includes('>' + d.produits[0].titre + '<'), 'produit décoché absent du document');
     assert.equal((doc.t.match(/<td class="no">/g) || []).length, spe.n - 1);
 
