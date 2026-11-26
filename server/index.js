@@ -2144,7 +2144,7 @@ async function createApp(opts = {}) {
     if (c.creeLe) add(c.creeLe, 'client', 'Fiche client créée', { par: c.source || '' });
     /* historique commercial de l'ancien CRM (Teamleader) : une ligne par affaire, au jour de la signature (ou du refus) */
     const factTlC = (await facturesTlVisibles(req)).filter(f => f.clientId === c.id).sort((a, b) => String(b.date).localeCompare(String(a.date)));
-    for (const f of factTlC) add(f.date + 'T11:00:00', 'factureTl', `Facture ${f.numero}${f.oppTitre ? ' · ' + f.oppTitre : ''}`, { montantCents: f.netTtcCents, montantLib: 'TTC', detail: [f.entite, f.duCents ? `Reste dû ${euros(f.duCents)}` : f.payeLe ? 'Payée le ' + dateFr(f.payeLe) : 'Payée', f.creditHtCents ? 'avoir ' + euros(f.creditHtCents) + ' HT' : '', 'Ancien CRM (Teamleader)'].filter(Boolean).join(' · ') });
+    for (const f of factTlC) add(f.date + 'T11:00:00', 'factureTl', `Facture ${f.numero}${f.oppTitre ? ' · ' + f.oppTitre : ''}`, { montantCents: f.netTtcCents, montantLib: 'TTC', detail: [f.entite, HIST.AFFICHER_RESTE_DU ? (f.duCents ? `Reste dû ${euros(f.duCents)}` : f.payeLe ? 'Payée le ' + dateFr(f.payeLe) : 'Payée') : '', f.creditHtCents ? 'avoir ' + euros(f.creditHtCents) + ' HT' : '', 'Ancien CRM (Teamleader)'].filter(Boolean).join(' · ') });
     const affaires = (await affairesVisibles(req)).filter(a => a.clientId === c.id).sort((a, b) => String(b.dateEvt || b.accepteLe).localeCompare(String(a.dateEvt || a.accepteLe)));
     for (const a of affaires) {
       const quoi = [a.evenement || 'Événement', a.age ? a.age + ' ans' : '', a.dateEvt ? 'le ' + dateFr(a.dateEvt) : '', a.invites ? a.invites + ' pers.' : ''].filter(Boolean).join(' · ');
