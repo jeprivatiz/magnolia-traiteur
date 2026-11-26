@@ -2555,6 +2555,24 @@ async function createApp(opts = {}) {
     for (const d of await store.list('tarifsSpecialites')) if (d.data?.duree === 12) await store.set('tarifsSpecialites/' + d.id, { ...d.data, duree: TAR.DUREE_DEFAUT });
     await store.set('_migr/tarifs6mois', { at: new Date().toISOString() });
   }
+  /* liste des profils (Restaurant, Traiteur, Poissonnier…) : modifiable depuis la fiche (Jean-Luc, 2026-11-26) ; retirer un profil ne touche pas les fiches qui l'ont */
+  const profilsTarifs = async () => { const d = await store.get('tarifsProfils/liste'); return d?.liste ? d.liste : [...TAR.PROFILS]; };
+  const majuscule = t => t.charAt(0).toLocaleUpperCase('fr-FR') + t.slice(1);
+  A.post('/tarifs/profils', sameSite, json, peut('prix'), wrap(async (req, res) => {
+    const nom = majuscule(String(req.body?.nom || '').replace(/\s+/g, ' ').trim().slice(0, 60));
+    if (!nom) return res.status(400).json({ error: 'Indiquez le nom du profil.' });
+    const l = await profilsTarifs();
+    const deja = l.find(x => x.toLowerCase() === nom.toLowerCase());
+    if (!deja) { const autre = l.indexOf('Autre'); if (autre >= 0) l.splice(autre, 0, nom); else l.push(nom); await store.set('tarifsProfils/liste', { liste: l }); audit(req.ctx, 'profil fournisseur ajouté', 'tarifsProfils/liste', nom); }
+    res.json({ ok: true, nom: deja || nom, profils: l });
+  }));
+  A.post('/tarifs/profils/retirer', sameSite, json, peut('prix'), wrap(async (req, res) => {
+    const nom = String(req.body?.nom || '');
+    const l = (await profilsTarifs()).filter(x => x !== nom);
+    await store.set('tarifsProfils/liste', { liste: l });
+    audit(req.ctx, 'profil fournisseur retiré', 'tarifsProfils/liste', nom);
+    res.json({ ok: true, profils: l });
+  }));
   A.get('/tarifs', peut('prix'), wrap(async (req, res) => {
     const { rubriques, produits } = await catalogueBrut();
     const choix = new Map((await store.list('tarifsSpecialites')).map(d => [d.id, d.data]));
@@ -2562,7 +2580,7 @@ async function createApp(opts = {}) {
     res.set('Cache-Control', 'no-store').json({
       specialites: TAR.specialites(rubriques, produits).map(s => { const c = choix.get(s.cle); const f = c?.fournisseurId && parId.get(c.fournisseurId); return { ...s, fournisseur: f ? TAR.libelleFournisseur(f) : '', imprimeLe: c?.imprimeLe || '' }; }),
       fournisseurs: F.map(f => ({ id: f.id, libelle: TAR.libelleFournisseur(f), profil: f.profil || '', ville: f.ville || '', scans: (f.scans || []).length })),
-      profils: TAR.PROFILS, durees: TAR.DUREES,
+      profils: await profilsTarifs(), durees: TAR.DUREES,
     });
   }));
   A.get('/tarifs/specialite/:cle', peut('prix'), wrap(async (req, res) => {

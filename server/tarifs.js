@@ -10,7 +10,7 @@
 const { esc, titreTexte, norm } = require('./util');
 const { RANGEMENTS, rangementDe } = require('./seed');
 
-const PROFILS = ['Restaurant', 'Traiteur', 'Pâtissier', 'Boulanger', 'Chocolatier', 'Producteur', 'Grossiste', 'Caviste', 'Prestataire', 'Autre'];
+const PROFILS = ['Restaurant', 'Traiteur', 'Pâtissier', 'Boulanger', 'Chocolatier', 'Poissonnier', 'Producteur', 'Grossiste', 'Caviste', 'Prestataire', 'Autre'];
 const DUREES = [6, 12, 24, 36];
 const DUREE_DEFAUT = 6; /* Jean-Luc (2026-11-26) : 6 mois reconductibles, à cause des variations des matières premières */
 const CHAMPS = ['civilite', 'prenom', 'nom', 'fonction', 'entreprise', 'profil', 'adresse', 'cp', 'ville', 'telephone', 'portable', 'email', 'siret', 'tva', 'notes'];
@@ -83,7 +83,7 @@ function produitsDe(cle, rubriques, produits) {
 function ficheFournisseur(body = {}, avant = {}) {
   const f = { ...avant };
   for (const k of CHAMPS) if (k in body) f[k] = String(body[k] ?? '').replace(/\s+$/g, '').slice(0, k === 'notes' || k === 'adresse' ? 1000 : 200);
-  if (f.profil && !PROFILS.includes(f.profil)) f.profil = 'Autre';
+  if (f.profil) f.profil = f.profil.replace(/\s+/g, ' ').trim().slice(0, 60); /* liste modifiable : « ➕ Créer un nouveau profil » */
   if (f.nom) f.nom = f.nom.trim().toLocaleUpperCase('fr-FR');
   if (f.prenom) f.prenom = f.prenom.trim().toLocaleLowerCase('fr-FR').replace(/(^|[-'’\s])(\p{L})/gu, (m, a, b) => a + b.toLocaleUpperCase('fr-FR'));
   return f;
