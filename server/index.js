@@ -29,6 +29,7 @@ const PROFIL = require('./profil-contact');
 const FAC = require('./factures');
 const { creerEntreprises } = require('./entreprises');
 const DR = require('./droits');
+const SRC = require('./sources');
 const TAR = require('./tarifs');
 
 const ROOT = path.join(__dirname, '..');
@@ -563,7 +564,7 @@ async function createApp(opts = {}) {
       if (cl) { await store.set('clients/' + idx.id, { ...cl, nom: cl.nom || nom, tel: cl.tel || tel, societe: cl.societe || societe, derniereActivite: now }); return { id: idx.id, nouveau: false }; }
     }
     const id = 'c_' + rid(8);
-    await store.set('clients/' + id, { id, nom, email, tel, societe, notes: '', creeLe: now, derniereActivite: now, source: 'site' });
+    await store.set('clients/' + id, { id, nom, email, tel, societe, notes: '', creeLe: now, derniereActivite: now, source: 'site', canal: 'Site' });
     await store.set('_clientemail/' + sha(email), { id });
     return { id, nouveau: true };
   }
@@ -617,7 +618,7 @@ async function createApp(opts = {}) {
       livraison: km ? { km, kmCents: kmC, cents: km * kmC, ...(offerte ? { offerte: true } : {}), ...(hz ? { horsZone: true } : {}) } : null,
       lignes, sousTotalCents: sousTotal, totalEstimeCents: sousTotal + km * kmC,
       message: s(b.message, 3000), sujet: s(b.sujet, 80), statut: 'demande', historique: [{ at: new Date().toISOString(), statut: 'demande', par: 'site' }],
-      createdAt: new Date().toISOString(), ip: req.ip,
+      createdAt: new Date().toISOString(), ip: req.ip, canal: 'Site', /* source de la demande : venue du site */
     };
     await store.set('demandes/' + id, demande);
     const lien = await lienEspace(clientId);
@@ -956,10 +957,12 @@ async function createApp(opts = {}) {
 
   /* statistiques par rubrique : marge moyenne du catalogue + ventes signées des 12 derniers mois (server/statistiques.js) */
   A.get('/statistiques', wrap(async (req, res) => {
-    const [rub, prod, dv, li] = await Promise.all([store.list('rubriques'), store.list('produits'), store.list('devis'), store.list('lieux')]);
+    const [rub, prod, dv, li, dm] = await Promise.all([store.list('rubriques'), store.list('produits'), store.list('devis'), store.list('lieux'), store.list('demandes')]);
     const vis = await visibles(req); /* « seulement ses opportunités » : seulement ses devis */
     const devis = dv.map(d => ({ ...d.data, id: d.data?.id || d.id })).filter(v => !vis || vis.devis.has(v.id));
-    res.set('Cache-Control', 'no-store').json({ ...STATS.statistiques({ rubriques: rub.map(d => d.data).filter(Boolean), produits: prod.map(d => d.data).filter(Boolean), lieux: li.map(d => d.data).filter(Boolean), devis }), siennes: !!vis });
+    const demandesL = dm.map(d => ({ ...d.data, id: d.data?.id || d.id })).filter(d => !vis || vis.demandes.has(d.id));
+    const sources = SRC.parSource({ demandes: demandesL, devis, clients: (await annuaireServeur()).canaux, totaux });
+    res.set('Cache-Control', 'no-store').json({ ...STATS.statistiques({ rubriques: rub.map(d => d.data).filter(Boolean), produits: prod.map(d => d.data).filter(Boolean), lieux: li.map(d => d.data).filter(Boolean), devis }), sources, siennes: !!vis });
   }));
 
   A.get('/site', wrap(async (req, res) => res.json((await store.get('site/reglages')) || {})));
@@ -1016,14 +1019,14 @@ async function createApp(opts = {}) {
     for (const { data: d } of dv) { if (d.clientId) { lies.add(d.clientId); plus(d.clientId, d.numero); } }
     for (const { data: d } of fac) { if (d.clientId) { lies.add(d.clientId); plus(d.clientId, d.numero); } }
     const items = cl.map(({ id, data: c }) => ({
-      c: { ...c, id, journal: undefined }, id, nb: nbDem.get(id) || 0, lie: lies.has(id) || (c.journal || []).length > 0,
+      c: { ...c, id, journal: undefined, canal: SRC.canalClient(c) }, id, nb: nbDem.get(id) || 0, lie: lies.has(id) || (c.journal || []).length > 0,
       importe: c.source === 'import CRM', last: String(c.derniereActivite || ''), verrou: lies.has(id),
       hay: sansAcc(texteFiche(c) + ' ' + (extra.get(id) || '')),
       tels: [c.tel, c.telE164, c.telAutre].map(telK).filter(Boolean),
       k: critereClient(c),
     }));
     items.sort((a, b) => b.last.localeCompare(a.last));
-    idxClients = { v, items, facettes: facettesClients(items) };
+    idxClients = { v, items, facettes: facettesClients(items), canaux: new Map(items.map(a => [a.id, a.c])) };
     return idxClients;
   }
   /* recherche au clavier : TOUTES les cases de la fiche (anciennes et nouvelles), sauf les données techniques */
@@ -1045,20 +1048,20 @@ async function createApp(opts = {}) {
       dep, civ: c.civilite === 'Mme' || c.civilite === 'M.' ? c.civilite : '', pro: !!String(c.societe || '').trim(),
       email: /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(String(c.email || '').trim()), mobile: !!DIF.mobile(c.telE164 || c.tel),
       stopEmail: !!c.desinscrit?.email, stopSms: !!c.desinscrit?.sms, npc: !!c.nePasContacter || !!(c.desinscrit?.email && c.desinscrit?.sms),
-      indep: c.independant === true, permis: c.permis === true, ville: String(c.ville || '').trim(),
+      indep: c.independant === true, permis: c.permis === true, ville: String(c.ville || '').trim(), canal: SRC.canalClient(c),
     };
   }
   function facettesClients(items) {
-    const m = { metiers: new Map(), dj: new Map(), contactDe: new Map(), dep: new Map() };
+    const m = { metiers: new Map(), dj: new Map(), contactDe: new Map(), dep: new Map(), canal: new Map() };
     const n = (map, x) => { if (x) map.set(x, (map.get(x) || 0) + 1); };
-    for (const { k } of items) { k.metiers.forEach(x => n(m.metiers, x)); k.dj.forEach(x => n(m.dj, x)); n(m.contactDe, k.contactDe); n(m.dep, k.dep); }
+    for (const { k } of items) { k.metiers.forEach(x => n(m.metiers, x)); k.dj.forEach(x => n(m.dj, x)); n(m.contactDe, k.contactDe); n(m.dep, k.dep); n(m.canal, k.canal); }
     const tri = map => [...map].sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0]), 'fr'));
     return {
-      metiers: tri(m.metiers), dj: tri(m.dj), contactDe: tri(m.contactDe), dep: [...m.dep].sort((a, b) => a[0].localeCompare(b[0], 'fr', { numeric: true })),
+      metiers: tri(m.metiers), dj: tri(m.dj), canal: tri(m.canal), sansCanal: items.filter(a => !a.k.canal).length, contactDe: tri(m.contactDe), dep: [...m.dep].sort((a, b) => a[0].localeCompare(b[0], 'fr', { numeric: true })),
       indep: items.filter(a => a.k.indep).length, permis: items.filter(a => a.k.permis).length, npc: items.filter(a => a.k.npc).length,
     };
   }
-  const CRIT_CLIENTS = ['metier', 'dj', 'contactDe', 'dep', 'civ', 'pro', 'joignable', 'indep', 'permis', 'npc'];
+  const CRIT_CLIENTS = ['canal', 'metier', 'dj', 'contactDe', 'dep', 'civ', 'pro', 'joignable', 'indep', 'permis', 'npc'];
   function filtrerCriteres(items, q) {
     const v = x => String(q[x] || '').slice(0, 80);
     if (!CRIT_CLIENTS.some(x => v(x))) return items;
@@ -1066,6 +1069,7 @@ async function createApp(opts = {}) {
       if (v('metier') && !(v('metier') === '*' ? k.metiers.length : k.metiers.includes(v('metier')))) return false;
       if (v('dj') && !k.dj.includes(v('dj'))) return false;
       if (v('contactDe') && k.contactDe !== v('contactDe')) return false;
+      if (v('canal') && k.canal !== (v('canal') === 'aucune' ? '' : v('canal'))) return false;
       if (v('dep') && !(v('dep') === 'idf' ? ['75', '77', '78', '91', '92', '93', '94', '95'].includes(k.dep) : v('dep') === 'aucun' ? !k.dep : k.dep === v('dep'))) return false;
       if (v('civ') && k.civ !== (v('civ') === 'aucune' ? '' : v('civ'))) return false;
       if (v('pro') === 'pro' && !k.pro) return false;
@@ -1192,17 +1196,43 @@ async function createApp(opts = {}) {
     res.json((await store.list('_effacements')).map(d => d.data).filter(d => d?.statut).sort((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, 10));
   }));
 
+  /* ---------- source des demandes de devis (server/sources.js) ---------- */
+  const SOURCES = SRC.creerSources({ store });
+  /* demandes et devis : `canalAuto` = la source qui s'applique (la leur, sinon celle de la demande, sinon celle du client) */
+  async function avecCanal(coll, docs) {
+    if (coll !== 'demandes' && coll !== 'devis') return docs;
+    const { canaux } = await annuaireServeur();
+    const demById = coll === 'devis' ? new Map((await store.list('demandes')).map(x => [x.data?.id || x.id, { ...x.data, id: x.data?.id || x.id }])) : null;
+    return docs.map(d => ({ ...d, canalAuto: coll === 'demandes' ? SRC.canalDemande(d, canaux.get(d.clientId)) : SRC.canalDevis(d, d.demandeId ? demById.get(d.demandeId) : null, canaux.get(d.clientId)) }));
+  }
+  A.get('/sources', wrap(async (req, res) => {
+    res.set('Cache-Control', 'no-store').json({ sources: await SOURCES.liste() });
+  }));
+  /* retirer une source de la liste déroulante : les fiches qui l'ont déjà la gardent */
+  A.post('/sources/retirer', sameSite, json, wrap(async (req, res) => {
+    const nom = SRC.propre(req.body?.nom);
+    if (nom.toLowerCase() === 'site') return res.status(400).json({ error: '« Site » est posé automatiquement sur les demandes du site : il reste dans la liste.' });
+    const sources = await SOURCES.retirer(nom);
+    audit(req.ctx, 'source retirée', '_sources/liste', nom);
+    res.json({ ok: true, sources });
+  }));
+  A.post('/sources', sameSite, json, wrap(async (req, res) => {
+    const r = await SOURCES.ajouter(req.body?.nom);
+    audit(req.ctx, 'source ajoutée', '_sources/liste', r.nom);
+    res.json({ ok: true, nom: r.nom, sources: r.liste });
+  }));
+
   A.get('/:coll', wrap(async (req, res, next) => {
     if (!COLLECTIONS.includes(req.params.coll)) return next();
     const vis = OPP.includes(req.params.coll) ? await visibles(req) : null;
     const docs = (await store.list(req.params.coll)).map(d => ({ id: d.id, ...d.data, _maj: d.updatedAt })).filter(d => !vis || vis[req.params.coll].has(d.id));
-    res.set('Cache-Control', 'no-store').json(docs);
+    res.set('Cache-Control', 'no-store').json(await avecCanal(req.params.coll, docs));
   }));
   A.get('/:coll/:id', wrap(async (req, res, next) => {
     if (!COLLECTIONS.includes(req.params.coll)) return next();
     const d = await store.get(req.params.coll + '/' + req.params.id);
     if (!d || !(await voitDoc(req, req.params.coll, req.params.id))) return res.status(404).json({ error: 'Introuvable.' });
-    res.set('Cache-Control', 'no-store').json({ id: req.params.id, ...d });
+    res.set('Cache-Control', 'no-store').json((await avecCanal(req.params.coll, [{ id: req.params.id, ...d }]))[0]);
   }));
   /* tous les montants « prix… » et « cout… » d'une fiche (variantes comprises) : sans le droit « Modifier les prix », ils ne doivent pas bouger */
   const empreintePrix = o => { const out = []; const walk = (x, ch) => { if (Array.isArray(x)) x.forEach((y, i) => walk(y, ch + '.' + i)); else if (x && typeof x === 'object') for (const [k, v] of Object.entries(x)) { if (/prix|cout/i.test(k) && (v == null || typeof v !== 'object')) { if (v != null && v !== '') out.push(ch + '.' + k + '=' + v); } else walk(v, ch + '.' + k); } }; walk(o, ''); return out.sort().join('|'); };
@@ -1213,7 +1243,8 @@ async function createApp(opts = {}) {
     const before = await store.get(coll + '/' + id);
     if (before && !(await voitDoc(req, coll, id))) return res.status(404).json({ error: 'Introuvable : ce dossier est suivi par un autre commercial.' });
     let data = { ...(req.body || {}) };
-    delete data._maj;
+    delete data._maj; delete data.canalAuto;
+    if ('canal' in data) data.canal = SRC.propre(data.canal);
     if (coll === 'produits' && before && !req.ctx.droits.prix && empreintePrix(data) !== empreintePrix(before)) return refus(res, 'prix');
     if (coll === 'devis') {
       if (before && before.statut === 'accepte' && !req.ctx.droits.devisSignes) return res.status(403).json({ error: 'Ce devis est signé : il faut le droit « Modifier un devis signé » pour le changer.' });
@@ -1254,6 +1285,11 @@ async function createApp(opts = {}) {
     if (coll === 'clients') { if (before?.journal) data.journal = before.journal; else delete data.journal; } /* notes et appels de l'historique jamais effacés par une fiche ouverte avant */
     data.updatedAt = new Date().toISOString();
     await store.set(coll + '/' + id, data);
+    /* source choisie sur une demande ou un devis : la fiche client qui n'en a pas encore la reçoit aussi */
+    if ((coll === 'demandes' || coll === 'devis') && data.canal && data.clientId && data.canal !== (before?.canal || '')) {
+      const cl = await store.get('clients/' + data.clientId);
+      if (cl && !SRC.canalClient(cl)) await store.set('clients/' + data.clientId, { ...cl, canal: data.canal });
+    }
     if (['produits', 'rubriques', 'lieux', 'avis', 'pages'].includes(coll)) cat.invalidate();
     if (coll === 'produits') setTimeout(lancerSeoIa, 2000).unref?.();
     /* fiche client corrigée (nom, société, e-mail, téléphone) : on reporte sur ses demandes, pour que le Suivi client affiche la même chose */
@@ -1431,15 +1467,15 @@ async function createApp(opts = {}) {
     const articles = IA.nettoyerArticles(req.body?.articles, c, visibles);
     if (!articles.length) return res.status(400).json({ error: 'Cochez au moins une prestation.' });
     /* client : retrouvé par son e-mail (seules les cases vides sont complétées), sinon créé */
-    const now = new Date().toISOString();
+    const now = new Date().toISOString(), canalIa = SRC.propre(req.body?.canal);
     let clientId = null;
     if (f.email) {
       const idx = await store.get('_clientemail/' + sha(f.email)), cl = idx && await store.get('clients/' + idx.id);
-      if (cl) { clientId = idx.id; await store.set('clients/' + clientId, { ...cl, nom: cl.nom || nom, tel: cl.tel || f.tel, societe: cl.societe || f.societe, adresse: cl.adresse || f.adresse, derniereActivite: now }); }
+      if (cl) { clientId = idx.id; await store.set('clients/' + clientId, { ...cl, nom: cl.nom || nom, tel: cl.tel || f.tel, societe: cl.societe || f.societe, adresse: cl.adresse || f.adresse, derniereActivite: now, ...(canalIa && !SRC.canalClient(cl) ? { canal: canalIa } : {}) }); }
     }
     if (!clientId) {
       clientId = 'c_' + rid(8);
-      await store.set('clients/' + clientId, { id: clientId, nom, email: f.email, tel: f.tel, societe: f.societe, adresse: f.adresse, notes: '', creeLe: now, derniereActivite: now, source: 'téléphone (IA)' });
+      await store.set('clients/' + clientId, { id: clientId, nom, email: f.email, tel: f.tel, societe: f.societe, adresse: f.adresse, notes: '', creeLe: now, derniereActivite: now, source: 'téléphone (IA)', ...(canalIa ? { canal: canalIa } : {}) });
       if (f.email) await store.set('_clientemail/' + sha(f.email), { id: clientId });
     }
     /* plats à supplément (coq roussi + 5 € la part) retrouvés dans la note de l'IA : ligne « Supplément » sur le devis */
@@ -1452,7 +1488,7 @@ async function createApp(opts = {}) {
     const sousTotal = lignes.reduce((t, l) => t + l.totalCents, 0), hz = LIVR.horsZone(f.cp), kmC = hz ? 0 : LIVR.kmCents(T, sousTotal), offerte = !!(km && !hz && kmC === 0);
     const id = 'd_' + rid(8), ref = await prochainNumero(store, 'demande'), par = req.ctx.name || req.ctx.email || 'équipe';
     const demande = {
-      id, ref, type: 'devis', source: 'Téléphone (IA)', clientId, contact: { nom, email: f.email, tel: f.tel, societe: f.societe },
+      id, ref, type: 'devis', source: 'Téléphone (IA)', ...(canalIa ? { canal: canalIa } : {}), clientId, contact: { nom, email: f.email, tel: f.tel, societe: f.societe },
       evenement: { type: f.type, date: f.date, invites: +f.invites || 0, cp: f.cp, ville: f.ville, adresse: f.adresse, horaire: f.horaire },
       livraison: km ? { km, kmCents: kmC, cents: km * kmC, ...(offerte ? { offerte: true } : {}), ...(hz ? { horsZone: true } : {}) } : null,
       lignes, sousTotalCents: sousTotal, totalEstimeCents: sousTotal + km * kmC,
@@ -2046,9 +2082,9 @@ async function createApp(opts = {}) {
     ev.sort((a, b) => String(b.at).localeCompare(String(a.at)));
     const signes = devisL.filter(d => d.statut === 'accepte');
     res.json({
-      client: c, events: ev,
+      client: { ...c, canalAuto: SRC.canalClient(c) }, events: ev,
       rdv: rdv.filter(r => r.clientId === c.id && r.type).sort((a, b) => (a.date + a.heure).localeCompare(b.date + b.heure)),
-      demandes: demandes.map(d => ({ id: d.id, ref: d.ref, statut: d.statut, type: d.type, evenement: d.evenement, createdAt: d.createdAt, commercial: d.commercial || '' })),
+      demandes: demandes.map(d => ({ id: d.id, ref: d.ref, statut: d.statut, type: d.type, evenement: d.evenement, createdAt: d.createdAt, commercial: d.commercial || '', canal: SRC.canalDemande(d, c) })),
       devis: devisL.map(d => ({ id: d.id, numero: d.numero, statut: d.statut, ttcCents: totaux(d).ttcCents, token: d.statut !== 'brouillon' ? d.token : '', evenement: d.evenement, createdAt: d.createdAt, commercial: d.commercial?.nom || '' })),
       factures: facts.map(f => { const e = FAC.etat(f); return { id: f.id, numero: f.numero, type: f.type, totalCents: f.totalCents, regleCents: e.regleCents, resteCents: e.resteCents, nbReglements: e.reglements.length, payee: e.payee, annulee: !!f.annuleeParAvoir, archivee: !!f.archivee, payeeLe: f.payeeLe, moyen: f.moyen }; }),
       resume: { signeCents: signes.reduce((s2, d) => s2 + totaux(d).ttcCents, 0), regleCents: facts.filter(f => f.type !== 'avoir' && !f.annuleeParAvoir).reduce((s2, f) => s2 + FAC.etat(f).regleCents, 0), aEncaisserCents: facts.filter(f => f.type !== 'avoir' && !f.annuleeParAvoir).reduce((s2, f) => s2 + FAC.etat(f).resteCents, 0), nbDevis: devisL.length, nbSignes: signes.length, nbDemandes: demandes.filter(d => d.type !== 'contact').length },

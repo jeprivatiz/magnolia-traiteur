@@ -1858,6 +1858,25 @@ tr.liv-lock input:disabled, tr.liv-lock select:disabled { background: #ece4d3; c
 tr.liv-lock .lock-i { display: inline-block; padding: 0 6px; }
 tr.liv-lock td input.num:disabled, tr.liv-lock td input.pct:disabled { background: #ece4d3; border-color: #ddd0b6; color: #4a4a42; -webkit-text-fill-color: #4a4a42; }
 
+/* origine du contact / source des demandes (Jean-Luc, 2026-11-26) */
+.src-pill { display: inline-flex; align-items: center; gap: 4px; background: #f3ecdd; color: #6b4f22; border: 1px solid #e2d3b4; border-radius: 999px; padding: 1px 9px; font-size: .78rem; font-weight: 500; white-space: nowrap; line-height: 1.6; }
+@media (prefers-color-scheme: dark) { .src-pill { background: #2f2a1f; color: #e3c68f; border-color: #4a3f2a; } }
+td > .src-pill, td small .src-pill { margin-top: 4px; }
+small.cl-src { display: block; }
+.src-lab { display: block; margin-top: 10px; }
+.src-lab select, .pf-d select[data-source] { width: 100%; }
+.hc-src { margin-top: 4px; }
+.src-t td { position: relative; }
+.src-t .src-bar { display: block; height: 4px; border-radius: 3px; background: var(--vert-2); opacity: .55; margin-top: 6px; max-width: 220px; }
+.src-t .src-bar.or { background: var(--or); opacity: .8; }
+.src-t a { text-decoration: none; }
+.src-t tr.tot td { font-weight: 600; border-top: 2px solid var(--ligne); }
+.src-in { max-width: 520px; }
+.src-l { list-style: none; margin: 8px 0 14px; padding: 0; max-height: 46vh; overflow: auto; border: 1px solid var(--ligne); border-radius: var(--r); background: var(--doux); }
+.src-l li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--ligne); background: var(--carte); }
+.src-l li:last-child { border-bottom: 0; }
+.src-add { gap: 8px; margin-bottom: 12px; }
+.src-add input { flex: 1; min-width: 0; }
 /* ---------- Validation tarifs (Jean-Luc, 2026-11-26) ---------- */
 .vt-intro { max-width: 860px; }
 .vt-box h2 { display: flex; align-items: center; gap: 10px; }
