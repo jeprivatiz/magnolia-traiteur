@@ -74,12 +74,12 @@
   let session = null, cache = {};
   /* droits détaillés du compte connecté (Équipe & activité) ; « Administrateur » a tout */
   const peut = k => !!session?.droits?.[k];
-  const DROIT_ECRAN = { factures: 'factures', catalogue: 'produits', achats: 'prix', lieux: 'produits', site: 'site', avis: 'site', medias: 'site', entreprise: 'entreprise', outils: ['outils', 'fichiers'] };
+  const DROIT_ECRAN = { factures: 'factures', catalogue: 'produits', achats: 'prix', tarifs: 'prix', lieux: 'produits', site: 'site', avis: 'site', medias: 'site', entreprise: 'entreprise', outils: ['outils', 'fichiers'] };
   const voitEcran = r => { const d = DROIT_ECRAN[r]; return !d || [].concat(d).some(peut); };
 
   /* ---------- structure ---------- */
   /* menu « Espace équipe » comme Je Privatise : CRM regroupe Demandes de devis, Suivi client, Devis et Factures */
-  const CRM = ['demandes', 'suivi', 'devis', 'factures', 'clients', 'statistiques'];
+  const CRM = ['demandes', 'suivi', 'devis', 'factures', 'clients', 'statistiques', 'tarifs'];
   const MENU = [
     ['', 'Tableau de bord'],
     ['crm', 'CRM'],
@@ -89,6 +89,7 @@
     ['factures', 'Factures'],
     ['clients', 'Clients'],
     ['statistiques', 'Statistiques'],
+    ['tarifs', 'Validation tarifs'],
     ['agenda', 'Agenda'],
     ['-'],
     ['catalogue', 'Catalogue'],
@@ -106,7 +107,7 @@
     const open = CRM.includes(cur) || mem.get('mg_crm') === '1';
     const nb = cache.nouvelles ? String(cache.nouvelles) : '';
     const item = m => m[0] !== '-' && m[0] !== 'crm' && !voitEcran(m[0]) ? '' : m[0] === '-' ? '<hr>'
-      : m[0] === 'crm' ? `<button type="button" class="chip crm-btn" data-tab="crm" data-crm aria-expanded="${open}" title="Demandes de devis, Suivi client, Devis, Factures, Clients, Statistiques">CRM<span>${nb}</span></button>`
+      : m[0] === 'crm' ? `<button type="button" class="chip crm-btn" data-tab="crm" data-crm aria-expanded="${open}" title="Demandes de devis, Suivi client, Devis, Factures, Clients, Statistiques, Validation tarifs">CRM<span>${nb}</span></button>`
       : `<a href="#/${m[0]}" data-tab="${m[0]}" class="chip${CRM.includes(m[0]) ? ' crm-sub' : ''}${cur === m[0] ? ' on' : ''}"${cur === m[0] ? ' aria-current="page"' : ''}>${m[1]}${m[0] === 'demandes' ? `<span>${nb}</span>` : ''}</a>`;
     return `<div class="bo">
       <aside class="side" id="side"><a class="logo" href="#/"><img src="/brand/monogramme.svg" alt=""><span>Magnolia<small>Back-office</small></span></a><a class="go-site" href="/" target="_blank" rel="noopener">🌐 Aller sur le site ↗</a>
@@ -138,7 +139,7 @@
     }
     if (!session) return login();
     const [route, id, sub] = location.hash.replace(/^#\/?/, '').split('?')[0].split('/');
-    const views = { '': dashboard, statistiques, demandes, suivi, devis, factures, agenda, clients, catalogue, produit, achats, lieux, lieu, site, avis, medias, entreprise, equipe, outils };
+    const views = { '': dashboard, statistiques, tarifs, demandes, suivi, devis, factures, agenda, clients, catalogue, produit, achats, lieux, lieu, site, avis, medias, entreprise, equipe, outils };
     let fn = route === 'catalogue' && id ? produit : route === 'lieux' && id ? lieu : views[route] || dashboard;
     if (!voitEcran(route)) fn = sansAcces;
     if (!peut('toutes') && typeof SV !== 'undefined') { SV.o = ''; mem.set('mg_commercial', ''); } /* « seulement ses opportunités » : pas de filtre sur un autre commercial */
@@ -292,6 +293,149 @@
       $('.db')?.classList.add('db-charge');
       try { const html = await dashboard(); const c = $('.content'); if (c && location.hash.replace(/^#\/?/, '') === '') { c.innerHTML = html; dashboard.after(); } }
       catch (e) { toast(e.message, true); $('.db')?.classList.remove('db-charge'); }
+    }));
+  };
+
+  /* ---------- Validation tarifs (Jean-Luc, 2026-11-26) ----------
+     Pour chaque spécialité du site : la fiche du restaurateur / traiteur fournisseur (enregistrée, réutilisable), les produits
+     à faire tarifer (cases à cocher pour en retirer), puis le document A4 « Tarifs préférentiels accordés à Magnolia Traiteur »
+     à imprimer et faire signer. Le scan signé se dépose ensuite dans la fiche du fournisseur (#/tarifs/f/<id>).
+     Interne : rien n'apparaît sur le site. Serveur : server/tarifs.js et routes /api/admin/tarifs/*. */
+  const VT = { spe: mem.get('mg_vt_spe') || '', data: null, liste: null };
+  /* même calcul que server/tarifs.js pagination() : nombre de pages A4 du document */
+  const vtPages = n => { const M = { page: 277, t1: 70, tn: 13, th: 7, pd: 8, fin: 66 }, d1 = M.page - M.t1 - M.th - M.pd - M.fin; if (n <= Math.floor(d1 / 10)) return 1; const c1 = Math.floor((M.page - M.t1 - M.th - M.pd) / 12.5), cn = Math.floor((M.page - M.tn - M.th - M.pd) / 12.5), cf = Math.floor((M.page - M.tn - M.th - M.pd - M.fin) / 12.5); const p = []; let r = n; while (r > 0) { const c = Math.min(r, p.length ? cn : c1); p.push(c); r -= c; } const f = p.length === 1 ? Math.floor(d1 / 12.5) : cf; return p.length + (p[p.length - 1] > f ? 1 : 0); };
+  const formFournisseur = (f, profils) => `<div class="g3"><label>Civilité<select name="civilite">${['', 'M.', 'Mme'].map(x => `<option${(f.civilite || '') === x ? ' selected' : ''} value="${x}">${x || '—'}</option>`).join('')}</select></label><label>Prénom<input name="prenom" data-prenom value="${esc(f.prenom || '')}" autocomplete="off"></label><label>Nom<input name="nom" data-nomfam value="${esc(f.nom || '')}" autocomplete="off"></label></div>
+    <div class="g2"><label>Fonction <small class="muted">(gérant, chef, responsable commercial…)</small><input name="fonction" value="${esc(f.fonction || '')}"></label><label>Profil<select name="profil"><option value="">— Choisir —</option>${profils.map(x => `<option${f.profil === x ? ' selected' : ''}>${esc(x)}</option>`).join('')}</select></label></div>
+    <label>Nom de l’entreprise <small class="muted">(restaurant, traiteur…)</small><input name="entreprise" value="${esc(f.entreprise || '')}"></label>
+    <label>Adresse<input name="adresse" value="${esc(f.adresse || '')}"></label>
+    <div class="g2"><label>Code postal<input name="cp" value="${esc(f.cp || '')}" inputmode="numeric" maxlength="5"></label><label>Ville<input name="ville" value="${esc(f.ville || '')}"></label></div>
+    <div class="g3"><label>Téléphone<input name="telephone" value="${esc(f.telephone || '')}" inputmode="tel"></label><label>Portable<input name="portable" value="${esc(f.portable || '')}" inputmode="tel"></label><label>E-mail<input type="email" name="email" value="${esc(f.email || '')}"></label></div>
+    <div class="g2"><label>SIRET <small class="muted">(14 chiffres)</small><input name="siret" value="${esc(f.siret || '')}" inputmode="numeric"></label><label>N° de TVA intracommunautaire<input name="tva" value="${esc(f.tva || '')}"></label></div>
+    <label>🔒 Remarque <small class="muted">(jamais imprimée)</small><textarea name="notes" rows="2">${esc(f.notes || '')}</textarea></label>`;
+  async function tarifs(id, sub) {
+    if (id === 'f') return ficheFournisseurTarifs(sub);
+    const L = await api(A + '/tarifs'); VT.liste = L;
+    if (!L.specialites.some(s => s.cle === VT.spe)) VT.spe = L.specialites[0]?.cle || '';
+    VT.data = VT.spe ? await api(A + '/tarifs/specialite/' + VT.spe) : null;
+    const groupes = []; for (const s of L.specialites) { const g = groupes.find(x => x.g === s.groupe); g ? g.l.push(s) : groupes.push({ g: s.groupe, l: [s] }); }
+    const opt = s => `<option value="${esc(s.cle)}"${s.cle === VT.spe ? ' selected' : ''}>${esc(s.nom)} (${s.n})${s.fournisseur ? ' · ' + esc(s.fournisseur) : ''}</option>`;
+    const selSpe = `<select data-vtspe aria-label="Spécialité">${groupes.map(g => g.g ? `<optgroup label="${esc(g.g)}">${g.l.map(opt).join('')}</optgroup>` : g.l.map(opt).join('')).join('')}</select>`;
+    const fiches = L.fournisseurs.length ? `<div class="table"><table><thead><tr><th>Fournisseur</th><th>Profil</th><th>Ville</th><th class="n">Documents signés</th><th></th></tr></thead><tbody>${L.fournisseurs.map(f => `<tr data-href="#/tarifs/f/${esc(f.id)}"><td><b>${esc(f.libelle)}</b></td><td>${esc(f.profil)}</td><td>${esc(f.ville)}</td><td class="n">${f.scans ? `<span class="pill d-accepte">📎 ${f.scans}</span>` : '<span class="muted sm">aucun</span>'}</td><td class="n"><a class="qs-back" href="#/tarifs/f/${esc(f.id)}">Ouvrir le dossier ›</a></td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Aucune fiche fournisseur pour le moment : créez-la ci-dessus, à l’étape 2.</p>';
+    return page('🧾 Validation tarifs', `<a class="btn ghost" href="#/tarifs/f/nouveau">+ Nouvelle fiche fournisseur</a>`, `
+      <p class="muted vt-intro">Préparez le document <b>« Tarifs préférentiels accordés à Magnolia Traiteur »</b> pour chaque spécialité : le restaurateur ou le traiteur y inscrit ses tarifs TTC, signe, et vous déposez ensuite le scan dans son dossier. Tout reste interne : le fournisseur n’apparaît jamais sur le site.</p>
+      <section class="box vt-box"><h2><span class="vt-n">1</span> Spécialité</h2>${selSpe}${VT.data?.choix.imprimeLe ? `<p class="muted sm vt-der">Dernier document préparé le ${dateFr(VT.data.choix.imprimeLe, { day: 'numeric', month: 'long', year: 'numeric' })}.</p>` : ''}</section>
+      <section class="box vt-box" id="vtF">${vtBlocFournisseur()}</section>
+      <section class="box vt-box" id="vtP">${vtBlocProduits()}</section>
+      <div class="actions sticky vt-act"><label class="vt-duree">Tarifs garantis<select data-vtduree>${L.durees.map(d => `<option value="${d}"${(VT.data?.choix.duree || 12) === d ? ' selected' : ''}>${d} mois</option>`).join('')}</select></label><button type="button" class="btn vt-or" data-vtdoc>🖨 Préparer le document A4</button><span class="muted sm" id="vtInfo"></span></div>
+      <section class="box vt-box"><h2>📁 Fiches fournisseurs</h2>${fiches}</section>`);
+  }
+  function vtBlocFournisseur() {
+    const D = VT.data, L = VT.liste; if (!D) return '';
+    const f = L.fournisseurs.find(x => x.id === D.choix.fournisseurId);
+    const notes = (D.fournisseursFiches || []).filter(n => !L.fournisseurs.some(x => x.libelle.toLowerCase().includes(n.toLowerCase())));
+    return `<h2><span class="vt-n">2</span> Le fournisseur de cette spécialité</h2>
+      <div class="vt-frow"><select data-vtf aria-label="Fournisseur"><option value="">— Aucun (cases vides, à remplir à la main) —</option>${L.fournisseurs.map(x => `<option value="${esc(x.id)}"${x.id === D.choix.fournisseurId ? ' selected' : ''}>${esc(x.libelle)}${x.ville ? ' · ' + esc(x.ville) : ''}</option>`).join('')}<option value="+">+ Nouvelle fiche fournisseur…</option></select>
+      ${f ? `<a class="btn ghost sm" href="#/tarifs/f/${esc(f.id)}">✏ Modifier la fiche · 📎 dossier${f.scans ? ' (' + f.scans + ')' : ''}</a>` : ''}</div>
+      ${notes.length ? `<p class="muted sm vt-note">Noté sur les fiches produits (Catalogue) : ${notes.map(n => `<button type="button" class="lnk" data-vtnote="${esc(n)}">${esc(n)}</button>`).join(', ')} — cliquez pour créer sa fiche.</p>` : ''}
+      <div id="vtNew" hidden><form id="vtNf" class="vt-new"><p class="muted sm">La fiche est enregistrée une fois pour toutes : vous la retrouverez pour les autres spécialités.</p>${formFournisseur({}, L.profils)}<div class="row"><button class="btn">Enregistrer la fiche</button><button type="button" class="btn ghost" data-vtnfx>Annuler</button></div></form></div>`;
+  }
+  function vtBlocProduits() {
+    const D = VT.data; if (!D) return '<p class="muted">Aucune spécialité.</p>';
+    let sec = null;
+    const rows = D.produits.map(p => { const h = p.sectionNom && p.sectionNom !== sec ? `<li class="vt-sec">${esc(p.sectionNom)}</li>` : ''; sec = p.sectionNom; return h + `<li class="vt-p${p.retire ? ' off' : ''}"><label class="vt-ck"><input type="checkbox" data-vtck="${esc(p.slug)}"${p.retire ? '' : ' checked'} aria-label="Garder ${esc(p.titre)} sur le document"></label>${p.photo ? `<img src="${esc(p.photo)}" alt="" loading="lazy">` : '<span class="vt-noph"></span>'}<span class="vt-t">${esc(p.titre)}</span><label class="vt-q">Quantité<input data-vtq="${esc(p.slug)}" value="${esc(p.quantite)}" placeholder="${esc(p.quantiteDefaut)}" maxlength="80"></label></li>`; }).join('');
+    return `<h2><span class="vt-n">3</span> Produits du tableau</h2><p class="muted sm">Décochez les produits à retirer avant d’imprimer. La quantité (poids, nombre) est modifiable : c’est la quantité pour laquelle le fournisseur donne son tarif.</p>
+      <div class="vt-bar"><span id="vtNb"></span><button type="button" class="btn ghost sm" data-vttout="1">Tout cocher</button><button type="button" class="btn ghost sm" data-vttout="0">Tout décocher</button></div><ul class="vt-list">${rows}</ul>`;
+  }
+  tarifs.after = (id, sub) => {
+    if (id === 'f') return ficheFournisseurTarifs.after(sub);
+    $$('tr[data-href]').forEach(tr => tr.addEventListener('click', e => { if (!e.target.closest('a')) location.hash = tr.dataset.href; }));
+    const D = VT.data; if (!D) return;
+    const exclus = () => $$('[data-vtck]').filter(c => !c.checked).map(c => c.dataset.vtck);
+    const quantites = () => Object.fromEntries($$('[data-vtq]').map(i => [i.dataset.vtq, i.value.trim()]).filter(([k, v]) => v && v !== D.produits.find(p => p.slug === k)?.quantiteDefaut));
+    const compte = () => { const n = $$('[data-vtck]').filter(c => c.checked).length, p = vtPages(n); $('#vtNb').innerHTML = `<b>${n}</b> produit${n > 1 ? 's' : ''} sur ${D.produits.length} dans le tableau`; $('#vtInfo').textContent = n ? `${n} produit${n > 1 ? 's' : ''} · ${p === 1 ? 'tient sur 1 page A4' : p + ' pages A4, numérotées'}` : 'Cochez au moins un produit.'; $('[data-vtdoc]').disabled = !n; };
+    let t = null;
+    const sauver = (immediat) => { clearTimeout(t); const go = () => api(A + '/tarifs/specialite/' + VT.spe, { method: 'PUT', body: { fournisseurId: $('[data-vtf]').value === '+' ? D.choix.fournisseurId : $('[data-vtf]').value, exclus: exclus(), quantites: quantites(), duree: +$('[data-vtduree]').value } }); if (immediat) return go(); t = setTimeout(() => go().catch(e => toast(e.message, true)), 500); };
+    compte();
+    $('[data-vtspe]').addEventListener('change', e => { VT.spe = e.target.value; mem.set('mg_vt_spe', VT.spe); render(); });
+    $$('[data-vtck]').forEach(c => c.addEventListener('change', () => { c.closest('.vt-p').classList.toggle('off', !c.checked); compte(); sauver(); }));
+    $$('[data-vttout]').forEach(b => b.addEventListener('click', () => { $$('[data-vtck]').forEach(c => { c.checked = b.dataset.vttout === '1'; c.closest('.vt-p').classList.toggle('off', !c.checked); }); compte(); sauver(); }));
+    $$('[data-vtq]').forEach(i => i.addEventListener('input', () => sauver()));
+    $('[data-vtduree]').addEventListener('change', () => sauver());
+    const nouveau = (pre = '') => { $('#vtNew').hidden = false; const f = $('#vtNf'); f.reset(); if (pre) f.entreprise.value = pre; f.querySelector(pre ? '[name=prenom]' : '[name=entreprise]').focus(); };
+    $('[data-vtf]').addEventListener('change', async e => {
+      if (e.target.value === '+') return nouveau();
+      $('#vtNew').hidden = true;
+      try { await sauver(true); D.choix.fournisseurId = e.target.value; $('#vtF').innerHTML = vtBlocFournisseur(); tarifs.after(); toast(e.target.value ? 'Fournisseur choisi pour cette spécialité.' : 'Aucun fournisseur : les cases seront vides.'); } catch (err) { toast(err.message, true); }
+    });
+    $$('[data-vtnote]').forEach(b => b.addEventListener('click', () => { $('[data-vtf]').value = '+'; nouveau(b.dataset.vtnote); }));
+    $('[data-vtnfx]')?.addEventListener('click', () => { $('#vtNew').hidden = true; $('[data-vtf]').value = D.choix.fournisseurId || ''; });
+    $('#vtNf')?.addEventListener('submit', async e => {
+      e.preventDefault();
+      try {
+        const r = await api(A + '/tarifs/fournisseurs', { method: 'POST', body: Object.fromEntries(new FormData(e.target)) });
+        D.choix.fournisseurId = r.fournisseur.id;
+        await api(A + '/tarifs/specialite/' + VT.spe, { method: 'PUT', body: { fournisseurId: r.fournisseur.id, exclus: exclus(), quantites: quantites(), duree: +$('[data-vtduree]').value } });
+        toast('Fiche enregistrée et choisie pour cette spécialité.'); render();
+      } catch (err) { toast(err.message, true); }
+    });
+    $('[data-vtdoc]').addEventListener('click', async () => {
+      const w = window.open('about:blank', '_blank'); // ouvert tout de suite, sinon Safari bloque la fenêtre
+      try { await sauver(true); const url = `${A}/tarifs/document/${VT.spe}?t=${Date.now()}`; if (w) w.location = url; else location.href = url; }
+      catch (err) { w?.close(); toast(err.message, true); }
+    });
+  };
+
+  /* fiche fournisseur + son dossier : les documents signés scannés (PDF ou photo), datés, à voir ou télécharger */
+  async function ficheFournisseurTarifs(id) {
+    const L = VT.liste || (VT.liste = await api(A + '/tarifs'));
+    if (id === 'nouveau') return page('Nouvelle fiche fournisseur', '<a class="btn ghost" href="#/tarifs">← Validation tarifs</a>', `<section class="box vt-box"><form id="vtFf">${formFournisseur({}, L.profils)}<button class="btn">Créer la fiche</button></form></section>`);
+    const f = await api(A + '/tarifs/fournisseurs/' + id); VT.fiche = f;
+    const nomSpe = c => L.specialites.find(s => s.cle === c)?.nom || '';
+    const specs = (f.specialites || []).map(nomSpe).filter(Boolean);
+    const scans = (f.scans || []).map(s => { const u = `${A}/tarifs/fournisseurs/${esc(id)}/scans/${esc(s.nom)}`; const img = /^image\/(jpeg|png|webp)/.test(s.type); return `<li class="vt-scan">${img ? `<a href="${u}" target="_blank" rel="noopener"><img src="${u}" alt=""></a>` : `<a class="vt-pdf" href="${u}" target="_blank" rel="noopener">${/pdf/.test(s.type) ? 'PDF' : '📄'}</a>`}<span class="vt-st"><b>${esc(s.specialiteNom || nomSpe(s.specialite) || 'Document signé')}</b><small>${s.signeLe ? 'Signé le ' + dateFr(s.signeLe, { day: 'numeric', month: 'long', year: 'numeric' }) + ' · ' : ''}déposé le ${dateFr(s.at, { day: 'numeric', month: 'long', year: 'numeric' })}${s.par ? ' par ' + esc(s.par) : ''}</small>${s.note ? `<small class="vt-sn">${esc(s.note)}</small>` : ''}<small class="muted">${esc(s.original)} · ${Math.max(1, Math.round(s.octets / 1024)).toLocaleString('fr-FR')} Ko</small></span><span class="vt-sa"><a class="btn ghost sm" href="${u}" target="_blank" rel="noopener">👁 Voir</a><a class="btn ghost sm" href="${u}?telecharger">⬇ Télécharger</a><button type="button" class="btn ghost sm danger" data-vtrm="${esc(s.nom)}">🗑 Retirer</button></span></li>`; }).join('');
+    const titre = [f.entreprise, [f.prenom, f.nom].filter(Boolean).join(' ')].filter(Boolean).join(' · ');
+    return page('🧾 ' + esc(titre || 'Fournisseur'), '<a class="btn ghost" href="#/tarifs">← Validation tarifs</a>', `
+      ${specs.length ? `<p class="muted">Fournisseur choisi pour : <b>${specs.map(esc).join(', ')}</b>.</p>` : ''}
+      <section class="box vt-box vt-dos"><h2>📎 Dossier : documents signés</h2>
+        <p class="muted sm">Une fois le tableau rempli et signé, scannez-le (ou prenez-le en photo avec l’iPhone) et déposez-le ici. Il reste dans le dossier du fournisseur, avec sa date, pour vérifier ses tarifs à tout moment. Jamais visible sur le site.</p>
+        <form id="vtSf" class="vt-drop"><label class="vt-zone" data-vtzone><input type="file" name="fichier" accept="application/pdf,image/*,.heic" required hidden data-vtfile><span class="vt-zi">⬆</span><b>Déposer le scan signé</b><small data-vtfn>PDF ou photo · cliquez ou glissez le fichier ici</small></label>
+          <div class="g3"><label>Spécialité<select name="specialite">${L.specialites.map(s => `<option value="${esc(s.cle)}"${(f.specialites || [])[0] === s.cle ? ' selected' : ''}>${esc(s.nom)}</option>`).join('')}<option value="">Autre document</option></select></label><label>Signé le<input type="date" name="signeLe" value="${new Date().toLocaleDateString('sv-SE')}"></label><label>Note <small class="muted">(facultatif)</small><input name="note" maxlength="300" placeholder="ex. remise 5 % au-delà de 100 pièces"></label></div>
+          <button class="btn vt-or" disabled data-vtenv>📎 Enregistrer dans le dossier</button></form>
+        ${scans ? `<ul class="vt-scans">${scans}</ul>` : '<p class="muted vt-vide">Aucun document signé pour le moment.</p>'}
+      </section>
+      <section class="box vt-box"><h2>Coordonnées</h2><form id="vtFf">${formFournisseur(f, L.profils)}<div class="row"><button class="btn">Enregistrer la fiche</button><button type="button" class="btn ghost danger" data-vtdel>Supprimer la fiche</button></div></form></section>`);
+  }
+  ficheFournisseurTarifs.after = id => {
+    $('#vtFf')?.addEventListener('submit', async e => {
+      e.preventDefault();
+      try {
+        const body = Object.fromEntries(new FormData(e.target));
+        if (id === 'nouveau') { const r = await api(A + '/tarifs/fournisseurs', { method: 'POST', body }); toast('Fiche créée.'); location.hash = '#/tarifs/f/' + r.fournisseur.id; }
+        else { await api(A + '/tarifs/fournisseurs/' + id, { method: 'PUT', body }); toast('Fiche enregistrée.'); VT.liste = null; }
+      } catch (err) { toast(err.message, true); }
+    });
+    $('[data-vtdel]')?.addEventListener('click', async () => {
+      if (!confirm('Supprimer définitivement cette fiche fournisseur ?')) return;
+      try { await api(A + '/tarifs/fournisseurs/' + id, { method: 'DELETE' }); toast('Fiche supprimée.'); VT.liste = null; location.hash = '#/tarifs'; } catch (err) { toast(err.message, true); }
+    });
+    const inp = $('[data-vtfile]'), zone = $('[data-vtzone]');
+    if (!inp) return;
+    const choisi = () => { const x = inp.files[0]; $('[data-vtfn]').textContent = x ? `${x.name} · ${Math.max(1, Math.round(x.size / 1024)).toLocaleString('fr-FR')} Ko` : 'PDF ou photo · cliquez ou glissez le fichier ici'; zone.classList.toggle('ok', !!x); $('[data-vtenv]').disabled = !x; };
+    inp.addEventListener('change', choisi);
+    ['dragover', 'dragenter'].forEach(ev => zone.addEventListener(ev, e => { e.preventDefault(); zone.classList.add('sur'); }));
+    ['dragleave', 'drop'].forEach(ev => zone.addEventListener(ev, () => zone.classList.remove('sur')));
+    zone.addEventListener('drop', e => { e.preventDefault(); if (e.dataTransfer.files.length) { inp.files = e.dataTransfer.files; choisi(); } });
+    $('#vtSf').addEventListener('submit', async e => {
+      e.preventDefault();
+      const fd = new FormData(e.target), sel = e.target.specialite;
+      fd.append('specialiteNom', sel.value ? sel.options[sel.selectedIndex].text : '');
+      const b = $('[data-vtenv]'); b.disabled = true; b.textContent = 'Envoi en cours…';
+      try { await api(`${A}/tarifs/fournisseurs/${id}/scans`, { method: 'POST', form: fd }); toast('Document signé enregistré dans le dossier.'); VT.liste = null; render(); }
+      catch (err) { toast(err.message, true); b.disabled = false; b.textContent = '📎 Enregistrer dans le dossier'; }
+    });
+    $$('[data-vtrm]').forEach(b => b.addEventListener('click', async () => {
+      if (!confirm('Retirer ce document du dossier ?')) return;
+      try { await api(`${A}/tarifs/fournisseurs/${id}/scans/${b.dataset.vtrm}`, { method: 'DELETE' }); toast('Document retiré.'); render(); } catch (err) { toast(err.message, true); }
     }));
   };
 
