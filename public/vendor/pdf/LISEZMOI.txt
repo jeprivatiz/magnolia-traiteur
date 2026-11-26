@@ -1,0 +1,1 @@
+jspdf 2.5.1 (MIT) et html2canvas 1.4.1 (MIT), copiés depuis npm : servent seulement à produire le PDF du document « Tarifs préférentiels » joint à l’e-mail (back-office).

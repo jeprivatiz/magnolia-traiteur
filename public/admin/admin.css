@@ -2079,3 +2079,15 @@ small.cl-src { display: block; }
 .vt-cm b { color: var(--vert-ok); }
 .vt-csec td { background: var(--doux); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; font-size: .75rem; color: var(--or-fonce, #8a6a2c); }
 @media print { .bo-nav, .side, .topbar, .page-actions, .vt-cbar select { display: none !important; } }
+
+.vt-mail { width: min(1180px, 96vw); max-width: none; }
+.vt-mg { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 18px; align-items: start; }
+.vt-mf { display: grid; gap: 10px; }
+.vt-mf textarea { font: .92rem/1.5 var(--sans); }
+.vt-ap { display: grid; gap: 4px; }
+.vt-ap iframe { width: 100%; height: 600px; border: 1px solid var(--ligne); border-radius: 12px; background: #efe9dc; }
+.vt-deja { color: var(--or-fonce, #8a6a2c); font-weight: 500; }
+.vt-pdfgen { position: fixed; left: -12000px; top: 0; width: 1000px; height: 1500px; border: 0; visibility: hidden; }
+.vt-envois { margin: 6px 0 0; padding-left: 18px; }
+.vt-h3 { margin: 18px 0 4px; font-size: 1rem; }
+@media (max-width: 860px) { .vt-mg { grid-template-columns: 1fr; } .vt-ap iframe { height: 460px; } }

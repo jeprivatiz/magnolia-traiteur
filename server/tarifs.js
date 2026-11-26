@@ -263,14 +263,87 @@ th.no { text-align: center; }
 .pd { margin-top: auto; flex: none; display: flex; justify-content: space-between; align-items: flex-end; font-size: 6.8pt; color: #8a8d85; border-top: .2mm solid #e3dccb; padding-top: 1mm; }
 .par i { display: inline-block; width: 12mm; height: 4mm; border: .2mm solid #bbb; border-radius: 1mm; vertical-align: middle; margin-left: 1mm; }
 @media print { body { background: #fff; } .barre { display: none; } .pg { margin: 0; box-shadow: none; } }
+body.pdf .pg { margin: 0; box-shadow: none; zoom: 1; }
 @media screen and (max-width: 820px) { .pg { zoom: .45; } }
 </style></head><body>
 <div class="barre"><span>${nb} page${nb > 1 ? 's' : ''} A4 · ${lignes.length} produit${lignes.length > 1 ? 's' : ''}</span><button type="button" onclick="window.print()">🖨 Imprimer ou enregistrer en PDF</button><button type="button" class="g" onclick="fermer()">← Retour au back-office</button></div>
 <script>/* « Fermer » : window.close() est refusé quand l'onglet n'a pas été ouvert par le back-office (Safari, lien ouvert à la main) : on revient alors à l'écran Validation tarifs */
-function fermer() { try { if (window.opener && !window.opener.closed) { window.close(); } } catch (e) {} setTimeout(function () { location.href = '/admin#/tarifs'; }, 250); }</script>
+function fermer() { try { if (window.opener && !window.opener.closed) { window.close(); } } catch (e) {} setTimeout(function () { location.href = '/admin#/tarifs'; }, 250); }
+/* PDF du document (pièce jointe de l'e-mail au fournisseur) : chaque page A4 est photographiée telle quelle, puis assemblée */
+function charger(u) { return new Promise(function (ok, ko) { var s = document.createElement('script'); s.src = u; s.onload = ok; s.onerror = function () { ko(new Error('Chargement impossible : ' + u)); }; document.head.appendChild(s); }); }
+window.versPdf = async function () {
+  if (!window.html2canvas) await charger('/vendor/pdf/html2canvas.min.js');
+  if (!window.jspdf) await charger('/vendor/pdf/jspdf.umd.min.js');
+  if (document.fonts && document.fonts.ready) await document.fonts.ready;
+  await Promise.all([].map.call(document.images, function (i) { return i.complete ? 0 : new Promise(function (r) { i.onload = i.onerror = r; }); }));
+  document.body.classList.add('pdf');
+  var pdf = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4', compress: true }), P = document.querySelectorAll('.pg');
+  for (var n = 0; n < P.length; n++) {
+    var c = await window.html2canvas(P[n], { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
+    if (n) pdf.addPage();
+    pdf.addImage(c.toDataURL('image/jpeg', 0.82), 'JPEG', 0, 0, 210, 297);
+  }
+  document.body.classList.remove('pdf');
+  return pdf.output('datauristring').split(',')[1];
+};</script>
 
 ${pages}
 </body></html>`;
 }
 
-module.exports = { lireListePrix, rapprocherPrix, prixFr, nomSpecialite, PROFILS, DUREES, DUREE_DEFAUT, CHAMPS, specialites, produitsDe, quantiteDefaut, ficheFournisseur, libelleFournisseur, pagination, documentHtml, MM };
+/* E-mail au fournisseur (Jean-Luc, 2026-11-26) : courte lettre sur papier à en-tête, le document A4 en PDF joint. Texte modifiable avant l'envoi. */
+const civiliteLongue = c => c === 'Mme' ? 'Madame' : c === 'M.' ? 'Monsieur' : '';
+function lettreDefaut({ fournisseur = {}, spe = {}, R = {}, expediteur = '' }) {
+  const F = fournisseur || {}, E = R.entreprise || {};
+  const nomM = E.raisonSociale || 'Magnolia Traiteur';
+  const site = String(E.site ?? 'magnoliatraiteur.fr').replace(/^https?:\/\//i, '').replace(/\/$/, '');
+  const www = /^www\./i.test(site) ? site : 'www.' + site;
+  const civ = civiliteLongue(F.civilite);
+  const salut = civ && F.nom ? `Bonjour ${civ} ${F.nom},` : F.prenom ? `Bonjour ${F.prenom},` : 'Madame, Monsieur,';
+  return {
+    to: F.email || '',
+    objet: `${nomM} · Grille de tarifs préférentiels à compléter (${spe.nom || 'nos produits'})`,
+    texte: `${salut}
+
+Suite à notre conversation téléphonique, veuillez trouver ci-joint notre grille de tarifs « ${spe.nom || 'nos produits'} ».
+
+Nous vous remercions de bien vouloir la compléter (tarif client habituel, tarif préférentiel TTC accordé à ${nomM} et, si besoin, vos observations), puis de la signer et de nous la retourner en réponse à ce message.
+
+Cela nous permettra de présenter au plus vite vos produits sur notre site ${www} et de vous passer des commandes régulières, notamment en grand nombre pour des groupes.
+
+Nous restons à votre disposition pour toute question.
+
+Bien cordialement,`,
+    signature: expediteur || nomM,
+  };
+}
+function lettreHtml({ texte = '', R = {}, fournisseur = {}, expediteur = '', siteUrl = '', maintenant = new Date() }) {
+  const E = R.entreprise || {}, F = fournisseur || {};
+  const nomM = E.raisonSociale || 'Magnolia Traiteur';
+  const abs = u => !u ? '' : /^https?:/i.test(u) ? u : String(siteUrl || '').replace(/\/$/, '') + (u.startsWith('/') ? u : '/' + u);
+  const logo = abs(E.logo && !/\.svg(\?|$)/i.test(E.logo) ? E.logo : '/brand/monogramme-email.png');
+  const tel = E.telephone || R.telephone || '', mail = E.email || R.email || '', adr = E.adresse || R.adresse || '';
+  const site = String(E.site ?? 'magnoliatraiteur.fr').replace(/^https?:\/\//i, '').replace(/\/$/, '');
+  const villeM = (String(adr).match(/\d{5}\s+([^,]+)$/) || [])[1] || 'Villebon-sur-Yvette';
+  const date = maintenant.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Paris' });
+  const dest = [F.entreprise, [civiliteLongue(F.civilite), F.prenom, F.nom].filter(Boolean).join(' '), F.adresse, [F.cp, F.ville].filter(Boolean).join(' ')].filter(Boolean);
+  const corps = String(texte).trim().split(/\n{2,}/).map(p => `<p style="margin:0 0 12px">${esc(p).replace(/\n/g, '<br>')}</p>`).join('');
+  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#efe9dc;font-family:Jost,Poppins,Helvetica,Arial,sans-serif;color:#22312a">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#efe9dc;padding:24px 10px"><tr><td align="center">
+<table role="presentation" width="640" cellpadding="0" cellspacing="0" style="max-width:640px;width:100%;background:#fffdf8;border-radius:6px;box-shadow:0 2px 10px rgba(0,0,0,.08)">
+<tr><td style="padding:26px 34px 16px;border-bottom:3px solid #b08a4f">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+  <td valign="middle" width="70"><img src="${esc(logo)}" alt="${esc(nomM)}" width="58" style="display:block;max-width:58px;height:auto"></td>
+  <td valign="middle"><div style="font-family:Georgia,'Times New Roman',serif;font-size:24px;color:#1d3b2f;letter-spacing:.5px">${esc(nomM)}</div><div style="font-size:11px;letter-spacing:2.5px;text-transform:uppercase;color:#b08a4f;margin-top:2px">Traiteur · Événements</div></td>
+  <td valign="middle" align="right" style="font-size:12px;line-height:1.55;color:#55605a">${[adr && esc(adr), tel && esc(tel), mail && `<a href="mailto:${esc(mail)}" style="color:#55605a">${esc(mail)}</a>`, site && `<a href="https://${esc(/^www\./.test(site) ? site : 'www.' + site)}" style="color:#1d3b2f;font-weight:600">${esc(/^www\./.test(site) ? site : 'www.' + site)}</a>`].filter(Boolean).join('<br>')}</td>
+  </tr></table></td></tr>
+<tr><td style="padding:22px 34px 6px;font-size:13px;color:#55605a"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td valign="top" style="line-height:1.5">${dest.length ? dest.map((x, i) => i ? esc(x) : `<b style="color:#22312a">${esc(x)}</b>`).join('<br>') : ''}</td><td valign="top" align="right">${esc(villeM)}, le ${esc(date)}</td></tr></table></td></tr>
+<tr><td style="padding:16px 34px 8px;font-size:15px;line-height:1.6">${corps}
+<p style="margin:18px 0 0"><b>${esc(expediteur || nomM)}</b><br><span style="color:#55605a">${esc(nomM)}${tel ? ' · ' + esc(tel) : ''}</span></p></td></tr>
+<tr><td style="padding:16px 34px 26px"><div style="border:1px dashed #b08a4f;border-radius:6px;padding:10px 14px;font-size:13px;color:#55605a;background:#fbf6ea">📎 <b style="color:#22312a">Pièce jointe :</b> grille « Tarifs préférentiels accordés à ${esc(nomM)} » (PDF), à compléter, signer et nous retourner.</div></td></tr>
+</table>
+<p style="font-size:11px;color:#8a8d85;margin:14px 0 0">${esc(nomM)}${adr ? ' · ' + esc(adr) : ''}</p>
+</td></tr></table></body></html>`;
+}
+
+module.exports = { lettreDefaut, lettreHtml, lireListePrix, rapprocherPrix, prixFr, nomSpecialite, PROFILS, DUREES, DUREE_DEFAUT, CHAMPS, specialites, produitsDe, quantiteDefaut, ficheFournisseur, libelleFournisseur, pagination, documentHtml, MM };
