@@ -30,6 +30,7 @@ const FAC = require('./factures');
 const { creerEntreprises } = require('./entreprises');
 const DR = require('./droits');
 const SRC = require('./sources');
+const TAR = require('./tarifs');
 
 const ROOT = path.join(__dirname, '..');
 const PUBLIC = path.join(ROOT, 'public');
@@ -2513,6 +2514,130 @@ async function createApp(opts = {}) {
     cat.invalidate(); audit(req.ctx, 'catalogue réimporté depuis le brouillon', '');
     res.json({ ok: true, ...r });
   }));
+  /* ---------- Validation tarifs (Jean-Luc, 2026-11-26) : fiches fournisseurs, document A4 à faire signer, scans signés ----------
+     Tout est interne : rien de cela n'est lu par les pages du site. Droit « Modifier les prix » (comme les prix d'achat). */
+  const priveDir = path.resolve(env.PRIVATE_DIR || path.join(path.dirname(uploadDir), 'prive'), 'tarifs');
+  fs.mkdirSync(priveDir, { recursive: true });
+  const catalogueBrut = async () => { const [rub, prod] = await Promise.all([store.list('rubriques'), store.list('produits')]); return { rubriques: rub.map(d => d.data).filter(Boolean), produits: prod.map(d => d.data).filter(Boolean) }; };
+  const fournisseursTarifs = async () => (await store.list('tarifsFournisseurs')).map(d => ({ ...d.data, id: d.data?.id || d.id })).sort((a, b) => TAR.libelleFournisseur(a).localeCompare(TAR.libelleFournisseur(b), 'fr'));
+  const cleOk = c => /^[a-z0-9-]+$/.test(String(c || ''));
+  A.get('/tarifs', peut('prix'), wrap(async (req, res) => {
+    const { rubriques, produits } = await catalogueBrut();
+    const choix = new Map((await store.list('tarifsSpecialites')).map(d => [d.id, d.data]));
+    const F = await fournisseursTarifs(), parId = new Map(F.map(f => [f.id, f]));
+    res.set('Cache-Control', 'no-store').json({
+      specialites: TAR.specialites(rubriques, produits).map(s => { const c = choix.get(s.cle); const f = c?.fournisseurId && parId.get(c.fournisseurId); return { ...s, fournisseur: f ? TAR.libelleFournisseur(f) : '', imprimeLe: c?.imprimeLe || '' }; }),
+      fournisseurs: F.map(f => ({ id: f.id, libelle: TAR.libelleFournisseur(f), profil: f.profil || '', ville: f.ville || '', scans: (f.scans || []).length })),
+      profils: TAR.PROFILS, durees: TAR.DUREES,
+    });
+  }));
+  A.get('/tarifs/specialite/:cle', peut('prix'), wrap(async (req, res) => {
+    if (!cleOk(req.params.cle)) return res.status(400).json({ error: 'Spécialité inconnue.' });
+    const { rubriques, produits } = await catalogueBrut();
+    const spe = TAR.specialites(rubriques, produits).find(s => s.cle === req.params.cle);
+    const L = spe && TAR.produitsDe(spe.cle, rubriques, produits);
+    if (!L) return res.status(404).json({ error: 'Spécialité introuvable.' });
+    const c = (await store.get('tarifsSpecialites/' + spe.cle)) || {};
+    /* fournisseurs déjà notés sur les fiches produits de cette spécialité (Catalogue) : proposés pour remplir la fiche */
+    const bySlug = new Map(produits.map(p => [p.slug, p]));
+    const notes = [...new Set(L.flatMap(x => ACHATS.fournisseursDe(bySlug.get(x.slug) || {})))];
+    res.set('Cache-Control', 'no-store').json({ spe, produits: L.map(x => ({ ...x, quantite: (c.quantites || {})[x.slug] || x.quantite, quantiteDefaut: x.quantite, retire: (c.exclus || []).includes(x.slug) })), choix: { fournisseurId: c.fournisseurId || '', duree: c.duree || 12, imprimeLe: c.imprimeLe || '' }, fournisseursFiches: notes });
+  }));
+  const choixSpe = async (cle, b = {}) => {
+    const avant = (await store.get('tarifsSpecialites/' + cle)) || {};
+    const q = {}; for (const [k, v] of Object.entries(b.quantites || {})) if (cleOk(k) && String(v || '').trim()) q[k] = String(v).trim().slice(0, 80);
+    const c = { ...avant, fournisseurId: String(b.fournisseurId ?? avant.fournisseurId ?? '').slice(0, 40), exclus: Array.isArray(b.exclus) ? b.exclus.filter(cleOk).slice(0, 2000) : avant.exclus || [], quantites: b.quantites ? q : avant.quantites || {}, duree: TAR.DUREES.includes(+b.duree) ? +b.duree : avant.duree || 12, updatedAt: new Date().toISOString() };
+    await store.set('tarifsSpecialites/' + cle, c);
+    return c;
+  };
+  A.put('/tarifs/specialite/:cle', sameSite, json, peut('prix'), wrap(async (req, res) => {
+    if (!cleOk(req.params.cle)) return res.status(400).json({ error: 'Spécialité inconnue.' });
+    res.json({ ok: true, choix: await choixSpe(req.params.cle, req.body) });
+  }));
+  /* le document A4 : enregistre la date d'impression et sert une page autonome (Imprimer / Enregistrer en PDF) */
+  A.get('/tarifs/document/:cle', peut('prix'), wrap(async (req, res) => {
+    if (!cleOk(req.params.cle)) return res.status(400).send('Spécialité inconnue.');
+    const { rubriques, produits } = await catalogueBrut();
+    const spe = TAR.specialites(rubriques, produits).find(s => s.cle === req.params.cle);
+    const L = spe && TAR.produitsDe(spe.cle, rubriques, produits);
+    if (!L) return res.status(404).send('Spécialité introuvable.');
+    const c = (await store.get('tarifsSpecialites/' + spe.cle)) || {};
+    const f = c.fournisseurId ? await store.get('tarifsFournisseurs/' + c.fournisseurId) : null;
+    const lignes = L.filter(x => !(c.exclus || []).includes(x.slug)).map(x => ({ ...x, quantite: (c.quantites || {})[x.slug] || x.quantite }));
+    await store.set('tarifsSpecialites/' + spe.cle, { ...c, imprimeLe: new Date().toISOString() });
+    audit(req.ctx, 'document tarifs préparé', 'tarifs/' + spe.cle, lignes.length + ' produit(s)');
+    res.set('Cache-Control', 'no-store').set('X-Robots-Tag', 'noindex').type('html').send(TAR.documentHtml({ spe, lignes, fournisseur: f || {}, R: (await store.get('site/reglages')) || {}, duree: c.duree || 12, prepareur: req.ctx.name || '' }));
+  }));
+  A.get('/tarifs/fournisseurs/:id', peut('prix'), wrap(async (req, res) => {
+    const f = await store.get('tarifsFournisseurs/' + req.params.id);
+    if (!f) return res.status(404).json({ error: 'Fiche introuvable.' });
+    const specs = (await store.list('tarifsSpecialites')).filter(d => d.data?.fournisseurId === req.params.id).map(d => d.id);
+    res.set('Cache-Control', 'no-store').json({ ...f, id: req.params.id, specialites: specs });
+  }));
+  A.post('/tarifs/fournisseurs', sameSite, json, peut('prix'), wrap(async (req, res) => {
+    const id = 'f' + rid(8).toLowerCase().replace(/[^a-z0-9]/g, '');
+    const f = { ...TAR.ficheFournisseur(req.body), id, scans: [], createdAt: new Date().toISOString(), par: req.ctx.name };
+    if (!f.entreprise && !f.nom) return res.status(400).json({ error: 'Indiquez au moins le nom de l’entreprise ou le nom du contact.' });
+    await store.set('tarifsFournisseurs/' + id, f);
+    audit(req.ctx, 'fiche fournisseur créée', 'tarifsFournisseurs/' + id, TAR.libelleFournisseur(f));
+    res.json({ ok: true, fournisseur: f });
+  }));
+  A.put('/tarifs/fournisseurs/:id', sameSite, json, peut('prix'), wrap(async (req, res) => {
+    const avant = await store.get('tarifsFournisseurs/' + req.params.id);
+    if (!avant) return res.status(404).json({ error: 'Fiche introuvable.' });
+    const f = { ...TAR.ficheFournisseur(req.body, avant), updatedAt: new Date().toISOString() };
+    if (!f.entreprise && !f.nom) return res.status(400).json({ error: 'Indiquez au moins le nom de l’entreprise ou le nom du contact.' });
+    await store.set('tarifsFournisseurs/' + req.params.id, f);
+    audit(req.ctx, 'fiche fournisseur modifiée', 'tarifsFournisseurs/' + req.params.id, TAR.libelleFournisseur(f));
+    res.json({ ok: true, fournisseur: { ...f, id: req.params.id } });
+  }));
+  A.delete('/tarifs/fournisseurs/:id', sameSite, peut('prix'), wrap(async (req, res) => {
+    const f = await store.get('tarifsFournisseurs/' + req.params.id);
+    if (!f) return res.status(404).json({ error: 'Fiche introuvable.' });
+    if ((f.scans || []).length) return res.status(409).json({ error: 'Cette fiche contient des documents signés : retirez-les d’abord si vous voulez vraiment la supprimer.' });
+    await store.delete('tarifsFournisseurs/' + req.params.id);
+    for (const d of await store.list('tarifsSpecialites')) if (d.data?.fournisseurId === req.params.id) await store.set('tarifsSpecialites/' + d.id, { ...d.data, fournisseurId: '' });
+    audit(req.ctx, 'fiche fournisseur supprimée', 'tarifsFournisseurs/' + req.params.id, TAR.libelleFournisseur(f));
+    res.json({ ok: true });
+  }));
+  /* scan du document signé (PDF ou photo, depuis l'ordinateur ou l'iPhone) : rangé dans le dossier du fournisseur, jamais public */
+  const SCAN_EXT = { 'application/pdf': 'pdf', 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/heic': 'heic', 'image/heif': 'heif' };
+  const uploadScan = multer({ storage: multer.memoryStorage(), limits: { fileSize: 30 * 1024 * 1024 } });
+  A.post('/tarifs/fournisseurs/:id/scans', sameSite, peut('prix'), (req, res, next) => uploadScan.single('fichier')(req, res, err => err ? res.status(400).json({ error: err.code === 'LIMIT_FILE_SIZE' ? 'Fichier trop lourd (30 Mo maximum).' : 'Envoi impossible.' }) : next()), wrap(async (req, res) => {
+    const f = await store.get('tarifsFournisseurs/' + req.params.id);
+    if (!f) return res.status(404).json({ error: 'Fiche introuvable.' });
+    const x = req.file; if (!x) return res.status(400).json({ error: 'Aucun fichier.' });
+    const ext = SCAN_EXT[x.mimetype] || (/\.(heic|heif)$/i.test(x.originalname || '') ? 'heic' : '');
+    if (!ext) return res.status(415).json({ error: 'Format non pris en charge : PDF ou photo (JPG, PNG, HEIC).' });
+    const nom = req.params.id + '-' + Date.now().toString(36) + '-' + rid(6).toLowerCase().replace(/[^a-z0-9]/g, '') + '.' + ext;
+    fs.writeFileSync(path.join(priveDir, nom), x.buffer);
+    const spe = cleOk(req.body?.specialite) ? req.body.specialite : '';
+    const scan = { nom, original: String(x.originalname || 'scan.' + ext).slice(0, 120), type: x.mimetype, octets: x.size, at: new Date().toISOString(), par: req.ctx.name || '', specialite: spe, specialiteNom: String(req.body?.specialiteNom || '').slice(0, 80), signeLe: /^\d{4}-\d{2}-\d{2}$/.test(req.body?.signeLe || '') ? req.body.signeLe : '', note: String(req.body?.note || '').slice(0, 300) };
+    await store.set('tarifsFournisseurs/' + req.params.id, { ...f, scans: [scan, ...(f.scans || [])] });
+    audit(req.ctx, 'document signé déposé', 'tarifsFournisseurs/' + req.params.id, scan.original);
+    res.json({ ok: true, scan });
+  }));
+  A.get('/tarifs/fournisseurs/:id/scans/:nom', peut('prix'), wrap(async (req, res) => {
+    const f = await store.get('tarifsFournisseurs/' + req.params.id);
+    const s = (f?.scans || []).find(x => x.nom === req.params.nom);
+    if (!s || !/^[a-z0-9-]+\.[a-z]+$/.test(s.nom)) return res.status(404).send('Document introuvable.');
+    const fic = path.join(priveDir, s.nom);
+    if (!fs.existsSync(fic)) return res.status(404).send('Fichier introuvable sur le serveur.');
+    res.set('Cache-Control', 'private, no-store').set('X-Robots-Tag', 'noindex');
+    if (s.type) res.type(s.type);
+    res.set('Content-Disposition', `${'telecharger' in req.query ? 'attachment' : 'inline'}; filename*=UTF-8''${encodeURIComponent(s.original)}`);
+    res.sendFile(fic);
+  }));
+  A.delete('/tarifs/fournisseurs/:id/scans/:nom', sameSite, peut('prix'), wrap(async (req, res) => {
+    const f = await store.get('tarifsFournisseurs/' + req.params.id);
+    const s = (f?.scans || []).find(x => x.nom === req.params.nom);
+    if (!s) return res.status(404).json({ error: 'Document introuvable.' });
+    await store.set('tarifsFournisseurs/' + req.params.id, { ...f, scans: f.scans.filter(x => x.nom !== s.nom) });
+    try { fs.renameSync(path.join(priveDir, s.nom), path.join(priveDir, 'retire-' + s.nom)); } catch { /* */ }
+    audit(req.ctx, 'document signé retiré', 'tarifsFournisseurs/' + req.params.id, s.original);
+    res.json({ ok: true });
+  }));
+
   app.use('/api/admin', A);
 
   /* back-office (application d'une seule page) */

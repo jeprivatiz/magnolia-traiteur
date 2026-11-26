@@ -453,8 +453,8 @@ body { background: var(--bo-bg); }
 .side .tabs .chip.crm-sub { display: none; }
 .side .tabs.crm-open .chip.crm-sub { display: flex; background: var(--bo-tint); border-radius: 0; padding-left: 30px; font-size: 13.5px; }
 .side .tabs.crm-open .chip.crm-sub.on { background: var(--bo-green); border-radius: 10px; }
-.side .tabs.crm-open .chip.crm-sub[data-tab=statistiques] { border-radius: 0 0 10px 10px; margin-bottom: 8px; }
-.side .tabs.crm-open .chip.crm-sub[data-tab=statistiques].on { border-radius: 10px; }
+.side .tabs.crm-open .chip.crm-sub[data-tab=tarifs] { border-radius: 0 0 10px 10px; margin-bottom: 8px; }
+.side .tabs.crm-open .chip.crm-sub[data-tab=tarifs].on { border-radius: 10px; }
 .me { border-top: 1px solid var(--bo-line); }
 .me span small, .me .lnk { color: var(--bo-soft); }
 .me a { color: var(--bo-gold); }
@@ -1877,3 +1877,62 @@ small.cl-src { display: block; }
 .src-l li:last-child { border-bottom: 0; }
 .src-add { gap: 8px; margin-bottom: 12px; }
 .src-add input { flex: 1; min-width: 0; }
+/* ---------- Validation tarifs (Jean-Luc, 2026-11-26) ---------- */
+.vt-intro { max-width: 860px; }
+.vt-box h2 { display: flex; align-items: center; gap: 10px; }
+.vt-n { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--vert); color: #fff; font: 600 .85rem var(--sans); flex: none; }
+.vt-box select[data-vtspe], .vt-frow select { max-width: 560px; font-size: 1rem; background: var(--doux); border: 1px solid var(--ligne); }
+.vt-der { margin: 8px 0 0; }
+.vt-frow { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.vt-frow select { flex: 1 1 320px; }
+.vt-note { margin-top: 10px; }
+.vt-new { margin-top: 14px; padding: 16px; border: 1px dashed var(--or); border-radius: var(--r); background: color-mix(in srgb, var(--or) 7%, var(--carte)); }
+.vt-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+.vt-bar #vtNb { margin-right: auto; }
+.vt-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); gap: 8px; }
+.vt-sec { grid-column: 1 / -1; font: 600 .78rem var(--sans); text-transform: uppercase; letter-spacing: .1em; color: var(--or); margin: 10px 0 0; }
+.vt-p { display: grid; grid-template-columns: auto 56px minmax(0, 1fr) 150px; gap: 10px; align-items: center; padding: 8px 10px; border: 1px solid var(--ligne); border-radius: 12px; background: var(--doux); transition: opacity .15s; }
+.vt-p.off { opacity: .45; background: transparent; }
+.vt-p.off .vt-t { text-decoration: line-through; }
+.vt-ck { margin: 0; display: grid; place-items: center; padding: 6px; cursor: pointer; }
+.vt-ck input { width: 22px; height: 22px; }
+.vt-p img, .vt-noph { width: 56px; height: 56px; object-fit: cover; border-radius: 9px; background: var(--ligne); display: block; }
+.vt-t { font-weight: 500; font-size: .92rem; line-height: 1.25; color: var(--texte); }
+.vt-q { margin: 0; font-size: .7rem; }
+.vt-q input { padding: 6px 8px; font-size: .85rem; min-height: 0; background: var(--carte); }
+.vt-act { flex-wrap: wrap; }
+.vt-duree { margin: 0; display: flex; align-items: center; gap: 8px; }
+.vt-duree select { width: auto; margin: 0; }
+.btn.vt-or { background: linear-gradient(135deg, #c9a56b, #b08a4f); border-color: #b08a4f; color: #1d3b2f; font-weight: 600; }
+.btn.vt-or:hover { background: #c9a56b; }
+.btn.vt-or:disabled { opacity: .5; cursor: not-allowed; }
+.vt-drop { margin: 6px 0 16px; }
+.vt-zone { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 22px 16px; border: 2px dashed var(--or); border-radius: var(--r); background: color-mix(in srgb, var(--or) 8%, var(--carte)); cursor: pointer; text-align: center; color: var(--texte); font-size: 1rem; }
+.vt-zone.sur, .vt-zone:hover { background: color-mix(in srgb, var(--or) 16%, var(--carte)); }
+.vt-zone.ok { border-style: solid; border-color: var(--vert-ok); }
+.vt-zi { font-size: 1.6rem; color: var(--or); }
+.vt-zone small { color: var(--gris); font-weight: 400; }
+.vt-scans { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.vt-scan { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px; border: 1px solid var(--ligne); border-radius: 12px; background: var(--doux); }
+.vt-scan img, .vt-pdf { width: 64px; height: 80px; object-fit: cover; border-radius: 6px; display: grid; place-items: center; background: #b4412f; color: #fff; font-weight: 700; text-decoration: none; border: 1px solid var(--ligne); }
+.vt-scan img { background: #fff; }
+.vt-st { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.vt-st small { font-size: .8rem; color: var(--gris); }
+.vt-st small.vt-sn { color: var(--texte); }
+.vt-sa { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.vt-vide { margin: 0; }
+@media (max-width: 640px) {
+  .vt-p { grid-template-columns: auto 48px minmax(0, 1fr); }
+  .vt-p img, .vt-noph { width: 48px; height: 48px; }
+  .vt-q { grid-column: 2 / -1; }
+  .vt-scan { grid-template-columns: 56px minmax(0, 1fr); }
+  .vt-sa { grid-column: 1 / -1; justify-content: flex-start; }
+}
+.side .tabs .chip[data-tab="tarifs"]{--ico:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 3h9l4 4v14H6z'/%3E%3Cpath d='M15 3v4h4'/%3E%3Cpath d='M9 12h7M9 15.5h4'/%3E%3Cpath d='M9 19l1.5 1.5L13 18'/%3E%3C/svg%3E")}
+@media (max-width: 640px) {
+  .vt-act { gap: 8px; padding-top: 8px; padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+  .vt-act .btn.vt-or { flex: 1; padding: 8px 12px; min-height: 40px; font-size: .9rem; }
+  .vt-duree { font-size: .75rem; }
+  .vt-duree select { padding: 6px 8px; min-height: 0; }
+  #vtInfo { width: 100%; margin: 0; font-size: .75rem; }
+}
