@@ -140,8 +140,8 @@ function documentHtml({ spe, lignes, fournisseur = {}, R = {}, duree = 12, prepa
   const P = pagination(lignes.length);
   const L = P.ligne, photo = Math.max(8, Math.min(22, L - 2));
   const fs = L >= 18 ? 10 : L >= 14 ? 9 : 8.4;
-  const ligneHtml = (x, i) => `<tr style="height:${L}mm"><td class="no">${i + 1}</td><td class="ph">${x.photo ? `<img src="${esc(x.photo)}" alt="" style="width:${photo}mm;height:${photo}mm">` : `<span class="noph" style="width:${photo}mm;height:${photo}mm"></span>`}</td><td class="nm"><b>${esc(x.titre)}</b>${x.sectionNom && L >= 14 ? `<small>${esc(x.sectionNom.replace(/ à l’unité$/, ''))}</small>` : ''}</td><td class="qt">${esc(x.quantite)}</td><td class="px"><span>€ TTC</span></td><td class="ob"></td></tr>`;
-  const thead = `<thead><tr style="height:${MM.th}mm"><th class="no">N°</th><th class="ph">Photo</th><th class="nm">Produit</th><th class="qt">Quantité<br><small>(poids, nombre)</small></th><th class="px">Tarif TTC accordé</th><th class="ob">Observation</th></tr></thead>`;
+  const ligneHtml = (x, i) => `<tr style="height:${L}mm"><td class="no">${i + 1}</td><td class="ph">${x.photo ? `<img src="${esc(x.photo)}" alt="" style="width:${photo}mm;height:${photo}mm">` : `<span class="noph" style="width:${photo}mm;height:${photo}mm"></span>`}</td><td class="nm"><b>${esc(x.titre)}</b>${x.sectionNom && L >= 14 ? `<small>${esc(x.sectionNom.replace(/ à l’unité$/, ''))}</small>` : ''}</td><td class="qt"></td><td class="px"><span>€ TTC</span></td><td class="ob"></td></tr>`;
+  const thead = `<thead><tr style="height:${MM.th}mm"><th class="no">N°</th><th class="ph">Photo</th><th class="nm">Produit</th><th class="qt">Quantité du produit<br><small>(poids, nombre)</small></th><th class="px">Tarif TTC accordé à Magnolia Traiteur</th><th class="ob">Observation</th></tr></thead>`;
   const titre = 'TARIFS PRÉFÉRENTIELS ACCORDÉS À MAGNOLIA TRAITEUR';
   const sousTitre = `pour la commercialisation de nos produits sur le site ${esc(www)}`;
   const ref = 'TP-' + String(spe.cle || norm(spe.nom)).split('--').pop().replace(/^buffet-/, '').replace(/[^a-z0-9]+/gi, '-').toUpperCase().slice(0, 16) + '-' + maintenant.toLocaleDateString('sv-SE', { timeZone: 'Europe/Paris' }).replace(/-/g, '');
@@ -158,7 +158,7 @@ function documentHtml({ spe, lignes, fournisseur = {}, R = {}, duree = 12, prepa
     const tete = ip === 0 ? `<header class="t1" style="height:${MM.tete1}mm">
         <div class="tt"><div class="logo">${E.logo ? `<img src="${esc(E.logo)}" alt="">` : '<img src="/brand/monogramme.svg" alt="">'}</div><div class="tx"><h1>${titre}</h1><p class="st">${sousTitre}</p></div><div class="rf"><span>Réf. ${esc(ref)}</span><span>Édité le ${esc(dateLongue(maintenant))}</span></div></div>
         <div class="parties">${partieF}${partieM}</div>
-        <p class="spe">${/^spécialité/i.test(spe.nom) ? '' : 'Spécialité : '}<b>${esc(spe.nom)}</b> · ${lignes.length} produit${lignes.length > 1 ? 's' : ''} · merci d’indiquer pour chaque produit le tarif TTC accordé et, si besoin, une observation.</p></header>`
+        <p class="spe">${/^spécialité/i.test(spe.nom) ? '' : 'Spécialité : '}<b>${esc(spe.nom)}</b> · ${lignes.length} produit${lignes.length > 1 ? 's' : ''} · à compléter : quantité, tarif TTC accordé et, si besoin, une observation.</p></header>`
       : `<header class="tn" style="height:${MM.teteN}mm"><b>${titre}</b><span>${esc(spe.nom)} · ${esc(F.entreprise || nomF || '')} · Réf. ${esc(ref)}</span></header>`;
     return `<section class="pg">${tete}<table style="font-size:${fs}pt">${thead}<tbody>${rows}</tbody></table>${ip === nb - 1 ? fin : ''}
       <footer class="pd" style="height:${MM.pied}mm"><span>Document confidentiel · ${esc(nomM)}</span><span class="par">Paraphes : <i></i> <i></i></span><span>Page ${ip + 1} / ${nb}</span></footer></section>`;
@@ -203,16 +203,16 @@ table { width: 100%; border-collapse: collapse; table-layout: fixed; flex: none;
 th { background: #1d3b2f; color: #fff; font-weight: 500; font-size: 7.6pt; text-align: left; padding: 0 1.6mm; line-height: 1.1; }
 th small { font-weight: 400; opacity: .8; font-size: 6.6pt; }
 td { border: .25mm solid #cfc6b3; padding: .6mm 1.6mm; vertical-align: middle; overflow: hidden; }
-tr:nth-child(even) td.nm, tr:nth-child(even) td.no, tr:nth-child(even) td.qt { background: #faf7f0; }
+tr:nth-child(even) td.nm, tr:nth-child(even) td.no { background: #faf7f0; }
 .no { width: 8mm; text-align: center; color: #888; font-size: 7.4pt; }
 th.no { text-align: center; }
 .ph { width: 24mm; text-align: center; padding: .5mm; }
 .ph img, .noph { object-fit: cover; border-radius: 1.2mm; display: block; margin: 0 auto; background: #eee6d6; }
-.nm { width: 50mm; line-height: 1.15; }
+.nm { width: 46mm; line-height: 1.15; }
 .nm b { font-weight: 500; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .nm small { display: block; color: #8a7a5c; font-size: 6.8pt; margin-top: .4mm; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.qt { width: 27mm; font-size: .9em; line-height: 1.15; }
-.px { width: 27mm; position: relative; }
+.qt { width: 28mm; }
+.px { width: 33mm; position: relative; }
 .px span { position: absolute; right: 1.6mm; bottom: 1mm; font-size: 6.6pt; color: #9a9a90; }
 .ob { width: auto; }
 .fin { flex: none; display: flex; flex-direction: column; margin-top: 2.5mm; overflow: hidden; }
