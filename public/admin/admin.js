@@ -442,6 +442,7 @@
     if (id === 'comparatif') return comparatifTarifs.after();
     $$('tr[data-href]').forEach(tr => tr.addEventListener('click', e => { if (!e.target.closest('a')) location.hash = tr.dataset.href; }));
     const D = VT.data; if (!D) return;
+    if (VT.allerProduits) { VT.allerProduits = false; const P = $('#vtP'); if (P) setTimeout(() => { P.scrollIntoView({ behavior: 'smooth', block: 'start' }); P.classList.add('vt-flash'); setTimeout(() => P.classList.remove('vt-flash'), 2200); }, 60); }
     const exclus = () => $$('[data-vtck]').filter(c => !c.checked).map(c => c.dataset.vtck);
     const habituels = () => Object.fromEntries($$('[data-vthab]').map(i => [i.dataset.vthab, vtCents(i.value)]).filter(([, v]) => v > 0));
     const accordes = () => Object.fromEntries($$('[data-vtacc]').map(i => [i.dataset.vtacc, vtCents(i.value)]).filter(([, v]) => v > 0));
@@ -486,7 +487,7 @@
         const r = await api(A + '/tarifs/fournisseurs', { method: 'POST', body: Object.fromEntries(new FormData(e.target)) });
         await sauver(true);
         await api(A + '/tarifs/specialite/' + VT.spe, { method: 'PUT', body: { fournisseurId: r.fournisseur.id } });
-        toast('Fiche enregistrée et choisie pour cette spécialité.'); render();
+        toast('Fiche enregistrée et choisie : cochez maintenant les produits.'); VT.allerProduits = true; render();
       } catch (err) { toast(err.message, true); }
     });
     $('[data-vtmail]').addEventListener('click', async () => { try { await sauver(true); vtEnvoyerMail(); } catch (err) { toast(err.message, true); } });
@@ -574,8 +575,10 @@
       e.preventDefault();
       try {
         const body = Object.fromEntries(new FormData(e.target));
-        if (id === 'nouveau') { const r = await api(A + '/tarifs/fournisseurs', { method: 'POST', body }); toast('Fiche créée.'); location.hash = '#/tarifs/f/' + r.fournisseur.id; }
-        else { await api(A + '/tarifs/fournisseurs/' + id, { method: 'PUT', body }); toast('Fiche enregistrée.'); VT.liste = null; }
+        /* après l'enregistrement, la fiche se ferme : retour à Validation tarifs, directement sur le choix des produits (Jean-Luc, 2026-11-26) */
+        if (id === 'nouveau') { const r = await api(A + '/tarifs/fournisseurs', { method: 'POST', body }); if (VT.spe) await api(A + '/tarifs/specialite/' + VT.spe, { method: 'PUT', body: { fournisseurId: r.fournisseur.id } }); toast(VT.spe ? 'Fiche créée et choisie : cochez maintenant les produits.' : 'Fiche créée.'); }
+        else { await api(A + '/tarifs/fournisseurs/' + id, { method: 'PUT', body }); toast('Fiche enregistrée.'); }
+        VT.liste = null; VT.allerProduits = true; location.hash = '#/tarifs';
       } catch (err) { toast(err.message, true); }
     });
     $('[data-vtdel]')?.addEventListener('click', async () => {
