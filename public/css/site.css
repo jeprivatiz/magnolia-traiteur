@@ -403,6 +403,10 @@ img[src*="/seafood30/blanc/"] { object-fit: contain !important; background: #fff
 .sous-photo p { margin: 0 0 .3em; }
 .sous-photo p:last-child { margin-bottom: 0; }
 .sous-photo p.sp-vide { height: .9em; margin: 0; }
+.sous-photo ul.sp-puces { margin: .15em 0 .45em; padding-left: 1.35em; }
+.sous-photo ul.sp-puces:last-child { margin-bottom: 0; }
+.sous-photo ul.sp-puces li { margin: 0 0 .2em; padding-left: .15em; }
+.sous-photo ul.sp-puces li::marker { color: var(--or); font-size: 1.15em; }
 .sous-photo strong { font-weight: 600; color: var(--vert); }
 .sous-photo.coupe .sp-txt { max-height: var(--sp-h, 8em); overflow: hidden; -webkit-mask-image: linear-gradient(#000 calc(100% - 2.4em), transparent); mask-image: linear-gradient(#000 calc(100% - 2.4em), transparent); }
 .sp-plus { margin-top: 6px; padding: 0; border: 0; background: none; color: var(--vert); font: inherit; font-weight: 500; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
