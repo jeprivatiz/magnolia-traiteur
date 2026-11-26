@@ -2714,6 +2714,45 @@ async function createApp(opts = {}) {
     const utiles = new Set(lignes.flatMap(l => Object.keys(l.prix)));
     res.set('Cache-Control', 'no-store').json({ specialites: S.filter(s => lignes.some(l => l.spe === s.cle)).map(s => ({ cle: s.cle, nom: s.nom })), fournisseurs: F.filter(f => utiles.has(f.id)).map(f => ({ id: f.id, libelle: TAR.libelleFournisseur(f) })), lignes });
   }));
+  /* Envoi du document par e-mail au fournisseur : lettre à en-tête (texte modifiable) + le document en PDF joint (fabriqué par le navigateur) ; noté dans son dossier */
+  const lettreContexte = async cle => {
+    const { rubriques, produits } = await catalogueBrut();
+    const spe = TAR.specialites(rubriques, produits).find(s => s.cle === cle);
+    if (!spe) return null;
+    const c0 = (await store.get('tarifsSpecialites/' + cle)) || {};
+    const f = c0.fournisseurId ? await store.get('tarifsFournisseurs/' + c0.fournisseurId) : null;
+    return { spe, fid: c0.fournisseurId || '', f: f || {}, R: (await store.get('site/reglages')) || {} };
+  };
+  A.get('/tarifs/specialite/:cle/lettre', peut('prix'), wrap(async (req, res) => {
+    const x = cleOk(req.params.cle) && await lettreContexte(req.params.cle);
+    if (!x) return res.status(404).json({ error: 'Spécialité introuvable.' });
+    res.set('Cache-Control', 'no-store').json({ ...TAR.lettreDefaut({ fournisseur: x.f, spe: x.spe, R: x.R, expediteur: req.ctx.name }), fournisseur: x.fid ? TAR.libelleFournisseur(x.f) : '', envois: (x.f.envois || []).filter(e => e.specialite === req.params.cle).slice(-3) });
+  }));
+  A.post('/tarifs/specialite/:cle/envoyer', sameSite, express.json({ limit: '25mb' }), peut('prix'), wrap(async (req, res) => {
+    const x = cleOk(req.params.cle) && await lettreContexte(req.params.cle);
+    if (!x) return res.status(404).json({ error: 'Spécialité introuvable.' });
+    const b = req.body || {};
+    const texte = String(b.texte || '').slice(0, 6000);
+    const html = TAR.lettreHtml({ texte, R: x.R, fournisseur: x.f, expediteur: req.ctx.name, siteUrl: SITE });
+    if (b.apercu) return res.json({ ok: true, html });
+    const to = String(b.to || '').trim().toLowerCase();
+    if (!isEmail(to)) return res.status(400).json({ error: 'Indiquez l’adresse e-mail du fournisseur.' });
+    if (!texte.trim()) return res.status(400).json({ error: 'La lettre est vide.' });
+    const pdf = String(b.pdf || '');
+    if (!pdf.startsWith('JVBER')) return res.status(400).json({ error: 'Le document PDF n’a pas pu être préparé : réessayez.' });
+    const objet = String(b.objet || '').trim().slice(0, 200) || 'Grille de tarifs préférentiels à compléter';
+    const E = x.R.entreprise || {};
+    const nomFichier = 'tarifs-preferentiels-magnolia-' + slugify(x.spe.nom) + '.pdf';
+    const r = await brevo.sendEmail({ to, name: [x.f.prenom, x.f.nom].filter(Boolean).join(' ') || x.f.entreprise || '', replyTo: E.email || x.R.email, subject: objet, html, text: texte, attachment: [{ name: nomFichier, content: pdf }] });
+    if (r?.error || r?.skipped) return res.status(502).json({ error: 'L’e-mail n’est pas parti : ' + (r.error || r.skipped) });
+    if (x.fid) {
+      const f = (await store.get('tarifsFournisseurs/' + x.fid)) || x.f;
+      const envoi = { at: new Date().toISOString(), specialite: x.spe.cle, specialiteNom: x.spe.nom, to, objet, par: req.ctx.name || '', test: !brevo.live };
+      await store.set('tarifsFournisseurs/' + x.fid, { ...f, email: f.email || to, envois: [...(f.envois || []), envoi].slice(-100) });
+    }
+    audit(req.ctx, 'grille de tarifs envoyée par e-mail', 'tarifs/' + x.spe.cle, to);
+    res.json({ ok: true, live: !!brevo.live });
+  }));
   /* le document A4 : enregistre la date d'impression et sert une page autonome (Imprimer / Enregistrer en PDF) */
   A.get('/tarifs/document/:cle', peut('prix'), wrap(async (req, res) => {
     if (!cleOk(req.params.cle)) return res.status(400).send('Spécialité inconnue.');

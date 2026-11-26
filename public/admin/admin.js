@@ -411,7 +411,7 @@
       <section class="box vt-box"><h2><span class="vt-n">1</span> Spécialité</h2>${selSpe}${VT.data?.choix.imprimeLe ? `<p class="muted sm vt-der">Dernier document préparé le ${dateFr(VT.data.choix.imprimeLe, { day: 'numeric', month: 'long', year: 'numeric' })}.</p>` : ''}</section>
       <section class="box vt-box" id="vtF">${vtBlocFournisseur()}</section>
       <section class="box vt-box" id="vtP">${vtBlocProduits()}</section>
-      <div class="actions sticky vt-act"><label class="vt-duree">Tarifs garantis<select data-vtduree>${L.durees.map(d => `<option value="${d}"${(VT.data?.choix.duree || 6) === d ? ' selected' : ''}>${d} mois</option>`).join('')}</select></label><button type="button" class="btn vt-or" data-vtdoc>🖨 Préparer le document A4</button><span class="muted sm" id="vtInfo"></span></div>
+      <div class="actions sticky vt-act"><label class="vt-duree">Tarifs garantis<select data-vtduree>${L.durees.map(d => `<option value="${d}"${(VT.data?.choix.duree || 6) === d ? ' selected' : ''}>${d} mois</option>`).join('')}</select></label><button type="button" class="btn vt-or" data-vtdoc>🖨 Préparer le document A4</button><button type="button" class="btn" data-vtmail>✉ Envoyer par e-mail</button><span class="muted sm" id="vtInfo"></span></div>
       <section class="box vt-box"><h2>📁 Fiches fournisseurs</h2>${fiches}</section>`);
   }
   function vtBlocFournisseur() {
@@ -446,7 +446,7 @@
     const habituels = () => Object.fromEntries($$('[data-vthab]').map(i => [i.dataset.vthab, vtCents(i.value)]).filter(([, v]) => v > 0));
     const accordes = () => Object.fromEntries($$('[data-vtacc]').map(i => [i.dataset.vtacc, vtCents(i.value)]).filter(([, v]) => v > 0));
     const quantites = () => Object.fromEntries($$('[data-vtq]').map(i => [i.dataset.vtq, i.value.trim()]).filter(([k, v]) => v && v !== D.produits.find(p => p.slug === k)?.quantiteDefaut));
-    const compte = () => { const n = $$('[data-vtck]').filter(c => c.checked).length, p = vtPages(n); $('#vtNb').innerHTML = `<b>${n}</b> produit${n > 1 ? 's' : ''} sur ${D.produits.length} dans le tableau`; $('#vtInfo').textContent = n ? `${n} produit${n > 1 ? 's' : ''} · ${p === 1 ? 'tient sur 1 page A4' : p + ' pages A4, numérotées'}` : 'Cochez au moins un produit.'; $('[data-vtdoc]').disabled = !n; };
+    const compte = () => { const n = $$('[data-vtck]').filter(c => c.checked).length, p = vtPages(n); $('#vtNb').innerHTML = `<b>${n}</b> produit${n > 1 ? 's' : ''} sur ${D.produits.length} dans le tableau`; $('[data-vtmail]').disabled = !n; $('#vtInfo').textContent = n ? `${n} produit${n > 1 ? 's' : ''} · ${p === 1 ? 'tient sur 1 page A4' : p + ' pages A4, numérotées'}` : 'Cochez au moins un produit.'; $('[data-vtdoc]').disabled = !n; };
     let t = null;
     const sauver = (immediat) => { clearTimeout(t); const go = () => api(A + '/tarifs/specialite/' + VT.spe, { method: 'PUT', body: { fournisseurId: D.choix.fournisseurId, exclus: exclus(), quantites: quantites(), habituels: habituels(), accordes: accordes(), duree: +$('[data-vtduree]').value } }); if (immediat) return go(); t = setTimeout(() => go().catch(e => toast(e.message, true)), 500); };
     compte();
@@ -489,6 +489,7 @@
         toast('Fiche enregistrée et choisie pour cette spécialité.'); render();
       } catch (err) { toast(err.message, true); }
     });
+    $('[data-vtmail]').addEventListener('click', async () => { try { await sauver(true); vtEnvoyerMail(); } catch (err) { toast(err.message, true); } });
     $('[data-vtdoc]').addEventListener('click', async () => {
       const w = window.open('about:blank', '_blank'); // ouvert tout de suite, sinon Safari bloque la fenêtre
       try { await sauver(true); const url = `${A}/tarifs/document/${VT.spe}?t=${Date.now()}`; if (w) w.location = url; else location.href = url; }
@@ -496,6 +497,37 @@
     });
   };
 
+  /* Envoi de la grille par e-mail (Jean-Luc, 2026-11-26) : lettre à en-tête modifiable + aperçu ; le PDF est fabriqué ici, depuis le document A4 lui-même */
+  async function vtEnvoyerMail() {
+    const L = await api(A + '/tarifs/specialite/' + VT.spe + '/lettre');
+    const m = document.createElement('div'); m.className = 'modal df-modal'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-modal', 'true');
+    const deja = (L.envois || []).map(e => `Déjà envoyé le ${dateFr(e.at, { day: 'numeric', month: 'long', year: 'numeric' })} à ${esc(e.to)}${e.par ? ' par ' + esc(e.par) : ''}`).join('<br>');
+    m.innerHTML = `<div class="modal-in vt-mail"><div class="bh"><h2>✉ Envoyer la grille par e-mail</h2><button type="button" class="x" data-x aria-label="Fermer">×</button></div>
+      <p class="muted sm">${L.fournisseur ? `Pour <b>${esc(L.fournisseur)}</b>. ` : ''}Le document A4 de cette spécialité part en <b>pièce jointe (PDF)</b>. Le fournisseur vous répond avec la grille signée : déposez-la ensuite dans son dossier.${deja ? `<br><span class="vt-deja">${deja}</span>` : ''}</p>
+      <div class="vt-mg"><form class="vt-mf"><label>À (e-mail du fournisseur)<input type="email" name="to" value="${esc(L.to)}" required placeholder="contact@fournisseur.fr"></label><label>Objet<input name="objet" value="${esc(L.objet)}" maxlength="200"></label><label>Lettre<textarea name="texte" rows="16">${esc(L.texte)}</textarea></label><p class="muted sm">Votre nom, ${esc(L.signature)}, et les coordonnées de Magnolia sont ajoutés en signature.</p>
+      <div class="row"><button class="btn vt-or" data-vtgo>✉ Envoyer avec la grille en PDF</button><button type="button" class="btn ghost" data-x>Annuler</button></div><p class="muted sm" data-vtst></p></form>
+      <div class="vt-ap"><span class="muted sm">Aperçu de l’e-mail</span><iframe title="Aperçu de l’e-mail" data-vtap></iframe></div></div></div>`;
+    document.body.appendChild(m);
+    const f = m.querySelector('form'), st = m.querySelector('[data-vtst]');
+    const fermer = () => m.parentNode && m.parentNode.removeChild(m);
+    let t = null;
+    const apercu = async () => { try { const r = await api(A + '/tarifs/specialite/' + VT.spe + '/envoyer', { method: 'POST', body: { apercu: true, texte: f.texte.value } }); m.querySelector('[data-vtap]').srcdoc = r.html; } catch (e) { /* l'aperçu n'empêche rien */ } };
+    apercu(); f.texte.addEventListener('input', () => { clearTimeout(t); t = setTimeout(apercu, 500); });
+    m.addEventListener('click', e => { if (e.target === m || e.target.closest('[data-x]')) fermer(); });
+    f.addEventListener('submit', async e => {
+      e.preventDefault(); const b = f.querySelector('[data-vtgo]'); b.disabled = true;
+      const ifr = document.createElement('iframe'); ifr.className = 'vt-pdfgen'; ifr.setAttribute('aria-hidden', 'true');
+      try {
+        st.textContent = 'Préparation du PDF (quelques secondes)…';
+        await new Promise((ok, ko) => { ifr.onload = ok; ifr.onerror = ko; ifr.src = `${A}/tarifs/document/${VT.spe}?pdf=1&t=${Date.now()}`; document.body.appendChild(ifr); });
+        const pdf = await ifr.contentWindow.versPdf();
+        st.textContent = 'Envoi de l’e-mail…';
+        const r = await api(A + '/tarifs/specialite/' + VT.spe + '/envoyer', { method: 'POST', body: { to: f.to.value.trim(), objet: f.objet.value, texte: f.texte.value, pdf } });
+        fermer(); toast(r.live ? `E-mail envoyé à ${f.to.value.trim()}, avec la grille en PDF.` : 'Mode essai : e-mail préparé mais pas envoyé (Brevo non branché ici).');
+      } catch (err) { st.textContent = ''; toast(err.message, true); b.disabled = false; }
+      finally { ifr.remove(); }
+    });
+  }
   /* Comparatif des tarifs (Jean-Luc, 2026-11-26) : les fournisseurs d'un même produit côte à côte, le moins cher en vert */
   async function comparatifTarifs() {
     const C = await api(A + '/tarifs/comparatif'); VT.comp = C;
@@ -533,6 +565,7 @@
           <div class="g3"><label>Spécialité<select name="specialite">${L.specialites.map(s => `<option value="${esc(s.cle)}"${(f.specialites || [])[0] === s.cle ? ' selected' : ''}>${esc(s.nom)}</option>`).join('')}<option value="">Autre document</option></select></label><label>Signé le<input type="date" name="signeLe" value="${new Date().toLocaleDateString('sv-SE')}"></label><label>Note <small class="muted">(facultatif)</small><input name="note" maxlength="300" placeholder="ex. remise 5 % au-delà de 100 pièces"></label></div>
           <button class="btn vt-or" disabled data-vtenv>📎 Enregistrer dans le dossier</button></form>
         ${scans ? `<ul class="vt-scans">${scans}</ul>` : '<p class="muted vt-vide">Aucun document signé pour le moment.</p>'}
+        ${(f.envois || []).length ? `<h3 class="vt-h3">✉ Grilles envoyées par e-mail</h3><ul class="vt-envois">${f.envois.slice().reverse().map(e => `<li><b>${esc(e.specialiteNom || nomSpe(e.specialite) || '')}</b> · le ${dateFr(e.at, { day: 'numeric', month: 'long', year: 'numeric' })} à ${esc(e.to)}${e.par ? ' par ' + esc(e.par) : ''}${e.test ? ' <span class="muted sm">(essai)</span>' : ''}</li>`).join('')}</ul>` : ''}
       </section>
       <section class="box vt-box"><h2>Coordonnées</h2><form id="vtFf">${formFournisseur(f, L.profils)}<div class="row"><button class="btn">Enregistrer la fiche</button><button type="button" class="btn ghost danger" data-vtdel>Supprimer la fiche</button></div></form></section>`);
   }

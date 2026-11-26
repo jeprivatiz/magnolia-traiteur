@@ -85,6 +85,17 @@ test('Validation tarifs : fiche fournisseur, choix, document, scan privé', asyn
     await req('/api/admin/tarifs/specialite/' + spe.cle, { method: 'PUT', body: { fournisseurId: f.id } });
     assert.equal((await req('/api/admin/tarifs/specialite/' + spe.cle)).j.produits[1].habituelCents, 1250, 'la grille du premier est intacte');
 
+    /* envoi par e-mail : lettre à en-tête + PDF joint, noté dans le dossier */
+    const le = (await req('/api/admin/tarifs/specialite/' + spe.cle + '/lettre')).j;
+    assert.match(le.texte, /Suite à notre conversation téléphonique/); assert.match(le.texte, /groupes/);
+    const ap = (await req('/api/admin/tarifs/specialite/' + spe.cle + '/envoyer', { method: 'POST', body: { apercu: true, texte: 'Bonjour,\n\nLigne essai' } })).j;
+    assert.match(ap.html, /Ligne essai/); assert.match(ap.html, /Pièce jointe/);
+    assert.equal((await req('/api/admin/tarifs/specialite/' + spe.cle + '/envoyer', { method: 'POST', body: { to: 'pas-un-mail', texte: 'x', pdf: 'JVBERi0x' } })).status, 400);
+    assert.equal((await req('/api/admin/tarifs/specialite/' + spe.cle + '/envoyer', { method: 'POST', body: { to: 'a@b.fr', texte: 'x', pdf: 'pas un pdf' } })).status, 400);
+    assert.equal((await req('/api/admin/tarifs/specialite/' + spe.cle + '/envoyer', { method: 'POST', body: { to: 'four@essai.fr', objet: 'Grille', texte: 'Bonjour', pdf: Buffer.from('%PDF-1.3 essai').toString('base64') } })).status, 200);
+    const fe = (await req('/api/admin/tarifs/fournisseurs/' + f.id)).j;
+    assert.equal(fe.envois.length, 1); assert.equal(fe.envois[0].to, 'four@essai.fr'); assert.equal(fe.email, 'four@essai.fr', 'e-mail retenu sur la fiche');
+
     /* scan signé : déposé dans le dossier, servi seulement à l'équipe */
     const fd = new FormData();
     fd.append('fichier', new Blob(['%PDF-1.4 essai'], { type: 'application/pdf' }), 'tableau-signe.pdf');

@@ -26,7 +26,9 @@ function createBrevo({ env = process.env, store, log = console } = {}) {
   async function record(kind, payload, result) {
     try {
       const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-      await store?.set('_outbox/' + id, { kind, at: new Date().toISOString(), live, payload, result });
+      /* une grosse pièce jointe (PDF) n'est pas recopiée dans le journal : seulement son nom et sa taille */
+      const p = payload?.attachment ? { ...payload, attachment: payload.attachment.map(x => String(x.content || '').length > 50000 ? { name: x.name, content: '[' + Math.round(String(x.content).length * 0.75 / 1024) + ' Ko]' } : x) } : payload;
+      await store?.set('_outbox/' + id, { kind, at: new Date().toISOString(), live, payload: p, result });
     } catch { /* le journal ne doit jamais bloquer un envoi */ }
   }
 
