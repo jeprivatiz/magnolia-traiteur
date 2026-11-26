@@ -1043,8 +1043,8 @@ async function createApp(opts = {}) {
     const items = cl.map(({ id, data: c }) => ({
       c: { ...c, id, journal: undefined, canal: SRC.canalClient(c) }, id, nb: nbDem.get(id) || 0, lie: lies.has(id) || (c.journal || []).length > 0,
       importe: c.source === 'import CRM', last: String(c.derniereActivite || ''), verrou: lies.has(id),
-      /* « Clients » (Jean-Luc, 2026-11-26) : ont commandé (devis signé, facture ou ancien CRM) en leur nom, sans entreprise */
-      acheteur: (commande.has(id) || Number(c.caCrmCents) > 0) && !c.entrepriseId && !String(c.societe || '').trim(),
+      /* « Clients » (Jean-Luc, 2026-11-26) : toutes les personnes sans entreprise renseignée, qu'elles aient commandé ou non */
+      acheteur: !c.entrepriseId && !String(c.societe || '').trim(),
       hay: sansAcc(texteFiche(c) + ' ' + (extra.get(id) || '')),
       tels: [c.tel, c.telE164, c.telAutre].map(telK).filter(Boolean),
       k: critereClient(c),
