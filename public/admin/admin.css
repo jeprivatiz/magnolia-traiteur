@@ -1964,3 +1964,11 @@ small.cl-src { display: block; }
 .vt-imp textarea { width: 100%; margin: 6px 0 10px; font: .9rem var(--sans); }
 .vt-ok { color: var(--vert-ok); font-weight: 600; margin: 10px 0 4px; }
 .vt-imp textarea.vt-drop { outline: 2px dashed var(--or); background: color-mix(in srgb, var(--or) 10%, var(--carte)); }
+.cl-vue-txt { margin: -4px 0 12px; }
+
+.cl-th button { background: none; border: 0; padding: 2px 4px; margin: -2px -4px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; font: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit; border-radius: 6px; }
+.cl-th button:hover { background: var(--bo-tint, #eef2ef); color: var(--bo-green, #1F3D36); }
+.cl-th button:focus-visible { outline: 2px solid #c9a56b; }
+.cl-fl { font-size: 9px; opacity: .35; letter-spacing: -1px; }
+.cl-th.on { color: var(--bo-green, #1F3D36); }
+.cl-th.on .cl-fl { opacity: 1; color: #a8813f; font-size: 10px; }

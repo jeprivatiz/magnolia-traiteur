@@ -80,3 +80,42 @@ test('entreprises : reprise des Sociétés, liens, renommage, détacher, supprim
     const c1 = (await call('/api/admin/clients/' + n1)).j; assert.equal(c1.nom, 'Paul DURAND'); assert.equal(c1.societe, ''); assert.ok(!c1.entrepriseId);
   } finally { srv.close(); await app.locals.store?.close?.(); }
 });
+
+test('vue « Clients » : ont commandé en leur nom, sans entreprise', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mg-'));
+  fs.writeFileSync(path.join(dir, 'db.clients.json'), JSON.stringify({
+    'clients/c_a': { data: { id: 'c_a', nom: 'Anne PETIT', email: 'a@x.test' }, updatedAt: 1 },
+    'clients/c_b': { data: { id: 'c_b', nom: 'Paul DURAND', societe: 'Banque Dupont', email: 'b@x.test' }, updatedAt: 1 },
+    'clients/c_c': { data: { id: 'c_c', nom: 'Claire MARTIN', email: 'c@x.test' }, updatedAt: 1 },
+    'clients/c_d': { data: { id: 'c_d', nom: 'Marc LEROY', email: 'd@x.test', caCrmCents: 120000 }, updatedAt: 1 },
+  }));
+  fs.writeFileSync(path.join(dir, 'db.json'), JSON.stringify({
+    'devis/d1': { data: { numero: 'D1', clientId: 'c_a', statut: 'accepte', lignes: [] }, updatedAt: 1 },
+    'devis/d2': { data: { numero: 'D2', clientId: 'c_b', statut: 'accepte', lignes: [] }, updatedAt: 1 },
+    'devis/d3': { data: { numero: 'D3', clientId: 'c_c', statut: 'envoye', lignes: [] }, updatedAt: 1 },
+  }));
+  delete require.cache[require.resolve('../server/index')];
+  const { createApp } = require('../server/index');
+  const app = await createApp({ env: { DB_FILE: path.join(dir, 'db.json'), UPLOAD_DIR: path.join(dir, 'up'), ADMIN_EMAIL: 'chef@magnolia.test', ADMIN_PASSWORD: 'mot-de-passe-essai', BREVO_API_KEY: '', DB_HOST: '', ANTHROPIC_API_KEY: '' }, noTimers: true, log: { log() {}, warn() {}, error() {}, info() {} } });
+  const srv = app.listen(0);
+  const base = 'http://127.0.0.1:' + srv.address().port;
+  let cookie = '';
+  const call = async (u, { method = 'GET', body } = {}) => {
+    const r = await fetch(base + u, { method, headers: { 'content-type': 'application/json', 'x-mg': '1', cookie }, body: body ? JSON.stringify(body) : undefined });
+    const sc = r.headers.get('set-cookie'); if (sc) cookie = sc.split(';')[0];
+    const t = await r.text(); let j; try { j = JSON.parse(t); } catch { j = t; }
+    return { status: r.status, j };
+  };
+  try {
+    assert.equal((await call('/api/auth/login', { method: 'POST', body: { email: 'chef@magnolia.test', password: 'mot-de-passe-essai' } })).status, 200);
+    const r = (await call('/api/admin/clients?par=50&page=1&vue=clients&q=')).j;
+    assert.deepEqual(r.items.map(c => c.id).sort(), ['c_a', 'c_d']);
+    assert.equal(r.acheteurs, 2); assert.equal(r.tous, 4);
+    /* tri par colonne sur toute la liste */
+    const noms = async (tri, sens) => (await call(`/api/admin/clients?par=50&page=1&tri=${tri}&sens=${sens}&q=`)).j.items.map(c => c.nom);
+    assert.deepEqual(await noms('nom', 'asc'), ['Anne PETIT', 'Claire MARTIN', 'Marc LEROY', 'Paul DURAND']);
+    assert.deepEqual(await noms('nom', 'desc'), ['Paul DURAND', 'Marc LEROY', 'Claire MARTIN', 'Anne PETIT']);
+    assert.equal((await noms('societe', 'asc'))[0], 'Paul DURAND', 'les sociétés vides vont à la fin');
+    assert.equal((await noms('societe', 'desc'))[0], 'Paul DURAND');
+  } finally { srv.close(); await app.locals.store?.close?.(); }
+});
