@@ -29,6 +29,17 @@
     return j;
   }
   const A = '/api/admin';
+  /* temps passé sur le back-office (estimation) : un signe par minute tant qu'on s'en sert,
+     c'est-à-dire onglet visible ET un geste (clic, frappe, défilement) dans les 5 dernières minutes */
+  let dernierGeste = Date.now(), dernierSigne = 0;
+  const signeDeVie = () => {
+    if (typeof session === 'undefined' || !session || document.hidden || Date.now() - dernierGeste > 5 * 60e3 || Date.now() - dernierSigne < 50e3) return;
+    dernierSigne = Date.now();
+    fetch(A + '/actions/presence', { method: 'POST', headers: { 'x-mg': '1' } }).catch(() => {});
+  };
+  for (const ev of ['pointerdown', 'keydown', 'wheel', 'touchstart', 'scroll', 'mousemove']) addEventListener(ev, () => { dernierGeste = Date.now(); signeDeVie(); }, { passive: true, capture: true });
+  setInterval(signeDeVie, 60e3);
+  document.addEventListener('visibilitychange', signeDeVie);
   /* cases « Titre / Description dans Google » (rubrique, spécialité, produit) + « ✨ Proposer avec l'IA » */
   const seoN = (v, max) => `${String(v || '').length} / ${max} caractères`;
   function seoBloc(type, titre, desc, attrs = '', sousRow = false) {
@@ -4058,9 +4069,59 @@
     const sec = b.closest('[data-pli]'), ferme = !sec.classList.contains('ferme');
     sec.classList.toggle('ferme', ferme); b.setAttribute('aria-expanded', String(!ferme)); mem.set('mg_pli_' + sec.dataset.pli, ferme ? '1' : '0');
   });
+  /* Journal d'activité : filtre par personne, par jour ou de date à date, et temps passé (Jean-Luc, 2026-11-26) */
+  const jrnF = { qui: '', du: '', au: '' };
+  const jourIci = (d = new Date()) => d.toLocaleDateString('sv-SE', { timeZone: 'Europe/Paris' });
+  const decale = n => { const d = new Date(); d.setDate(d.getDate() + n); return jourIci(d); };
+  const PERIODES = {
+    jour: () => [jourIci(), jourIci()], hier: () => [decale(-1), decale(-1)], sept: () => [decale(-6), jourIci()],
+    mois: () => [jourIci().slice(0, 8) + '01', jourIci()],
+    moisP: () => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1); const deb = jourIci(d); const f = new Date(); f.setDate(0); return [deb, jourIci(f)]; },
+    tout: () => ['', ''],
+  };
+  const PER_NOMS = { jour: 'Aujourd’hui', hier: 'Hier', sept: '7 derniers jours', mois: 'Ce mois-ci', moisP: 'Le mois dernier', tout: 'Tout' };
+  const duree = mn => !mn ? '—' : mn < 60 ? mn + ' min' : Math.floor(mn / 60) + ' h ' + String(mn % 60).padStart(2, '0');
+  const journalFiltres = j => {
+    const actif = Object.keys(PERIODES).find(k => { const [a, b] = PERIODES[k](); return a === jrnF.du && b === jrnF.au; });
+    return `<div class="jrn-f" id="jrnF"><label>Personne<select data-jq><option value="">Toute l’équipe</option>${j.personnes.map(p => `<option value="${esc(p.cle)}"${p.cle === jrnF.qui ? ' selected' : ''}>${esc(p.who || 'Sans nom')}</option>`).join('')}</select></label>
+      <label>Du<input type="date" data-jdu value="${esc(jrnF.du)}"></label><label>Au<input type="date" data-jau value="${esc(jrnF.au)}"></label>
+      <div class="jrn-per">${Object.keys(PERIODES).map(k => `<button type="button" class="chip-mod${k === actif ? ' on' : ''}" data-jper="${k}">${PER_NOMS[k]}</button>`).join('')}</div></div>`;
+  };
+  const journalRes = j => {
+    const lst = j.personnes.filter(p => (p.minutes || p.actions) && (!jrnF.qui || p.cle === jrnF.qui));
+    const tot = lst.reduce((s, p) => s + p.minutes, 0);
+    const depuis = j.depuis ? dateFr(j.depuis, { day: 'numeric', month: 'long', year: 'numeric' }) : 'aujourd’hui';
+    const periode = !j.du && !j.au ? 'depuis le début' : j.du === j.au ? 'le ' + dateFr(j.du, { weekday: 'long', day: 'numeric', month: 'long' }) : (j.du ? 'du ' + dateFr(j.du) : 'jusqu’') + (j.au ? (j.du ? ' au ' : 'au ') + dateFr(j.au) : ' à aujourd’hui');
+    let jour = '';
+    const lignes = j.lignes.map(l => { const d = jourIci(new Date(l.at)); const tete = d !== jour ? `<li class="jrn-jour">${esc(dateFr(d, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }))}</li>` : ''; jour = d; return tete + `<li><time>${new Date(l.at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</time> <b>${esc(l.who)}</b> ${esc(l.op)} <small>${esc(l.resume || l.path)}</small></li>`; }).join('');
+    return `<div class="jrn-temps"><h3>⏱ Temps passé sur le back-office <small class="muted">${esc(periode)}</small></h3>
+      ${lst.length ? `<table class="jrn-tab"><thead><tr><th>Personne</th><th>Temps</th><th>Jours</th><th>Actions</th></tr></thead><tbody>${lst.map(p => `<tr data-jqui="${esc(p.cle)}"${p.cle === jrnF.qui ? ' class="on"' : ''}><td><b>${esc(p.who || 'Sans nom')}</b></td><td class="jrn-h">${duree(p.minutes)}</td><td>${p.jours || '—'}</td><td>${p.actions || '—'}</td></tr>`).join('')}</tbody>${lst.length > 1 ? `<tfoot><tr><td>Total</td><td class="jrn-h">${duree(tot)}</td><td></td><td>${lst.reduce((s, p) => s + p.actions, 0)}</td></tr></tfoot>` : ''}</table>` : '<p class="muted sm">Personne n’a utilisé le back-office sur cette période.</p>'}
+      <p class="muted sm">C’est une estimation : le temps compte quand la personne se sert du back-office (clic, frappe, défilement) avec la page affichée à l’écran ; après 5 minutes sans aucun geste, le compteur s’arrête. Compté depuis le ${esc(depuis)} (avant, ce n’était pas enregistré).</p></div>
+      <h3 class="jrn-nb">${j.nb} action${j.nb > 1 ? 's' : ''}${j.nb > j.lignes.length ? ` <small class="muted">(les ${j.lignes.length} plus récentes affichées)</small>` : ''}</h3>
+      <ul class="journal">${lignes || '<li class="muted">Aucune action sur cette période.</li>'}</ul>`;
+  };
+  const rechargerJournal = async () => {
+    try {
+      const j = await api(A + '/actions/journal?' + new URLSearchParams(jrnF));
+      const f = $('#jrnF'); if (f) f.outerHTML = journalFiltres(j);
+      $('#jrnRes').innerHTML = journalRes(j);
+    } catch (err) { toast(err.message, true); }
+  };
+  document.addEventListener('change', e => {
+    if (!e.target.closest?.('#jrnF')) return;
+    if (e.target.matches('[data-jq]')) jrnF.qui = e.target.value;
+    else if (e.target.matches('[data-jdu]')) { jrnF.du = e.target.value; if (jrnF.du && (!jrnF.au || jrnF.au < jrnF.du)) jrnF.au = jrnF.du; }
+    else if (e.target.matches('[data-jau]')) { jrnF.au = e.target.value; if (jrnF.au && jrnF.du > jrnF.au) jrnF.du = jrnF.au; }
+    else return;
+    rechargerJournal();
+  });
+  document.addEventListener('click', e => {
+    const b = e.target.closest?.('[data-jper]'); if (b) { [jrnF.du, jrnF.au] = PERIODES[b.dataset.jper](); rechargerJournal(); return; }
+    const t = e.target.closest?.('[data-jqui]'); if (t) { jrnF.qui = jrnF.qui === t.dataset.jqui ? '' : t.dataset.jqui; rechargerJournal(); }
+  });
   async function equipe() {
     const gere = peut('equipe');
-    const [users, conf, j, env, R] = await Promise.all([api(A + '/actions/equipe'), api(A + '/actions/droits'), gere ? api(A + '/actions/journal') : null, gere ? api(A + '/actions/envois') : null, gere ? api(A + '/site') : null]);
+    const [users, conf, j, env, R] = await Promise.all([api(A + '/actions/equipe'), api(A + '/actions/droits'), gere ? api(A + '/actions/journal?' + new URLSearchParams(jrnF)) : null, gere ? api(A + '/actions/envois') : null, gere ? api(A + '/site') : null]);
     cache.droitsConf = conf; cache.equipeUsers = users;
     const DR = conf.droits;
     const moi = users.find(u => u.email === session.email);
@@ -4095,7 +4156,8 @@
       <div class="cols">
       <section class="box"><h2>Mon compte</h2>${moi ? `<p class="eq-res"><b>Vos droits :</b> ${esc(resumeDroits(moi.droits, DR))}</p>` : ''}
         <form id="pw"><h3>Mon mot de passe</h3><div class="g2"><label>Actuel<input type="password" name="current" required></label><label>Nouveau (10 caractères min.)<input type="password" name="password" minlength="10" required></label></div><button class="btn ghost">Changer</button></form></section>
-      ${gere ? `<section class="box pli${plie('journal') ? ' ferme' : ''}" data-pli="journal"><h2><button type="button" class="pli-btn" data-plibtn aria-expanded="${!plie('journal')}"><span class="pli-fl" aria-hidden="true">▼</span>Journal d’activité <span class="pill ${j.intact ? 'd-accepte' : 'd-refuse'}">${j.intact ? 'intact' : 'ALTÉRÉ'}</span><small class="pli-nb">${j.total} action${j.total > 1 ? 's' : ''}</small></button></h2><div class="pli-corps"><p class="muted sm">Chaque action est enregistrée et chaînée : une modification du journal se verrait.</p><ul class="journal">${j.lignes.map(l => `<li><time>${dateH(l.at)}</time> <b>${esc(l.who)}</b> ${esc(l.op)} <small>${esc(l.resume || l.path)}</small></li>`).join('')}</ul></div></section>` : ''}</div>
+</div>
+      ${gere ? `<section class="box pli${plie('journal') ? ' ferme' : ''}" data-pli="journal"><h2><button type="button" class="pli-btn" data-plibtn aria-expanded="${!plie('journal')}"><span class="pli-fl" aria-hidden="true">▼</span>Journal d’activité <span class="pill ${j.intact ? 'd-accepte' : 'd-refuse'}">${j.intact ? 'intact' : 'ALTÉRÉ'}</span><small class="pli-nb">${j.total} action${j.total > 1 ? 's' : ''}</small></button></h2><div class="pli-corps"><p class="muted sm">Chaque action est enregistrée et chaînée : une modification du journal se verrait. Les filtres ne font que trier l’affichage, ils ne changent rien au journal.</p>${journalFiltres(j)}<div id="jrnRes">${journalRes(j)}</div></div></section>` : ''}
       ${gere ? `<section class="box"><h2>Alertes de l’équipe</h2><p class="muted sm">Ces personnes sont prévenues à chaque nouvelle demande (e-mail et SMS) et reçoivent le récapitulatif des dossiers sans action depuis 24 h.</p><div id="alp"></div><div class="row"><button type="button" class="btn ghost sm" data-addal>+ Ajouter une personne à prévenir</button><button type="button" class="btn sm" data-saveal>Enregistrer les alertes</button></div></section>
       <section class="box pli${plie('envois') ? ' ferme' : ''}" data-pli="envois"><h2><button type="button" class="pli-btn" data-plibtn aria-expanded="${!plie('envois')}"><span class="pli-fl" aria-hidden="true">▼</span>E-mails et SMS envoyés ${env.live ? '' : '<span class="pill d-envoye">mode test : Brevo non branché</span>'}<small class="pli-nb">${env.envois.length} envoi${env.envois.length > 1 ? 's' : ''}</small></button></h2><div class="pli-corps"><div class="row"><input type="tel" data-testtel placeholder="Portable pour un SMS d’essai (sinon : ceux des alertes)" style="max-width:320px"><button class="btn ghost sm" data-test>Envoyer un essai</button></div><ul class="journal">${env.envois.map(e => `<li><time>${dateH(e.at)}</time> ${e.kind === 'sms' ? 'SMS' : 'E-mail'} → <b>${esc(e.kind === 'sms' ? e.payload.recipient : e.payload.to?.[0]?.email)}</b> <small>${esc(e.kind === 'sms' ? e.payload.content : e.payload.subject)}</small>${e.result?.error ? ` <span class="pill d-refuse">refusé : ${esc(e.result.error)}</span>` : e.live && e.result && e.result !== 'test' ? ' <span class="pill d-accepte">accepté par Brevo</span>' : ''}</li>`).join('') || '<li class="muted">Aucun envoi.</li>'}</ul></div></section>` : ''}`);
   }
