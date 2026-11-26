@@ -85,6 +85,12 @@ test('Validation tarifs : fiche fournisseur, choix, document, scan privé', asyn
     await req('/api/admin/tarifs/specialite/' + spe.cle, { method: 'PUT', body: { fournisseurId: f.id } });
     assert.equal((await req('/api/admin/tarifs/specialite/' + spe.cle)).j.produits[1].habituelCents, 1250, 'la grille du premier est intacte');
 
+    /* spécialités cochées sur la fiche : cocher ouvre une grille, décocher la retire */
+    const autre = L.specialites.find(x => x.cle !== spe.cle).cle;
+    const rs = (await req('/api/admin/tarifs/fournisseurs/' + g.id + '/specialites', { method: 'POST', body: { cles: [autre] } })).j;
+    assert.deepEqual(rs.ajoutees, [autre]); assert.deepEqual(rs.retirees, [spe.cle]);
+    assert.deepEqual((await req('/api/admin/tarifs/fournisseurs/' + g.id)).j.specialites, [autre]);
+
     /* envoi par e-mail : lettre à en-tête + PDF joint, noté dans le dossier */
     const le = (await req('/api/admin/tarifs/specialite/' + spe.cle + '/lettre')).j;
     assert.match(le.texte, /Suite à notre conversation téléphonique/); assert.match(le.texte, /groupes/);
