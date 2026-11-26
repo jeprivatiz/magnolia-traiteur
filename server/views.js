@@ -1,6 +1,7 @@
 'use strict';
 const _fs = require('fs'), _path = require('path');
 const _logos = new Map();
+
 function logoExiste(src) { if (!src) return false; if (!src.startsWith('/site/')) return true; if (!_logos.has(src)) _logos.set(src, _fs.existsSync(_path.join(__dirname, '..', 'public', src))); return _logos.get(src); }
 /* Pages publiques, rendues par le serveur (rapides et bien référencées par Google). */
 const { esc, euros, dateFr, titreHtml, titreTexte, avecPortion } = require('./util');
@@ -29,6 +30,21 @@ const rubHref = r => '/' + r.slug;
 const prodHref = p => '/' + p.rubrique + '/' + p.slug;
 /* effet « vidéo » (zoom lent) sur les photos des grands bandeaux ; 3 mouvements différents selon la page. Réglage : Photos & textes du site */
 const kb = (c, photo, cle = '') => photo && c.reglages?.effetBandeaux !== false ? ` kb kb${[...String(cle)].reduce((n, ch) => n + ch.charCodeAt(0), 0) % 3 + 1}` : '';
+/* « Description sous la photo » : **gras**, lignes « - … » = puces (groupées en une liste), ligne vide = petit espace */
+const PUCE = /^[-•]\s+/;
+function sousPhotoHtml(lignes) {
+  const fort = t => esc(t).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\*\*/g, '');
+  let h = '', puces = [];
+  const ferme = () => { if (puces.length) h += `<ul class="sp-puces">${puces.map(t => `<li>${fort(t)}</li>`).join('')}</ul>`; puces = []; };
+  for (const t of lignes || []) {
+    if (PUCE.test(t)) { puces.push(t.replace(PUCE, '')); continue; }
+    ferme();
+    h += t ? `<p>${fort(t)}</p>` : '<p class="sp-vide" aria-hidden="true"></p>';
+  }
+  ferme();
+  return h;
+}
+
 const img = (src, alt = '', cls = '', attrs = '') => src ? `<img src="${esc(src)}" alt="${esc(alt)}" loading="lazy" decoding="async"${cls ? ` class="${cls}"` : ''} ${attrs}>` : `<div class="noimg ${cls}" aria-hidden="true">${MONO}</div>`;
 
 /* Google Ads : balise chargée seulement si le compte est renseigné, et en mode consentement (rien n'est mesuré avant l'accord du visiteur) */
@@ -614,7 +630,7 @@ function produit(c, p) {
 <section class="wrap fiche">
   ${crumbs([['La boutique', '/boutique'], [r.nom, '/' + r.slug], ...(() => { const x = sousVisibles(c.rubriques.find(y => y.slug === p.rubrique)).find(y => y.slug === p.sous); return x ? [[x.nom, `/${p.rubrique}/${x.slug}`]] : []; })(), [titreTexte(p.titre)]])}
   <div class="fiche-g">
-    <div class="fiche-media">${media}${(p.sousPhoto || []).length ? `<div class="sous-photo" data-sp><div class="sp-txt">${p.sousPhoto.map(t => t ? `<p>${esc(t).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\*\*/g, '')}</p>` : '<p class="sp-vide" aria-hidden="true"></p>').join('')}</div><button type="button" class="sp-plus" data-sp-plus hidden>Voir plus</button></div>` : ''}</div>
+    <div class="fiche-media">${media}${(p.sousPhoto || []).length ? `<div class="sous-photo" data-sp><div class="sp-txt">${sousPhotoHtml(p.sousPhoto)}</div><button type="button" class="sp-plus" data-sp-plus hidden>Voir plus</button></div>` : ''}</div>
     <div class="fiche-info">
       <p class="eyebrow"><a href="/${esc(r.slug)}">${esc(r.nom)}</a></p>
       <h1>${titreHtml(p.titre)}</h1>
@@ -1065,4 +1081,5 @@ function facturePage(c, f, t, { apercu = false } = {}) {
 }
 
 module.exports = {
+  sousPhotoHtml,
   sectionsRub, plateau3dHtml, universListe, RANGEMENTS, pageSpecialites, specialite, sousVisibles, layout, home, boutique, produit, lieux, filtrerLieux, lieu, selection, texte, maison, livraison, commander, temoignages, contact, legal, erreur, espaceConnexion, espace, devisPage, lieuxDuDevis, facturePage, textToHtml, V, BANDEAUX_DEFAUT };

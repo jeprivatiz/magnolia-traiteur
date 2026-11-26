@@ -3536,8 +3536,8 @@
           <fieldset class="span3 aussi"><legend>Aussi dans ces rubriques <small class="muted">(un seul produit, affiché dans plusieurs rubriques : ex. une table dans « Les indispensables » et dans « Mobilier et matériel à la location »)</small></legend>${rubs.filter(r => r.slug !== p.rubrique && r.slug !== 'lieux').map(r => `<label class="chk"><input type="checkbox" name="autresRubriques" value="${esc(r.slug)}"${(p.autresRubriques || []).includes(r.slug) ? ' checked' : ''}> ${esc(r.nom)}</label>`).join(' ')}</fieldset>
           ${(rubs.find(r => r.slug === p.rubrique)?.sous || []).length ? `<label>Spécialité (dans « ${esc(rubs.find(r => r.slug === p.rubrique).nom)} »)<select name="sous"><option value="">Aucune (seulement dans « Tout »)</option>${[...rubs.find(r => r.slug === p.rubrique).sous].sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0)).map(x => `<option value="${esc(x.slug)}"${x.slug === p.sous ? ' selected' : ''}>${esc(x.nom)}</option>`).join('')}</select></label><fieldset class="span3 aussi"><legend>Aussi affichée dans <small class="muted">(un seul produit, plusieurs spécialités : pas de doublon dans la boutique)</small></legend>${[...rubs.find(r => r.slug === p.rubrique).sous].sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0)).map(x => `<label class="chk"><input type="checkbox" name="autresSous" value="${esc(x.slug)}"${(p.autresSous || []).includes(x.slug) ? ' checked' : ''}> ${esc(String(x.nom).split(' · ')[0])}</label>`).join(' ')}</fieldset>` : ''}
           <label>Section sur la page (spécialité ou rubrique en sections)<select name="rangement"><option value="">Automatique (d’après le nom)</option>${[['animations', 'Nos animations'], ['corbeilles', 'Nos corbeilles de fruits'], ['pieces-montees', 'Nos pièces montées'], ['buffets', 'Nos buffets'], ['mezzes-froids', 'Nos mezzés froids à l’unité'], ['mezzes-chauds', 'Nos mezzés chauds à l’unité'], ['entrees', 'Nos entrées à l’unité'], ['plats', 'Nos plats à l’unité'], ['accompagnements', 'Nos accompagnements à l’unité'], ['fromages', 'Nos fromages'], ['desserts', 'Nos desserts à l’unité'], ['divers', 'Produits divers à l’unité'], ['location', 'En location'], ['champagne', 'Notre champagne'], ['eaux', 'Les eaux'], ['sodas', 'Sodas'], ['jus', 'Jus de fruits'], ['vins-rouges', 'Vins rouges'], ['vins-blancs', 'Vins blancs'], ['vins-roses', 'Vin rosé'], ['alcools-forts', 'Alcools forts'], ['bars', 'Open bars & cocktails'], ['accessoires', 'Accessoires'], ['musique-live', 'Musique & DJ'], ['son-lumiere', 'Son, lumière & écrans'], ['spectacles', 'Artistes & spectacles'], ['jeux', 'Jeux & animations'], ['enfants', 'Pour les enfants'], ['souvenirs', 'Photos & souvenirs'], ['arts-table', 'Vaisselle & verres'], ['mobilier', 'Tables, chaises & nappes'], ['materiel', 'Matériel de cuisine']].map(([k, t]) => `<option value="${k}"${p.rangement === k ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
-          <div class="sp-edit"><span class="sp-lab">Description sous la photo <small class="muted">(s’affiche juste sous la photo de la page produit. Au collage, les lignes vides sont retirées ; une ligne vide que vous ajoutez avec Entrée reste visible.)</small></span>
-          <div class="sp-barre"><button type="button" class="btn ghost sm ia-btn" data-sp-ia title="L’IA propose une version enrichie ; relisez puis enregistrez">✨ Améliorer avec l’IA</button><button type="button" class="btn ghost sm" data-gras title="Mettre la sélection en gras (ou l’enlever)"><b>G</b> Gras</button><button type="button" class="btn ghost sm" data-titres-gras title="Met en gras les lignes écrites tout en MAJUSCULES">Titres en MAJUSCULES en gras</button><button type="button" class="btn ghost sm" data-sans-gras title="Retire le gras de la sélection (ou de tout le texte)">Retirer le gras</button></div>
+          <div class="sp-edit"><span class="sp-lab">Description sous la photo <small class="muted">(s’affiche juste sous la photo de la page produit. Au collage, les lignes vides sont retirées ; une ligne vide que vous ajoutez avec Entrée reste visible. « Liste à puces » : une puce par ligne ; Entrée sur une puce vide termine la liste.)</small></span>
+          <div class="sp-barre"><button type="button" class="btn ghost sm ia-btn" data-sp-ia title="L’IA propose une version enrichie ; relisez puis enregistrez">✨ Améliorer avec l’IA</button><button type="button" class="btn ghost sm" data-gras title="Mettre la sélection en gras (ou l’enlever)"><b>G</b> Gras</button><button type="button" class="btn ghost sm" data-puces title="Met les lignes sélectionnées (ou la ligne du curseur) en liste à puces ; recliquez pour l’enlever. Astuce : tapez « - » puis espace en début de ligne."><span class="puce-ico" aria-hidden="true"></span> Liste à puces</button><button type="button" class="btn ghost sm" data-titres-gras title="Met en gras les lignes écrites tout en MAJUSCULES">Titres en MAJUSCULES en gras</button><button type="button" class="btn ghost sm" data-sans-gras title="Retire le gras de la sélection (ou de tout le texte)">Retirer le gras</button></div>
           <div class="sp-zone" contenteditable="true" role="textbox" aria-multiline="true" data-sp-edit data-vide="Ex. NOS MINI PIÈCES puis, à la ligne, pain polaire - saumon fumé - fromage frais"></div>
           <textarea name="sousPhoto" hidden>${esc((p.sousPhoto || []).join('\n'))}</textarea></div>
           <label>Accroche (cartes et Google)<textarea name="extrait" rows="2">${esc(p.extrait || '')}</textarea></label>
@@ -3699,7 +3699,9 @@
     {
       const ta = $('[name=sousPhoto]', form), ed = $('[data-sp-edit]', form);
       const ligneHtml = t => esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\*\*/g, '');
-      const affiche = l => { ed.innerHTML = l.map(t => `<div>${ligneHtml(t) || '<br>'}</div>`).join(''); ed.classList.toggle('vide', !l.length); };
+      /* une ligne « - … » = une puce (enregistrée « - texte », affichée en vraie puce sur le site) */
+      const PUCE = /^[-•][\s\u00a0]+/;
+      const affiche = l => { ed.innerHTML = l.map(t => PUCE.test(t) ? `<div class="puce">${ligneHtml(t.replace(PUCE, '')) || '<br>'}</div>` : `<div>${ligneHtml(t) || '<br>'}</div>`).join(''); ed.classList.toggle('vide', !l.length); };
       const lit = () => {
         /* copie hors écran : le gras devient **…**, puis innerText donne les lignes comme à l'écran */
         const c = ed.cloneNode(true);
@@ -3708,14 +3710,38 @@
         const w = document.createTreeWalker(c, NodeFilter.SHOW_TEXT), nodes = []; let n;
         while ((n = w.nextNode())) if (n.parentElement.closest('b, strong') && n.nodeValue.trim()) nodes.push(n);
         nodes.forEach(t => { t.nodeValue = '**' + t.nodeValue + '**'; });
+        c.querySelectorAll('.puce').forEach(d => { if (d.textContent.trim()) d.prepend('\uE002'); });
         c.style.cssText = 'position:fixed;left:-99999px;top:0;width:800px;white-space:pre-wrap';
         document.body.append(c); const txt = c.innerText; c.parentNode.removeChild(c);
-        return lignesSousPhoto(txt.replace(/\*\*\*\*/g, '').replace(/\*\*([ \t]+)\*\*/g, '$1').split('\n').map(l => l.replace(/\*\*(\s+)/g, '$1**').replace(/(\s+)\*\*/g, '**$1').replace(/^\*\*\*\*$/, '')).join('\n'));
+        return lignesSousPhoto(txt.replace(/\uE002\s*/g, '\uE002').replace(/\*\*\*\*/g, '').replace(/\*\*([ \t]+)\*\*/g, '$1').split('\n').map(l => l.replace(/\*\*(\s+)/g, '$1**').replace(/(\s+)\*\*/g, '**$1').replace(/^\*\*\*\*$/, '')).join('\n')).map(l => l.replace(/^\uE002\s*/, '- ').replace(/\uE002/g, ''));
       };
       const sync = () => { ta.value = lit().join('\n'); ed.classList.toggle('vide', !ed.textContent.trim()); };
       affiche(lignesSousPhoto(ta.value));
       try { document.execCommand('defaultParagraphSeparator', false, 'div'); } catch {}
-      ed.addEventListener('input', () => { sync(); dirty(); });
+      /* ligne (bloc) où se trouve le curseur */
+      const bloc = () => { const s = getSelection(); if (!s.rangeCount) return null; let n = s.anchorNode; while (n && n.parentNode !== ed) n = n.parentNode; return n && n.nodeType === 1 && ed.contains(n) ? n : null; };
+      ed.addEventListener('input', () => {
+        /* « - » ou « • » puis espace en début de ligne : la ligne devient une puce */
+        const d = bloc();
+        if (d && !d.classList.contains('puce')) {
+          const t = document.createTreeWalker(d, NodeFilter.SHOW_TEXT).nextNode();
+          if (t && /^[-•][ \u00a0]/.test(t.nodeValue) && d.textContent.startsWith(t.nodeValue.slice(0, 2))) {
+            const s = getSelection(), o = s.anchorNode === t ? s.anchorOffset : null;
+            t.nodeValue = t.nodeValue.slice(2); d.classList.add('puce');
+            const r = document.createRange();
+            if (!d.textContent) { d.innerHTML = '<br>'; r.setStart(d, 0); } else r.setStart(t, Math.max(0, (o ?? 2) - 2));
+            r.collapse(true); s.removeAllRanges(); s.addRange(r);
+          }
+        }
+        sync(); dirty();
+      });
+      /* Entrée sur une puce vide = fin de la liste ; Retour arrière au début d'une puce = retire la puce */
+      ed.addEventListener('keydown', e => {
+        if ((e.key !== 'Enter' && e.key !== 'Backspace') || e.shiftKey) return;
+        const d = bloc(), s = getSelection(); if (!d || !d.classList.contains('puce') || !s.isCollapsed) return;
+        const avant = document.createRange(); avant.selectNodeContents(d); avant.setEnd(s.anchorNode, s.anchorOffset);
+        if ((e.key === 'Enter' && !d.textContent.trim()) || (e.key === 'Backspace' && !avant.toString().length)) { e.preventDefault(); d.classList.remove('puce'); sync(); dirty(); }
+      });
       /* « ✨ Améliorer avec l'IA » : texte proposé dans l'éditeur, enregistré seulement avec « Enregistrer » */
       const iaTexte = async (btn, champ, lignes, poser) => {
         const lib = btn.textContent; btn.disabled = true; btn.textContent = '✨ L’IA rédige…';
@@ -3730,9 +3756,35 @@
       ed.addEventListener('paste', e => {
         const txt = e.clipboardData?.getData('text/plain'); if (txt == null) return;
         e.preventDefault();
-        const html = lignesNettes(txt).map(esc).join('<br>');
+        /* puces collées (Word, site…) : « • », « ▪ », « - »… en début de ligne deviennent des puces */
+        const lc = lignesNettes(txt).map(l => l.replace(/^(?:[•·▪●◦‣]\s*|[-–]\s+)/, '- '));
+        const html = lc.map(esc).join('<br>');
         if (!document.execCommand('insertHTML', false, html)) { const sel = getSelection(); if (sel.rangeCount) { const r = sel.getRangeAt(0); r.deleteContents(); r.insertNode(document.createRange().createContextualFragment(html)); } }
+        if (lc.some(l => PUCE.test(l))) { const l = lit(); affiche(l); finLigne(l.length - 1); }
         sync(); dirty();
+      });
+      const finLigne = i => { const d = ed.children[i]; if (!d) return; const r = document.createRange(); r.selectNodeContents(d); r.collapse(false); const s = getSelection(); s.removeAllRanges(); s.addRange(r); ed.focus(); };
+      /* « • Liste à puces » : met (ou enlève) les puces sur les lignes sélectionnées, ou la ligne du curseur */
+      $('[data-puces]', form).addEventListener('click', () => {
+        const s = getSelection();
+        if (!s.rangeCount || !ed.contains(s.anchorNode) || !ed.contains(s.focusNode)) { toast('Cliquez d’abord dans la ligne (ou sélectionnez les lignes) à mettre en liste à puces.', true); return; }
+        const r = s.getRangeAt(0), fin = r.cloneRange(), deb = r.cloneRange(), curseur = r.collapsed;
+        fin.collapse(false); fin.insertNode(document.createTextNode('\uE001'));
+        deb.collapse(true); deb.insertNode(document.createTextNode('\uE000'));
+        const brut = lit(), M = /[\uE000\uE001]/;
+        let a = brut.findIndex(x => M.test(x)), b = brut.length - 1 - [...brut].reverse().findIndex(x => M.test(x));
+        const l = brut.map(x => x.replace(/[\uE000\uE001]/g, '').replace(/^\*\*\*\*$/, ''));
+        if (a < 0) { a = b = l.length; l.push(''); }
+        const pleines = l.slice(a, b + 1).filter(Boolean), oter = pleines.length && pleines.every(x => PUCE.test(x));
+        for (let i = a; i <= b; i++) {
+          if (oter) l[i] = l[i].replace(PUCE, '');
+          else if (!PUCE.test(l[i]) && (l[i] || a === b)) l[i] = '- ' + l[i];
+        }
+        affiche(l); sync(); dirty();
+        /* les mêmes lignes restent sélectionnées (on peut recliquer pour annuler) */
+        const da = ed.children[a], db = ed.children[b];
+        if (curseur) finLigne(b);
+        else if (da && db) { const rr = document.createRange(); rr.setStart(da, 0); rr.setEnd(db, db.childNodes.length); s.removeAllRanges(); s.addRange(rr); ed.focus(); }
       });
       /* les boutons gardent la sélection du texte */
       $$('.sp-barre button', form).forEach(bt => bt.addEventListener('mousedown', e => e.preventDefault()));
