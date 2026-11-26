@@ -74,7 +74,7 @@ function produitsDe(cle, rubriques, produits) {
   const rang = new Map(RANGEMENTS.map(([k], i) => [k, i]));
   return produits.filter(visible)
     .filter(p => sous ? p.rubrique === rub && (p.sous === sous || (p.autresSous || []).includes(sous)) : p.rubrique === rub || (p.autresRubriques || []).includes(rub))
-    .map(p => ({ slug: p.slug, titre: titreTexte(String(p.titre || '').replace(/\*\*/g, '')), photo: photoDe(p), quantite: quantiteDefaut(p), section: rangementDe(p), _o: p.ordre ?? 0 }))
+    .map(p => ({ slug: p.slug, titre: titreTexte(String(p.titre || '').replace(/\*\*/g, '')).replace(/\s*\([^)]*(?:=|portion|pièce)[^)]*\)/gi, '').trim(), photo: photoDe(p), quantite: quantiteDefaut(p), section: rangementDe(p), _o: p.ordre ?? 0 }))
     .sort((a, b) => (rang.get(a.section) ?? 99) - (rang.get(b.section) ?? 99) || a._o - b._o || a.titre.localeCompare(b.titre, 'fr'))
     .map(({ _o, ...x }) => ({ ...x, sectionNom: (RANGEMENTS.find(([k]) => k === x.section) || [, ''])[1] }));
 }
