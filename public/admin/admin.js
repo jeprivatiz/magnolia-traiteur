@@ -1311,7 +1311,11 @@
       <form id="dv" class="${lock ? 'lock' : ''}">
       <div class="cols">
         <section class="box"><h2>Client</h2><label class="dv-clq">Chercher dans tous les clients <small>(dont le fichier importé)</small><input type="search" data-dvclq placeholder="🔍 Nom, téléphone, e-mail, ville…" autocomplete="off"></label><label>Client<select name="clientId"><option value="">— Choisir —</option>${clientsL.sort((a, b) => (a.nom || '').localeCompare(b.nom || '')).map(c => `<option value="${c.id}"${c.id === d.clientId ? ' selected' : ''}>${esc(c.nom)} · ${esc(c.email)}</option>`).join('')}</select></label><label class="src-lab">🧭 Origine du contact <small>(par où le client nous a trouvés)</small>${selSource('canal', canalDe(d))}</label><p class="muted sm"><a href="#/clients/nouveau">+ Nouveau client</a>${d.clientId ? ` · <a href="#/clients/${esc(d.clientId)}">Fiche client</a>` : ''}</p>${(() => { const autres = (cache.tousDevis || []).filter(x => x.clientId && x.clientId === d.clientId && x.id !== d.id); return autres.length ? `<p class="sm"><b>Autres devis de ce client</b></p><ul class="histo">${autres.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).map(x => `<li><a href="#/devis/${x.id}">${esc(x.numero)}</a> · ${euros(tot(x).ttc)} <span class="pill d-${x.statut}">${DSTAT[x.statut]}</span></li>`).join('')}</ul>` : ''; })()}${d.copieDe ? `<p class="muted sm">Copie du devis ${esc(d.copieDe)}.</p>` : ''}${d.inspireDe ? `<p class="muted sm">📂 Préparé à partir de l’ancien devis ${esc(d.inspireDe)}.</p>` : ''}</section>
-        <section class="box"><h2>Événement</h2><div class="g2"><label>Nature de l’événement<input name="ev_type" list="dv-natures" value="${esc(d.evenement?.type || '')}" placeholder="Choisissez ou écrivez" maxlength="80"><datalist id="dv-natures">${[...new Set([...(R0.evenements || []), 'Anniversaire', 'Mariage', 'Baptême', 'Communion', 'Fête de famille', 'Séminaire', 'Soirée d’entreprise', 'Cocktail', 'Repas de fin d’année', 'Pot de départ', 'Inauguration', 'Funérailles'])].map(e => `<option value="${esc(e)}">`).join('')}</datalist></label><label>Date<input type="date" name="ev_date" value="${esc(d.evenement?.date || '')}"></label><label>Nombre de personnes<input type="number" name="ev_invites" value="${esc(d.evenement?.invites || '')}"></label><label>Lieu<input name="ev_lieu" value="${esc(d.evenement?.lieu || '')}"></label></div></section>
+        <section class="box"><h2>Événement</h2><div class="g2"><label>Nature de l’événement<input name="ev_type" list="dv-natures" value="${esc(d.evenement?.type || '')}" placeholder="Choisissez ou écrivez" maxlength="80"><datalist id="dv-natures">${[...new Set([...(R0.evenements || []), 'Anniversaire', 'Mariage', 'Baptême', 'Communion', 'Fête de famille', 'Séminaire', 'Soirée d’entreprise', 'Cocktail', 'Repas de fin d’année', 'Pot de départ', 'Inauguration', 'Funérailles'])].map(e => `<option value="${esc(e)}">`).join('')}</datalist></label><label>Date<input type="date" name="ev_date" value="${esc(d.evenement?.date || '')}"></label><label>Nombre de personnes<input type="number" name="ev_invites" value="${esc(d.evenement?.invites || '')}"></label><label>Lieu <small class="muted">(salle, nom du lieu)</small><input name="ev_lieu" value="${esc(d.evenement?.lieu || '')}"></label></div>
+          <div class="dv-liv"><div class="hc-th"><p class="pf-l">🚚 Livraison</p>${lock ? '' : '<button type="button" class="lnk" data-dvlivcl>↺ Reprendre la fiche client</button>'}</div>
+          <label>Adresse de livraison<textarea name="ev_adresse" rows="2">${esc(d.evenement?.adresse || '')}</textarea></label><div class="g2"><label>Code postal<input name="ev_cp" value="${esc(d.evenement?.cp || '')}" inputmode="numeric" maxlength="5"></label><label>Ville<input name="ev_ville" value="${esc(d.evenement?.ville || '')}"></label></div><label>🕐 Horaire de livraison<input name="ev_horaire" value="${esc(d.evenement?.horaire || '')}" list="dvH" placeholder="ex. 18 h 30" autocomplete="off"><datalist id="dvH">${LIV_HORAIRES.map(h => `<option value="${esc(h)}">`).join('')}</datalist></label>
+          <label>📦 Infos pour les livreurs <small class="muted">(🔒 jamais montrées au client)</small><textarea name="ev_livreurs" rows="3" placeholder="Étage, ascenseur, digicode, stationnement… (repris de la fiche client)">${esc(d.evenement?.livreurs || '')}</textarea></label>
+          ${lock ? '' : '<div class="row"><button type="button" class="btn ghost sm" data-dvkm>🚚 Calculer les frais de livraison</button><span class="muted sm" data-dvkmmsg></span></div>'}</div></section>
         <section class="box"><h2>Conditions</h2><div class="g2"><label>Valable jusqu’au<input type="date" name="validiteJusquau" value="${esc(d.validiteJusquau || '')}"></label><label>Acompte<select name="acomptePct"><option value="">Automatique</option>${[0, 20, 30, 40, 50, 100].map(p => `<option value="${p}"${d.acomptePct != null && d.acomptePct !== '' && +d.acomptePct === p ? ' selected' : ''}>${p} % (forcé)</option>`).join('')}</select></label></div><p class="muted sm">Automatique : totalité à la signature sous ${euros(R0.tarifs?.seuilAcompteCents ?? 80000)} TTC ou si l’événement a lieu dans moins de ${R0.tarifs?.delaiDeuxFoisJours ?? 10} jours ; sinon acompte de ${R0.tarifs?.acomptePct ?? 50} %.</p>
           ${(() => { const P = (R0.alertes?.personnes || []).filter(x => x.nom); const cur = d.commercial?.nom || (P.find(x => x.email && x.email === session.email) || P[0] || {}).nom || ''; const L = [...P]; if (d.commercial?.nom && !P.some(x => x.nom === d.commercial.nom)) L.unshift(d.commercial); return `<label>Commercial (nom et téléphone sur le devis)<select name="commercial"><option value="">— Aucun —</option>${L.map(x => `<option value="${esc(x.nom)}"${x.nom === cur ? ' selected' : ''}>${esc(x.nom)}${x.tel ? ' · ' + esc(x.tel) : ''}</option>`).join('')}</select></label><p class="muted sm">La liste vient de <a href="#/equipe">Équipe &amp; activité</a> › Alertes de l’équipe (nom, portable, e-mail).</p>`; })()}
           <label>Lien de paiement de l’acompte <small>(SumUp, Stripe, banque…)</small><input name="lienPaiement" value="${esc(d.lienPaiement || '')}" placeholder="https://"></label></section>
@@ -1446,6 +1450,44 @@
     form.ev_date.addEventListener('change', draw);
     $('[data-addline]').addEventListener('click', () => { lignes.push({ designation: 'Nouvelle ligne', qte: 1, unite: 'forfait', puCents: 0, coutCents: null, tva: 10 }); draw(); dirty(); });
     $('[data-addtitle]').addEventListener('click', () => { lignes.push({ type: 'titre', designation: 'Section' }); draw(); dirty(); });
+    /* 🚚 adresse et horaire de livraison : repris de la fiche client (cases vides seulement, ou toutes avec le bouton) */
+    const livClient = async (tout) => {
+      const cid = form.elements.clientId.value; if (!cid) { if (tout) toast('Choisissez d’abord le client.', true); return; }
+      let c; try { c = await api(A + '/clients/' + cid); } catch { return; }
+      const a = adresseLivraison(c), info = infosLivreurs(c.livraison), val = { ev_adresse: a.adresse, ev_cp: a.cp, ev_ville: a.ville, ev_horaire: a.horaire, ev_livreurs: info };
+      if (!Object.values(val).some(Boolean)) { if (tout) toast('La fiche de ce client n’a pas encore d’adresse de livraison.', true); return; }
+      let n = 0; for (const [k, v] of Object.entries(val)) if (v && (tout || !form.elements[k].value.trim()) && form.elements[k].value !== v) { form.elements[k].value = v; n++; }
+      if (n) { dirty(); if (tout) toast('Adresse et horaire de livraison repris de la fiche client.'); }
+    };
+    $('[data-dvlivcl]')?.addEventListener('click', () => livClient(true));
+    form.elements.clientId.addEventListener('change', () => livClient(false));
+    if (!form.classList.contains('lock') && d.statut === 'brouillon' && d.clientId && !form.elements.ev_adresse.value && !form.elements.ev_cp.value) livClient(false);
+    /* 🚚 frais de livraison : distance aller-retour depuis Magnolia (centre de la commune), prix du km selon les paliers */
+    $('[data-dvkm]')?.addEventListener('click', async () => {
+      const msg = $('[data-dvkmmsg]'), cp = form.elements.ev_cp.value.replace(/\D/g, ''), ville = form.elements.ev_ville.value.trim();
+      if (cp.length !== 5) { msg.textContent = 'Indiquez le code postal de livraison.'; return; }
+      const T = cache.R?.tarifs || {}, L = window.MGLivr, O = cache.R?.origine?.lat ? cache.R.origine : { lat: 48.692674, lon: 2.212317 };
+      const vrais = lignes.filter(l => l.type !== 'titre'), ex = vrais.find(estLivraison);
+      if (ex && !peut('admin')) { msg.textContent = '🔒 Il y a déjà une ligne de livraison : seul un administrateur peut la changer.'; return; }
+      if (L && L.horsZone(cp)) {
+        if (!vrais.some(l => /hors Île-de-France/i.test(l.designation || ''))) { lignes.push({ designation: 'Livraison hors Île-de-France (sur consultation)', detail: `${ville} · tarif à préciser par l’équipe`, qte: 1, unite: 'forfait', puCents: 0, coutCents: null, tva: 20 }); draw(); dirty(); }
+        msg.textContent = 'Hors Île-de-France : tarif à proposer au client (ligne ajoutée à 0 €).'; return;
+      }
+      msg.textContent = 'Calcul de la distance…';
+      let communes = []; try { communes = await fetch(`https://geo.api.gouv.fr/communes?codePostal=${cp}&fields=nom,centre&format=json`).then(x => x.json()); } catch { }
+      const sans = t => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z]/g, '');
+      const v = communes.find(x => sans(x.nom) === sans(ville)) || communes[0], ctr = v?.centre?.coordinates;
+      if (!ctr) { msg.textContent = 'Commune introuvable pour ce code postal.'; return; }
+      if (!ville) form.elements.ev_ville.value = v.nom;
+      const r = x => x * Math.PI / 180, lat = ctr[1], lon = ctr[0];
+      const km = Math.max(10, Math.round(2 * 6371 * Math.asin(Math.sqrt(Math.sin(r(lat - O.lat) / 2) ** 2 + Math.cos(r(O.lat)) * Math.cos(r(lat)) * Math.sin(r(lon - O.lon) / 2) ** 2)) * 1.3 * 2));
+      const horsLiv = vrais.filter(l => !estLivraison(l)).reduce((t, l) => t + Math.round((l.puCents || 0) * (+l.qte || 0)), 0);
+      const pu = L ? L.kmCents(T, horsLiv) : 100, cout = L ? L.coutKmCents(T) : 100, base = Math.max(pu, cout), remisePct = base > pu ? Math.round(1000 * (1 - pu / base)) / 10 : 0;
+      const ligne = { designation: pu === 0 ? 'Livraison et reprise (offerte)' : 'Livraison et reprise', detail: `${v.nom} · ${km} km aller-retour${pu === 0 ? '' : remisePct ? ' · remise selon le montant de la commande' : ''}`, qte: km, unite: 'km', puCents: pu, coutCents: cout, tva: 20, livraison: true, ...(remisePct ? { puBaseCents: base, remisePct } : {}) };
+      if (ex) Object.keys(ex).forEach(k => delete ex[k]), Object.assign(ex, ligne); else lignes.push(ligne);
+      draw(); dirty();
+      msg.textContent = `≈ ${km} km aller-retour × ${euros(pu)} = ${euros(km * pu)} TTC${ex ? ' (ligne mise à jour)' : ' (ligne ajoutée)'}.`;
+    });
     $('[data-addprod]').addEventListener('change', e => {
       const lv = (cache.lieuxDevis || []).find(x => 'lieu-' + x.slug === e.target.value);
       if (lv) { const pr = /(\d[\d\s]*)/.exec(String(lv.prixTexte || '').replace(/\u202f/g, ' ')); lignes.push({ designation: 'Privatisation · ' + lv.nom, detail: [lv.ville, lv.capacite ? 'jusqu’à ' + lv.capacite + ' personnes' : ''].filter(Boolean).join(' · '), qte: 1, unite: 'forfait', puCents: pr ? +pr[1].replace(/\s/g, '') * 100 : 0, coutCents: null, tva: 20, produit: 'lieu-' + lv.slug }); e.target.value = ''; draw(); dirty(); toast('Lieu ajouté : ses 3 photos apparaîtront sur le devis du client.'); return; }
@@ -1540,7 +1582,7 @@
     const enregistrer = async () => {
       const f = Object.fromEntries(new FormData(form));
       const cl = cache.clients.find(c => c.id === f.clientId);
-      const next = { ...d, clientId: f.clientId || null, clientNom: cl?.nom || '', canal: f.canal === NOUV_SRC ? (d.canal || '') : (f.canal || ''), evenement: { type: f.ev_type, date: f.ev_date, invites: +f.ev_invites || null, lieu: f.ev_lieu }, validiteJusquau: f.validiteJusquau, titre: String(f.titre || '').trim(), acomptePct: f.acomptePct === '' ? null : +f.acomptePct, commercial: (() => { const x = [...(cache.R?.alertes?.personnes || []), d.commercial || {}].find(p => p.nom && p.nom === f.commercial); return x ? { nom: x.nom, tel: x.tel || '', email: x.email || '' } : null; })(), lienPaiement: f.lienPaiement, intro: f.intro, conditions: f.conditions, remiseCents: remiseCts(), remisePct: form.remiseMode.value === 'pct' && nombre(f.remise) ? Math.min(100, nombre(f.remise)) : null, lignes };
+      const next = { ...d, clientId: f.clientId || null, clientNom: cl?.nom || '', canal: f.canal === NOUV_SRC ? (d.canal || '') : (f.canal || ''), evenement: { ...(d.evenement || {}), type: f.ev_type, date: f.ev_date, invites: +f.ev_invites || null, lieu: f.ev_lieu, adresse: String(f.ev_adresse || '').trim(), cp: String(f.ev_cp || '').replace(/\D/g, '').slice(0, 5), ville: String(f.ev_ville || '').trim(), horaire: String(f.ev_horaire || '').trim(), livreurs: String(f.ev_livreurs || '').trim() }, validiteJusquau: f.validiteJusquau, titre: String(f.titre || '').trim(), acomptePct: f.acomptePct === '' ? null : +f.acomptePct, commercial: (() => { const x = [...(cache.R?.alertes?.personnes || []), d.commercial || {}].find(p => p.nom && p.nom === f.commercial); return x ? { nom: x.nom, tel: x.tel || '', email: x.email || '' } : null; })(), lienPaiement: f.lienPaiement, intro: f.intro, conditions: f.conditions, remiseCents: remiseCts(), remisePct: form.remiseMode.value === 'pct' && nombre(f.remise) ? Math.min(100, nombre(f.remise)) : null, lignes };
       await api(`${A}/devis/${id}`, { method: 'PUT', body: next }); cache.devis = next; $('#dirty').textContent = '';
     };
     form.addEventListener('submit', async e => {
@@ -2390,6 +2432,7 @@
           <ol class="hc-list" id="hcList">${friseClient(h.events)}</ol></section>
         <div class="hc-side">
           <section class="box hc-rqbox"><div class="hc-th"><h2>🔒 Remarque</h2><span class="muted sm">visible seulement par l’équipe</span></div><textarea rows="4" data-rq placeholder="Ex. : client exigeant sur la ponctualité, préfère le vin rouge, code portail 1234…">${esc(c.notes || '')}</textarea><div class="row"><button type="button" class="btn sm" data-rqsave>Enregistrer la remarque</button><span class="muted sm" data-rqok></span></div><p class="muted sm">Jamais montrée au client : ni sur le site, ni sur les devis, ni dans les e-mails ou SMS.</p></section>
+          ${boxLivraison(c)}
           ${boxProfil(c)}
           <section class="box hc-rdvs"><div class="hc-th"><h2>Appels et visios</h2><button type="button" class="lnk" data-hrdv>+ Programmer</button></div>${listeRdv(h.rdv || [])}</section>
           <section class="box"><h2>Devis</h2>${h.devis.length ? `<ul class="list">${[...h.devis].sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).map(x => `<li><a href="#/devis/${x.id}"><b>${esc(x.numero)}</b> · ${euros(x.ttcCents)}<small class="muted"> ${esc([x.evenement?.type, x.evenement?.date ? dateFr(x.evenement.date) : ''].filter(Boolean).join(' · '))}</small></a><span class="pill d-${x.statut}">${DSTAT[x.statut]}</span></li>`).join('')}</ul>` : '<p class="muted">Aucun devis.</p>'}</section>
@@ -2404,21 +2447,22 @@
     const puce = t => `<span class="pf-p">${esc(t)}</span>`;
     const lignes = [];
     if (c.nePasContacter) lignes.push('<p class="pf-npc">⛔ NE PAS CONTACTER <small>(aucun e-mail ni SMS d’information)</small></p>');
-    if (aProfil(c)) lignes.push(`<div class="pf-g"><p class="pf-t">🎭 Prestataire</p>${(c.metiers || []).length ? `<div class="pf-ps">${c.metiers.map(puce).join('')}</div>` : ''}<p class="sm">${[c.independant ? '✓ Indépendant(e)' : '', c.permis ? '🚗 Permis de conduire' : '', c.remuneration ? '💶 Rémunération : ' + esc(c.remuneration) : ''].filter(Boolean).join(' · ')}</p></div>`);
-    if (aDj(c)) lignes.push(`<div class="pf-g"><p class="pf-t">🎧 DJ</p>${(c.djStyles || []).length ? `<div class="pf-ps">${c.djStyles.map(puce).join('')}</div>` : ''}<p class="sm">${[c.djDepuis ? 'DJ depuis ' + esc(c.djDepuis) : '', c.djTarifs ? 'Tarifs : ' + esc(c.djTarifs) + ' €' : ''].filter(Boolean).join(' · ')}</p></div>`);
+    const presta = genreDe(c) === 'prestataire';
+    if (presta && aProfil(c)) lignes.push(`<div class="pf-g"><p class="pf-t">🎭 Prestataire</p>${(c.metiers || []).length ? `<div class="pf-ps">${c.metiers.map(puce).join('')}</div>` : ''}<p class="sm">${[c.independant ? '✓ Indépendant(e)' : '', c.permis ? '🚗 Permis de conduire' : '', c.remuneration ? '💶 Rémunération : ' + esc(c.remuneration) : ''].filter(Boolean).join(' · ')}</p></div>`);
+    if (presta && aDj(c)) lignes.push(`<div class="pf-g"><p class="pf-t">🎧 DJ</p>${(c.djStyles || []).length ? `<div class="pf-ps">${c.djStyles.map(puce).join('')}</div>` : ''}<p class="sm">${[c.djDepuis ? 'DJ depuis ' + esc(c.djDepuis) : '', c.djTarifs ? 'Tarifs : ' + esc(c.djTarifs) + ' €' : ''].filter(Boolean).join(' · ')}</p></div>`);
     if (canalDe(c) || c.contactDe || c.siteWeb || c.pays || c.civilite) lignes.push(`<div class="pf-g"><p class="pf-t">🤝 Origine</p><p class="sm">${[canalDe(c) ? 'Origine : <b>' + esc(canalDe(c)) + '</b>' : '', c.civilite ? (c.civilite === 'Mme' ? 'Madame' : 'Monsieur') : '', c.contactDe ? 'Contact de <b>' + esc(c.contactDe) + '</b>' : '', c.pays ? esc(c.pays) : '', c.siteWeb ? `<a href="${esc(/^https?:/i.test(c.siteWeb) ? c.siteWeb : 'https://' + c.siteWeb)}" target="_blank" rel="noopener">${esc(String(c.siteWeb).replace(/^https?:\/\/(www\.)?/i, '').replace(/\/$/, ''))} ↗</a>` : ''].filter(Boolean).join(' · ')}</p></div>`);
     return `<section class="box pf-box"><div class="hc-th"><h2>Profil</h2><button type="button" class="lnk" data-hedit>✏ Compléter</button></div>${lignes.join('') || '<p class="muted sm">Métiers, DJ, « contact de »… : rien de renseigné. « Compléter » pour les ajouter.</p>'}</section>`;
   }
   function casesProfil(c) {
     const D = cache.profilDef || { metiers: [], djStyles: [], contactDe: [] };
     const coches = (nom, base, choisis) => { const l = [...base, ...(choisis || []).filter(x => !base.includes(x))]; return `<div class="pf-cases">${l.map(x => `<label class="pf-c"><input type="checkbox" name="${nom}" value="${esc(x)}"${(choisis || []).includes(x) ? ' checked' : ''}><span>${esc(x)}</span></label>`).join('')}</div>`; };
-    return `<details class="pf-d"${aProfil(c) ? ' open' : ''}><summary>🎭 Profil prestataire / talent <small class="muted">(serveur, barman, DJ, magicien…)</small></summary>
+    return `<div class="pf-presta"${genreDe(c) === 'prestataire' ? '' : ' hidden'}><details class="pf-d"${aProfil(c) ? ' open' : ''}><summary>🎭 Profil prestataire / talent <small class="muted">(serveur, barman, DJ, magicien…)</small></summary>
         <p class="pf-l">Métiers</p>${coches('_metiers', D.metiers, c.metiers)}
         <div class="g2"><label class="check"><input type="checkbox" name="independant"${c.independant ? ' checked' : ''}> Indépendant(e) <small class="muted">(auto-entrepreneur…)</small></label><label class="check"><input type="checkbox" name="permis"${c.permis ? ' checked' : ''}> A le permis de conduire</label></div>
         <label>Rémunération demandée<input name="remuneration" value="${esc(c.remuneration || '')}" placeholder="ex. 15 € de l’heure, 130 € la soirée"></label></details>
       <details class="pf-d"${aDj(c) ? ' open' : ''}><summary>🎧 DJ <small class="muted">(styles, expérience, tarifs)</small></summary>
         <p class="pf-l">Styles de musique</p>${coches('_djStyles', D.djStyles, c.djStyles)}
-        <div class="g2"><label>DJ depuis <small class="muted">(année)</small><input name="djDepuis" value="${esc(c.djDepuis || '')}" inputmode="numeric" maxlength="4" placeholder="ex. 2015"></label><label>Tarifs <small class="muted">(€ la soirée)</small><input name="djTarifs" value="${esc(c.djTarifs || '')}" placeholder="ex. 250, 300"></label></div></details>
+        <div class="g2"><label>DJ depuis <small class="muted">(année)</small><input name="djDepuis" value="${esc(c.djDepuis || '')}" inputmode="numeric" maxlength="4" placeholder="ex. 2015"></label><label>Tarifs <small class="muted">(€ la soirée)</small><input name="djTarifs" value="${esc(c.djTarifs || '')}" placeholder="ex. 250, 300"></label></div></details></div>
       <details class="pf-d" open><summary>🤝 Origine du contact <small class="muted">(source, qui nous l’a apporté)</small></summary>
         <div class="g2"><label>🧭 Source <small class="muted">(par où il nous a trouvés : Site, Bouche à oreille, 1001 salles…)</small>${selSource('canal', canalDe(c))}</label></div>
         <div class="g2"><label>Contact de <small class="muted">(qui nous l’a apporté)</small><input name="contactDe" value="${esc(c.contactDe || '')}" list="pfCde" autocomplete="off"><datalist id="pfCde">${D.contactDe.map(x => `<option value="${esc(x)}">`).join('')}</datalist></label><label>Site internet<input name="siteWeb" value="${esc(c.siteWeb || '')}" placeholder="www…"></label></div>
@@ -2429,6 +2473,14 @@
     const fd = new FormData(form), f = Object.fromEntries(fd);
     f.metiers = fd.getAll('_metiers'); f.djStyles = fd.getAll('_djStyles'); delete f._metiers; delete f._djStyles;
     if (f.canal === NOUV_SRC) f.canal = c0.canal || '';
+    /* livraison : les cases « liv_… » forment la fiche de livraison */
+    if ('liv_horaire' in f) {
+      const lv = { identique: !!f.liv_identique, acces: fd.getAll('_liv_acces') };
+      for (const k of ['adresse', 'cp', 'ville', 'horaire', 'logement', 'niveau', 'etage', 'ascenseur', 'digicode', 'contact', 'contactTel', 'remarque']) lv[k] = String(f['liv_' + k] ?? '').trim();
+      for (const k of Object.keys(f)) if (k.startsWith('liv_') || k === '_liv_acces') delete f[k];
+      f.livraison = lv;
+    }
+    if (f.nomFamille !== undefined) f.nom = [f.prenom, f.nomFamille].map(x => String(x || '').trim()).filter(Boolean).join(' ');
     for (const k of ['independant', 'permis', 'nePasContacter']) f[k] = !!f[k];
     const now = new Date().toISOString(), ds = c0.desinscrit || {}, cs = c0.consentement || {};
     if (f.nePasContacter && !c0.nePasContacter) { f._stopEmail = 'on'; f._stopSms = 'on'; }
@@ -2454,7 +2506,59 @@
       try { const cur = await api(A + '/clients/' + id); await api(`${A}/clients/${id}`, { method: 'PUT', body: { ...cur, ...f } }); toast('Fiche enregistrée.'); fermer(); apres?.(); } catch (err) { toast(err.message, true); }
     });
   }
-  const formClient = c => `<div class="g2 pf-id"><label>Civilité<select name="civilite"><option value="">—</option>${[['Mme', 'Madame'], ['M.', 'Monsieur']].map(([v, l]) => `<option value="${v}"${c.civilite === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label><label>Prénom et NOM<input name="nom" value="${esc(c.nom)}" required data-nomclient placeholder="ex. Jean-Luc BERNARD"></label></div><div class="g2"><label>Société <small class="muted">(reliée à sa fiche entreprise)</small><input name="societe" value="${esc(c.societe || '')}" list="entL" autocomplete="off" data-soc><datalist id="entL"></datalist></label><label>Fonction <small class="muted">(dans l’entreprise)</small><input name="fonction" value="${esc(c.fonction || '')}" placeholder="ex. assistante de direction"></label></div>${c.entrepriseId && !c.id ? `<input type="hidden" name="entrepriseId" value="${esc(c.entrepriseId)}">` : ''}<div class="g2"><label>E-mail<input type="email" name="email" value="${esc(c.email || '')}"></label><label>Téléphone<input name="tel" value="${esc(c.tel || '')}" inputmode="tel"></label></div><div class="g2"><label>Date de naissance <small class="muted">(rappel de son anniversaire)</small><input type="date" name="naissance" value="${esc(c.naissance || '')}" max="${new Date().toISOString().slice(0, 10)}"></label></div><label>Adresse de facturation<textarea name="adresse" rows="2">${esc(c.adresse || '')}</textarea></label><div class="g2"><label>Code postal<input name="cp" value="${esc(c.cp || '')}" inputmode="numeric" maxlength="5"></label><label>Ville<input name="ville" value="${esc(c.ville || '')}"></label></div><label>🔒 Remarque <small class="muted">(visible seulement par l’équipe, jamais par le client)</small><textarea name="notes" rows="3">${esc(c.notes || '')}</textarea></label>${casesProfil(c)}<fieldset class="df-fs"><legend>E-mails et SMS d’information</legend><label class="check"><input type="checkbox" name="_accord"${c.consentement?.email ? ' checked' : ''}> A accepté de recevoir nos offres</label><label class="check"><input type="checkbox" name="_stopEmail"${c.desinscrit?.email ? ' checked' : ''}> Ne plus lui envoyer d’e-mails d’information</label><label class="check"><input type="checkbox" name="_stopSms"${c.desinscrit?.sms ? ' checked' : ''}> Ne plus lui envoyer de SMS d’information</label></fieldset>`;
+  /* Prénom et Nom dans deux cases (Jean-Luc, 2026-11-26) ; les anciennes fiches n'ont que « Prénom NOM » : on le coupe à l'affichage */
+  function partiesNomClient(c) {
+    if (c.prenom !== undefined || c.nomFamille !== undefined) return { prenom: c.prenom || '', nomFamille: c.nomFamille || '' };
+    const w = String(c.nom || '').trim().split(/\s+/).filter(Boolean); if (w.length < 2) return { prenom: '', nomFamille: w[0] || '' };
+    let i = w.findIndex((x, k) => k >= 1 && /\p{L}{2}/u.test(x) && x === x.toLocaleUpperCase('fr-FR')); if (i < 1) i = 1;
+    return { prenom: w.slice(0, i).join(' '), nomFamille: w.slice(i).join(' ').toLocaleUpperCase('fr-FR') };
+  }
+  /* Client ou Prestataire (Jean-Luc, 2026-11-26) : un client n'a que ce qu'il faut pour le livrer et le facturer ;
+     le profil prestataire (métiers, indépendant, rémunération, DJ) ne s'affiche que pour un prestataire. */
+  const genreDe = c => c.genre === 'prestataire' || c.genre === 'client' ? c.genre : (aProfil(c) || aDj(c) ? 'prestataire' : 'client');
+  const choixGenre = c => { const g = genreDe(c); return `<div class="cg-choix" role="radiogroup" aria-label="Type de fiche">${[['client', '🧑‍🍳 Client', 'à livrer et facturer'], ['prestataire', '🎭 Prestataire', 'serveur, barman, DJ, artiste…']].map(([v, l, d]) => `<label class="cg-b"><input type="radio" name="genre" value="${v}"${g === v ? ' checked' : ''}><span><b>${l}</b><small>${d}</small></span></label>`).join('')}</div>`; };
+  /* adresse et horaire de livraison + cases pour les livreurs (mêmes listes que server/livraison-client.js) */
+  const LIV_LOGEMENTS = ['Maison', 'Appartement', 'Entreprise / bureaux', 'Salle de réception', 'Extérieur / jardin'];
+  const LIV_ACCES = ['Digicode', 'Interphone', 'Gardien ou badge', 'Escaliers ou marches', 'Couloirs ou portes étroits', 'Stationnement facile devant', 'Stationnement difficile', 'Place de livraison réservée', 'Accès camion difficile', 'Entrée de service / par l’arrière'];
+  const LIV_HORAIRES = ['Matin (8 h – 12 h)', 'Midi (11 h – 13 h)', 'Après-midi (13 h – 17 h)', 'Soir (17 h – 20 h)', 'À préciser avec l’équipe'];
+  function adresseLivraison(c) { const l = c.livraison || {}; return l.identique ? { adresse: c.adresse || '', cp: c.cp || '', ville: c.ville || '', horaire: l.horaire || '' } : { adresse: l.adresse || '', cp: l.cp || '', ville: l.ville || '', horaire: l.horaire || '' }; }
+  function infosLivreurs(l) {
+    if (!l) return '';
+    const etage = l.niveau === 'En étage' ? `étage ${l.etage || '?'}${l.ascenseur ? ', ascenseur : ' + l.ascenseur.toLowerCase() : ''}` : l.niveau === 'Rez-de-chaussée' ? 'rez-de-chaussée' : '';
+    const acc = (l.acces || []).map(a => (a === 'Digicode' && l.digicode ? 'digicode ' + l.digicode : a.toLowerCase()));
+    const t = [l.logement, etage, ...acc, l.contact || l.contactTel ? 'contact sur place : ' + [l.contact, l.contactTel].filter(Boolean).join(' ') : '', l.remarque].filter(Boolean).join(' · ');
+    return t ? t.charAt(0).toUpperCase() + t.slice(1) : '';
+  }
+  function formLivraison(c) {
+    const l = c.livraison || {}, radio = (nom, liste, cur) => liste.map(v => `<label class="lv-r"><input type="radio" name="${nom}" value="${esc(v)}"${cur === v ? ' checked' : ''}><span>${esc(v)}</span></label>`).join('');
+    const etage = l.niveau === 'En étage', digi = (l.acces || []).includes('Digicode');
+    return `<fieldset class="df-fs lv-fs" data-lv><legend>🚚 Adresse de livraison</legend>
+      <label class="check lv-id"><input type="checkbox" name="liv_identique"${l.identique ? ' checked' : ''}> Identique à l’adresse de facturation</label>
+      <div class="lv-adr"${l.identique ? ' hidden' : ''}><label>Adresse<textarea name="liv_adresse" rows="2" placeholder="ex. 12 rue des Lilas, bâtiment B">${esc(l.adresse || '')}</textarea></label><div class="g2"><label>Code postal<input name="liv_cp" value="${esc(l.cp || '')}" inputmode="numeric" maxlength="5"></label><label>Ville<input name="liv_ville" value="${esc(l.ville || '')}"></label></div></div>
+      <label>🕐 Horaire de livraison<input name="liv_horaire" value="${esc(l.horaire || '')}" list="lvH" placeholder="ex. 18 h 30, ou choisir un créneau" autocomplete="off"><datalist id="lvH">${LIV_HORAIRES.map(h => `<option value="${esc(h)}">`).join('')}</datalist></label>
+      <p class="pf-l">📦 Pour les livreurs</p>
+      <div class="lv-l"><span class="lv-q">Type de lieu</span><div class="lv-rs">${radio('liv_logement', LIV_LOGEMENTS, l.logement)}</div></div>
+      <div class="lv-l"><span class="lv-q">Niveau</span><div class="lv-rs">${radio('liv_niveau', ['Rez-de-chaussée', 'En étage'], l.niveau)}</div></div>
+      <div class="g2 lv-et"${etage ? '' : ' hidden'}><label>Étage n°<input name="liv_etage" value="${esc(l.etage || '')}" inputmode="numeric" placeholder="ex. 3"></label><div class="lv-l"><span class="lv-q">Ascenseur</span><div class="lv-rs">${radio('liv_ascenseur', ['Oui', 'Non', 'Monte-charge'], l.ascenseur)}</div></div></div>
+      <div class="pf-cases lv-acc">${LIV_ACCES.map(a => `<label class="pf-c"><input type="checkbox" name="_liv_acces" value="${esc(a)}"${(l.acces || []).includes(a) ? ' checked' : ''}><span>${esc(a)}</span></label>`).join('')}</div>
+      <label class="lv-dg"${digi ? '' : ' hidden'}>Code du digicode<input name="liv_digicode" value="${esc(l.digicode || '')}" autocomplete="off"></label>
+      <div class="g2"><label>Contact sur place <small class="muted">(si ce n’est pas le client)</small><input name="liv_contact" value="${esc(l.contact || '')}" placeholder="ex. Marie, la gardienne"></label><label>Son téléphone<input name="liv_contactTel" value="${esc(l.contactTel || '')}" inputmode="tel"></label></div>
+      <label>Remarque pour les livreurs<textarea name="liv_remarque" rows="2" placeholder="ex. sonner au portail vert, se garer dans la cour, prévoir un diable…">${esc(l.remarque || '')}</textarea></label></fieldset>`;
+  }
+  /* cases qui s'ouvrent selon le choix : identique, en étage, digicode, client / prestataire */
+  document.addEventListener('change', e => {
+    const t = e.target, f = t.closest && t.closest('form'); if (!f) return;
+    if (t.name === 'liv_identique') { const a = f.querySelector('.lv-adr'); if (a) a.hidden = t.checked; }
+    if (t.name === 'liv_niveau') { const a = f.querySelector('.lv-et'); if (a) a.hidden = t.value !== 'En étage'; }
+    if (t.name === '_liv_acces' && t.value === 'Digicode') { const a = f.querySelector('.lv-dg'); if (a) a.hidden = !t.checked; }
+    if (t.name === 'genre') { const a = f.querySelector('.pf-presta'); if (a) a.hidden = t.value !== 'prestataire'; }
+  });
+  /* encadré « Livraison » de la fiche client */
+  function boxLivraison(c) {
+    const a = adresseLivraison(c), l = c.livraison || {}, info = infosLivreurs(l), adr = [a.adresse, [a.cp, a.ville].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+    return `<section class="box lv-box"><div class="hc-th"><h2>🚚 Livraison</h2><button type="button" class="lnk" data-hedit>✏ ${adr || a.horaire || info ? 'Modifier' : 'Ajouter'}</button></div>${adr || a.horaire || info ? `${adr ? `<p><b>${esc(adr)}</b>${l.identique ? ' <small class="muted">(même adresse que la facturation)</small>' : ''}</p>` : '<p class="muted sm">Adresse de livraison non renseignée.</p>'}${a.horaire ? `<p class="sm">🕐 ${esc(a.horaire)}</p>` : ''}${info ? `<p class="sm lv-info">📦 ${esc(info)}</p>` : ''}` : '<p class="muted sm">Adresse, horaire et infos pour les livreurs (étage, ascenseur, digicode, stationnement…) : « Ajouter ».</p>'}</section>`;
+  }
+  const formClient = c => `${choixGenre(c)}<div class="g3 pf-id"><label>Civilité<select name="civilite"><option value="">—</option>${[['Mme', 'Madame'], ['M.', 'Monsieur']].map(([v, l]) => `<option value="${v}"${c.civilite === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>${(p => `<label>Prénom<input name="prenom" value="${esc(p.prenom)}" data-prenom placeholder="ex. Jean-Luc" autocomplete="off"></label><label>Nom<input name="nomFamille" value="${esc(p.nomFamille)}" required data-nomfam placeholder="ex. BERNARD" autocomplete="off"></label>`)(partiesNomClient(c))}</div><div class="g2"><label>Société <small class="muted">(reliée à sa fiche entreprise)</small><input name="societe" value="${esc(c.societe || '')}" list="entL" autocomplete="off" data-soc><datalist id="entL"></datalist></label><label>Fonction <small class="muted">(dans l’entreprise)</small><input name="fonction" value="${esc(c.fonction || '')}" placeholder="ex. assistante de direction"></label></div>${c.entrepriseId && !c.id ? `<input type="hidden" name="entrepriseId" value="${esc(c.entrepriseId)}">` : ''}<div class="g2"><label>E-mail<input type="email" name="email" value="${esc(c.email || '')}"></label><label>Téléphone<input name="tel" value="${esc(c.tel || '')}" inputmode="tel"></label></div><div class="g2"><label>Date de naissance <small class="muted">(rappel de son anniversaire)</small><input type="date" name="naissance" value="${esc(c.naissance || '')}" max="${new Date().toISOString().slice(0, 10)}"></label></div><fieldset class="df-fs lv-fs"><legend>🧾 Adresse de facturation</legend><label>Adresse<textarea name="adresse" rows="2">${esc(c.adresse || '')}</textarea></label><div class="g2"><label>Code postal<input name="cp" value="${esc(c.cp || '')}" inputmode="numeric" maxlength="5"></label><label>Ville<input name="ville" value="${esc(c.ville || '')}"></label></div></fieldset>${formLivraison(c)}<label>🔒 Remarque <small class="muted">(visible seulement par l’équipe, jamais par le client)</small><textarea name="notes" rows="3">${esc(c.notes || '')}</textarea></label>${casesProfil(c)}<fieldset class="df-fs"><legend>E-mails et SMS d’information</legend><label class="check"><input type="checkbox" name="_accord"${c.consentement?.email ? ' checked' : ''}> A accepté de recevoir nos offres</label><label class="check"><input type="checkbox" name="_stopEmail"${c.desinscrit?.email ? ' checked' : ''}> Ne plus lui envoyer d’e-mails d’information</label><label class="check"><input type="checkbox" name="_stopSms"${c.desinscrit?.sms ? ' checked' : ''}> Ne plus lui envoyer de SMS d’information</label></fieldset>`;
   client.after = id => {
     $('#cf').addEventListener('submit', async e => {
       e.preventDefault(); const f = lireFormClient(e.target, cache.client || {});
