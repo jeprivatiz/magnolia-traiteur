@@ -46,7 +46,7 @@ function carte(d, { masquer = false, c = null } = {}) {
     id: d.id, numero: d.numero, titre: d.titre || '', statut: d.statut, modele: !!d.modele,
     clientNom: masquer ? 'Client d’un autre commercial' : (d.clientNom || ''), masque: !!masquer,
     commercial: d.commercial?.nom || d.creePar || '', createdAt: d.createdAt || '', signeLe: d.signature?.at || '',
-    type: d.evenement?.type || '', date: d.evenement?.date || '', invites: +d.evenement?.invites || null, lieu: masquer ? '' : (d.evenement?.lieu || ''),
+    type: d.evenement?.type || '', date: d.evenement?.date || '', invites: +d.evenement?.invites || null, lieu: masquer ? '' : (d.evenement?.lieu || [d.evenement?.cp, d.evenement?.ville].filter(Boolean).join(' ')),
     ttcCents: t.ttcCents, marge: margeDe(d, c), nbLignes: L.filter(l => String(l.designation || '').replace(/\*\*/g, '').trim()).length, produits: cles4,
     lignes: (d.lignes || []).slice(0, 60).map(l => l.type === 'titre' ? { titre: true, designation: l.designation } : { designation: l.designation, qte: l.qte, unite: l.unite || '', puCents: l.puBaseCents ?? l.puCents ?? 0 }),
   };
@@ -80,7 +80,7 @@ function rechercher(liste, f = {}, c = null) {
     if (f.au && quand > f.au) return false;
     if (com && !net(d.commercial?.nom || d.creePar).includes(com)) return false;
     if (q.length) {
-      const txt = net([d.numero, d.titre, d.clientNom, d.evenement?.type, d.evenement?.lieu, ...vraies(d.lignes).flatMap(l => [l.designation, l.detail])].join(' '));
+      const txt = net([d.numero, d.titre, d.clientNom, d.evenement?.type, d.evenement?.lieu, d.evenement?.ville, ...vraies(d.lignes).flatMap(l => [l.designation, l.detail])].join(' '));
       if (!q.every(w => txt.includes(w))) return false;
     }
     return true;

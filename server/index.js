@@ -26,6 +26,7 @@ const SEO = require('./seo');
 const TXT = require('./textes');
 const DIF = require('./diffusion');
 const PROFIL = require('./profil-contact');
+const LC = require('./livraison-client');
 const FAC = require('./factures');
 const { creerEntreprises } = require('./entreprises');
 const DR = require('./droits');
@@ -554,17 +555,19 @@ async function createApp(opts = {}) {
     res.set('Cache-Control', 'public, max-age=60').json({ q, resultats: r.slice(0, 10) });
   }));
 
-  async function upsertClient({ nom, email, tel, societe }) {
+  async function upsertClient({ nom, email, tel, societe }, ev = null) {
+    /* demande de devis du site : fiche « Client » ; code postal, ville et horaire repris dans l'adresse de livraison si elle est vide */
+    const livDe = cl => { const l = cl?.livraison; if (!ev || !(ev.cp || ev.ville || ev.horaire) || (l && (l.identique || l.adresse || l.cp || l.ville || l.horaire))) return {}; return { livraison: LC.nette({ ...(l || {}), cp: ev.cp, ville: ev.ville, horaire: ev.horaire }) }; };
     email = String(email).trim().toLowerCase();
     const idx = await store.get('_clientemail/' + sha(email));
     const now = new Date().toISOString();
     if (idx) {
       const cl = await store.get('clients/' + idx.id);
       /* client connu : un formulaire public ne remplace jamais ses coordonnées (seulement les cases vides) */
-      if (cl) { await store.set('clients/' + idx.id, { ...cl, nom: cl.nom || nom, tel: cl.tel || tel, societe: cl.societe || societe, derniereActivite: now }); return { id: idx.id, nouveau: false }; }
+      if (cl) { await store.set('clients/' + idx.id, { ...cl, nom: cl.nom || nom, tel: cl.tel || tel, societe: cl.societe || societe, ...(cl.genre || !ev || (cl.metiers || []).length || (cl.djStyles || []).length || cl.independant || cl.remuneration ? {} : { genre: 'client' }), ...livDe(cl), derniereActivite: now }); return { id: idx.id, nouveau: false }; }
     }
     const id = 'c_' + rid(8);
-    await store.set('clients/' + id, { id, nom, email, tel, societe, notes: '', creeLe: now, derniereActivite: now, source: 'site', canal: 'Site' });
+    await store.set('clients/' + id, { id, nom, email, tel, societe, genre: 'client', ...livDe(null), notes: '', creeLe: now, derniereActivite: now, source: 'site', canal: 'Site' });
     await store.set('_clientemail/' + sha(email), { id });
     return { id, nouveau: true };
   }
@@ -608,7 +611,7 @@ async function createApp(opts = {}) {
     const km = Math.min(2000, Math.max(0, Math.round(+b.km || 0)));
     const sousTotal = lignes.reduce((t, l) => t + l.totalCents, 0);
     const hz = LIVR.horsZone(b.cp), kmC = hz ? 0 : LIVR.kmCents(T, sousTotal), offerte = !!(km && !hz && kmC === 0); /* prix du km selon le palier ; hors Île-de-France = nous consulter */
-    const { id: clientId, nouveau } = await upsertClient(contact);
+    const { id: clientId, nouveau } = await upsertClient(contact, b.type === 'contact' ? null : { cp: s(b.cp, 5), ville: s(b.ville, 80), horaire: s(b.horaire, 60) });
     if (b.offres === true || b.offres === '1' || b.offres === 'on') { const cl = await store.get('clients/' + clientId); if (cl && !cl.consentement?.email) await store.set('clients/' + clientId, { ...cl, consentement: { email: true, sms: true, le: new Date().toISOString(), source: 'case cochée sur le site', base: 'consentement' } }); }
     const id = 'd_' + rid(8);
     const ref = await prochainNumero(store, 'demande');
@@ -990,6 +993,25 @@ async function createApp(opts = {}) {
     for (const k of ['metiers', 'djStyles']) if (k in data) { data[k] = PROFIL.uniques((Array.isArray(data[k]) ? data[k] : []).map(x => String(x || '').trim().slice(0, 60))).slice(0, 30); if (!data[k].length) delete data[k]; }
     for (const k of ['independant', 'permis', 'nePasContacter']) if (k in data && typeof data[k] !== 'boolean') data[k] = data[k] === 'on' || data[k] === 'true' || data[k] === true;
     if ('djDepuis' in data) { const an = String(data.djDepuis || '').match(/(19|20)\d{2}/); data.djDepuis = an ? an[0] : ''; }
+    /* adresse et horaire de livraison + infos pour les livreurs (server/livraison-client.js) */
+    if ('livraison' in data) { const l = LC.nette(data.livraison); if (l) data.livraison = l; else delete data.livraison; }
+  }
+  /* Prénom et Nom dans deux cases (Jean-Luc, 2026-11-26) : le nom affiché reste « Prénom NOM ».
+     Si seul le nom complet a changé (IA, ancien écran), les deux cases sont recoupées à partir de lui. */
+  function nomsClient(data, before) {
+    const aParts = data.prenom !== undefined || data.nomFamille !== undefined;
+    const pn = aParts ? nomPropre(data.prenom || '', data.nomFamille || '') : '';
+    const partsAvant = before ? nomPropre(before.prenom || '', before.nomFamille || '') : '';
+    if (aParts && pn && !(typeof data.nom === 'string' && before && data.nom !== before.nom && pn === partsAvant)) {
+      data.nom = pn; data.prenom = nomPropre(data.prenom || '', ''); data.nomFamille = String(data.nomFamille || '').replace(/\s+/g, ' ').trim().toLocaleUpperCase('fr-FR');
+      return;
+    }
+    if (typeof data.nom === 'string') { data.nom = nomPropre(data.nom); if (aParts || (before && data.nom !== before.nom)) { const d = decoupeNomClient(data.nom); data.prenom = d.prenom; data.nomFamille = d.nomFamille; } }
+  }
+  function decoupeNomClient(n) {
+    const w = String(n || '').trim().split(/\s+/).filter(Boolean); if (w.length < 2) return { prenom: '', nomFamille: w[0] || '' };
+    let i = w.findIndex((x, k) => k >= 1 && /\p{L}{2}/u.test(x) && x === x.toLocaleUpperCase('fr-FR')); if (i < 1) i = 1;
+    return { prenom: w.slice(0, i).join(' '), nomFamille: w.slice(i).join(' ') };
   }
   /* listes de la fiche « Profil prestataire » : métiers et styles de DJ proposés, plus ceux déjà tapés */
   A.get('/actions/profil-contact', wrap(async (req, res) => {
@@ -1277,7 +1299,7 @@ async function createApp(opts = {}) {
     }
     /* fiche ouverte avant que l'IA écrive la description sous la photo : on ne l'efface pas en enregistrant */
     if (coll === 'produits' && before?.sousPhotoAuto?.texte && !data.sousPhotoAuto?.texte && sousPhotoVide(data)) { data.sousPhoto = before.sousPhoto; data.sousPhotoAuto = before.sousPhotoAuto; }
-    if (coll === 'clients' && typeof data.nom === 'string') data.nom = nomPropre(data.nom);
+    if (coll === 'clients') nomsClient(data, before);
     if (coll === 'clients' && 'naissance' in data) data.naissance = dateNaissance(data.naissance);
     if (coll === 'clients') ficheClientNette(data, before);
     if (coll === 'clients') { await ENT.avantClient(data, before); profilsCache = null; } /* envois groupés : la fiche corrigée se voit tout de suite */
@@ -1310,7 +1332,7 @@ async function createApp(opts = {}) {
     if (await store.get(coll + '/' + id) || (coll === 'produits' && produitsSupprimes.has(id))) id = id + '-' + rid(3).toLowerCase().replace(/[^a-z0-9]/g, 'x');
     const data = { ...(req.body || {}), createdAt: new Date().toISOString() };
     if (coll === 'produits' && !req.ctx.droits.prix) for (const k of Object.keys(data)) if (/prix|cout/i.test(k)) delete data[k]; /* nouvelle fiche sans prix : « Sur devis » */
-    if (coll === 'clients' && typeof data.nom === 'string') data.nom = nomPropre(data.nom); if (coll === 'clients') data.id = id;
+    if (coll === 'clients') { nomsClient(data, null); data.id = id; }
     if (coll === 'clients' && 'naissance' in data) data.naissance = dateNaissance(data.naissance);
     if (coll === 'clients') ficheClientNette(data, null);
     if (coll === 'clients') await ENT.avantClient(data, null);
@@ -1350,6 +1372,12 @@ async function createApp(opts = {}) {
     if (!d) return res.status(404).json({ error: 'Demande introuvable.' });
     res.json({ ok: true, id: await devisDepuisDemande(d, req.ctx) });
   }));
+  /* adresse et horaire de livraison du devis : ceux de la demande, sinon ceux de la fiche client (Jean-Luc, 2026-11-26) */
+  function evLivraison(d, cl) {
+    const e = d.evenement || {}, a = cl ? LC.adresseLivraison(cl) : {};
+    const memeVille = !e.cp || !a.cp || a.cp === e.cp;
+    return { adresse: e.adresse || (memeVille ? a.adresse || '' : ''), cp: e.cp || a.cp || '', ville: e.ville || a.ville || '', horaire: e.horaire || a.horaire || '', livreurs: cl ? LC.infosLivreurs(cl.livraison) : '' };
+  }
   async function devisDepuisDemande(d, ctx, extra = {}) {
     await prendreEnCharge(x => x.id === d.id, ctx?.name || ctx?.email, 'devis créé');
     const c = await cat.get();
@@ -1359,7 +1387,7 @@ async function createApp(opts = {}) {
     const validite = new Date(Date.now() + (T.validiteDevisJours || 15) * 86400e3).toISOString().slice(0, 10);
     const devis = {
       id, numero, token, demandeId: d.id, clientId: d.clientId, clientNom: d.contact?.nom || '', statut: 'brouillon',
-      evenement: { type: d.evenement?.type, date: d.evenement?.date, invites: d.evenement?.invites, lieu: [d.evenement?.cp, d.evenement?.ville].filter(Boolean).join(' ') },
+      evenement: { type: d.evenement?.type, date: d.evenement?.date, invites: d.evenement?.invites, ...evLivraison(d, await store.get('clients/' + d.clientId).catch(() => null)) },
       intro: `Madame, Monsieur, suite à votre demande, voici notre proposition pour votre ${String(d.evenement?.type || 'événement').toLowerCase()}.`,
       lignes: lignesDepuisDemande(d, c, T), remiseCents: 0, acomptePct: null, validiteJusquau: validite,
       conditions: 'Prix TTC. Acompte à la signature, solde au plus tard 7 jours avant l’événement. Nombre définitif d’invités à confirmer 7 jours avant.',
@@ -1471,11 +1499,12 @@ async function createApp(opts = {}) {
     let clientId = null;
     if (f.email) {
       const idx = await store.get('_clientemail/' + sha(f.email)), cl = idx && await store.get('clients/' + idx.id);
-      if (cl) { clientId = idx.id; await store.set('clients/' + clientId, { ...cl, nom: cl.nom || nom, tel: cl.tel || f.tel, societe: cl.societe || f.societe, adresse: cl.adresse || f.adresse, derniereActivite: now, ...(canalIa && !SRC.canalClient(cl) ? { canal: canalIa } : {}) }); }
+      const lv0 = cl?.livraison, livVide = !lv0 || !(lv0.identique || lv0.adresse || lv0.cp || lv0.ville || lv0.horaire);
+      if (cl) { clientId = idx.id; await store.set('clients/' + clientId, { ...cl, nom: cl.nom || nom, tel: cl.tel || f.tel, societe: cl.societe || f.societe, adresse: cl.adresse || f.adresse, ...(livVide && (f.adresse || f.cp || f.horaire) ? { livraison: LC.nette({ adresse: f.adresse, cp: f.cp, ville: f.ville, horaire: f.horaire }) } : {}), derniereActivite: now, ...(canalIa && !SRC.canalClient(cl) ? { canal: canalIa } : {}) }); }
     }
     if (!clientId) {
       clientId = 'c_' + rid(8);
-      await store.set('clients/' + clientId, { id: clientId, nom, email: f.email, tel: f.tel, societe: f.societe, adresse: f.adresse, notes: '', creeLe: now, derniereActivite: now, source: 'téléphone (IA)', ...(canalIa ? { canal: canalIa } : {}) });
+      await store.set('clients/' + clientId, { id: clientId, nom, prenom: nomPropre(f.prenom || '', ''), nomFamille: String(f.nom || '').trim().toLocaleUpperCase('fr-FR'), genre: 'client', email: f.email, tel: f.tel, societe: f.societe, adresse: f.adresse, cp: f.cp || '', ville: f.ville || '', livraison: LC.nette({ identique: true, horaire: f.horaire }), notes: '', creeLe: now, derniereActivite: now, source: 'téléphone (IA)', ...(canalIa ? { canal: canalIa } : {}) });
       if (f.email) await store.set('_clientemail/' + sha(f.email), { id: clientId });
     }
     /* plats à supplément (coq roussi + 5 € la part) retrouvés dans la note de l'IA : ligne « Supplément » sur le devis */
