@@ -2092,3 +2092,6 @@ small.cl-src { display: block; }
 .vt-h3 { margin: 18px 0 4px; font-size: 1rem; }
 @media (max-width: 860px) { .vt-mg { grid-template-columns: 1fr; } .vt-ap iframe { height: 460px; } }
 .vt-box.vt-flash { box-shadow: 0 0 0 3px var(--or); transition: box-shadow .4s; }
+.vt-specs { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px 14px; }
+.vt-spk { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border: 1px solid var(--ligne); border-radius: 10px; background: var(--doux); font-weight: 500; cursor: pointer; }
+.vt-spk:has(input:checked) { border-color: var(--or); background: color-mix(in srgb, var(--or) 14%, var(--carte)); }

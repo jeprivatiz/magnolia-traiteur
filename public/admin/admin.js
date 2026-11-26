@@ -559,7 +559,8 @@
     const scans = (f.scans || []).map(s => { const u = `${A}/tarifs/fournisseurs/${esc(id)}/scans/${esc(s.nom)}`; const img = /^image\/(jpeg|png|webp)/.test(s.type); return `<li class="vt-scan">${img ? `<a href="${u}" target="_blank" rel="noopener"><img src="${u}" alt=""></a>` : `<a class="vt-pdf" href="${u}" target="_blank" rel="noopener">${/pdf/.test(s.type) ? 'PDF' : '📄'}</a>`}<span class="vt-st"><b>${esc(s.specialiteNom || nomSpe(s.specialite) || 'Document signé')}</b><small>${s.signeLe ? 'Signé le ' + dateFr(s.signeLe, { day: 'numeric', month: 'long', year: 'numeric' }) + ' · ' : ''}déposé le ${dateFr(s.at, { day: 'numeric', month: 'long', year: 'numeric' })}${s.par ? ' par ' + esc(s.par) : ''}</small>${s.note ? `<small class="vt-sn">${esc(s.note)}</small>` : ''}<small class="muted">${esc(s.original)} · ${Math.max(1, Math.round(s.octets / 1024)).toLocaleString('fr-FR')} Ko</small></span><span class="vt-sa"><a class="btn ghost sm" href="${u}" target="_blank" rel="noopener">👁 Voir</a><a class="btn ghost sm" href="${u}?telecharger">⬇ Télécharger</a><button type="button" class="btn ghost sm danger" data-vtrm="${esc(s.nom)}">🗑 Retirer</button></span></li>`; }).join('');
     const titre = [f.entreprise, [f.prenom, f.nom].filter(Boolean).join(' ')].filter(Boolean).join(' · ');
     return page('🧾 ' + esc(titre || 'Fournisseur'), '<a class="btn ghost" href="#/tarifs">← Validation tarifs</a>', `
-      ${specs.length ? `<p class="muted">Fournisseur choisi pour : <b>${specs.map(esc).join(', ')}</b>.</p>` : ''}
+      <section class="box vt-box"><h2>🍽 Spécialités de ce fournisseur</h2><p class="muted sm">Cochez ce qu’il propose (ex. Plateau de fruits de mer pour un poissonnier), décochez ce qui ne le concerne pas, puis « Enregistrer la fiche » en bas : vous arrivez directement sur ses produits.</p>
+        <div class="vt-specs">${L.specialites.map(s => `<label class="vt-spk"><input type="checkbox" data-vtspk="${esc(s.cle)}"${(f.specialites || []).includes(s.cle) ? ' checked' : ''}> ${esc(s.nom)}</label>`).join('')}</div></section>
       <section class="box vt-box vt-dos"><h2>📎 Dossier : documents signés</h2>
         <p class="muted sm">Une fois le tableau rempli et signé, scannez-le (ou prenez-le en photo avec l’iPhone) et déposez-le ici. Il reste dans le dossier du fournisseur, avec sa date, pour vérifier ses tarifs à tout moment. Jamais visible sur le site.</p>
         <form id="vtSf" class="vt-drop"><label class="vt-zone" data-vtzone><input type="file" name="fichier" accept="application/pdf,image/*,.heic" required hidden data-vtfile><span class="vt-zi">⬆</span><b>Déposer le scan signé</b><small data-vtfn>PDF ou photo · cliquez ou glissez le fichier ici</small></label>
@@ -571,13 +572,24 @@
       <section class="box vt-box"><h2>Coordonnées</h2><form id="vtFf">${formFournisseur(f, L.profils)}<div class="row"><button class="btn">Enregistrer la fiche</button><button type="button" class="btn ghost danger" data-vtdel>Supprimer la fiche</button></div></form></section>`);
   }
   ficheFournisseurTarifs.after = id => {
+    const L = VT.liste;
     $('#vtFf')?.addEventListener('submit', async e => {
       e.preventDefault();
       try {
         const body = Object.fromEntries(new FormData(e.target));
         /* après l'enregistrement, la fiche se ferme : retour à Validation tarifs, directement sur le choix des produits (Jean-Luc, 2026-11-26) */
         if (id === 'nouveau') { const r = await api(A + '/tarifs/fournisseurs', { method: 'POST', body }); if (VT.spe) await api(A + '/tarifs/specialite/' + VT.spe, { method: 'PUT', body: { fournisseurId: r.fournisseur.id } }); toast(VT.spe ? 'Fiche créée et choisie : cochez maintenant les produits.' : 'Fiche créée.'); }
-        else { await api(A + '/tarifs/fournisseurs/' + id, { method: 'PUT', body }); toast('Fiche enregistrée.'); }
+        else {
+          await api(A + '/tarifs/fournisseurs/' + id, { method: 'PUT', body });
+          const cles = $$('[data-vtspk]').filter(c => c.checked).map(c => c.dataset.vtspk);
+          const perdues = (VT.fiche?.specialites || []).filter(c => !cles.includes(c));
+          if (perdues.length && !confirm(`Retirer ce fournisseur de : ${perdues.map(c => L.specialites.find(s => s.cle === c)?.nom || c).join(', ')} ? Ses tarifs saisis pour ${perdues.length > 1 ? 'ces spécialités' : 'cette spécialité'} seront effacés.`)) { $$('[data-vtspk]').forEach(c => { if (perdues.includes(c.dataset.vtspk)) c.checked = true; }); return; }
+          const r = await api(A + '/tarifs/fournisseurs/' + id + '/specialites', { method: 'POST', body: { cles } });
+          /* on ouvre la spécialité qu'on vient de cocher, sinon une des siennes, avec sa grille */
+          const cible = r.ajoutees[0] || (cles.includes(VT.spe) ? VT.spe : cles[0]);
+          if (cible) { VT.spe = cible; mem.set('mg_vt_spe', cible); await api(A + '/tarifs/specialite/' + cible, { method: 'PUT', body: { fournisseurId: id } }); }
+          toast(cible ? 'Fiche enregistrée : voici ses produits.' : 'Fiche enregistrée.');
+        }
         VT.liste = null; VT.allerProduits = true; location.hash = '#/tarifs';
       } catch (err) { toast(err.message, true); }
     });
