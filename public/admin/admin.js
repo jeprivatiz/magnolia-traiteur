@@ -427,7 +427,7 @@
     const D = VT.data; if (!D) return '<p class="muted">Aucune spécialité.</p>';
     let sec = null;
     const rows = D.produits.map(p => { const h = p.sectionNom && p.sectionNom !== sec ? `<li class="vt-sec">${esc(p.sectionNom)}</li>` : ''; sec = p.sectionNom; return h + `<li class="vt-p${p.retire ? ' off' : ''}"><label class="vt-ck"><input type="checkbox" data-vtck="${esc(p.slug)}"${p.retire ? '' : ' checked'} aria-label="Garder ${esc(p.titre)} sur le document"></label>${p.photo ? `<img src="${esc(p.photo)}" alt="" loading="lazy">` : '<span class="vt-noph"></span>'}<span class="vt-t">${esc(p.titre)}</span></li>`; }).join('');
-    return `<h2><span class="vt-n">3</span> Produits du tableau</h2><p class="muted sm">Décochez les produits à retirer avant d’imprimer. Les colonnes Quantité, Tarif TTC et Observation restent vides : le restaurateur ou le traiteur les remplit.</p>
+    return `<h2><span class="vt-n">3</span> Produits du tableau</h2><p class="muted sm">Décochez les produits à retirer avant d’imprimer. Les colonnes Quantité, Tarif client habituel, Tarif préférentiel et Observation restent vides : le restaurateur ou le traiteur les remplit.</p>
       <div class="vt-bar"><span id="vtNb"></span><button type="button" class="btn ghost sm" data-vttout="1">Tout cocher</button><button type="button" class="btn ghost sm" data-vttout="0">Tout décocher</button></div><ul class="vt-list">${rows}</ul>`;
   }
   tarifs.after = (id, sub) => {
