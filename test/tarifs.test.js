@@ -34,6 +34,15 @@ test('Validation tarifs : fiche fournisseur, choix, document, scan privé', asyn
     assert.equal((await req('/api/admin/tarifs')).status, 401, 'réservé à l’équipe');
     await req('/api/auth/login', { method: 'POST', body: { email: 'chef@magnolia.test', password: 'mot-de-passe-essai' } });
     const L = (await req('/api/admin/tarifs')).j;
+    assert.ok(L.profils.includes('Poissonnier'), 'profil Poissonnier proposé');
+    const pr = (await req('/api/admin/tarifs/profils', { method: 'POST', body: { nom: 'fromager' } })).j;
+    assert.equal(pr.nom, 'Fromager'); assert.ok(pr.profils.indexOf('Fromager') < pr.profils.indexOf('Autre'));
+    assert.equal((await req('/api/admin/tarifs/profils', { method: 'POST', body: { nom: 'FROMAGER' } })).j.profils.filter(x => /fromager/i.test(x)).length, 1, 'pas de doublon');
+    const fr = (await req('/api/admin/tarifs/fournisseurs', { method: 'POST', body: { entreprise: 'Fromagerie Essai', profil: 'Fromager' } })).j.fournisseur;
+    assert.equal(fr.profil, 'Fromager');
+    assert.ok(!(await req('/api/admin/tarifs/profils/retirer', { method: 'POST', body: { nom: 'Fromager' } })).j.profils.includes('Fromager'));
+    assert.equal((await req('/api/admin/tarifs/fournisseurs/' + fr.id)).j.profil, 'Fromager', 'la fiche garde son profil');
+    await req('/api/admin/tarifs/fournisseurs/' + fr.id, { method: 'DELETE' });
     assert.ok(L.specialites.length > 5);
     assert.ok(!L.specialites.some(s => /personnel|musique|lieux/i.test(s.cle)), 'pas de rubriques de services');
     const spe = L.specialites.find(s => s.n >= 3) || L.specialites[0];

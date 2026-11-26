@@ -353,13 +353,49 @@
   /* même calcul que server/tarifs.js pagination() : nombre de pages A4 du document */
   const vtPages = n => { const M = { page: 277, t1: 70, tn: 13, th: 9, pd: 8, fin: 66 }, d1 = M.page - M.t1 - M.th - M.pd - M.fin; if (n <= Math.floor(d1 / 10)) return 1; const c1 = Math.floor((M.page - M.t1 - M.th - M.pd) / 12.5), cn = Math.floor((M.page - M.tn - M.th - M.pd) / 12.5), cf = Math.floor((M.page - M.tn - M.th - M.pd - M.fin) / 12.5); const p = []; let r = n; while (r > 0) { const c = Math.min(r, p.length ? cn : c1); p.push(c); r -= c; } const f = p.length === 1 ? Math.floor(d1 / 12.5) : cf; return p.length + (p[p.length - 1] > f ? 1 : 0); };
   const formFournisseur = (f, profils) => `<div class="g3"><label>Civilité<select name="civilite">${['', 'M.', 'Mme'].map(x => `<option${(f.civilite || '') === x ? ' selected' : ''} value="${x}">${x || '—'}</option>`).join('')}</select></label><label>Prénom<input name="prenom" data-prenom value="${esc(f.prenom || '')}" autocomplete="off"></label><label>Nom<input name="nom" data-nomfam value="${esc(f.nom || '')}" autocomplete="off"></label></div>
-    <div class="g2"><label>Fonction <small class="muted">(gérant, chef, responsable commercial…)</small><input name="fonction" value="${esc(f.fonction || '')}"></label><label>Profil<select name="profil"><option value="">— Choisir —</option>${profils.map(x => `<option${f.profil === x ? ' selected' : ''}>${esc(x)}</option>`).join('')}</select></label></div>
+    <div class="g2"><label>Fonction <small class="muted">(gérant, chef, responsable commercial…)</small><input name="fonction" value="${esc(f.fonction || '')}"></label><label>Profil<select name="profil" data-vtprofil>${optionsProfils(profils, f.profil)}</select></label></div>
     <label>Nom de l’entreprise <small class="muted">(restaurant, traiteur…)</small><input name="entreprise" value="${esc(f.entreprise || '')}"></label>
     <label>Adresse<input name="adresse" value="${esc(f.adresse || '')}"></label>
     <div class="g2"><label>Code postal<input name="cp" value="${esc(f.cp || '')}" inputmode="numeric" maxlength="5"></label><label>Ville<input name="ville" value="${esc(f.ville || '')}"></label></div>
     <div class="g3"><label>Téléphone<input name="telephone" value="${esc(f.telephone || '')}" inputmode="tel"></label><label>Portable<input name="portable" value="${esc(f.portable || '')}" inputmode="tel"></label><label>E-mail<input type="email" name="email" value="${esc(f.email || '')}"></label></div>
     <div class="g2"><label>SIRET <small class="muted">(14 chiffres)</small><input name="siret" value="${esc(f.siret || '')}" inputmode="numeric"></label><label>N° de TVA intracommunautaire<input name="tva" value="${esc(f.tva || '')}"></label></div>
     <label>🔒 Remarque <small class="muted">(jamais imprimée)</small><textarea name="notes" rows="2">${esc(f.notes || '')}</textarea></label>`;
+  /* profils (Restaurant, Traiteur, Poissonnier…) : « ➕ Créer un nouveau profil » sur le moment, « ⚙ Gérer la liste » (Jean-Luc, 2026-11-26) */
+  const optionsProfils = (profils, val) => { const l = [...profils]; if (val && !l.includes(val)) l.push(val); return `<option value="">— Choisir —</option>${l.map(x => `<option${val === x ? ' selected' : ''}>${esc(x)}</option>`).join('')}<option value="__nouveau">➕ Créer un nouveau profil…</option><option value="__gerer">⚙ Gérer la liste (supprimer)…</option>`; };
+  const rafraichirProfils = () => { for (const x of $$('select[data-vtprofil]')) { const v = x.dataset.prev ?? ''; x.innerHTML = optionsProfils(VT.liste.profils, v); x.value = v; } };
+  function gererProfils() {
+    const m = document.createElement('div'); m.className = 'modal df-modal'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-modal', 'true');
+    const draw = () => { m.innerHTML = `<div class="modal-in src-in"><div class="bh"><h2>Profils des fournisseurs</h2><button type="button" class="x" data-x aria-label="Fermer">×</button></div>
+      <p class="muted sm">Supprimer un profil le retire seulement de la liste : les fiches qui l’ont déjà le gardent.</p>
+      <ul class="src-l">${VT.liste.profils.map(x => `<li><span><b>${esc(x)}</b></span><button type="button" class="btn ghost sm" data-prdel="${esc(x)}">🗑 Supprimer</button></li>`).join('')}</ul>
+      <form class="row src-add"><input name="nom" placeholder="Nouveau profil (ex. Fromager)" maxlength="60" required><button class="btn sm">➕ Ajouter</button></form>
+      <div class="row"><button type="button" class="btn" data-x>Terminé</button></div></div>`; };
+    draw(); document.body.appendChild(m);
+    m.addEventListener('click', async e => {
+      if (e.target === m || e.target.closest('[data-x]')) { m.parentNode.removeChild(m); rafraichirProfils(); return; }
+      const b = e.target.closest('[data-prdel]'); if (!b) return;
+      try { VT.liste.profils = (await api(A + '/tarifs/profils/retirer', { method: 'POST', body: { nom: b.dataset.prdel } })).profils; toast(`« ${b.dataset.prdel} » retiré de la liste.`); draw(); } catch (err) { toast(err.message, true); }
+    });
+    m.addEventListener('submit', async e => {
+      e.preventDefault(); const nom = e.target.nom.value.trim(); if (!nom) return;
+      try { VT.liste.profils = (await api(A + '/tarifs/profils', { method: 'POST', body: { nom } })).profils; toast(`« ${nom} » ajouté à la liste.`); draw(); m.querySelector('input[name=nom]')?.focus(); } catch (err) { toast(err.message, true); }
+    });
+  }
+  document.addEventListener('focusin', e => { const s = e.target.closest?.('select[data-vtprofil]'); if (s && !s.value.startsWith('__')) s.dataset.prev = s.value; });
+  document.addEventListener('change', async e => {
+    const s = e.target.closest?.('select[data-vtprofil]'); if (!s) return;
+    const avant = s.dataset.prev ?? '';
+    if (s.value === '__gerer') { s.value = avant; gererProfils(); return; }
+    if (s.value !== '__nouveau') { s.dataset.prev = s.value; return; }
+    const nom = (prompt('Nom du nouveau profil ?\n(ex. Poissonnier, Fromager, Boucher…)') || '').trim();
+    if (!nom) { s.value = avant; return; }
+    try {
+      const r = await api(A + '/tarifs/profils', { method: 'POST', body: { nom } });
+      VT.liste.profils = r.profils;
+      for (const x of $$('select[data-vtprofil]')) { const v = x === s ? r.nom : (x.dataset.prev ?? x.value); x.innerHTML = optionsProfils(r.profils, v); x.value = v; x.dataset.prev = v; }
+      toast(`Profil « ${r.nom} » créé et choisi.`);
+    } catch (err) { s.value = avant; toast(err.message, true); }
+  });
   async function tarifs(id, sub) {
     if (id === 'f') return ficheFournisseurTarifs(sub);
     const L = await api(A + '/tarifs'); VT.liste = L;
