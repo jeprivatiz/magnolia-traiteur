@@ -93,7 +93,7 @@ const libelleFournisseur = f => [f.entreprise, [f.prenom, f.nom].filter(Boolean)
 /* ---------- mise en page A4 (en millimètres) : la page a une hauteur fixe, rien ne déborde ----------
    Si tout tient sur une seule page, les lignes s'agrandissent (photos plus grandes) ; sinon pages numérotées,
    en-tête rappelé, et le bloc « Tarifs accordés le / clause / signatures » sur la dernière page avec au moins 2 produits. */
-const MM = { page: 277, tete1: 70, teteN: 13, th: 7, pied: 8, fin: 66 };
+const MM = { page: 277, tete1: 70, teteN: 13, th: 9, pied: 8, fin: 66 };
 const LIGNE_MIN = 10, LIGNE_MAX = 26, LIGNE_MULTI = 12.5;
 function pagination(n) {
   const dispo1 = MM.page - MM.tete1 - MM.th - MM.pied - MM.fin;
@@ -142,7 +142,7 @@ function documentHtml({ spe, lignes, fournisseur = {}, R = {}, duree = DUREE_DEF
   const L = P.ligne, photo = Math.max(8, Math.min(22, L - 2));
   const fs = L >= 18 ? 10 : L >= 14 ? 9 : 8.4;
   const ligneHtml = (x, i) => `<tr style="height:${L}mm"><td class="no">${i + 1}</td><td class="ph">${x.photo ? `<img src="${esc(x.photo)}" alt="" style="width:${photo}mm;height:${photo}mm">` : `<span class="noph" style="width:${photo}mm;height:${photo}mm"></span>`}</td><td class="nm"><b>${esc(x.titre)}</b>${x.sectionNom && L >= 14 ? `<small>${esc(x.sectionNom.replace(/ à l’unité$/, ''))}</small>` : ''}</td><td class="qt"></td><td class="px"><span>€ TTC</span></td><td class="ob"></td></tr>`;
-  const thead = `<thead><tr style="height:${MM.th}mm"><th class="no">N°</th><th class="ph">Photo</th><th class="nm">Produit</th><th class="qt">Quantité du produit<br><small>(poids, nombre)</small></th><th class="px">Tarif TTC accordé à Magnolia Traiteur</th><th class="ob">Observation</th></tr></thead>`;
+  const thead = `<thead><tr style="height:${MM.th}mm"><th class="no">N°</th><th class="ph">Photo</th><th class="nm">Produit</th><th class="qt">Quantité du produit<br><small>(poids, nombre)</small></th><th class="px">Tarif préférentiel TTC accordé à Magnolia Traiteur</th><th class="ob">Observation</th></tr></thead>`;
   const titre = 'TARIFS PRÉFÉRENTIELS ACCORDÉS À MAGNOLIA TRAITEUR';
   const sousTitre = `pour la commercialisation de nos produits sur le site ${esc(www)}`;
   const ref = 'TP-' + String(spe.cle || norm(spe.nom)).split('--').pop().replace(/^buffet-/, '').replace(/[^a-z0-9]+/gi, '-').toUpperCase().slice(0, 16) + '-' + maintenant.toLocaleDateString('sv-SE', { timeZone: 'Europe/Paris' }).replace(/-/g, '');
@@ -213,7 +213,7 @@ th.no { text-align: center; }
 .nm b { font-weight: 500; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .nm small { display: block; color: #8a7a5c; font-size: 6.8pt; margin-top: .4mm; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .qt { width: 28mm; }
-.px { width: 33mm; position: relative; }
+.px { width: 36mm; position: relative; }
 .px span { position: absolute; right: 1.6mm; bottom: 1mm; font-size: 6.6pt; color: #9a9a90; }
 .ob { width: auto; }
 .fin { flex: none; display: flex; flex-direction: column; margin-top: 2.5mm; overflow: hidden; }
@@ -230,7 +230,10 @@ th.no { text-align: center; }
 @media print { body { background: #fff; } .barre { display: none; } .pg { margin: 0; box-shadow: none; } }
 @media screen and (max-width: 820px) { .pg { zoom: .45; } }
 </style></head><body>
-<div class="barre"><span>${nb} page${nb > 1 ? 's' : ''} A4 · ${lignes.length} produit${lignes.length > 1 ? 's' : ''}</span><button type="button" onclick="window.print()">🖨 Imprimer ou enregistrer en PDF</button><button type="button" class="g" onclick="window.close()">Fermer</button></div>
+<div class="barre"><span>${nb} page${nb > 1 ? 's' : ''} A4 · ${lignes.length} produit${lignes.length > 1 ? 's' : ''}</span><button type="button" onclick="window.print()">🖨 Imprimer ou enregistrer en PDF</button><button type="button" class="g" onclick="fermer()">← Retour au back-office</button></div>
+<script>/* « Fermer » : window.close() est refusé quand l'onglet n'a pas été ouvert par le back-office (Safari, lien ouvert à la main) : on revient alors à l'écran Validation tarifs */
+function fermer() { try { if (window.opener && !window.opener.closed) { window.close(); } } catch (e) {} setTimeout(function () { location.href = '/admin#/tarifs'; }, 250); }</script>
+
 ${pages}
 </body></html>`;
 }

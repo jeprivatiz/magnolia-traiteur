@@ -49,7 +49,7 @@ test('Validation tarifs : fiche fournisseur, choix, document, scan privé', asyn
     assert.equal(doc.status, 200);
     assert.match(doc.t, /TARIFS PRÉFÉRENTIELS ACCORDÉS À MAGNOLIA TRAITEUR/);
     assert.match(doc.t, /pour la commercialisation de nos produits sur le site www\.magnoliatraiteur\.fr/);
-    assert.match(doc.t, /Fournisseur Secret Essai/); assert.ok(!/1 personne|1 kg/.test(doc.t), 'colonne Quantité vide'); assert.match(doc.t, /Tarif TTC accordé à Magnolia Traiteur/); assert.match(doc.t, /24 mois/); assert.match(doc.t, /Tarifs accordés le/);
+    assert.match(doc.t, /Fournisseur Secret Essai/); assert.ok(!/1 personne|1 kg/.test(doc.t), 'colonne Quantité vide'); assert.match(doc.t, /Tarif préférentiel TTC accordé à Magnolia Traiteur/); assert.match(doc.t, /24 mois/); assert.match(doc.t, /Tarifs accordés le/);
     assert.ok(!doc.t.includes('>' + d.produits[0].titre + '<'), 'produit décoché absent du document');
     assert.equal((doc.t.match(/<td class="no">/g) || []).length, spe.n - 1);
 
