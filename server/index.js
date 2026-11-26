@@ -1500,9 +1500,10 @@ async function createApp(opts = {}) {
     const c = await cat.get();
     const nomsRub = Object.fromEntries(c.rubriques.map(r => [r.slug, r.nom])), nomsSous = Object.fromEntries(c.rubriques.flatMap(r => (r.sous || []).map(x => [x.slug, x.nom])));
     const lignes = (Array.isArray(b.lignes) ? b.lignes : String(b.lignes || '').split('\n')).map(x => s(x, 1500)).filter(Boolean).slice(0, 40);
-    const fiche = { ...p, ...(b.titre ? { titre: s(b.titre, 200) } : {}), ...(champ === 'sousPhoto' && b.description ? { description: String(b.description).split('\n').map(x => s(x, 1500)).filter(Boolean) } : {}) };
+    const fiche = { ...p, ...(b.titre ? { titre: s(b.titre, 200) } : {}), ...(champ === 'sousPhoto' && b.description ? { description: String(b.description).split('\n').map(x => s(x, 1500)).filter(Boolean) } : {}), ...(champ === 'description' && b.sousPhoto != null ? { sousPhoto: String(b.sousPhoto).split('\n').map(x => s(x, 1500)).filter(Boolean) } : {}) };
     try {
-      const rep = IA.json(await ia.demander(TXT.promptAmeliorer(TXT.infosProduit({ ...fiche, slug: s(b.id, 120) }, nomsRub, nomsSous), champ, lignes), { effort: 'medium', maxTokens: 6000 }));
+      const info = TXT.infosProduit({ ...fiche, slug: s(b.id, 120) }, nomsRub, nomsSous);
+      const rep = IA.json(await ia.demander(champ === 'description' ? TXT.promptDescription(info, fiche.sousPhoto, lignes) : TXT.promptAmeliorer(info, champ, lignes), { effort: 'medium', maxTokens: 6000 }));
       const l = TXT.lignesValides(rep?.lignes, champ);
       if (!l) return res.status(502).json({ error: 'La proposition de l’IA ne convenait pas (trop longue ou mention interdite). Réessayez.' });
       res.json({ lignes: l });

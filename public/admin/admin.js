@@ -3542,7 +3542,7 @@
           <textarea name="sousPhoto" hidden>${esc((p.sousPhoto || []).join('\n'))}</textarea></div>
           <label>Accroche (cartes et Google)<textarea name="extrait" rows="2">${esc(p.extrait || '')}</textarea></label>
           <label>Description (un paragraphe par ligne)<textarea name="description" rows="4" data-colle>${esc((p.description || []).join('\n'))}</textarea></label>
-          <div class="ia-ligne"><button type="button" class="btn ghost sm ia-btn" data-desc-ia>✨ Améliorer la description avec l’IA</button><small class="muted">L’IA propose une version enrichie ; relisez-la puis enregistrez.</small></div>
+          <div class="ia-ligne"><button type="button" class="btn ghost sm ia-btn" data-desc-ia>✨ Améliorer la description avec l’IA</button><small class="muted">L’IA s’appuie sur la « Description sous la photo » pour écrire une phrase qui donne envie de commander ; relisez-la puis enregistrez.</small></div>
           ${seoBloc('produit', p.seoTitre, p.seoDescription, ` data-id="${esc(p.id || p.slug)}"`)}
         </section>
         <section class="box"><h2>Prix et quantités</h2>${peut('prix') ? '' : '<p class="muted sm">🔒 Les prix sont verrouillés pour votre compte (droit « Modifier les prix »).</p>'}
@@ -3746,7 +3746,7 @@
       const iaTexte = async (btn, champ, lignes, poser) => {
         const lib = btn.textContent; btn.disabled = true; btn.textContent = '✨ L’IA rédige…';
         try {
-          const r = await api(A + '/ia/texte-produit', { method: 'POST', body: { id, champ, lignes, titre: form.titre.value, description: form.description.value } });
+          const r = await api(A + '/ia/texte-produit', { method: 'POST', body: { id, champ, lignes, titre: form.titre.value, description: form.description.value, sousPhoto: ta.value } });
           poser(r.lignes); dirty(); toast('Proposition de l’IA posée : relisez puis enregistrez.');
         } catch (err) { toast(err.message, true); }
         finally { btn.disabled = false; btn.textContent = lib; }
