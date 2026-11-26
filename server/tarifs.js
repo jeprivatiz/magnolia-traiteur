@@ -268,7 +268,7 @@ body.pdf .pg { margin: 0; box-shadow: none; zoom: 1; }
 </style></head><body>
 <div class="barre"><span>${nb} page${nb > 1 ? 's' : ''} A4 · ${lignes.length} produit${lignes.length > 1 ? 's' : ''}</span><button type="button" onclick="window.print()">🖨 Imprimer ou enregistrer en PDF</button><button type="button" class="g" onclick="fermer()">← Retour au back-office</button></div>
 <script>/* « Fermer » : window.close() est refusé quand l'onglet n'a pas été ouvert par le back-office (Safari, lien ouvert à la main) : on revient alors à l'écran Validation tarifs */
-function fermer() { try { if (window.opener && !window.opener.closed) { window.close(); } } catch (e) {} setTimeout(function () { location.href = '/admin#/tarifs'; }, 250); }
+function fermer() { try { if (window.opener && !window.opener.closed) { window.close(); } } catch (e) {} setTimeout(function () { location.href = '/admin#/tarifs/grille'; }, 250); }
 /* PDF du document (pièce jointe de l'e-mail au fournisseur) : chaque page A4 est photographiée telle quelle, puis assemblée */
 function charger(u) { return new Promise(function (ok, ko) { var s = document.createElement('script'); s.src = u; s.onload = ok; s.onerror = function () { ko(new Error('Chargement impossible : ' + u)); }; document.head.appendChild(s); }); }
 window.versPdf = async function () {

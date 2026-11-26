@@ -399,20 +399,19 @@
   async function tarifs(id, sub) {
     if (id === 'f') return ficheFournisseurTarifs(sub);
     if (id === 'comparatif') return comparatifTarifs();
+    if (id !== 'grille') return listeFournisseurs();
     const L = await api(A + '/tarifs'); VT.liste = L;
     if (!L.specialites.some(s => s.cle === VT.spe)) VT.spe = L.specialites[0]?.cle || '';
     VT.data = VT.spe ? await api(A + '/tarifs/specialite/' + VT.spe) : null;
     const groupes = []; for (const s of L.specialites) { const g = groupes.find(x => x.g === s.groupe); g ? g.l.push(s) : groupes.push({ g: s.groupe, l: [s] }); }
     const opt = s => `<option value="${esc(s.cle)}"${s.cle === VT.spe ? ' selected' : ''}>${esc(s.nom)} (${s.n})${s.fournisseur ? ' · ' + esc(s.fournisseur) : ''}${s.nbFournisseurs > 1 ? ` (+${s.nbFournisseurs - 1} autre${s.nbFournisseurs > 2 ? 's' : ''})` : ''}</option>`;
     const selSpe = `<select data-vtspe aria-label="Spécialité">${groupes.map(g => g.g ? `<optgroup label="${esc(g.g)}">${g.l.map(opt).join('')}</optgroup>` : g.l.map(opt).join('')).join('')}</select>`;
-    const fiches = L.fournisseurs.length ? `<div class="table"><table><thead><tr><th>Fournisseur</th><th>Profil</th><th>Ville</th><th class="n">Documents signés</th><th></th></tr></thead><tbody>${L.fournisseurs.map(f => `<tr data-href="#/tarifs/f/${esc(f.id)}"><td><b>${esc(f.libelle)}</b></td><td>${esc(f.profil)}</td><td>${esc(f.ville)}</td><td class="n">${f.scans ? `<span class="pill d-accepte">📎 ${f.scans}</span>` : '<span class="muted sm">aucun</span>'}</td><td class="n"><a class="qs-back" href="#/tarifs/f/${esc(f.id)}">Ouvrir le dossier ›</a></td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Aucune fiche fournisseur pour le moment : créez-la ci-dessus, à l’étape 2.</p>';
-    return page('🧾 Validation tarifs', `<a class="btn vt-or" href="#/tarifs/comparatif">⚖ Comparatif des tarifs</a><a class="btn ghost" href="#/tarifs/f/nouveau">+ Nouvelle fiche fournisseur</a>`, `
+    return page('🧾 Préparer une grille de tarifs', `<a class="btn ghost" href="#/tarifs">← Mes fournisseurs</a><a class="btn vt-or" href="#/tarifs/comparatif">⚖ Comparatif des tarifs</a>`, `
       <p class="muted vt-intro">Préparez le document <b>« Tarifs préférentiels accordés à Magnolia Traiteur »</b> pour chaque spécialité : le restaurateur ou le traiteur y inscrit ses tarifs TTC, signe, et vous déposez ensuite le scan dans son dossier. Tout reste interne : le fournisseur n’apparaît jamais sur le site.</p>
       <section class="box vt-box"><h2><span class="vt-n">1</span> Spécialité</h2>${selSpe}${VT.data?.choix.imprimeLe ? `<p class="muted sm vt-der">Dernier document préparé le ${dateFr(VT.data.choix.imprimeLe, { day: 'numeric', month: 'long', year: 'numeric' })}.</p>` : ''}</section>
       <section class="box vt-box" id="vtF">${vtBlocFournisseur()}</section>
       <section class="box vt-box" id="vtP">${vtBlocProduits()}</section>
-      <div class="actions sticky vt-act"><label class="vt-duree">Tarifs garantis<select data-vtduree>${L.durees.map(d => `<option value="${d}"${(VT.data?.choix.duree || 6) === d ? ' selected' : ''}>${d} mois</option>`).join('')}</select></label><button type="button" class="btn vt-or" data-vtdoc>🖨 Préparer le document A4</button><button type="button" class="btn" data-vtmail>✉ Envoyer par e-mail</button><span class="muted sm" id="vtInfo"></span></div>
-      <section class="box vt-box"><h2>📁 Fiches fournisseurs</h2>${fiches}</section>`);
+      <div class="actions sticky vt-act"><label class="vt-duree">Tarifs garantis<select data-vtduree>${L.durees.map(d => `<option value="${d}"${(VT.data?.choix.duree || 6) === d ? ' selected' : ''}>${d} mois</option>`).join('')}</select></label><button type="button" class="btn vt-or" data-vtdoc>🖨 Préparer le document A4</button><button type="button" class="btn" data-vtmail>✉ Envoyer par e-mail</button><span class="muted sm" id="vtInfo"></span></div>`);
   }
   function vtBlocFournisseur() {
     const D = VT.data, L = VT.liste; if (!D) return '';
@@ -440,6 +439,7 @@
   tarifs.after = (id, sub) => {
     if (id === 'f') return ficheFournisseurTarifs.after(sub);
     if (id === 'comparatif') return comparatifTarifs.after();
+    if (id !== 'grille') return listeFournisseurs.after();
     $$('tr[data-href]').forEach(tr => tr.addEventListener('click', e => { if (!e.target.closest('a')) location.hash = tr.dataset.href; }));
     const D = VT.data; if (!D) return;
     if (VT.allerProduits) { VT.allerProduits = false; const P = $('#vtP'); if (P) setTimeout(() => { P.scrollIntoView({ behavior: 'smooth', block: 'start' }); P.classList.add('vt-flash'); setTimeout(() => P.classList.remove('vt-flash'), 2200); }, 60); }
@@ -498,6 +498,26 @@
     });
   };
 
+  /* Écran d'accueil de Validation tarifs (Jean-Luc, 2026-11-26) : la liste de tous les fournisseurs, avec recherche ; on enchaîne ensuite sur la fiche ou la grille */
+  async function listeFournisseurs() {
+    const L = await api(A + '/tarifs'); VT.liste = L;
+    const nomS = c => L.specialites.find(s => s.cle === c)?.nom || c;
+    const jour = d => dateFr(d, { day: 'numeric', month: 'short', year: 'numeric' });
+    const statut = f => f.scans ? `<span class="pill d-accepte">📎 Signé reçu${f.signeLe ? ' · ' + jour(f.signeLe) : ''}</span>` : f.envoyeLe ? `<span class="pill d-envoye">✉ Envoyé le ${jour(f.envoyeLe)}</span>` : f.specialites.length ? '<span class="pill">🧾 Grille à envoyer</span>' : '<span class="pill">À compléter</span>';
+    const rows = L.fournisseurs.map(f => `<tr data-href="#/tarifs/f/${esc(f.id)}" data-vtq="${esc([f.libelle, f.profil, f.ville, f.telephone, f.email, ...f.specialites.map(nomS)].join(' ').toLowerCase())}"><td><b>${esc(f.entreprise || f.contact || 'Sans nom')}</b>${f.entreprise && f.contact ? `<small class="vt-sub">${esc(f.contact)}</small>` : ''}</td><td>${esc(f.profil)}${f.ville ? `<small class="vt-sub">${esc(f.ville)}</small>` : ''}</td><td>${f.specialites.length ? f.specialites.map(c => `<button type="button" class="vt-chip" data-vtgo="${esc(f.id)}" data-cle="${esc(c)}" title="Ouvrir sa grille">${esc(nomS(c))} ›</button>`).join('') : '<span class="muted sm">aucune spécialité</span>'}</td><td>${f.telephone ? `<a href="tel:${esc(f.telephone.replace(/\s/g, ''))}">${esc(f.telephone)}</a>` : ''}${f.email ? `<small class="vt-sub"><a href="mailto:${esc(f.email)}">${esc(f.email)}</a></small>` : ''}</td><td>${statut(f)}</td><td class="n"><a class="qs-back" href="#/tarifs/f/${esc(f.id)}">Fiche ›</a></td></tr>`).join('');
+    return page('🧾 Validation tarifs', `<a class="btn vt-or" href="#/tarifs/f/nouveau">➕ Nouveau fournisseur</a><a class="btn ghost" href="#/tarifs/grille">🧾 Préparer une grille</a><a class="btn ghost" href="#/tarifs/comparatif">⚖ Comparatif</a>`, `
+      <p class="muted vt-intro">Tous vos fournisseurs. Cliquez sur un fournisseur pour ouvrir sa fiche (coordonnées, spécialités, documents signés), ou sur une de ses spécialités pour préparer sa grille de tarifs, l’imprimer ou l’envoyer par e-mail. Tout reste interne : jamais visible sur le site.</p>
+      <section class="box vt-box"><div class="vt-lbar"><input type="search" data-vtrech placeholder="🔍 Rechercher un fournisseur, une spécialité, une ville…" aria-label="Rechercher"><span class="muted sm" data-vtnb>${L.fournisseurs.length} fournisseur${L.fournisseurs.length > 1 ? 's' : ''}</span></div>
+      ${L.fournisseurs.length ? `<div class="table vt-lf"><table><thead><tr><th>Fournisseur</th><th>Profil</th><th>Spécialités</th><th>Contact</th><th>Statut</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="muted">Aucun fournisseur pour le moment. Commencez par « ➕ Nouveau fournisseur ».</p>'}</section>`);
+  }
+  listeFournisseurs.after = () => {
+    $$('tr[data-href]').forEach(tr => tr.addEventListener('click', e => { if (!e.target.closest('a,button')) location.hash = tr.dataset.href; }));
+    $$('[data-vtgo]').forEach(b => b.addEventListener('click', async () => {
+      try { await api(A + '/tarifs/specialite/' + b.dataset.cle, { method: 'PUT', body: { fournisseurId: b.dataset.vtgo } }); VT.spe = b.dataset.cle; mem.set('mg_vt_spe', VT.spe); VT.allerProduits = true; location.hash = '#/tarifs/grille'; } catch (err) { toast(err.message, true); }
+    }));
+    const r = $('[data-vtrech]'); if (!r) return;
+    r.addEventListener('input', () => { const q = r.value.trim().toLowerCase(); let n = 0; $$('tr[data-vtq]').forEach(tr => { const ok = !q || tr.dataset.vtq.includes(q); tr.hidden = !ok; if (ok) n++; }); $('[data-vtnb]').textContent = `${n} fournisseur${n > 1 ? 's' : ''}`; });
+  };
   /* Envoi de la grille par e-mail (Jean-Luc, 2026-11-26) : lettre à en-tête modifiable + aperçu ; le PDF est fabriqué ici, depuis le document A4 lui-même */
   async function vtEnvoyerMail() {
     const L = await api(A + '/tarifs/specialite/' + VT.spe + '/lettre');
@@ -539,7 +559,7 @@
     let sec = null;
     const lignes = L.map(l => { const h = !spe && l.speNom !== sec ? `<tr class="vt-csec"><td colspan="${F.length + 2}">${esc(l.speNom)}</td></tr>` : ''; sec = l.speNom; const t = l.meilleur.type; return h + `<tr><td class="vt-cp">${l.photo ? `<img src="${esc(l.photo)}" alt="" loading="lazy">` : '<span class="vt-noph"></span>'}<b>${esc(l.titre)}</b></td>${F.map(f => { const p = l.prix[f.id]; if (!p) return '<td class="n muted">—</td>'; const best = f.id === l.meilleur.id && Object.keys(l.prix).length > 1; return `<td class="n${best ? ' vt-best' : ''}">${p.acc ? `<b>${euros(p.acc)}</b>` : '<span class="muted sm">non accordé</span>'}${p.hab ? `<small>habituel ${euros(p.hab)}</small>` : ''}</td>`; }).join('')}<td class="vt-cm"><b>${euros(l.meilleur.cents)}</b><small>${esc(parF.get(l.meilleur.id)?.libelle || '')}${t === 'hab' ? ' · tarif habituel' : ''}${l.ecart ? ` · ${euros(l.ecart)} de moins` : ''}</small></td></tr>`; }).join('');
     const opt = `<select data-vtcs aria-label="Spécialité"><option value="">Toutes les spécialités (${C.lignes.length} produits)</option>${C.specialites.map(s => `<option value="${esc(s.cle)}"${s.cle === spe ? ' selected' : ''}>${esc(s.nom)} (${C.lignes.filter(l => l.spe === s.cle).length})</option>`).join('')}</select>`;
-    return page('⚖ Comparatif des tarifs fournisseurs', `<button type="button" class="btn ghost" data-vtcprint>🖨 Imprimer</button><a class="btn ghost" href="#/tarifs">← Validation tarifs</a>`, `
+    return page('⚖ Comparatif des tarifs fournisseurs', `<button type="button" class="btn ghost" data-vtcprint>🖨 Imprimer</button><a class="btn ghost" href="#/tarifs">← Mes fournisseurs</a>`, `
       <p class="muted vt-intro">Pour chaque produit, les tarifs de chaque fournisseur côte à côte. <b>En vert, le moins cher</b> : on compare le tarif préférentiel accordé (saisi une fois le document signé reçu) ; s’il n’y en a encore aucun pour ce produit, le tarif client habituel. Interne : jamais visible sur le site.</p>
       <section class="box vt-box"><div class="vt-cbar">${opt}${F.length ? `<span class="vt-cres">${F.map(f => `<span class="pill">${esc(f.libelle)} : <b>${gagne.get(f.id) || 0}</b> meilleur${(gagne.get(f.id) || 0) > 1 ? 's' : ''} tarif${(gagne.get(f.id) || 0) > 1 ? 's' : ''}</span>`).join('')}</span>` : ''}</div>
       ${L.length ? `<div class="table vt-comp"><table><thead><tr><th>Produit</th>${F.map(f => `<th class="n">${esc(f.libelle)}</th>`).join('')}<th>Meilleur tarif</th></tr></thead><tbody>${lignes}</tbody></table></div>` : '<p class="muted">Aucun tarif saisi pour le moment. Dans Validation tarifs, choisissez la spécialité et le fournisseur, puis remplissez « Tarif préférentiel accordé » (ou « Tarif client habituel ») : le comparatif se remplit tout seul.</p>'}</section>`);
@@ -552,13 +572,13 @@
   /* fiche fournisseur + son dossier : les documents signés scannés (PDF ou photo), datés, à voir ou télécharger */
   async function ficheFournisseurTarifs(id) {
     const L = VT.liste || (VT.liste = await api(A + '/tarifs'));
-    if (id === 'nouveau') return page('Nouvelle fiche fournisseur', '<a class="btn ghost" href="#/tarifs">← Validation tarifs</a>', `<section class="box vt-box"><form id="vtFf">${formFournisseur({}, L.profils)}<button class="btn">Créer la fiche</button></form></section>`);
+    if (id === 'nouveau') return page('Nouvelle fiche fournisseur', '<a class="btn ghost" href="#/tarifs">← Mes fournisseurs</a>', `<section class="box vt-box"><h2>🍽 Ses spécialités</h2><p class="muted sm">Cochez ce qu’il propose : après « Créer la fiche », vous arrivez directement sur ses produits.</p><div class="vt-specs">${L.specialites.map(s => `<label class="vt-spk"><input type="checkbox" data-vtspk="${esc(s.cle)}"> ${esc(s.nom)}</label>`).join('')}</div></section><section class="box vt-box"><h2>Coordonnées</h2><form id="vtFf">${formFournisseur({}, L.profils)}<button class="btn">Créer la fiche</button></form></section>`);
     const f = await api(A + '/tarifs/fournisseurs/' + id); VT.fiche = f;
     const nomSpe = c => L.specialites.find(s => s.cle === c)?.nom || '';
     const specs = (f.specialites || []).map(nomSpe).filter(Boolean);
     const scans = (f.scans || []).map(s => { const u = `${A}/tarifs/fournisseurs/${esc(id)}/scans/${esc(s.nom)}`; const img = /^image\/(jpeg|png|webp)/.test(s.type); return `<li class="vt-scan">${img ? `<a href="${u}" target="_blank" rel="noopener"><img src="${u}" alt=""></a>` : `<a class="vt-pdf" href="${u}" target="_blank" rel="noopener">${/pdf/.test(s.type) ? 'PDF' : '📄'}</a>`}<span class="vt-st"><b>${esc(s.specialiteNom || nomSpe(s.specialite) || 'Document signé')}</b><small>${s.signeLe ? 'Signé le ' + dateFr(s.signeLe, { day: 'numeric', month: 'long', year: 'numeric' }) + ' · ' : ''}déposé le ${dateFr(s.at, { day: 'numeric', month: 'long', year: 'numeric' })}${s.par ? ' par ' + esc(s.par) : ''}</small>${s.note ? `<small class="vt-sn">${esc(s.note)}</small>` : ''}<small class="muted">${esc(s.original)} · ${Math.max(1, Math.round(s.octets / 1024)).toLocaleString('fr-FR')} Ko</small></span><span class="vt-sa"><a class="btn ghost sm" href="${u}" target="_blank" rel="noopener">👁 Voir</a><a class="btn ghost sm" href="${u}?telecharger">⬇ Télécharger</a><button type="button" class="btn ghost sm danger" data-vtrm="${esc(s.nom)}">🗑 Retirer</button></span></li>`; }).join('');
     const titre = [f.entreprise, [f.prenom, f.nom].filter(Boolean).join(' ')].filter(Boolean).join(' · ');
-    return page('🧾 ' + esc(titre || 'Fournisseur'), '<a class="btn ghost" href="#/tarifs">← Validation tarifs</a>', `
+    return page('🧾 ' + esc(titre || 'Fournisseur'), '<a class="btn ghost" href="#/tarifs">← Mes fournisseurs</a>', `
       <section class="box vt-box"><h2>🍽 Spécialités de ce fournisseur</h2><p class="muted sm">Cochez ce qu’il propose (ex. Plateau de fruits de mer pour un poissonnier), décochez ce qui ne le concerne pas, puis « Enregistrer la fiche » en bas : vous arrivez directement sur ses produits.</p>
         <div class="vt-specs">${L.specialites.map(s => `<label class="vt-spk"><input type="checkbox" data-vtspk="${esc(s.cle)}"${(f.specialites || []).includes(s.cle) ? ' checked' : ''}> ${esc(s.nom)}</label>`).join('')}</div></section>
       <section class="box vt-box vt-dos"><h2>📎 Dossier : documents signés</h2>
@@ -578,7 +598,13 @@
       try {
         const body = Object.fromEntries(new FormData(e.target));
         /* après l'enregistrement, la fiche se ferme : retour à Validation tarifs, directement sur le choix des produits (Jean-Luc, 2026-11-26) */
-        if (id === 'nouveau') { const r = await api(A + '/tarifs/fournisseurs', { method: 'POST', body }); if (VT.spe) await api(A + '/tarifs/specialite/' + VT.spe, { method: 'PUT', body: { fournisseurId: r.fournisseur.id } }); toast(VT.spe ? 'Fiche créée et choisie : cochez maintenant les produits.' : 'Fiche créée.'); }
+        let fini = '#/tarifs/grille';
+        if (id === 'nouveau') {
+          const r = await api(A + '/tarifs/fournisseurs', { method: 'POST', body });
+          const cles = $$('[data-vtspk]').filter(c => c.checked).map(c => c.dataset.vtspk);
+          if (cles.length) { await api(A + '/tarifs/fournisseurs/' + r.fournisseur.id + '/specialites', { method: 'POST', body: { cles } }); VT.spe = cles[0]; mem.set('mg_vt_spe', VT.spe); await api(A + '/tarifs/specialite/' + VT.spe, { method: 'PUT', body: { fournisseurId: r.fournisseur.id } }); toast('Fiche créée : voici ses produits.'); }
+          else { toast('Fiche créée.'); fini = '#/tarifs'; }
+        }
         else {
           await api(A + '/tarifs/fournisseurs/' + id, { method: 'PUT', body });
           const cles = $$('[data-vtspk]').filter(c => c.checked).map(c => c.dataset.vtspk);
@@ -589,8 +615,9 @@
           const cible = r.ajoutees[0] || (cles.includes(VT.spe) ? VT.spe : cles[0]);
           if (cible) { VT.spe = cible; mem.set('mg_vt_spe', cible); await api(A + '/tarifs/specialite/' + cible, { method: 'PUT', body: { fournisseurId: id } }); }
           toast(cible ? 'Fiche enregistrée : voici ses produits.' : 'Fiche enregistrée.');
+          if (!cible) fini = '#/tarifs';
         }
-        VT.liste = null; VT.allerProduits = true; location.hash = '#/tarifs';
+        VT.liste = null; VT.allerProduits = true; location.hash = fini;
       } catch (err) { toast(err.message, true); }
     });
     $('[data-vtdel]')?.addEventListener('click', async () => {

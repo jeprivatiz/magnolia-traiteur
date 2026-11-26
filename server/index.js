@@ -2638,7 +2638,7 @@ async function createApp(opts = {}) {
     const F = await fournisseursTarifs(), parId = new Map(F.map(f => [f.id, f]));
     res.set('Cache-Control', 'no-store').json({
       specialites: TAR.specialites(rubriques, produits).map(s => { const c = choix.get(s.cle); const f = c?.fournisseurId && parId.get(c.fournisseurId); const autres = Object.keys(c?.grilles || {}).filter(k => k !== '_' && parId.get(k)); return { ...s, fournisseur: f ? TAR.libelleFournisseur(f) : '', nbFournisseurs: autres.length, imprimeLe: c ? grilleDe(c).imprimeLe || '' : '' }; }),
-      fournisseurs: F.map(f => ({ id: f.id, libelle: TAR.libelleFournisseur(f), profil: f.profil || '', ville: f.ville || '', scans: (f.scans || []).length })),
+      fournisseurs: F.map(f => { const der = a => (a || []).reduce((m, x) => !m || x.at > m.at ? x : m, null); return { id: f.id, libelle: TAR.libelleFournisseur(f), entreprise: f.entreprise || '', contact: [f.prenom, f.nom].filter(Boolean).join(' '), profil: f.profil || '', ville: f.ville || '', telephone: f.portable || f.telephone || '', email: f.email || '', scans: (f.scans || []).length, signeLe: der(f.scans)?.at || '', envoyeLe: der(f.envois)?.at || '', specialites: [...choix.entries()].filter(([, c]) => c?.grilles?.[f.id]).map(([k]) => k) }; }),
       profils: await profilsTarifs(), durees: TAR.DUREES,
     });
   }));
