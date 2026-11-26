@@ -539,4 +539,6 @@ function creerHistorique({ store, sources, log }) {
   return { routes, sessions };
 }
 
-module.exports = { resumeFactures, parClientFactures, statsFactures, lireFacture, creerHistorique, lireFichier, lireAffaire, colonnesDe, sourceNette, lieuNet, resumeClient, parClient, statistiques, critere, filtre, facettes, CRITERES, prochaineFois };
+/* « reste dû » masqué jusqu'en 2027 (Jean-Luc, 2026-11-26) ; même réglage côté back-office : HISTO_RESTE_DU dans public/admin/admin.js */
+const AFFICHER_RESTE_DU = false;
+module.exports = { AFFICHER_RESTE_DU, resumeFactures, parClientFactures, statsFactures, lireFacture, creerHistorique, lireFichier, lireAffaire, colonnesDe, sourceNette, lieuNet, resumeClient, parClient, statistiques, critere, filtre, facettes, CRITERES, prochaineFois };
