@@ -70,6 +70,21 @@ test('Validation tarifs : fiche fournisseur, choix, document, scan privé', asyn
     assert.match(doc2.t, /12,50 €/, 'tarif habituel imprimé');
     assert.equal((await req('/api/admin/tarifs/specialite/' + spe.cle)).j.produits[1].habituelCents, 1250);
 
+    /* deux fournisseurs pour la même spécialité : chacun sa grille, comparatif = le moins cher */
+    const g = (await req('/api/admin/tarifs/fournisseurs', { method: 'POST', body: { entreprise: 'Second Essai', profil: 'Traiteur' } })).j.fournisseur;
+    const s1 = d.produits[1].slug, s2 = d.produits[2].slug;
+    await req('/api/admin/tarifs/specialite/' + spe.cle, { method: 'PUT', body: { fournisseurId: f.id, accordes: { [s1]: 1000, [s2]: 800 } } });
+    await req('/api/admin/tarifs/specialite/' + spe.cle, { method: 'PUT', body: { fournisseurId: g.id } });
+    const dg = (await req('/api/admin/tarifs/specialite/' + spe.cle)).j;
+    assert.equal(dg.choix.fournisseurId, g.id); assert.ok(dg.produits[0].retire, 'reprend les produits décochés'); assert.equal(dg.produits[1].habituelCents, null, 'jamais les prix de l’autre'); assert.equal(dg.grilles.length, 2);
+    await req('/api/admin/tarifs/specialite/' + spe.cle, { method: 'PUT', body: { fournisseurId: g.id, accordes: { [s1]: 900, [s2]: 850 } } });
+    const cp = (await req('/api/admin/tarifs/comparatif')).j;
+    const l1 = cp.lignes.find(l => l.slug === s1), l2 = cp.lignes.find(l => l.slug === s2);
+    assert.equal(l1.meilleur.id, g.id); assert.equal(l1.ecart, 100); assert.equal(l2.meilleur.id, f.id);
+    assert.equal(cp.fournisseurs.length, 2);
+    await req('/api/admin/tarifs/specialite/' + spe.cle, { method: 'PUT', body: { fournisseurId: f.id } });
+    assert.equal((await req('/api/admin/tarifs/specialite/' + spe.cle)).j.produits[1].habituelCents, 1250, 'la grille du premier est intacte');
+
     /* scan signé : déposé dans le dossier, servi seulement à l'équipe */
     const fd = new FormData();
     fd.append('fichier', new Blob(['%PDF-1.4 essai'], { type: 'application/pdf' }), 'tableau-signe.pdf');
