@@ -300,7 +300,7 @@ function creerImportClients({ store, log }) {
         if (!ecrire) { S.cree.add(id); continue; }
         await store.set('clients/' + id, {
           id, ...f, notes: f.notes || '', creeLe: f.creeLe ? f.creeLe + 'T12:00:00.000Z' : now, derniereActivite: f.derniereCommande ? f.derniereCommande + 'T12:00:00.000Z' : (f.creeLe ? f.creeLe + 'T12:00:00.000Z' : ''),
-          source: 'import CRM', importId: meta.id, importCree: meta.id, statutContact: 'client existant',
+          source: 'import CRM', canal: 'Import', importId: meta.id, importCree: meta.id, statutContact: 'client existant',
           consentement: { email: true, sms: true, base: 'client existant (a contacté Magnolia)', le: now, source: `import CRM « ${meta.fichier} »`, par: meta.par },
           ...(f.nePasContacter ? { desinscrit: { email: true, sms: true, le: now, leEmail: now, leSms: now, source: 'fichier importé : NE PAS CONTACTER' } } : {}),
         });
