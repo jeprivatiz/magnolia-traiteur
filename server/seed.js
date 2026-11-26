@@ -25,9 +25,7 @@ const SUGGESTIONS_ACCUEIL = [
   { label: 'Couscous party', lien: '/saveurs-du-monde/couscous-party' },
   { label: 'Huîtres', lien: '' },
   { label: 'Barbecue party', lien: '/boutique?q=barbecue' },
-  { label: 'Fontaine à chocolat', lien: '' },
   { label: 'Pièces montées', lien: '' },
-  { label: 'Candy bar', lien: '' },
   { label: 'Plateau de fruits de mer', lien: '/grand-large' },
   { label: 'DJ', lien: '' },
   { label: 'Louer des verres', lien: '/boutique?q=verres' },
@@ -801,6 +799,12 @@ async function initSousRubriques(store, { log = console } = {}) {
   const RSb = await store.get('site/reglages');
   if (RSb && !RSb.bullesAccueil3) {
     await store.set('site/reglages', { ...RSb, accueil: { ...(RSb.accueil || {}), suggestions: SUGGESTIONS_ACCUEIL }, bullesAccueil3: true });
+  }
+  /* Jean-Luc (2026-11-26) : plus de bulles « Candy bar » ni « Fontaine à chocolat » sous la recherche (produits gardés au catalogue). Une fois. */
+  const RSb4 = await store.get('site/reglages');
+  if (RSb4 && !RSb4.bullesAccueil4) {
+    const sg = (RSb4.accueil?.suggestions || []).filter(x => !/^(candy ?bar|fontaine [aà] chocolat)$/i.test(String(typeof x === 'string' ? x : x?.label || '').trim()));
+    await store.set('site/reglages', { ...RSb4, accueil: { ...(RSb4.accueil || {}), suggestions: sg }, bullesAccueil4: true });
   }
   /* prix corrigé par Jean-Luc (2026-11-22) : le brouillon avait repris le prix de « Entrées + plat » (21,90 €). Une fois. */
   const RSc = await store.get('site/reglages');
