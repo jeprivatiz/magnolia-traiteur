@@ -43,7 +43,7 @@ function liste(c, { type = '' } = {}) {
   const titre = 'Nos événements en reportage';
   const chapo = 'Pour certaines prestations, nous racontons l’événement en photos : soirées d’entreprise, séminaires, mariages, anniversaires… Pour vous inspirer et voir concrètement comment nous travaillons.';
   const body = `<section class="wrap page-h rep-page-h"><nav class="crumbs" aria-label="Fil d’Ariane"><a href="/">Accueil</a> / <span>Le blog</span></nav><p class="eyebrow">Le blog Magnolia</p><h1>${titre}</h1><p class="lead">${chapo}</p>${ongletsCat(cat ? type : '', true)}</section>
-  <section class="wrap rep-liste">${l.length ? `<div class="rep-l tous">${l.map((a, i) => carte(a, { grande: i === 0 })).join('')}</div>` : `<p class="rep-vide">${cat ? 'Pas encore de reportage dans cette catégorie : ' : ''}nos prochains reportages arrivent très bientôt.</p>`}</section>
+  <section class="wrap rep-liste">${l.length ? `<div class="rep-l tous n${Math.min(3, l.length)}">${l.map((a, i) => carte(a, { grande: i === 0 })).join('')}</div>` : `<p class="rep-vide">${cat ? 'Pas encore de reportage dans cette catégorie : ' : ''}nos prochains reportages arrivent très bientôt.</p>`}</section>
   <section class="cta wrap"><h2>Votre événement sera le prochain ?</h2><div class="row"><a class="btn btn-vert" href="/boutique">Composer mon événement</a><a class="lnk" href="tel:${esc((c.reglages.telephone || '').replace(/\s/g, ''))}">ou appelez le ${esc(c.reglages.telephone || '')}</a></div></section>`;
   return V.layout(c, { title: cat ? `${titre} : ${cat === 'entreprise' ? 'entreprises' : 'particuliers'}` : titre, description: chapo, body, path: '/blog' + (type && cat ? '?type=' + type : ''), image: l[0]?.photos?.[0]?.src || '' });
 }
