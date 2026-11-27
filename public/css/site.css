@@ -1384,3 +1384,30 @@ h1 .formule { font-size: .5em; margin-top: .45em; }
 /* remise sur une ligne du devis : prix barré + mention */
 .tab td small.rem { color: #a8322a; font-weight: 600; }
 .tab td s { color: var(--gris); font-size: .85em; }
+
+/* Instagram (Jean-Luc 2026-11-27) : au milieu des chiffres de l'accueil, icône dans l'en-tête, menu téléphone, pied de page */
+.ig-logo { display: block; width: 44px; height: 44px; border-radius: 12px; flex: none; }
+.chiffres.avec-ig { grid-template-columns: repeat(5, 1fr); align-items: center; }
+.ch-ig { display: flex; flex-direction: column; align-items: center; gap: 6px; text-decoration: none; color: inherit; padding: 12px 8px; border-radius: 18px; transition: transform .2s, box-shadow .2s, background .2s; }
+.ch-ig .ig-logo { width: clamp(52px, 5vw, 64px); height: clamp(52px, 5vw, 64px); border-radius: 18px; box-shadow: 0 8px 22px rgba(214, 36, 159, .28); }
+.ch-ig strong { font-family: var(--serif); font-weight: 500; font-size: clamp(1.15rem, 1.6vw, 1.4rem); color: var(--vert); line-height: 1.1; }
+.ch-ig span { font-size: .86rem; color: var(--gris); }
+.ch-ig:hover { transform: translateY(-3px); background: var(--creme); }
+.ch-ig:hover strong { text-decoration: underline; text-underline-offset: 3px; }
+@media (max-width: 760px) {
+  .chiffres.avec-ig { grid-template-columns: 1fr 1fr; }
+  .chiffres.avec-ig .ch-ig { grid-column: 1 / -1; display: grid; grid-template-columns: auto auto; grid-template-areas: "l t" "l s"; justify-content: center; align-items: center; text-align: left; gap: 2px 14px; background: var(--creme); padding: 14px 16px; }
+  .chiffres.avec-ig .ch-ig .ig-logo { grid-area: l; width: 52px; height: 52px; border-radius: 15px; }
+  .chiffres.avec-ig .ch-ig strong { grid-area: t; font-size: 1.25rem; align-self: end; }
+  .chiffres.avec-ig .ch-ig span { grid-area: s; align-self: start; }
+}
+.nav-ig svg { width: 21px; height: 21px; }
+@media (max-width: 1080px) { .nav-l.nav-ig { display: inline-flex; } }
+.drawer-ig { display: flex; align-items: center; gap: 14px; padding: 12px 14px; margin: 0 0 16px; border-radius: 14px; background: var(--creme); text-decoration: none; color: inherit; }
+.drawer-ig span { display: flex; flex-direction: column; font-size: .9rem; color: var(--gris); }
+.drawer-ig b { color: var(--vert); font-weight: 500; font-size: 1rem; }
+.foot .foot-ig { display: inline-flex; align-items: center; gap: 12px; margin-top: 14px; padding: 8px 16px 8px 8px; border: 1px solid rgba(255, 255, 255, .22); border-radius: 999px; }
+.foot .foot-ig:hover { text-decoration: none; background: rgba(255, 255, 255, .06); }
+.foot-ig .ig-logo { width: 36px; height: 36px; border-radius: 10px; }
+.foot-ig span { display: flex; flex-direction: column; font-size: .78rem; color: #bdb7aa; line-height: 1.25; }
+.foot-ig b { color: #fff; font-weight: 500; font-size: .95rem; }

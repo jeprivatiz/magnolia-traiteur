@@ -26,6 +26,13 @@ const icon = {
   phone: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>',
 };
 
+/* Instagram (Jean-Luc 2026-11-27) : logo visible en en-tête, sur l'accueil et en pied de page ; lien = Photos & textes › Coordonnées › Instagram */
+const IG_GLYPHE = '<rect x="3" y="3" width="18" height="18" rx="5.2" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="4.1" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="17.3" cy="6.7" r="1.15" fill="currentColor"/>';
+icon.insta = `<svg viewBox="0 0 24 24" aria-hidden="true">${IG_GLYPHE}</svg>`;
+/* logo en couleurs officielles (dégradé) */
+const igCouleur = (id = 'igd') => `<svg class="ig-logo" viewBox="0 0 24 24" aria-hidden="true"><defs><radialGradient id="${id}" cx="30%" cy="107%" r="150%"><stop offset="0" stop-color="#fdf497"/><stop offset=".05" stop-color="#fdf497"/><stop offset=".45" stop-color="#fd5949"/><stop offset=".6" stop-color="#d6249f"/><stop offset=".9" stop-color="#285AEB"/></radialGradient></defs><rect width="24" height="24" rx="6" fill="url(#${id})"/><g transform="translate(2.4 2.4) scale(.8)" color="#fff">${IG_GLYPHE}</g></svg>`;
+const igCompte = url => '@' + (String(url || '').replace(/[?#].*$/, '').replace(/\/+$/, '').split('/').pop() || 'magnoliatraiteur');
+const igLien = (R, cls, contenu, label = true) => R.instagram ? `<a class="${cls}" href="${esc(R.instagram)}" target="_blank" rel="noopener"${label ? ` aria-label="Instagram ${esc(igCompte(R.instagram))} (nouvel onglet)"` : ''}>${contenu}</a>` : '';
 const rubHref = r => '/' + r.slug;
 const prodHref = p => '/' + p.rubrique + '/' + p.slug;
 /* effet « vidéo » (zoom lent) sur les photos des grands bandeaux ; 3 mouvements différents selon la page. Réglage : Photos & textes du site */
@@ -108,6 +115,7 @@ ${schema ? `<script type="application/ld+json">${JSON.stringify(schema).replace(
       <a class="nav-l" href="/temoignages">Avis clients</a>
       <a class="nav-l" href="/zone-de-livraison">Nos zones de livraison</a>
       <a class="nav-l" href="/espace-client" aria-label="Mon espace">${icon.user}<span>Mon espace</span></a>
+      ${igLien(R, 'nav-l nav-ig', icon.insta)}
       <a class="nav-sel" href="/ma-selection">${icon.bag}<span>Ma sélection</span><b class="badge" data-sel-count hidden>0</b></a>
     </nav>
   </div>
@@ -120,6 +128,7 @@ ${schema ? `<script type="application/ld+json">${JSON.stringify(schema).replace(
     <ul class="drawer-l">${rubs.map(r => `<li><a href="${rubHref(r)}">${esc(r.nom)}<span>${c.byRub.get(r.slug)?.length || ''}</span></a></li>`).join('')}<li><a href="/lieux">Lieux de réception<span>${c.lieux.filter(l => l.statut !== 'masque').length}</span></a></li></ul>
     <p class="eyebrow">Magnolia</p>
     <ul class="drawer-l small"><li><a href="/maison">La maison</a></li><li><a href="/comment-commander">Comment commander</a></li><li><a href="/temoignages">Avis clients</a></li><li><a href="/zone-de-livraison">Nos zones de livraison</a></li><li><a href="/contact">Contact</a></li><li><a href="/espace-client">Mon espace client</a></li></ul>
+    ${igLien(R, 'drawer-ig', `${igCouleur('igm')}<span><b>Suivez-nous sur Instagram</b>${esc(igCompte(R.instagram))}</span>`, false)}
     <a class="btn btn-or wide" href="tel:${esc((R.telephone || '').replace(/\s/g, ''))}">${icon.phone} ${esc(R.telephone)}</a>
   </div>
 </div>
@@ -142,7 +151,7 @@ ${schema ? `<script type="application/ld+json">${JSON.stringify(schema).replace(
       <a class="btn btn-ghost-light" href="/ma-selection">Composer mon événement</a></div>
     <div><h2>Nos univers</h2><ul>${rubs.map(r => `<li><a href="${rubHref(r)}">${esc(r.nom)}</a></li>`).join('')}<li><a href="/lieux">Lieux de réception</a></li></ul></div>
     <div><h2>Magnolia</h2><ul><li><a href="/boutique">La boutique</a></li><li><a href="/ma-selection">Ma sélection</a></li><li><a href="/comment-commander">Comment commander</a></li><li><a href="/zone-de-livraison">Nos zones de livraison</a></li><li><a href="/temoignages">Témoignages</a></li><li><a href="/maison">La maison Magnolia</a></li><li><a href="/contact">Contact</a></li><li><a href="/espace-client">Mon espace client</a></li></ul></div>
-    <div><h2>Nous joindre</h2><ul class="contact"><li><a href="tel:${esc((R.telephone || '').replace(/\s/g, ''))}">${esc(R.telephone)}</a></li><li><a href="mailto:${esc(R.email)}">${esc(R.email)}</a></li><li>${esc(R.adresse)}</li><li>${esc(R.horaires)}</li>${R.instagram ? `<li><a href="${esc(R.instagram)}" rel="noopener">Instagram</a></li>` : ''}</ul></div>
+    <div><h2>Nous joindre</h2><ul class="contact"><li><a href="tel:${esc((R.telephone || '').replace(/\s/g, ''))}">${esc(R.telephone)}</a></li><li><a href="mailto:${esc(R.email)}">${esc(R.email)}</a></li><li>${esc(R.adresse)}</li><li>${esc(R.horaires)}</li></ul>${igLien(R, 'foot-ig', `${igCouleur('igf')}<span>Suivez-nous<b>${esc(igCompte(R.instagram))}</b></span>`, false)}</div>
   </div>
   <div class="foot-bas"><p>${esc(R.mentionPied || '')}</p><p><a href="/mentions-legales">Mentions légales</a> · <a href="/confidentialite">Confidentialité</a> · <a href="/cgv">CGV</a> · <a href="/allergenes">Allergènes</a><span data-cookies> · <a href="#cookies">Gérer mes cookies</a></span> · © ${new Date().getFullYear()} ${esc(R.nom)}</p></div>
 </footer>
@@ -286,10 +295,19 @@ function home(c) {
 </section>
 <div class="marquee band-vert" aria-label="Nos spécialités du monde"><div class="marquee-t">${[0, 1].map(k => (A.bandeau || []).map(t => lienMot(c, t)).map(({ t, href }) => `<span${k ? ' aria-hidden="true"' : ''}><a href="${esc(href)}"${k ? ' tabindex="-1"' : ''}>${esc(t)}</a><i>✳</i></span>`).join('')).join('')}</div></div>
 ${bandeLogos(c, { lien: true, titre: 'Particuliers et entreprises : ils nous font confiance' })}
-<section class="chiffres wrap">${(A.chiffres || []).map(x => {
-  const v = x.valeur; // chiffres fixes, saisis dans Photos & textes (Jean-Luc, 2026-11-22)
-  return `<div><b>${esc(v)}</b>${/\/\s*5\s*$/.test(v || '') ? '<i class="etoiles" aria-hidden="true">★★★★★</i>' : ''}<span>${esc(x.label === 'prestations en ligne, prix TTC' ? 'prestations en ligne' : x.label)}</span></div>`;
-}).join('')}</section>
+<section class="chiffres wrap${R.instagram ? ' avec-ig' : ''}">${(() => {
+  const l = (A.chiffres || []).map(x => {
+    const v = x.valeur; // chiffres fixes, saisis dans Photos & textes (Jean-Luc, 2026-11-22)
+    return `<div><b>${esc(v)}</b>${/\/\s*5\s*$/.test(v || '') ? '<i class="etoiles" aria-hidden="true">★★★★★</i>' : ''}<span>${esc(x.label === 'prestations en ligne, prix TTC' ? 'prestations en ligne' : x.label)}</span></div>`;
+  });
+  /* Instagram au milieu des chiffres, entre « 800 » et « 7 j/7 » (Jean-Luc 2026-11-27) */
+  if (R.instagram) {
+    const i800 = (A.chiffres || []).findIndex(x => /^800\b/.test(String(x.valeur || '').trim()));
+    const pos = i800 >= 0 ? i800 + 1 : Math.ceil(l.length / 2);
+    l.splice(pos, 0, igLien(R, 'ch-ig', `${igCouleur('igc')}<strong>${esc(igCompte(R.instagram))}</strong><span>Suivez-nous sur Instagram</span>`, false));
+  }
+  return l.join('');
+})()}</section>
 <section class="recherche wrap">
   <h2 class="center">Que recherchez-vous ?</h2><p class="eyebrow center sous-titre">Entrez ou dictez votre envie</p>
   <form class="bigsearch inline" action="/boutique" role="search" data-live-search>${icon.search}<input type="search" name="q" placeholder="Paëlla, DJ, huîtres, personnel…" aria-label="Que recherchez-vous ?" autocomplete="off"><button type="button" class="mic" data-dictee aria-label="Dicter ma recherche">${icon.mic}<span>Dicter</span></button></form>
