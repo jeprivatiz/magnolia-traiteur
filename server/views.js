@@ -209,6 +209,8 @@ const VIDEOS_ACCUEIL = {
   'cocktails-buffets': 'cocktail', boissons: 'boissons', 'traiteur-vegetarien-vegan': 'vegetarien', 'animations-salees': 'barbecue',
   personnel: 'personnel', indispensables: 'photobooth', 'petits-dejeuners': 'petit-dejeuner', douceurs: 'churros',
   'musique-animations': 'dj', lieux: 'peniche', 'grand-large': 'huitres', 'coffrets-plateaux': 'coffrets', 'mobilier-a-la-location': 'mobilier',
+  /* Saveurs du monde = galerie de 10 cuisiniers d'âge mûr qui défilent, un par traiteur (« Dix traiteurs, une seule maison »), en cuisine (Jean-Luc 2026-11-27) */
+  'saveurs-du-monde': 'saveurs-chefs',
 };
 const _empreintes = new Map();
 /* ?v= change dès que le fichier change : sinon téléphones et navigateurs gardent l'ancienne vidéo 30 jours en cache */
@@ -227,7 +229,9 @@ function univers(c) {
   const lieux = `<a class="tile" href="/lieux">${vLieux || img(c.lieux[0]?.photos?.[0], '')}<span class="tile-t"><b>Lieux de réception</b><small>${c.lieux.filter(l => l.statut !== 'masque').length} lieux à privatiser</small></span></a>`;
   const rubs = c.rubriques.filter(r => r.statut !== 'masque');
   /* Saveurs du monde : seule vignette animée, un petit globe qui tourne sur fond de verdure (Jean-Luc, 2026-11-24) */
-  const globe = r => { const ids = sousVisibles(r).map(x => (lieuDe(x)?.[2] || []).map(String)).filter(g => g.length).concat([['250']]); // un groupe de pays par spécialité (France en dernier)
+  /* depuis le 2026-11-27, la vidéo des cuisiniers passe avant le globe (le globe reste si le fichier manque) */
+  const globe = r => { if (videoAccueil(r.slug)) return `<a class="tile" href="${rubHref(r)}">${videoAccueil(r.slug)}<span class="tile-t"><b>${esc(r.nom)}</b><small>${esc(r.accroche || 'Dix traiteurs, une seule maison')}</small></span></a>`;
+    const ids = sousVisibles(r).map(x => (lieuDe(x)?.[2] || []).map(String)).filter(g => g.length).concat([['250']]); // un groupe de pays par spécialité (France en dernier)
     return `<a class="tile vg" href="${rubHref(r)}" data-vg='${esc(JSON.stringify(ids))}'>${img('/site/c/paysages/antilles.webp', '')}<canvas aria-hidden="true"></canvas><span class="tile-t"><b>${esc(r.nom)}</b><small>${esc(r.accroche || 'Dix traiteurs, une seule maison')}</small></span></a>`; };
   return rubs.map(r => r.slug === 'lieux' ? lieux : r.slug === 'saveurs-du-monde' ? globe(r) : `<a class="tile" href="${rubHref(r)}">
     ${r.slug === 'carte-magnolia' ? img(r.photoAccueil || r.photo, '') + MENU_TABLE : videoAccueil(r.slug) || img(r.photoAccueil || r.photo || r.bandeauPhoto, '')}<span class="tile-t"><b>${esc(r.nom).replace(/^(Plateaux?) (?=de fruits de mer)/i, '$1<br class="br-m"> ')}</b>${r.accroche ? `<small>${esc(r.accroche)}</small>` : `<small>${c.byRub.get(r.slug)?.length || 0} prestations</small>`}</span></a>`).join('')
