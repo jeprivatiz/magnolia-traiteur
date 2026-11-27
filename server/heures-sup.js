@@ -253,8 +253,11 @@ function routes(app, A, { sameSite, json, wrap, audit, store, brevo, ia, SITE, p
     const p = await parJeton(req.params.t);
     if (!p) return res.status(404).json({ error: 'Lien invalide ou coupé : demandez un nouveau lien à votre responsable.' });
     const mien = (await tout()).filter(x => x.uid === p.uid).sort((a, b) => b.date.localeCompare(a.date) || String(b.debut).localeCompare(String(a.debut)));
-    const mois = new Date().toISOString().slice(0, 7);
-    noStore(res).json({ nom: p.u.name || '', taches: await listeTaches(), liste: mien.slice(0, 30).map(({ uid, ...x }) => x), moisMinutes: mien.filter(x => x.date.startsWith(mois)).reduce((s, x) => s + x.minutes, 0) });
+    const auj = parisAuj(), mois = auj.slice(0, 7), d = new Date(auj.slice(0, 8) + '01T12:00:00Z'); d.setUTCMonth(d.getUTCMonth() - 1);
+    const moisP = d.toISOString().slice(0, 7);
+    const rec = L => ({ nb: L.length, minutes: L.reduce((s, x) => s + (x.minutes || 0), 0) });
+    const recap = { mois: rec(mien.filter(x => x.date.startsWith(mois))), moisP: rec(mien.filter(x => x.date.startsWith(moisP))), tout: rec(mien) };
+    noStore(res).json({ nom: p.u.name || '', taches: await listeTaches(), liste: mien.slice(0, 30).map(({ uid, ...x }) => x), recap, moisMinutes: recap.mois.minutes });
   }));
   const essais = new Map(); /* 40 dictées par heure et par lien, au plus */
   app.post('/api/heures/:t/dictee', sameSite, json, wrap(async (req, res) => {
@@ -298,6 +301,8 @@ fieldset{border:0;padding:0;margin:12px 0 0}legend{font-weight:500;padding:0;mar
 .tache{display:flex;align-items:center;gap:10px;margin:6px 0;padding:10px 12px;border:2px solid #cfd8d2;border-radius:12px;background:#fbfdfb;font-weight:400}
 .tache input{width:22px;height:22px;flex:none;-webkit-appearance:auto;appearance:auto;accent-color:var(--vert);margin:0;padding:0}.tache.on{border-color:var(--vert2);background:#eaf3ec}
 #autreBloc input{margin-top:6px}
+.autre-jour{display:block;margin-top:10px;background:var(--vert);color:#fff;font-size:16px;padding:12px}
+.recap{width:100%;border-collapse:collapse;font-size:15px}.recap th{text-align:left;font-weight:500;padding:8px 0;border-top:1px solid #e7ebe8}.recap td{padding:8px 0 8px 8px;border-top:1px solid #e7ebe8;text-align:right;color:var(--gris)}.recap tr:first-child th,.recap tr:first-child td{border-top:0}.recap b{color:var(--vert);font-size:17px}.dur{color:var(--vert)}
 .dire{background:#f1ecdf;border-radius:14px;padding:12px;margin-bottom:6px;text-align:center}.dire-btn{background:var(--or);color:#fff;font-size:19px;padding:16px}.dire-btn.on{background:var(--rouge)}.dire-aide{font-size:13px;color:var(--gris);margin:8px 0 0}
 #phrase{margin-top:10px;min-height:70px}#dmsg{font-size:14px;margin-top:8px}
 ul{list-style:none;margin:0;padding:0}li{border-top:1px solid #e7ebe8;padding:10px 0;display:flex;gap:10px;align-items:flex-start}li:first-child{border-top:0}li div{flex:1}li b{color:var(--vert)}li p{margin:2px 0 0;font-size:14px;color:var(--gris);white-space:pre-line}
@@ -322,7 +327,8 @@ ul{list-style:none;margin:0;padding:0}li{border-top:1px solid #e7ebe8;padding:10
 <button type="button" class="micro" id="micro">🎤 Dicter</button>
 <div id="msg" aria-live="polite"></div>
 <button class="go" id="go">Valider mes heures</button></form>
-<section class="carte"><h2>Mes dernières déclarations</h2><p class="total" id="tot"></p><ul id="liste"><li><div>Chargement…</div></li></ul></section>
+<section class="carte"><h2>Mon récapitulatif</h2><table class="recap" id="recap"></table></section>
+<section class="carte"><h2>Mes dernières déclarations</h2><ul id="liste"><li><div>Chargement…</div></li></ul></section>
 <p class="astuce">Une erreur ? Prévenez votre responsable : lui seul peut supprimer une déclaration.</p>
 <p class="astuce">Astuce iPhone : touchez « Partager » puis « Sur l’écran d’accueil » pour garder cette page comme une application.</p>
 </main>
@@ -332,7 +338,7 @@ var API='/api/heures/${esc(jeton)}', $=function(s){return document.querySelector
 var JOURS=['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
 function auj(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
 function min(h){var p=h.split(':');return +p[0]*60+ +p[1]}
-function duree(m){var h=Math.floor(m/60),r=m%60;return h?h+' h'+(r?' '+String(r).padStart(2,'0'):''):r+' min'}
+function duree(m){if(!m)return '0 h';var h=Math.floor(m/60),r=m%60;return h?h+' h'+(r?' '+String(r).padStart(2,'0'):''):r+' min'}
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
 function jsem(d){return new Date(d+'T12:00:00').getDay()}
 function dateFr(d){var j=jsem(d);var p=d.split('-');return JOURS[j]+' '+(+p[2])+'/'+p[1]}
@@ -349,8 +355,9 @@ $('#date').addEventListener('change',defaut);['#debut','#fin'].forEach(function(
 function charger(){fetch(API,{cache:'no-store'}).then(function(r){return r.json()}).then(function(j){
  if(j.taches&&!document.querySelector('#taches input'))cases(j.taches);
  if(j.error){$('#liste').innerHTML='<li><div class="err">'+esc(j.error)+'</div></li>';return}
- $('#tot').textContent='Ce mois-ci : '+duree(j.moisMinutes||0);
- $('#liste').innerHTML=j.liste.length?j.liste.map(function(x){return '<li><div><b>'+dateFr(x.date)+'</b> · '+x.debut+' – '+x.fin+' · '+duree(x.minutes)+'<p>'+esc(x.quoi)+'</p></div></li>'}).join(''):'<li><div>Aucune déclaration pour l’instant.</div></li>';
+ var R=j.recap||{},lig=function(t,x){x=x||{nb:0,minutes:0};return '<tr><th>'+t+'</th><td>'+x.nb+' déclaration'+(x.nb>1?'s':'')+'</td><td><b>'+duree(x.minutes)+'</b></td></tr>'};
+ $('#recap').innerHTML=lig('Ce mois-ci',R.mois)+lig('Le mois dernier',R.moisP)+lig('Depuis le début',R.tout);
+ $('#liste').innerHTML=j.liste.length?j.liste.map(function(x){return '<li><div><b>'+dateFr(x.date)+'</b><br>'+x.debut.replace(':',' h ')+' → '+x.fin.replace(':',' h ')+' · <b class="dur">'+duree(x.minutes)+'</b><p>'+esc(x.quoi)+'</p></div></li>'}).join(''):'<li><div>Aucune déclaration pour l’instant.</div></li>';
 })}
 function cases(T){$('#taches').innerHTML=T.map(function(g){return '<p class="gt">'+esc(g.groupe)+'</p>'+g.taches.map(function(t){return '<label class="tache"><input type="checkbox" name="t" value="'+esc(t)+'"> <span>'+esc(t)+'</span></label>'}).join('')}).join('')}
 document.addEventListener('change',function(e){var c=e.target.closest('.tache input');if(c)c.closest('.tache').classList.toggle('on',c.checked);if(e.target.id==='autreChk'){$('#autreBloc').hidden=!e.target.checked;if(e.target.checked)$('#autre').focus()}});
@@ -362,7 +369,7 @@ $('#f').addEventListener('submit',function(e){e.preventDefault();var m=$('#msg')
  if(!cochees().length&&!autre){m.className='err';m.textContent='Cochez au moins une tâche.';return}
  $('#go').disabled=true;$('#go').textContent='Envoi…';
  fetch(API,{method:'POST',headers:{'content-type':'application/json','x-mg':'1'},body:JSON.stringify({date:$('#date').value,debut:$('#debut').value,fin:$('#fin').value,taches:cochees(),autre:autre,precision:$('#quoi').value})}).then(function(r){return r.json()}).then(function(j){
-  if(j.error){m.className='err';m.textContent=j.error}else{m.className='ok';m.textContent='✅ C’est enregistré à votre nom : '+dateFr(j.date)+', '+j.debut+' – '+j.fin+' ('+duree(j.minutes)+').';$('#quoi').value='';$('#autre').value='';$('#autreChk').checked=false;$('#autreBloc').hidden=true;Array.prototype.forEach.call(document.querySelectorAll('.tache input'),function(c){c.checked=false;c.closest('.tache').classList.remove('on')});if(autre)$('#taches').innerHTML='';charger()}
+  if(j.error){m.className='err';m.textContent=j.error}else{m.className='ok';m.innerHTML='✅ C’est enregistré à votre nom : '+dateFr(j.date)+', '+j.debut.replace(':',' h ')+' → '+j.fin.replace(':',' h ')+' · <b>'+duree(j.minutes)+'</b>.<button type="button" class="autre-jour" id="autreJour">+ Déclarer un autre jour</button>';$('#quoi').value='';$('#autre').value='';$('#autreChk').checked=false;$('#autreBloc').hidden=true;Array.prototype.forEach.call(document.querySelectorAll('.tache input'),function(c){c.checked=false;c.closest('.tache').classList.remove('on')});if(autre)$('#taches').innerHTML='';charger()}
  }).catch(function(){m.className='err';m.textContent='Pas de connexion : réessayez dans un instant.'}).then(function(){$('#go').disabled=false;$('#go').textContent='Valider mes heures'})});
 var SR=window.SpeechRecognition||window.webkitSpeechRecognition,rec=null;
 $('#micro').addEventListener('click',function(){var bt=this;if(rec){rec.stop();return}
@@ -383,6 +390,8 @@ function remplir(){var t=$('#phrase').value.trim(),d=$('#dmsg');if(t.length<4){d
   var err=verif();d.className=err?'err':'ok';d.textContent=err?err:'✅ Cases remplies : vérifiez, puis touchez « Valider mes heures ».'+(j.debut&&j.fin?'':' Choisissez les heures qui manquent.');
  }).catch(function(){d.className='err';d.textContent='Pas de connexion : réessayez.'})}
 $('#remplir').addEventListener('click',remplir);
+/* « + Déclarer un autre jour » : formulaire remis à zéro, retour en haut */
+document.addEventListener('click',function(e){if(e.target.id!=='autreJour')return;$('#msg').className='';$('#msg').textContent='';$('#dmsg').textContent='';$('#phrase').value='';$('#date').value=auj();delete $('#debut').dataset.touche;defaut();window.scrollTo({top:0,behavior:'smooth'});setTimeout(function(){$('#date').focus()},400)});
 var rec2=null;
 $('#dire').addEventListener('click',function(){var bt=this;
  if(rec2){rec2.stop();return}
