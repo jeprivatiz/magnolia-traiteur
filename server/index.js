@@ -36,6 +36,7 @@ const HIST = require('./historique');
 const TAR = require('./tarifs');
 const BLOG = require('./blog');
 const BLOGV = require('./blog-pages');
+const ROUT = require('./routage-alertes');
 
 const ROOT = path.join(__dirname, '..');
 const PUBLIC = path.join(ROOT, 'public');
@@ -616,6 +617,21 @@ async function createApp(opts = {}) {
     for (const t of String(R.alertes?.sms || '').split(/[,;]+/).map(s => s.trim()).filter(Boolean)) await brevo.sendSms({ to: t, content: sms || sujet, lien: false });
   }
 
+  /* nouvelle demande de devis : les règles « Qui prévenir selon la demande » (server/routage-alertes.js) choisissent qui reçoit l'alerte et par quel canal */
+  async function alerterDemande(demande, auto, sujet, html, sms) {
+    const R = (await cat.get()).reglages;
+    const users = (await store.list('_users')).map(d => d.data).filter(Boolean);
+    const r = ROUT.router(R, users, ROUT.profil(demande, auto));
+    const lienBo = `${SITE}/admin#/demandes/${demande.id}`;
+    const smsTxt = `${sms || sujet} ${lienBo}`;
+    for (const x of r.destinataires) {
+      const pq = `<p style="color:#7a6a4f;font-size:12px">Vous recevez cette alerte au titre de : ${esc(x.regles.join(', '))} (Équipe &amp; activité › Qui prévenir selon la demande).</p>`;
+      if (x.canaux.includes('email') && isEmail(x.email)) await brevo.sendEmail({ to: x.email, name: x.nom, subject: sujet, html: html + pq, text: html.replace(/<[^>]+>/g, ' ') }).catch(e => log.error?.(e));
+      if (x.canaux.includes('sms') && x.tel) await brevo.sendSms({ to: x.tel, content: smsTxt, lien: false }).catch(e => log.error?.(e));
+    }
+    return r;
+  }
+
   const s = (v, n = 200) => String(v ?? '').trim().slice(0, n);
   app.post('/api/demandes', sameSite, json, wrap(async (req, res) => {
     if (!publicWrites(req.ip)) return res.status(429).json({ error: 'Trop d’envois. Réessayez dans quelques minutes ou appelez-nous.' });
@@ -669,7 +685,7 @@ async function createApp(opts = {}) {
     brevo.sendEmail({ to: contact.email, name: contact.nom, subject: `Magnolia Traiteur : votre demande ${ref} est bien reçue`, replyTo: R.email,
       html: `<p>Bonjour ${esc(contact.nom.split(' ')[0])},</p><p>Merci pour votre demande${demande.evenement.date ? ' pour le ' + esc(dateFr(demande.evenement.date)) : ''}. Notre équipe vérifie les disponibilités et revient vers vous rapidement avec votre devis.</p>${recap ? `<ul>${recap}</ul><p>Total estimé : <b>${euros(demande.totalEstimeCents)} TTC</b> (à confirmer).</p>` : ''}<p>Suivez votre demande dans votre espace : <a href="${lien}">Mon espace Magnolia</a></p><p>À très vite,<br>L’équipe Magnolia Traiteur<br>${esc(R.telephone)}</p>`,
       text: `Merci pour votre demande ${ref}. Votre espace : ${lien}` }).catch(() => {});
-    alerterEquipe(`Nouvelle ${demande.type === 'contact' ? 'question' : 'demande de devis'} ${ref} : ${contact.nom}`, `<p><b>${esc(contact.nom)}</b> ${esc(contact.societe)} · ${esc(contact.email)} · ${esc(contact.tel)}</p><p>${esc(demande.evenement.type)} · ${esc(dateFr(demande.evenement.date))} · ${demande.evenement.invites} invités · ${esc(demande.evenement.ville)}</p><ul>${recap}</ul><p>${esc(demande.message)}</p>${auto?.raisons?.length ? `<p><b>Devis à préparer à la main :</b> ${esc(auto.raisons.join(' ; '))}.</p>` : ''}<p><a href="${SITE}/admin#/demandes/${id}">Ouvrir dans le back-office</a></p>`, `Magnolia : nouvelle demande ${ref} de ${contact.nom}, ${demande.evenement.invites} pers. le ${demande.evenement.date}`).catch(() => {});
+    alerterDemande(demande, auto, `${auto?.raisons?.length ? '⚠ ' : ''}Nouvelle ${demande.type === 'contact' ? 'question' : 'demande de devis'} ${ref} : ${contact.nom}`, `<p><b>${esc(contact.nom)}</b> ${esc(contact.societe)} · ${esc(contact.email)} · ${esc(contact.tel)}</p><p>${esc(demande.evenement.type)} · ${esc(dateFr(demande.evenement.date))} · ${demande.evenement.invites} invités · ${esc(demande.evenement.ville)}</p><ul>${recap}</ul><p>${esc(demande.message)}</p>${auto?.raisons?.length ? `<p><b>Devis à préparer à la main :</b> ${esc(auto.raisons.join(' ; '))}.</p>` : ''}<p><a href="${SITE}/admin#/demandes/${id}">Ouvrir dans le back-office</a></p>`, `Magnolia : nouvelle demande ${ref} de ${contact.nom}${demande.totalEstimeCents ? ', ' + euros(demande.totalEstimeCents) : ''}, ${demande.evenement.invites} pers. le ${dateFr(demande.evenement.date)}${auto?.raisons?.length ? '. Devis à faire à la main' : ''}.`).catch(() => {});
     /* le lien direct vers l'espace n'est rendu qu'à un nouveau client ; un client connu le reçoit par e-mail */
     res.json({ ok: true, ref, totalEstimeCents: demande.totalEstimeCents, espace: nouveau ? lien.replace(SITE, '') : '/espace-client' });
   }));
@@ -1010,6 +1026,7 @@ async function createApp(opts = {}) {
   A.put('/site', sameSite, json, wrap(async (req, res) => {
     const before = (await store.get('site/reglages')) || {};
     const body = { ...(req.body || {}) }; delete body.updatedAt;
+    if (body.alertes && typeof body.alertes === 'object') body.alertes = { ...body.alertes, regles: ROUT.nettes(body.alertes.regles ?? before.alertes?.regles), defaut: ROUT.defautNet(body.alertes.defaut ?? before.alertes?.defaut) };
     const changes = Object.keys(body).filter(k => stable(body[k]) !== stable(before[k]));
     const refuses = changes.filter(k => !req.ctx.droits[GARDE_SITE[k] || 'site']);
     if (refuses.length && refuses.length === changes.length) return refus(res, GARDE_SITE[refuses[0]] || 'site');
@@ -1914,11 +1931,11 @@ async function createApp(opts = {}) {
       message: `Merci pour votre demande${demande.evenement?.date ? ' pour le ' + dateFr(demande.evenement.date) : ''}. Votre devis est prêt : ${euros(totaux(d).ttcCents)} TTC. Vous pouvez le consulter et le signer en ligne dès maintenant.\nUn conseiller Magnolia vous appelle très vite pour vérifier les détails avec vous${prenom ? ', ' + prenom : ''}.` });
     audit(IA_CTX, 'devis envoyé automatiquement', 'devis/' + id, d.numero);
     const ct = demande.contact || {}, e = demande.evenement || {};
-    alerterEquipe(`✨ Devis ${d.numero} envoyé par l’IA à ${ct.nom} : à rappeler`,
+    const routage = await alerterDemande(demande, { envoye: true, ttcCents }, `✨ Devis ${d.numero} envoyé par l’IA à ${ct.nom} : à rappeler`,
       `<p>La demande <b>${esc(demande.ref)}</b> était complète : l’IA a créé le devis <b>${esc(d.numero)}</b> (${euros(ttcCents)} TTC) et l’a envoyé tout de suite au client, par e-mail${cl.tel ? ' et SMS' : ''}.</p><p><b>Merci de rappeler le client</b> : <b>${esc(ct.nom)}</b> ${esc(ct.societe || '')} · <a href="tel:${esc(ct.tel)}">${esc(ct.tel)}</a> · ${esc(ct.email)}</p><p>${esc(e.type)} · ${esc(dateFr(e.date))} · ${e.invites} invités · ${esc([e.cp, e.ville].filter(Boolean).join(' '))}</p>${demande.message ? `<p>Message du client : « ${esc(demande.message)} »</p>` : ''}<p><a href="${SITE}/admin#/devis/${id}">Ouvrir le devis</a> · <a href="${lien}">Voir ce que voit le client</a></p>`,
-      `Magnolia : devis ${d.numero} (${euros(ttcCents)}) envoyé par l'IA à ${ct.nom}, ${e.invites} pers. le ${dateFr(e.date)}. Rappelez le client : ${ct.tel}`).catch(() => {});
+      `Magnolia : devis ${d.numero} (${euros(ttcCents)}) envoyé par l'IA à ${ct.nom}, ${e.invites} pers. le ${dateFr(e.date)}. Rappelez le client : ${ct.tel}`).catch(() => null);
     /* SMS d'avertissement (Jean-Luc, 2026-11-25) : chaque devis parti tout seul est signalé à ce numéro (modifiable dans Demandes de devis) */
-    const deja = new Set(String(R.alertes?.sms || '').split(/[,;]+/).map(x => x.replace(/\D/g, '').slice(-9)).filter(Boolean));
+    const deja = new Set((routage?.destinataires || []).filter(x => x.canaux.includes('sms')).map(x => String(x.tel).replace(/\D/g, '').slice(-9)).filter(Boolean));
     for (const t of String(R.devisAutoSms ?? DEVIS_AUTO_SMS).split(/[,;]+/).map(x => x.trim()).filter(Boolean)) {
       if (deja.has(t.replace(/\D/g, '').slice(-9))) continue; /* déjà prévenu par les alertes de l'équipe */
       await brevo.sendSms({ to: t, lien: false, content: `Magnolia Traiteur : demande de devis reçue sur le site, devis envoyé par l'IA. ${ct.nom}, ${euros(ttcCents)} TTC, ${e.invites} pers. le ${dateFr(e.date)}. Tél. client : ${ct.tel}` }).catch(() => {});
@@ -2565,6 +2582,16 @@ async function createApp(opts = {}) {
     res.json({ ok: true });
   }));
   /* essai d'envoi : un e-mail à la personne connectée, et un SMS si un numéro est donné */
+  /* « Simuler une demande » : qui serait prévenu, avec les règles affichées à l'écran (même pas encore enregistrées) */
+  A.post('/actions/alertes-simuler', sameSite, json, peut('equipe'), wrap(async (req, res) => {
+    const b = req.body || {}, t = b.test || {};
+    const R0 = (await cat.get()).reglages;
+    const R = { ...R0, alertes: { ...(R0.alertes || {}), ...(Array.isArray(b.personnes) ? { personnes: b.personnes.slice(0, 50).map(x => ({ nom: s(x?.nom, 80), tel: s(x?.tel, 30), email: s(x?.email, 160) })) } : {}), regles: ROUT.nettes(b.regles ?? R0.alertes?.regles), defaut: ROUT.defautNet(b.defaut ?? R0.alertes?.defaut) } };
+    const users = (await store.list('_users')).map(d => d.data).filter(Boolean);
+    const demande = { type: t.question ? 'contact' : 'devis', totalEstimeCents: Math.round((parseFloat(String(t.montant || 0).replace(/\s/g, '').replace(',', '.')) || 0) * 100), evenement: { date: /^\d{4}-\d{2}-\d{2}$/.test(t.date || '') ? t.date : '', invites: Math.max(0, +t.invites | 0) } };
+    const p = ROUT.profil(demande, t.situation === 'auto' ? { envoye: true } : { envoye: false, raisons: ['simulation'] });
+    res.json({ profil: p, ...ROUT.router(R, users, p) });
+  }));
   A.post('/actions/envoi-test', sameSite, json, wrap(async (req, res) => {
     const u = await store.get('_users/' + req.ctx.uid);
     if (!u?.email) return res.status(400).json({ error: 'Compte sans e-mail.' });
@@ -2786,7 +2813,57 @@ async function createApp(opts = {}) {
     const site = [];
     const walk = (dir, base) => { try { for (const e of fs.readdirSync(dir, { withFileTypes: true })) { const p = path.join(dir, e.name); if (e.isDirectory()) walk(p, base + '/' + e.name); else if (/\.(webp|jpe?g|png|mp4)$/i.test(e.name)) site.push({ url: base + '/' + e.name, type: /mp4$/i.test(e.name) ? 'video/mp4' : 'image' }); } } catch { /* */ } };
     walk(path.join(PUBLIC, 'site'), '/site');
-    res.json({ envoyes: envoyes.sort((a, b) => b.at.localeCompare(a.at)), site });
+    const M = await mediasReg(), cache = new Set(M.caches), noms = M.noms;
+    const avecNom = x => ({ ...x, nom: noms[x.url] || '' });
+    res.json({ envoyes: envoyes.filter(x => !cache.has(x.url)).sort((a, b) => b.at.localeCompare(a.at)).map(avecNom), site: site.filter(x => !cache.has(x.url)).map(avecNom) });
+  }));
+  /* Médiathèque (Jean-Luc, 2026-11-27) : nommer une image (recherche + texte alternatif pour Google) et supprimer des images */
+  const mediasReg = async () => { const d = await store.get('site/medias') || {}; return { noms: d.noms || {}, caches: d.caches || [] }; };
+  const mediaOk = u => typeof u === 'string' && /^\/(media|site)\/[^?#<>"]+$/.test(u) && !u.includes('..');
+  A.put('/actions/media-nom', sameSite, json, peut('site'), wrap(async (req, res) => {
+    const url = req.body?.url, nom = String(req.body?.nom || '').replace(/\s+/g, ' ').trim().slice(0, 140);
+    if (!mediaOk(url)) return res.status(400).json({ error: 'Image inconnue.' });
+    const M = await mediasReg(); if (nom) M.noms[url] = nom; else delete M.noms[url];
+    await store.set('site/medias', M); cat.invalidate(); audit(req.ctx, 'image nommée', url + (nom ? ' → ' + nom : ' (nom retiré)'));
+    res.json({ ok: true, nom });
+  }));
+  /* où une image est encore utilisée : fiches, rubriques, lieux, pages, reportages, réglages du site, et le code du site */
+  const usagesMedias = async urls => {
+    const [rub, prod, lieux, pages, blog, reg] = await Promise.all([store.list('rubriques'), store.list('produits'), store.list('lieux'), store.list('pages'), store.list('blog'), store.get('site/reglages')]);
+    const sources = [
+      ...prod.map(d => ['Fiche « ' + (d.data?.titre || d.id) + ' »', d.data]),
+      ...rub.map(d => ['Rubrique « ' + (d.data?.titre || d.data?.nom || d.id) + ' »', d.data]),
+      ...lieux.map(d => ['Lieu « ' + (d.data?.nom || d.data?.titre || d.id) + ' »', d.data]),
+      ...pages.map(d => ['Page ' + (d.data?.url || d.id), d.data]),
+      ...blog.map(d => ['Reportage « ' + (d.data?.titre || d.id) + ' »', d.data]),
+      ['Photos & textes du site (bandeaux, accueil…)', reg],
+    ].map(([lib, o]) => [lib, JSON.stringify(o || '')]);
+    for (const f of ['server/views.js', 'server/cartes.js', 'public/css/site.css', 'public/js/site.js']) { try { sources.push(['Mise en page du site', fs.readFileSync(path.join(ROOT, f), 'utf8')]); } catch { /* */ } }
+    const out = {};
+    for (const u of urls) {
+      const re = new RegExp(u.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![\\w.-])');
+      out[u] = [...new Set(sources.filter(([, t]) => re.test(t)).map(([lib]) => lib))];
+    }
+    return out;
+  };
+  A.post('/actions/medias/usages', sameSite, json, peut('site'), wrap(async (req, res) => {
+    const urls = (Array.isArray(req.body?.urls) ? req.body.urls : []).filter(mediaOk).slice(0, 500);
+    res.json({ usages: await usagesMedias(urls) });
+  }));
+  A.post('/actions/medias/supprimer', sameSite, json, peut('site'), wrap(async (req, res) => {
+    const urls = [...new Set((Array.isArray(req.body?.urls) ? req.body.urls : []).filter(mediaOk))].slice(0, 500);
+    if (!urls.length) return res.status(400).json({ error: 'Aucune image choisie.' });
+    const M = await mediasReg(); let n = 0;
+    for (const u of urls) {
+      if (u.startsWith('/media/')) {
+        const nom = path.basename(decodeURIComponent(u.slice(7)));
+        try { fs.unlinkSync(path.join(uploadDir, nom)); } catch { /* déjà absent */ }
+        await store.delete('_assets/' + nom.replace(/\./g, '_'));
+      } else if (!M.caches.includes(u)) M.caches.push(u); /* photos reprises du brouillon : retirées de la médiathèque */
+      delete M.noms[u]; n++;
+    }
+    await store.set('site/medias', M); cat.invalidate(); audit(req.ctx, 'images supprimées de la médiathèque', n + ' : ' + urls.slice(0, 5).join(', ') + (urls.length > 5 ? '…' : ''));
+    res.json({ ok: true, n });
   }));
   A.post('/actions/reimporter', sameSite, peut('admin'), wrap(async (req, res) => {
     const r = await seed(store, { force: true, log }); await importerAvisAncienSite(store, { log }); await initSousRubriques(store, { log });
