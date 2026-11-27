@@ -4590,7 +4590,7 @@
     }
   });
   /* ---------- Heures supplémentaires (Jean-Luc, 2026-11-27 ; server/heures-sup.js) ----------
-     Chacun déclare les siennes ; en semaine seulement avant 8 h ou après 18 h, le week-end toute la journée.
+     Chacun déclare les siennes ; en semaine seulement avant 9 h ou après 18 h, le week-end toute la journée.
      L'admin (droit « equipe ») voit tout : filtre par personne et par période, total par personne, liens de la mini-application. */
   const hsF = { qui: '', per: 'mois', du: '', au: '' };
   const HS_PER = [['mois', 'Ce mois-ci'], ['moisP', 'Le mois dernier'], ['sem', 'Cette semaine'], ['m3', 'Les 3 derniers mois'], ['an', 'Cette année'], ['tout', 'Tout'], ['choix', 'Dates au choix…']];
@@ -4615,10 +4615,10 @@
     if (d > jourIci()) return { err: 'Ce jour n’est pas encore passé.' };
     const a = hsMin(deb), b = hsMin(fin), sem = hsJs(d) >= 1 && hsJs(d) <= 5;
     if (a === b) return { err: 'L’heure de fin doit être différente de l’heure de début.' };
-    const msg = `Le ${HS_J[hsJs(d)]}, les heures supplémentaires ne peuvent être faites qu’avant 8 h ou après 18 h. Entre 8 h et 18 h, ce sont les horaires normaux.`;
-    if (b > a) return sem && !(b <= 480 || a >= 1080) ? { err: msg } : { min: b - a };
+    const msg = `Le ${HS_J[hsJs(d)]}, les heures supplémentaires ne peuvent être faites qu’avant 9 h ou après 18 h. Entre 9 h et 18 h, ce sont les horaires normaux.`;
+    if (b > a) return sem && !(b <= 540 || a >= 1080) ? { err: msg } : { min: b - a };
     if (sem && a < 1080) return { err: msg + ' Une plage qui passe minuit doit commencer à 18 h ou après.' };
-    const j2 = (hsJs(d) + 1) % 7; if (j2 >= 1 && j2 <= 5 && b > 480) return { err: `La plage continue le ${HS_J[j2]} matin après 8 h : arrêtez-la à 08 h 00 au plus tard.` };
+    const j2 = (hsJs(d) + 1) % 7; if (j2 >= 1 && j2 <= 5 && b > 540) return { err: `La plage continue le ${HS_J[j2]} matin après 9 h : arrêtez-la à 09 h 00 au plus tard.` };
     return { min: 1440 - a + b, lendemain: true };
   };
   async function hsCharger() {
@@ -4630,7 +4630,7 @@
     const we = [0, 6].includes(hsJs(jourIci()));
     const lienMoi = r.liens.find(x => x.uid === moi?.id);
     box.innerHTML = `<h2>⏱ Heures supplémentaires</h2>
-      <p class="hs-regle">Du <b>lundi au vendredi</b>, on déclare seulement ce qui est fait <b>avant 8 h</b> ou <b>après 18 h</b> (8 h – 18 h = horaires normaux). Le <b>samedi et le dimanche</b> : toute la journée. ${admin ? 'Vous voyez les heures de toute l’équipe.' : 'Vous voyez seulement les vôtres.'}</p>
+      <p class="hs-regle">Du <b>lundi au vendredi</b>, on déclare seulement ce qui est fait <b>avant 9 h</b> ou <b>après 18 h</b> (9 h – 18 h = horaires normaux). Le <b>samedi et le dimanche</b> : toute la journée. ${admin ? 'Vous voyez les heures de toute l’équipe.' : 'Vous voyez seulement les vôtres.'}</p>
       <form class="hs-form" id="hsForm" novalidate>
         <div class="hs-g">
           ${admin ? `<label>Pour<select name="uid">${pers.map(u => `<option value="${u.id}"${u.id === moi?.id ? ' selected' : ''}>${esc(u.nom || u.email)}${u.id === moi?.id ? ' (moi)' : ''}</option>`).join('')}</select></label>` : ''}
