@@ -137,7 +137,7 @@
 
   /* ---------- structure ---------- */
   /* menu « Espace équipe » comme Je Privatise : CRM regroupe Demandes de devis, Suivi client, Devis et Factures */
-  const CRM = ['demandes', 'suivi', 'devis', 'factures', 'clients', 'statistiques', 'tarifs'];
+  const CRM = ['demandes', 'suivi', 'devis', 'factures', 'clients', 'statistiques', 'tarifs', 'prepa'];
   const MENU = [
     ['', 'Tableau de bord'],
     ['crm', 'CRM'],
@@ -148,6 +148,7 @@
     ['clients', 'Contacts'],
     ['statistiques', 'Statistiques'],
     ['tarifs', 'Validation tarifs'],
+    ['prepa', 'Prépa de commande'],
     ['agenda', 'Agenda'],
     ['-'],
     ['catalogue', 'Catalogue'],
@@ -166,7 +167,7 @@
     const open = CRM.includes(cur) || mem.get('mg_crm') === '1';
     const nb = cache.nouvelles ? String(cache.nouvelles) : '';
     const item = m => m[0] !== '-' && m[0] !== 'crm' && !voitEcran(m[0]) ? '' : m[0] === '-' ? '<hr>'
-      : m[0] === 'crm' ? `<button type="button" class="chip crm-btn" data-tab="crm" data-crm aria-expanded="${open}" title="Demandes de devis, Suivi client, Devis, Factures, Clients, Statistiques, Validation tarifs">CRM<span>${nb}</span></button>`
+      : m[0] === 'crm' ? `<button type="button" class="chip crm-btn" data-tab="crm" data-crm aria-expanded="${open}" title="Demandes de devis, Suivi client, Devis, Factures, Clients, Statistiques, Validation tarifs, Prépa de commande">CRM<span>${nb}</span></button>`
       : `<a href="#/${m[0]}" data-tab="${m[0]}" class="chip${CRM.includes(m[0]) ? ' crm-sub' : ''}${cur === m[0] ? ' on' : ''}"${cur === m[0] ? ' aria-current="page"' : ''}>${m[1]}${m[0] === 'demandes' ? `<span>${nb}</span>` : m[0] === 'blog' && cache.blogDu ? '<span title="Reportage à préparer">1</span>' : ''}</a>`;
     return `<div class="bo">
       <aside class="side" id="side"><a class="logo" href="#/"><img src="/brand/monogramme.svg" alt=""><span>Magnolia<small>Back-office</small></span></a><a class="go-site" href="/" target="_blank" rel="noopener">🌐 Aller sur le site ↗</a>
@@ -198,7 +199,7 @@
     }
     if (!session) return login();
     const [route, id, sub] = location.hash.replace(/^#\/?/, '').split('?')[0].split('/');
-    const views = { '': dashboard, statistiques, tarifs, demandes, suivi, devis, factures, agenda, clients, catalogue, produit, achats, lieux, lieu, site, avis, blog, medias, entreprise, equipe, outils };
+    const views = { '': dashboard, statistiques, tarifs, prepa, demandes, suivi, devis, factures, agenda, clients, catalogue, produit, achats, lieux, lieu, site, avis, blog, medias, entreprise, equipe, outils };
     let fn = route === 'catalogue' && id ? produit : route === 'lieux' && id ? lieu : views[route] || dashboard;
     if (!voitEcran(route)) fn = sansAcces;
     if (!peut('toutes') && typeof SV !== 'undefined') { SV.o = ''; mem.set('mg_commercial', ''); } /* « seulement ses opportunités » : pas de filtre sur un autre commercial */
@@ -358,6 +359,189 @@
       catch (e) { toast(e.message, true); $('.db')?.classList.remove('db-charge'); }
     }));
   };
+
+  /* ---------- Prépa de commande (Jean-Luc, 2026-11-27) ----------
+     Bon de préparation pour la cuisine / le service préparation, à partir d'un devis signé (ou d'une facture) :
+     infos client, horaires de livraison, régisseurs, livreurs, personnel, et « À préparer » (lignes du devis, sans prix).
+     Colonne « Quantité à préparer » prévue pour les quantités détaillées que Jean-Luc donnera plus tard. Serveur : server/prepa.js, routes /api/admin/prepa/*. */
+  const PC = { q: '', vue: 'avenir', tous: false, x: null, sale: false };
+  const PC_ICO = { regisseurs: '🎩', livreurs: '🚚', personnel: '🤵' };
+  async function prepa(id) {
+    if (id) return prepaEdit(id);
+    const L = await api(A + '/prepa'); PC.liste = L;
+    return page('📋 Prépa de commande', '', `
+      <p class="muted pc-intro">Choisissez l’événement : le bon de préparation se remplit tout seul avec le devis, la facture et la fiche du client. Vous le complétez (horaires, équipe, quantités), puis vous l’imprimez ou l’envoyez à la cuisine. <b>Aucun prix n’apparaît sur le bon.</b></p>
+      <section class="box pc-box"><div class="pc-lbar"><input type="search" data-pcq placeholder="🔍 Rechercher un client, un n° de devis, une ville…" aria-label="Rechercher" value="${esc(PC.q)}">
+        <div class="pc-seg" role="group" aria-label="Période">${[['avenir', 'À venir'], ['passes', 'Passés'], ['tout', 'Tous']].map(([k, l]) => `<button type="button" data-pcvue="${k}" class="${PC.vue === k ? 'on' : ''}" aria-pressed="${PC.vue === k}">${l}</button>`).join('')}</div>
+        <label class="pc-ck"><input type="checkbox" data-pctous${PC.tous ? ' checked' : ''}> Montrer aussi les devis pas encore signés</label></div>
+        <div data-pcliste></div></section>`);
+  }
+  function prepaLignes() {
+    const L = PC.liste, auj = L.aujourdhui, q = PC.q.trim().toLowerCase();
+    let l = L.devis.filter(d => PC.tous || d.confirme || d.bon);
+    if (!q) l = l.filter(d => PC.vue === 'tout' || (PC.vue === 'avenir' ? !d.date || d.date >= auj : d.date && d.date < auj));
+    else l = l.filter(d => [d.client, d.numero, d.ville, d.lieu, d.type, d.facture].join(' ').toLowerCase().includes(q));
+    if (PC.vue === 'passes' && !q) l = [...l].reverse();
+    const etat = d => d.bon ? (d.bon.envoyeLe ? `<span class="pill d-accepte">✉ Envoyé${d.bon.envoyeA ? ' à ' + esc(d.bon.envoyeA) : ''} · ${dateFr(d.bon.envoyeLe, { day: 'numeric', month: 'short' })}</span>` : `<span class="pill d-envoye">💾 Bon enregistré · ${dateFr(d.bon.maj, { day: 'numeric', month: 'short' })}</span>`) : '<span class="pill d-brouillon">À préparer</span>';
+    const dv = d => `${esc(d.numero)}${d.statut === 'accepte' ? ' <span class="pc-ok" title="Devis signé">✓ signé</span>' : d.reserve ? ' <span class="pc-ok">✓ réservé</span>' : ` <span class="pc-ns">${esc(DSTAT[d.statut] || d.statut)}</span>`}${d.facture ? `<small class="vt-sub">Facture ${esc(d.facture)}</small>` : ''}`;
+    return l.length ? `<div class="table pc-lt"><table><thead><tr><th>Date</th><th>Client</th><th>Événement</th><th>Devis</th><th>Bon de préparation</th><th></th></tr></thead><tbody>${l.map(d => `<tr data-href="#/prepa/${esc(d.devisId)}"><td class="nw"><b>${d.date ? esc(dateFr(d.date, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })) : '<span class="muted">Date à fixer</span>'}</b></td><td><b>${esc(d.client || '—')}</b></td><td>${esc(d.type || '')}${d.invites ? ` · ${esc(d.invites)} pers.` : ''}<small class="vt-sub">${esc([d.lieu, d.ville].filter(Boolean).join(' · '))}</small></td><td class="nw">${dv(d)}</td><td>${etat(d)}</td><td class="n"><a class="btn sm ${d.bon ? 'ghost' : 'vt-or'}" href="#/prepa/${esc(d.devisId)}">${d.bon ? 'Ouvrir ›' : '📋 Préparer ›'}</a></td></tr>`).join('')}</tbody></table></div>`
+      : `<div class="vide"><p>${q ? 'Aucun événement ne correspond à cette recherche.' : PC.vue === 'avenir' ? 'Aucun événement signé à venir.' : 'Aucun événement.'}</p><p class="muted sm">${PC.tous ? '' : 'Seuls les devis signés, réservés ou facturés sont proposés : cochez « Montrer aussi les devis pas encore signés » pour voir les autres.'}</p></div>`;
+  }
+  prepa.after = id => {
+    if (id) return prepaEdit.after(id);
+    const maj = () => { $('[data-pcliste]').innerHTML = prepaLignes(); $$('[data-pcliste] tr[data-href]').forEach(tr => tr.addEventListener('click', e => { if (!e.target.closest('a,button')) location.hash = tr.dataset.href; })); };
+    maj();
+    $('[data-pcq]').addEventListener('input', e => { PC.q = e.target.value; maj(); });
+    $$('[data-pcvue]').forEach(b => b.addEventListener('click', () => { PC.vue = b.dataset.pcvue; $$('[data-pcvue]').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', x === b); }); maj(); }));
+    $('[data-pctous]').addEventListener('change', e => { PC.tous = e.target.checked; maj(); });
+  };
+
+  const pcOpts = P => { const g = {}; P.forEach((p, i) => (g[p.groupe] = g[p.groupe] || []).push(`<option value="${i}">${esc(p.nom)}${(p.metiers || []).length ? ' · ' + esc(p.metiers.join(', ')) : ''}</option>`)); return Object.entries(g).map(([k, v]) => `<optgroup label="${esc(k)}">${v.join('')}</optgroup>`).join(''); };
+  const pcChips = (b, k) => (b[k] || []).length ? b[k].map((p, i) => `<span class="pc-chip"><b>${esc(p.nom)}</b>${p.tel ? ` <small>${esc(p.tel)}</small>` : ''}<button type="button" data-pcrm="${k}:${i}" aria-label="Retirer ${esc(p.nom)}">×</button></span>`).join('') : '<span class="muted sm">Personne pour le moment.</span>';
+  const PC_PLUR = /^(personne|pièce|portion|plateau|coffret|bouteille|heure|table|chaise|unité|corbeille|gâteau|cocktail|litre)$/;
+  const pcQte = l => l.qteDevis === '' || l.qteDevis == null ? '—' : `${String(l.qteDevis).replace('.', ',')} ${esc(+l.qteDevis > 1 && PC_PLUR.test(l.unite || '') ? (l.unite === 'gâteau' || l.unite === 'plateau' ? l.unite + 'x' : l.unite + 's') : l.unite || '')}`;
+  function pcLignesHtml(b) {
+    let n = 0;
+    return b.lignes.map((l, i) => l.type === 'titre'
+      ? `<div class="pc-l pc-ti" data-i="${i}"><input data-lf="designation" value="${esc(l.designation)}" aria-label="Intertitre" placeholder="Intertitre (ex. Entrées)"><button type="button" class="pc-x" data-pclrm="${i}" title="Retirer cette ligne" aria-label="Retirer">🗑</button></div>`
+      : `<div class="pc-l" data-i="${i}"><span class="pc-no">${++n}</span>
+        <div class="pc-pr"><input data-lf="designation" value="${esc(l.designation)}" placeholder="Produit" aria-label="Produit">${l.detail || !l.produit ? `<textarea data-lf="detail" rows="${Math.min(4, Math.max(1, String(l.detail || '').split('\n').length))}" placeholder="Choix, composition (facultatif)" aria-label="Choix">${esc(l.detail || '')}</textarea>` : ''}${(l.allergenes || []).length ? `<small class="pc-al">⚠ ${esc(l.allergenes.join(', '))}</small>` : ''}</div>
+        <div class="pc-q"><small>Quantité du devis</small>${l.produit ? `<b>${pcQte(l)}</b>` : `<input data-lf="qteDevis" inputmode="decimal" value="${esc(l.qteDevis ?? '')}" placeholder="—" aria-label="Quantité">`}</div>
+        <label class="pc-q pc-qp"><small>Quantité à préparer</small><input data-lf="qtePrepa" value="${esc(l.qtePrepa || '')}" placeholder="à venir"></label>
+        <label class="pc-nt"><small>Remarque cuisine</small><input data-lf="note" value="${esc(l.note || '')}" placeholder="ex. sans piment, à part…"></label>
+        <button type="button" class="pc-x" data-pclrm="${i}" title="Retirer cette ligne" aria-label="Retirer">🗑</button></div>`).join('') || '<p class="muted">Aucune ligne : ajoutez un produit ci-dessous, ou reprenez les lignes du devis.</p>';
+  }
+  async function prepaEdit(id) {
+    const x = await api(A + '/prepa/' + encodeURIComponent(id) + (PC.reprendre ? '?reprendre=1' : ''));
+    PC.reprendre = false; PC.x = x; PC.id = id; PC.sale = !!(x.bon.nouveau || x.reprise);
+    const b = x.bon, c = b.client, e = b.evenement, h = b.horaires;
+    const inp = (k, lab, v, at = '') => `<label>${lab}<input data-f="${k}" value="${esc(v ?? '')}"${at}></label>`;
+    const env = (b.envois || []).slice().reverse();
+    const nonSigne = x.devis.statut !== 'accepte' && !x.devis.facture;
+    return page(`📋 Prépa de commande <small class="pc-sub">${esc(c.nom || 'Client')}${e.date ? ' · ' + esc(dateFr(e.date, { day: 'numeric', month: 'long', year: 'numeric' })) : ''}</small>`,
+      `<a class="btn ghost" href="#/prepa">← Tous les événements</a><button type="button" class="btn ghost" data-pcdoc>🖨 Aperçu A4 · Imprimer</button><button type="button" class="btn ghost" data-pcenv>✉ Envoyer</button><button type="button" class="btn vt-or" data-pcsave>💾 Enregistrer</button>`, `
+      <p class="muted pc-intro">${x.existe ? `Bon enregistré${b.updatedAt ? ' le ' + esc(dateH(b.updatedAt)) : ''}${b.majPar ? ' par ' + esc(b.majPar) : ''}.` : '<b>Nouveau bon</b>, pré-rempli avec le devis et la fiche du client : vérifiez, complétez puis enregistrez.'} Devis <a href="#/devis/${esc(id)}">${esc(x.devis.numero)}</a>${x.devis.facture ? ` · facture ${esc(x.devis.facture)}` : ''}.${nonSigne ? ' <span class="pc-ns">Attention : ce devis n’est pas encore signé.</span>' : ''}</p>
+      <form id="pcF" autocomplete="off">
+      <div class="cols pc-cols">
+      <section class="box pc-box"><h2>👤 Client</h2>
+        ${inp('client.nom', 'Nom du client <small class="muted">(Prénom NOM)</small>', c.nom, ' data-nomclient')}
+        ${inp('client.societe', 'Société', c.societe)}
+        <div class="g2">${inp('client.tel', 'Téléphone', c.tel, ' type="tel"')}${inp('contactSurPlace', 'Contact sur place', b.contactSurPlace, ' placeholder="Nom et téléphone"')}</div>
+        <label>⚠ Allergies, régimes signalés par le client<textarea data-f="allergies" rows="2" placeholder="ex. 2 invités sans gluten, 1 allergie aux arachides">${esc(b.allergies)}</textarea></label>
+        <div class="pc-alp"><small>Allergènes présents dans la commande <span class="muted">(d’après les fiches produits)</span></small><div>${b.allergenesProduits.length ? b.allergenesProduits.map(a => `<span class="pc-ap">${esc(a)}</span>`).join('') : '<span class="muted sm">Aucun indiqué sur les fiches.</span>'}</div></div>
+      </section>
+      <section class="box pc-box"><h2>🎉 Événement et livraison</h2>
+        <div class="g2">${inp('evenement.date', 'Date', e.date, ' type="date"')}${inp('evenement.invites', 'Nombre d’invités', e.invites, ' type="number" min="0" inputmode="numeric"')}</div>
+        <div class="g2">${inp('evenement.type', 'Type d’événement', e.type)}${inp('evenement.lieu', 'Lieu', e.lieu, ' placeholder="ex. Salle des fêtes, domicile…"')}</div>
+        ${inp('evenement.adresse', 'Adresse de livraison', e.adresse)}
+        <div class="g2">${inp('evenement.cp', 'Code postal', e.cp, ' inputmode="numeric" maxlength="5"')}${inp('evenement.ville', 'Ville', e.ville)}</div>
+        <label>Accès pour les livreurs <small class="muted">(étage, digicode, stationnement…)</small><textarea data-f="acces" rows="2">${esc(b.acces)}</textarea></label>
+      </section>
+      </div>
+      <section class="box pc-box"><h2>🕒 Horaires</h2><div class="pc-hor">${x.horaires.map(([k, lab]) => inp('horaires.' + k, lab, h[k], ` placeholder="${k === 'livraison' ? 'ex. 17 h 30' : 'ex. 18 h'}"`)).join('')}</div></section>
+      <section class="box pc-box"><h2>👥 Équipe sur l’événement</h2>
+        <p class="muted sm">Choisissez dans la liste (équipe Magnolia et prestataires des Contacts) ou tapez un nom. ${b.personnelDevis.length ? `<b>Prévu au devis :</b> ${esc(b.personnelDevis.join(' · '))}` : ''}</p>
+        <div class="pc-roles">${x.roles.map(([k, lab]) => `<div class="pc-role" data-role="${k}"><h3>${PC_ICO[k] || ''} ${esc(lab)}</h3><div class="pc-chips" data-chips="${k}">${pcChips(b, k)}</div>
+          <select data-pcsel="${k}" aria-label="Ajouter : ${esc(lab)}"><option value="">➕ Choisir dans la liste…</option>${pcOpts(x.personnes)}</select>
+          <div class="pc-libre"><input data-pclibre="${k}" placeholder="ou tapez un nom" aria-label="Nom"><input data-pctel="${k}" type="tel" placeholder="Portable" aria-label="Portable"><button type="button" class="btn ghost sm" data-pcajout="${k}">Ajouter</button></div></div>`).join('')}</div>
+      </section>
+      <section class="box pc-box"><h2>📋 À préparer <small class="muted pc-nb" data-pcnb></small></h2>
+        <p class="muted sm">Toutes les lignes du devis (sans les prix, la livraison et le personnel). La colonne <b>Quantité à préparer</b> est prête pour les quantités détaillées de la cuisine.</p>
+        <div class="pc-lignes" data-pclignes>${pcLignesHtml(b)}</div>
+        <div class="row pc-addl"><button type="button" class="btn ghost sm" data-pcadd="produit">➕ Ajouter un produit</button><button type="button" class="btn ghost sm" data-pcadd="titre">➕ Ajouter un intertitre</button><button type="button" class="btn ghost sm" data-pcrep>↻ Reprendre les lignes du devis</button></div>
+      </section>
+      <section class="box pc-box"><h2>📝 Remarques pour la cuisine</h2><textarea data-f="remarques" rows="3" placeholder="Tout ce que la cuisine doit savoir : présentation, vaisselle, ordre de sortie…">${esc(b.remarques)}</textarea></section>
+      ${env.length ? `<section class="box pc-box"><h2>✉ Envois</h2><ul class="pc-env">${env.map(v => `<li><b>${esc(dateH(v.at))}</b> · à ${esc(v.a)} <span class="muted">(${esc((v.canaux || []).map(k => k === 'sms' ? 'SMS' : 'e-mail').join(' + '))}${v.par ? ', par ' + esc(v.par) : ''})</span></li>`).join('')}</ul></section>` : ''}
+      <div class="row pc-bas"><button type="button" class="btn vt-or" data-pcsave>💾 Enregistrer</button><button type="button" class="btn ghost" data-pcdoc>🖨 Aperçu A4 · Imprimer</button><button type="button" class="btn ghost" data-pcenv>✉ Envoyer à la cuisine</button></div>
+      </form>`);
+  }
+  /* lit l'écran dans PC.x.bon */
+  function pcLire() {
+    const b = PC.x.bon, f = $('#pcF'); if (!f) return b;
+    $$('[data-f]', f).forEach(i => { const [a, k] = i.dataset.f.split('.'); if (k) b[a][k] = i.value; else b[a] = i.value; });
+    $$('[data-pclignes] .pc-l', f).forEach(r => { const l = b.lignes[+r.dataset.i]; if (l) $$('[data-lf]', r).forEach(i => { l[i.dataset.lf] = i.value; }); });
+    return b;
+  }
+  async function pcSauver(silence) {
+    const b = pcLire();
+    const r = await api(A + '/prepa/' + encodeURIComponent(PC.id), { method: 'PUT', body: b });
+    PC.x.bon = { ...r.bon }; PC.x.existe = true; PC.sale = false;
+    if (!silence) toast('Bon de préparation enregistré.');
+    return r.bon;
+  }
+  prepaEdit.after = id => {
+    const f = $('#pcF'), b = () => PC.x.bon;
+    const nb = () => { const n = b().lignes.filter(l => l.type !== 'titre').length; $('[data-pcnb]').textContent = `${n} produit${n > 1 ? 's' : ''}`; };
+    const redessiner = () => { $('[data-pclignes]').innerHTML = pcLignesHtml(b()); nb(); };
+    nb();
+    f.addEventListener('input', () => { PC.sale = true; });
+    f.addEventListener('submit', e => e.preventDefault());
+    const ajouter = (k, p) => { if (!p.nom) return; const l = b()[k] = b()[k] || []; if (l.some(x => x.nom.toLowerCase() === p.nom.toLowerCase())) { toast(`${p.nom} est déjà dans la liste.`); return; } l.push(p); $(`[data-chips="${k}"]`).innerHTML = pcChips(b(), k); PC.sale = true; };
+    f.addEventListener('change', e => {
+      const s = e.target.closest('[data-pcsel]'); if (!s || s.value === '') return;
+      const p = PC.x.personnes[+s.value]; ajouter(s.dataset.pcsel, { nom: p.nom, tel: p.tel || '', email: p.email || '' }); s.value = '';
+    });
+    f.addEventListener('keydown', e => { const i = e.target.closest('[data-pclibre],[data-pctel]'); if (i && e.key === 'Enter') { e.preventDefault(); f.querySelector(`[data-pcajout="${i.dataset.pclibre || i.dataset.pctel}"]`).click(); } });
+    f.addEventListener('click', async e => {
+      const aj = e.target.closest('[data-pcajout]');
+      if (aj) { const k = aj.dataset.pcajout, n = $(`[data-pclibre="${k}"]`), t = $(`[data-pctel="${k}"]`); const nom = nomPropre(n.value); if (!nom) { n.focus(); toast('Tapez d’abord un nom.', true); return; } ajouter(k, { nom, tel: t.value.trim(), email: '' }); n.value = ''; t.value = ''; return; }
+      const rm = e.target.closest('[data-pcrm]');
+      if (rm) { const [k, i] = rm.dataset.pcrm.split(':'); b()[k].splice(+i, 1); $(`[data-chips="${k}"]`).innerHTML = pcChips(b(), k); PC.sale = true; return; }
+      const lr = e.target.closest('[data-pclrm]');
+      if (lr) { pcLire(); b().lignes.splice(+lr.dataset.pclrm, 1); redessiner(); PC.sale = true; return; }
+      const ad = e.target.closest('[data-pcadd]');
+      if (ad) { pcLire(); b().lignes.push(ad.dataset.pcadd === 'titre' ? { type: 'titre', designation: '' } : { type: 'produit', produit: '', designation: '', detail: '', qteDevis: '', unite: '', qtePrepa: '', note: '' }); redessiner(); PC.sale = true; const r = $$('[data-pclignes] .pc-l').pop(); r?.querySelector('input')?.focus(); return; }
+    });
+    $('[data-pcrep]').addEventListener('click', async () => {
+      if (!confirm('Reprendre toutes les lignes du devis ?\n\nLes lignes « À préparer » actuelles (quantités à préparer et remarques comprises) seront remplacées. Le reste du bon ne change pas.')) return;
+      try { pcLire(); const r = await api(A + '/prepa/' + encodeURIComponent(id) + '?reprendre=1'); Object.assign(b(), { lignes: r.bon.lignes, personnelDevis: r.bon.personnelDevis, allergenesProduits: r.bon.allergenesProduits }); redessiner(); PC.sale = true; toast('Lignes du devis reprises : pensez à enregistrer.'); } catch (err) { toast(err.message, true); }
+    });
+    $$('[data-pcsave]').forEach(x => x.addEventListener('click', async () => { x.disabled = true; try { await pcSauver(); render(); } catch (err) { toast(err.message, true); } finally { x.disabled = false; } }));
+    $$('[data-pcdoc]').forEach(x => x.addEventListener('click', async () => {
+      const w = window.open('', '_blank');
+      try { await pcSauver(true); const u = `${A}/prepa/${encodeURIComponent(id)}/document?t=${Date.now()}`; if (w) w.location = u; else location.href = u; toast('Bon enregistré : aperçu A4 ouvert dans un nouvel onglet.'); }
+      catch (err) { w?.close(); toast(err.message, true); }
+    }));
+    $$('[data-pcenv]').forEach(x => x.addEventListener('click', async () => { try { await pcSauver(true); pcEnvoyer(id); } catch (err) { toast(err.message, true); } }));
+  };
+  /* fenêtre « Envoyer le bon » : à qui (liste de l'équipe ou saisie libre), e-mail et / ou SMS (avec le lien du bon), message modifiable */
+  function pcEnvoyer(id) {
+    const x = PC.x, bon = x.bon;
+    const dest = [];
+    for (const k of ['regisseurs', 'livreurs', 'personnel']) for (const p of bon[k] || []) { const q = x.personnes.find(y => y.nom === p.nom); const d = { nom: p.nom, email: p.email || q?.email || '', tel: p.tel || q?.tel || '' }; if ((d.email || d.tel) && !dest.some(y => y.nom === d.nom)) dest.push({ ...d, on: false }); }
+    const m = document.createElement('div'); m.className = 'modal df-modal'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-modal', 'true');
+    const liste = () => dest.length ? dest.map((p, i) => `<label class="pc-dst"><input type="checkbox" data-dst="${i}"${p.on ? ' checked' : ''}> <b>${esc(p.nom)}</b> <small class="muted">${esc([p.email, p.tel].filter(Boolean).join(' · ') || 'ni e-mail ni portable')}</small></label>`).join('') : '<p class="muted sm">Choisissez une personne ci-dessous.</p>';
+    m.innerHTML = `<div class="modal-in pc-mod"><div class="bh"><h2>✉ Envoyer le bon de préparation</h2><button type="button" class="x" data-x aria-label="Fermer">×</button></div>
+      <div class="pc-modc">
+      <p class="muted sm">La personne reçoit le bon (sans aucun prix) et un lien pour l’ouvrir en A4 et l’imprimer.</p>
+      <div class="pc-dl" data-dl>${liste()}</div>
+      <label>Ajouter une personne de la liste<select data-dsel><option value="">➕ Choisir…</option>${pcOpts(x.personnes)}</select></label>
+      <div class="g3"><label>Nom<input data-dn placeholder="ex. Cuisine"></label><label>E-mail<input data-de type="email" inputmode="email" placeholder="cuisine@…"></label><label>Portable<input data-dt type="tel" placeholder="06…"></label></div>
+      <div class="row"><button type="button" class="btn ghost sm" data-dadd>➕ Ajouter ce destinataire</button></div>
+      <div class="pc-can"><label class="pc-ck"><input type="checkbox" data-c="email" checked> ✉ Par e-mail</label><label class="pc-ck"><input type="checkbox" data-c="sms"> 💬 Par SMS (avec le lien du bon)</label></div>
+      <label>Objet de l’e-mail<input data-sujet value="${esc('Bon de préparation · ' + (bon.client.nom || '') + (bon.evenement.date ? ' · ' + dateFr(bon.evenement.date, { day: 'numeric', month: 'long', year: 'numeric' }) : ''))}"></label>
+      <label>Message<textarea data-msg rows="6">${esc(x.message)}</textarea></label>
+      </div>
+      <div class="row"><button type="button" class="btn vt-or" data-go>✉ Envoyer le bon</button><button type="button" class="btn ghost" data-x>Annuler</button><span class="muted sm" data-etat></span></div></div>`;
+    document.body.appendChild(m);
+    const redraw = () => { $('[data-dl]', m).innerHTML = liste(); };
+    m.addEventListener('change', e => {
+      const c = e.target.closest('[data-dst]'); if (c) { dest[+c.dataset.dst].on = c.checked; return; }
+      const s = e.target.closest('[data-dsel]'); if (s && s.value !== '') { const p = x.personnes[+s.value]; const ex = dest.find(y => y.nom === p.nom); if (ex) ex.on = true; else dest.push({ nom: p.nom, email: p.email || '', tel: p.tel || '', on: true }); s.value = ''; redraw(); }
+    });
+    m.addEventListener('click', async e => {
+      if (e.target === m || e.target.closest('[data-x]')) { m.remove(); return; }
+      if (e.target.closest('[data-dadd]')) { const nom = $('[data-dn]', m).value.trim(), email = $('[data-de]', m).value.trim(), tel = $('[data-dt]', m).value.trim(); if (!email && !tel) { toast('Indiquez un e-mail ou un portable.', true); return; } dest.push({ nom: nom || email || tel, email, tel, on: true }); ['[data-dn]', '[data-de]', '[data-dt]'].forEach(k => { $(k, m).value = ''; }); redraw(); return; }
+      const go = e.target.closest('[data-go]'); if (!go) return;
+      const a = dest.filter(p => p.on), canaux = $$('[data-c]', m).filter(c => c.checked).map(c => c.dataset.c);
+      if (!a.length) { toast('Cochez au moins une personne.', true); return; }
+      go.disabled = true; $('[data-etat]', m).textContent = 'Envoi en cours…';
+      try {
+        const r = await api(A + '/prepa/' + encodeURIComponent(id) + '/envoyer', { method: 'POST', body: { a, canaux, sujet: $('[data-sujet]', m).value, message: $('[data-msg]', m).value } });
+        m.remove(); toast(`Bon envoyé à ${r.a.join(', ')}.`); render();
+      } catch (err) { toast(err.message, true); $('[data-etat]', m).textContent = ''; go.disabled = false; }
+    });
+  }
 
   /* ---------- Validation tarifs (Jean-Luc, 2026-11-26) ----------
      Pour chaque spécialité du site : la fiche du restaurateur / traiteur fournisseur (enregistrée, réutilisable), les produits
