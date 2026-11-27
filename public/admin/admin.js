@@ -3571,16 +3571,21 @@
   }
   /* grille de médias : vignettes carrées avec le nom du fichier, affichées par paquets de 120 au fil du défilement */
   const nomFichier = u => decodeURIComponent(u.split('/').pop()).replace(/(\.\w+)\.\1$/, '$1');
-  const vignette = (x, tag) => `<${tag} class="mt" ${tag === 'a' ? `href="${esc(x.url)}" target="_blank"` : 'type="button"'} data-u="${esc(x.url)}" title="${esc(x.url)}"><span class="mt-img">${/mp4$/i.test(x.url) ? `<video src="${esc(x.url)}#t=0.5" muted preload="metadata"></video><i>▶</i>` : `<img src="${esc(x.url)}" loading="lazy" decoding="async" alt="">`}</span><small>${esc(nomFichier(x.url))}</small></${tag}>`;
+  /* vignette : le nom donné à l'image (Jean-Luc, 2026-11-27) en gras, le nom du fichier en petit dessous ;
+     sur la page Médiathèque, une case à cocher dans le coin pour supprimer plusieurs images d'un coup */
+  const vignette = (x, tag, coches) => `<${tag} class="mt${coches?.has(x.url) ? ' sel' : ''}" ${tag === 'a' ? `href="${esc(x.url)}" target="_blank"` : 'type="button"'} data-u="${esc(x.url)}" title="${esc(x.nom || x.url)}"><span class="mt-img">${/mp4$/i.test(x.url) ? `<video src="${esc(x.url)}#t=0.5" muted preload="metadata"></video><i>▶</i>` : `<img src="${esc(x.url)}" loading="lazy" decoding="async" alt="${esc(x.nom || '')}">`}${coches ? `<span class="mt-coche" data-coche role="checkbox" aria-checked="${coches.has(x.url)}" aria-label="Cocher cette image" title="Cocher pour supprimer">${coches.has(x.url) ? '✓' : ''}</span>` : ''}</span>${x.nom ? `<b class="mt-nom">${esc(x.nom)}</b>` : coches ? '<em class="mt-sansnom">✎ Donner un nom</em>' : ''}<small>${esc(nomFichier(x.url))}</small></${tag}>`;
   const ordreMedias = l => [...l.filter(x => !x.url.startsWith('/site/avis/')), ...l.filter(x => x.url.startsWith('/site/avis/'))];
-  function grilleMedias(box, items, tag) {
+  function grilleMedias(box, items, tag, coches) {
     let liste = items, n = 0; const PAQ = 120;
     const fin = document.createElement('div'); fin.className = 'mgrid-fin';
-    const suite = () => { box.insertAdjacentHTML('beforeend', liste.slice(n, n + PAQ).map(x => vignette(x, tag)).join('')); n += PAQ; box.appendChild(fin); };
+    const suite = () => { box.insertAdjacentHTML('beforeend', liste.slice(n, n + PAQ).map(x => vignette(x, tag, coches)).join('')); n += PAQ; box.appendChild(fin); };
     const io = new IntersectionObserver(e => { if (e.some(x => x.isIntersecting) && n < liste.length) suite(); }, { root: box.closest('.modal-in') ? box : null, rootMargin: '400px' });
     io.observe(fin);
-    const filtrer = q => { q = q.trim().toLowerCase(); liste = q ? items.filter(x => x.url.toLowerCase().includes(q)) : items; n = 0; box.innerHTML = ''; suite(); const c = box.parentElement.querySelector('[data-mcount]'); if (c) c.textContent = liste.length + ' fichier' + (liste.length > 1 ? 's' : ''); };
+    /* recherche dans le nom donné à l'image ET dans le nom du fichier, accents ignorés, chaque mot doit y être */
+    const filtrer = q => { const mots = sansAccent(q).trim().split(/\s+/).filter(Boolean); liste = mots.length ? items.filter(x => { const t = sansAccent((x.nom || '') + ' ' + decodeURIComponent(x.url)); return mots.every(m => t.includes(m)); }) : items; n = 0; box.innerHTML = ''; suite(); const c = box.parentElement.querySelector('[data-mcount]'); if (c) c.textContent = liste.length + ' fichier' + (liste.length > 1 ? 's' : ''); };
     filtrer('');
+    filtrer.liste = () => liste;
+    filtrer.maj = x => { const el = box.querySelector(`[data-u="${CSS.escape(x.url)}"]`); if (el) el.outerHTML = vignette(x, tag, coches); };
     return filtrer;
   }
   async function pickMedia() {
@@ -3588,7 +3593,7 @@
     return new Promise(resolve => {
       const dlg = document.createElement('div'); dlg.className = 'modal';
       const all = [...m.envoyes, ...m.site];
-      dlg.innerHTML = `<div class="modal-in"><div class="bh"><h2>Médiathèque</h2><input type="search" placeholder="Filtrer par nom…" data-mq><button class="x" data-close aria-label="Fermer">×</button></div><p class="muted sm" data-mcount></p><div class="mgrid"></div></div>`;
+      dlg.innerHTML = `<div class="modal-in"><div class="bh"><h2>Médiathèque</h2><input type="search" placeholder="Rechercher par nom d’image…" data-mq><button class="x" data-close aria-label="Fermer">×</button></div><p class="muted sm" data-mcount></p><div class="mgrid"></div></div>`;
       document.body.appendChild(dlg);
       const filtrer = grilleMedias($('.mgrid', dlg), ordreMedias(all), 'button');
       const close = v => { dlg.remove(); resolve(v); };
@@ -4361,11 +4366,74 @@
   /* ---------- médiathèque ---------- */
   async function medias() {
     const m = await api(A + '/actions/medias'); cache.medias = m;
-    return page('Médiathèque', '<label class="btn up">+ Envoyer des photos ou vidéos<input type="file" accept="image/*,video/mp4" multiple hidden data-up></label>', `<p class="muted">${m.envoyes.length} fichiers envoyés depuis le back-office · ${m.site.length} photos et vidéos reprises du brouillon. Les photos de téléphone sont réduites automatiquement avant l’envoi.</p>
-      <div class="bh"><input type="search" placeholder="Filtrer par nom…" data-mq><span class="muted sm" data-mcount></span></div><div class="mgrid big"></div>`);
+    const nomes = [...m.envoyes, ...m.site].filter(x => x.nom).length;
+    return page('Médiathèque', '<label class="btn up">+ Envoyer des photos ou vidéos<input type="file" accept="image/*,video/mp4" multiple hidden data-up></label>', `<p class="muted">${m.envoyes.length} fichiers envoyés depuis le back-office · ${m.site.length} photos et vidéos reprises du brouillon · ${nomes} image${nomes > 1 ? 's' : ''} nommée${nomes > 1 ? 's' : ''}. Les photos de téléphone sont réduites automatiquement avant l’envoi.</p>
+      <p class="mq-aide">👆 <b>Cliquez sur une image</b> pour lui donner un nom ou la supprimer. Pour en supprimer plusieurs, <b>cochez la case</b> dans leur coin.</p>
+      <div class="bh mq-barre"><input type="search" placeholder="Rechercher par nom d’image ou de fichier…" data-mq><span class="muted sm" data-mcount></span></div>
+      <div class="mq-sel" data-msel hidden><b data-mseln></b><button type="button" class="btn ghost sm" data-mtout>Tout cocher (affichées)</button><button type="button" class="btn ghost sm" data-maucun>Tout décocher</button><button type="button" class="btn danger sm" data-msupp>🗑 Supprimer la sélection</button></div>
+      <div class="mgrid big"></div>`);
+  }
+  /* suppression : on prévient si une image sert encore quelque part sur le site, puis on demande confirmation */
+  async function supprimerMedias(urls) {
+    const { usages } = await api(A + '/actions/medias/usages', { method: 'POST', body: { urls } });
+    const utilisees = urls.filter(u => usages[u]?.length), nb = urls.length;
+    const quoi = nb > 1 ? `ces ${nb} images` : 'cette image';
+    let msg = `Supprimer définitivement ${quoi} de la médiathèque ?`;
+    if (utilisees.length) msg += `\n\n⚠ ATTENTION : ${utilisees.length > 1 ? utilisees.length + ' de ces images sont encore utilisées' : nb > 1 ? '1 de ces images est encore utilisée' : 'elle est encore utilisée'} sur le site :\n` + utilisees.slice(0, 8).map(u => '• ' + (nb > 1 ? nomFichier(u) + ' : ' : '') + usages[u].slice(0, 4).join(', ') + (usages[u].length > 4 ? '…' : '')).join('\n') + (utilisees.length > 8 ? '\n…' : '') + '\n\nUne fois supprimée, elle peut disparaître de ces endroits : remplacez-la d’abord si besoin.';
+    if (!confirm(msg)) return false;
+    const r = await api(A + '/actions/medias/supprimer', { method: 'POST', body: { urls } });
+    toast(r.n > 1 ? r.n + ' images supprimées.' : 'Image supprimée.');
+    return true;
+  }
+  /* fiche d'une image : grand aperçu, nom (enregistré pour la recherche et pour Google), suppression */
+  function ficheMedia(x, { liste, apres }) {
+    const dlg = document.createElement('div'); dlg.className = 'modal mf';
+    const video = /mp4$/i.test(x.url);
+    const idx = () => liste().findIndex(y => y.url === x.url);
+    dlg.innerHTML = `<div class="modal-in mf-in"><div class="bh"><h2>${video ? 'Vidéo' : 'Image'} de la médiathèque</h2><button class="x" data-close aria-label="Fermer">×</button></div>
+      <div class="mf-corps"><div class="mf-apercu">${video ? `<video src="${esc(x.url)}" controls muted playsinline></video>` : `<img src="${esc(x.url)}" alt="${esc(x.nom || '')}">`}</div>
+      <form class="mf-form" data-mf><label class="mf-lab">Nom de l’image<input name="nom" value="${esc(x.nom || '')}" maxlength="140" placeholder="ex. Buffet antillais sur table de mariage" autocomplete="off" enterkeyhint="done"></label>
+        <p class="muted sm">Ce nom s’affiche sous la vignette, sert à retrouver l’image avec la recherche, et décrit la photo à Google sur le site (texte alternatif). Vous pouvez le dicter avec le micro 🎤.</p>
+        <div class="row"><button class="btn">Enregistrer le nom</button><button type="button" class="btn ghost" data-msuiv>Enregistrer et image suivante →</button></div>
+        <p class="mf-ok" data-mok hidden>✓ Nom enregistré</p>
+        <div class="mf-fichier"><span class="muted sm">Fichier : ${esc(nomFichier(x.url))}</span><a class="btn ghost sm" href="${esc(x.url)}" target="_blank">Ouvrir en grand ↗</a><button type="button" class="btn ghost sm" data-mcopie>Copier l’adresse</button></div>
+        <button type="button" class="btn danger" data-msup1>🗑 Supprimer cette ${video ? 'vidéo' : 'image'}</button></form></div></div>`;
+    document.body.appendChild(dlg);
+    const inp = $('[name=nom]', dlg);
+    const fermer = () => { dlg.remove(); document.removeEventListener('keydown', esc_); };
+    const esc_ = e => { if (e.key === 'Escape') fermer(); };
+    document.addEventListener('keydown', esc_);
+    const sauver = async () => {
+      const nom = inp.value.replace(/\s+/g, ' ').trim();
+      if (nom === (x.nom || '')) return true;
+      try { await api(A + '/actions/media-nom', { method: 'PUT', body: { url: x.url, nom } }); x.nom = nom; apres.nom(x); $('[data-mok]', dlg).hidden = false; toast(nom ? 'Nom enregistré.' : 'Nom retiré.'); return true; } catch (err) { toast(err.message, true); return false; }
+    };
+    $('[data-mf]', dlg).addEventListener('submit', async e => { e.preventDefault(); await sauver(); });
+    inp.addEventListener('input', () => { $('[data-mok]', dlg).hidden = true; });
+    $('[data-msuiv]', dlg).addEventListener('click', async () => { if (!(await sauver())) return; const l = liste(), i = idx(); fermer(); const y = l[i + 1]; if (y) ficheMedia(y, { liste, apres }); else toast('C’était la dernière image de la liste.'); });
+    $('[data-mcopie]', dlg).addEventListener('click', async () => { try { await navigator.clipboard.writeText(location.origin + x.url); toast('Adresse copiée.'); } catch { prompt('Adresse de l’image :', location.origin + x.url); } });
+    $('[data-msup1]', dlg).addEventListener('click', async () => { try { if (await supprimerMedias([x.url])) { fermer(); apres.suppr([x.url]); } } catch (err) { toast(err.message, true); } });
+    dlg.addEventListener('click', e => { if (e.target.matches('[data-close], .modal')) fermer(); });
+    if (matchMedia('(pointer: fine)').matches) inp.focus();
   }
   medias.after = () => {
-    const m = cache.medias; const filtrer = grilleMedias($('.mgrid.big'), ordreMedias([...m.envoyes, ...m.site]), 'a');
+    const m = cache.medias, coches = new Set();
+    let items = ordreMedias([...m.envoyes, ...m.site]);
+    const grille = $('.mgrid.big');
+    let filtrer = grilleMedias(grille, items, 'button', coches);
+    const barre = $('[data-msel]');
+    const majSel = () => { barre.hidden = !coches.size; $('[data-mseln]').textContent = coches.size + (coches.size > 1 ? ' images cochées' : ' image cochée'); };
+    const refaire = () => { const q = $('[data-mq]').value; filtrer = grilleMedias(grille, items, 'button', coches); filtrer(q); majSel(); };
+    const apres = { nom: x => filtrer.maj(x), suppr: urls => { const S = new Set(urls); items = items.filter(x => !S.has(x.url)); urls.forEach(u => coches.delete(u)); cache.medias = { envoyes: m.envoyes.filter(x => !S.has(x.url)), site: m.site.filter(x => !S.has(x.url)) }; refaire(); } };
+    grille.addEventListener('click', e => {
+      const t = e.target.closest('[data-u]'); if (!t) return;
+      const u = t.dataset.u, x = items.find(y => y.url === u); if (!x) return;
+      if (e.target.closest('[data-coche]')) { coches.has(u) ? coches.delete(u) : coches.add(u); filtrer.maj(x); majSel(); return; }
+      ficheMedia(x, { liste: () => filtrer.liste(), apres });
+    });
+    $('[data-mtout]').addEventListener('click', () => { filtrer.liste().forEach(x => coches.add(x.url)); refaire(); });
+    $('[data-maucun]').addEventListener('click', () => { coches.clear(); refaire(); });
+    $('[data-msupp]').addEventListener('click', async () => { const urls = [...coches]; if (!urls.length) return; try { if (await supprimerMedias(urls)) apres.suppr(urls); } catch (err) { toast(err.message, true); } });
     $('[data-up]').addEventListener('change', async e => { let n = 0; for (const f of e.target.files) { try { await uploadFile(f); n++; } catch (err) { toast(err.message, true); } } toast(n + ' fichier(s) envoyé(s).'); render(); });
     $('[data-mq]').addEventListener('input', e => filtrer(e.target.value));
   };
