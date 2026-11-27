@@ -11,6 +11,9 @@ const ROLES = [
   ['livreurs', 'Livraison'],
   ['personnel', 'Personnel sur l’événement'],
 ];
+/* bon de récupération (Jean-Luc, 2026-11-27) : une seule équipe, les livreurs qui reprennent le matériel */
+const ROLE_RECUP = ['recuperateurs', 'Récupération'];
+const ROLES_MSG = [...ROLES, ROLE_RECUP];
 const HORAIRES = [
   ['depart', 'Départ du laboratoire'],
   ['livraison', 'Livraison sur place'],
@@ -70,9 +73,18 @@ function itemsNappe(designation, qte) {
   const t = String(designation || '').toLowerCase();
   return [{ nom: tailleNappe(designation) || '170 × 250 cm', couleur: /noir/.test(t) ? 'Noire' : 'Blanche', type: /extensible/.test(t) && !/non[ -]extensible/.test(t) ? 'Extensible' : 'Non extensible', n: Number(qte) || '' }];
 }
+/* « À récupérer » (Jean-Luc, 2026-11-27) : le matériel loué (tables, nappes, mobilier, indispensables) est coché d'office ; la nourriture et les boissons non */
+const RUB_RECUP = ['indispensables', 'mobilier-a-la-location'];
+function recupDefaut(l, p) {
+  const liste = l?.liste || listeDe(l?.produit, l?.designation);
+  if (liste === 'softs' || liste === 'compo') return false;
+  if (/chauffeur|livraison|pack traiteur/i.test(String(l?.designation || p?.titre || ''))) return false;
+  return liste === 'materiel' || liste === 'nappes' || !!(p && (RUB_RECUP.includes(p.rubrique) || (p.autresRubriques || []).some(r => RUB_RECUP.includes(r))));
+}
 /* bon enregistré avant l'arrivée d'une liste (nappes, softs, matériel) : on la rajoute sur ses lignes, sans toucher au reste */
-function completerLignes(lignes = []) {
+function completerLignes(lignes = [], bySlug = new Map()) {
   return lignes.map(l => {
+    if (l?.type === 'produit' && l.recup === undefined) l = { ...l, recup: recupDefaut(l, bySlug.get(l.produit)) };
     if (l?.type !== 'produit' || l.liste) return l;
     const liste = listeDe(l.produit, l.designation); if (!liste) return l;
     const items = (l.items || []).length ? l.items : liste === 'nappes' ? itemsNappe(l.designation, l.qteDevis) : [];
@@ -113,7 +125,7 @@ function lignesDepuisDevis(devis, bySlug = new Map()) {
     if (estLivraison(l) || estPersonnelL(l, bySlug)) continue;
     const p = bySlug.get(l.produit), designation = s(String(l.designation || p?.titre || '').replace(/\*\*/g, ''), 300);
     const liste = listeDe(l.produit, designation), items = liste === 'compo' || !liste ? compoDe(l, p) : liste === 'nappes' ? itemsNappe(designation, l.qte) : [];
-    out.push({ id: 'l' + rid6(), type: 'produit', produit: s(l.produit, 160), designation, detail: items.length ? '' : txt(l.detail, 600), qteDevis: Number(l.qte) || '', unite: s(l.unite, 40), qtePrepa: qteAuto({ liste, items }), qteAuto: true, note: txt(l.note, 400), allergenes: [...(p?.allergenes || [])], liste: liste || (items.length || choixProduit(p).length ? 'compo' : ''), items });
+    out.push({ id: 'l' + rid6(), type: 'produit', produit: s(l.produit, 160), designation, detail: items.length ? '' : txt(l.detail, 600), qteDevis: Number(l.qte) || '', unite: s(l.unite, 40), qtePrepa: qteAuto({ liste, items }), qteAuto: true, note: txt(l.note, 400), allergenes: [...(p?.allergenes || [])], liste: liste || (items.length || choixProduit(p).length ? 'compo' : ''), items, recup: recupDefaut({ produit: l.produit, designation, liste }, p) });
   }
   /* un intertitre sans produit en dessous ne sert à rien */
   return out.filter((x, i) => x.type !== 'titre' || (out[i + 1] && out[i + 1].type !== 'titre'));
@@ -143,6 +155,7 @@ function bonDepuis({ devis, client = null, demande = null, facture = null, bySlu
     allergies: '',
     horaires: { depart: '', livraison: s(e.horaire || a.horaire || '', 60), debut: '', fin: '', reprise: '' },
     regisseurs: [], livreurs: [], personnel: [],
+    recuperation: { date: /^\d{4}-\d\d-\d\d$/.test(e.date || '') ? e.date : '', heure: '', lieu: '' }, recuperateurs: [],
     personnelDevis: personnelDuDevis(devis, bySlug),
     lignes, remarques: '',
     allergenesProduits: allergenesDe(lignes, bySlug),
@@ -157,7 +170,7 @@ function nettoyer(b = {}, avant = {}, bySlug = new Map()) {
   const c = b.client || {}, e = b.evenement || {}, h = b.horaires || {};
   const lignes = (Array.isArray(b.lignes) ? b.lignes : []).slice(0, 400).map(l => l?.type === 'titre'
     ? { id: s(l.id, 20) || 'l' + rid6(), type: 'titre', designation: s(l.designation, 300) }
-    : { id: s(l?.id, 20) || 'l' + rid6(), type: 'produit', produit: s(l?.produit, 160), designation: s(l?.designation, 300), detail: txt(l?.detail, 600), qteDevis: l?.qteDevis === '' || l?.qteDevis == null ? '' : Math.max(0, Math.min(1e6, +String(l.qteDevis).replace(',', '.') || 0)), unite: s(l?.unite, 40), qtePrepa: s(l?.qtePrepa, 160), qteAuto: !!l?.qteAuto, note: txt(l?.note, 400), allergenes: (Array.isArray(l?.allergenes) ? l.allergenes : bySlug.get(l?.produit)?.allergenes || []).slice(0, 14).map(x => s(x, 30)), liste: LISTES[l?.liste] ? l.liste : '', items: (Array.isArray(l?.items) ? l.items : []).slice(0, 80).map(x => ({ groupe: s(x?.groupe, 60), nom: s(x?.nom, 120), ...(l?.liste === 'nappes' ? { couleur: s(x?.couleur, 40), type: s(x?.type, 40) } : {}), n: x?.n === '' || x?.n == null ? '' : Math.max(0, Math.min(1e6, Math.round(+String(x.n).replace(',', '.') || 0))) })).filter(x => x.nom) })
+    : { id: s(l?.id, 20) || 'l' + rid6(), type: 'produit', produit: s(l?.produit, 160), designation: s(l?.designation, 300), detail: txt(l?.detail, 600), qteDevis: l?.qteDevis === '' || l?.qteDevis == null ? '' : Math.max(0, Math.min(1e6, +String(l.qteDevis).replace(',', '.') || 0)), unite: s(l?.unite, 40), qtePrepa: s(l?.qtePrepa, 160), qteAuto: !!l?.qteAuto, recup: !!l?.recup, note: txt(l?.note, 400), allergenes: (Array.isArray(l?.allergenes) ? l.allergenes : bySlug.get(l?.produit)?.allergenes || []).slice(0, 14).map(x => s(x, 30)), liste: LISTES[l?.liste] ? l.liste : '', items: (Array.isArray(l?.items) ? l.items : []).slice(0, 80).map(x => ({ groupe: s(x?.groupe, 60), nom: s(x?.nom, 120), ...(l?.liste === 'nappes' ? { couleur: s(x?.couleur, 40), type: s(x?.type, 40) } : {}), n: x?.n === '' || x?.n == null ? '' : Math.max(0, Math.min(1e6, Math.round(+String(x.n).replace(',', '.') || 0))) })).filter(x => x.nom) })
     .filter(l => l.designation || l.type === 'produit' && (l.qtePrepa || l.note));
   return {
     id: avant.id || s(b.devisId, 60), devisId: avant.devisId || s(b.devisId, 60), devisNumero: s(b.devisNumero ?? avant.devisNumero, 40), factureNumero: s(b.factureNumero ?? avant.factureNumero, 40),
@@ -166,6 +179,7 @@ function nettoyer(b = {}, avant = {}, bySlug = new Map()) {
     acces: txt(b.acces, 800), contactSurPlace: s(b.contactSurPlace, 160), allergies: txt(b.allergies, 800),
     horaires: Object.fromEntries(HORAIRES.map(([k]) => [k, s(h[k], 60)])),
     regisseurs: personnes(b.regisseurs), livreurs: personnes(b.livreurs), personnel: personnes(b.personnel),
+    recuperation: { date: /^\d{4}-\d\d-\d\d$/.test(b.recuperation?.date || '') ? b.recuperation.date : '', heure: s(b.recuperation?.heure, 30), lieu: s(b.recuperation?.lieu, 300) }, recuperateurs: personnes(b.recuperateurs),
     personnelDevis: (Array.isArray(b.personnelDevis) ? b.personnelDevis : avant.personnelDevis || []).slice(0, 20).map(x => s(x, 200)).filter(Boolean),
     lignes, remarques: txt(b.remarques, 3000),
     allergenesProduits: allergenesDe(lignes, bySlug).length ? allergenesDe(lignes, bySlug) : [...new Set(lignes.flatMap(l => l.allergenes || []))].sort((x, y) => x.localeCompare(y, 'fr')),
@@ -188,19 +202,23 @@ function itemsDoc(l) {
 }
 
 /* le bon en A4 (aperçu, impression, PDF, lien envoyé à la cuisine) — sans aucun prix */
-function documentHtml(b, { R = {}, retour = '', maintenant = new Date(), par = '' } = {}) {
+function documentHtml(b, { R = {}, retour = '', maintenant = new Date(), par = '', recup = false } = {}) {
   const E = R.entreprise || {};
   const nomM = E.raisonSociale || 'Magnolia Traiteur';
   const v = x => x ? esc(x) : '<span class="pt"></span>';
-  const equipe = (k, lab) => `<div class="eq"><h4>${esc(lab)}</h4>${b[k].length ? `<ul>${b[k].map(p => `<li><b>${esc(p.nom)}</b>${p.tel ? ` <span>${esc(p.tel)}</span>` : ''}</li>`).join('')}</ul>` : '<p class="vide">—</p>'}${k === 'personnel' && b.personnelDevis.length ? `<p class="pd">Prévu au devis : ${esc(b.personnelDevis.join(' · '))}</p>` : ''}</div>`;
-  const prod = b.lignes.filter(l => l.type !== 'titre');
+  const equipe = (k, lab) => `<div class="eq"><h4>${esc(lab)}</h4>${(b[k] || []).length ? `<ul>${b[k].map(p => `<li><b>${esc(p.nom)}</b>${p.tel ? ` <span>${esc(p.tel)}</span>` : ''}</li>`).join('')}</ul>` : '<p class="vide">—</p>'}${k === 'personnel' && b.personnelDevis.length ? `<p class="pd">Prévu au devis : ${esc(b.personnelDevis.join(' · '))}</p>` : ''}</div>`;
+  /* bon de récupération (Jean-Luc, 2026-11-27) : seulement les lignes cochées « À récupérer », pour que le livreur n'oublie rien à la reprise */
+  const lignesDoc = recup ? b.lignes.filter(l => l.type !== 'titre' && l.recup) : b.lignes;
+  const prod = lignesDoc.filter(l => l.type !== 'titre');
   let n = 0;
-  const rows = b.lignes.map(l => l.type === 'titre'
+  const rows = recup ? lignesDoc.map(l => `<tr><td class="no">${++n}</td><td class="nm"><b>${esc(l.designation)}</b>${l.detail ? `<small>${nl(l.detail)}</small>` : ''}${itemsDoc(l)}</td><td class="q">${esc(qteTexte(l)) || '—'}</td><td class="q prep">${esc(l.qtePrepa).split(' · ').join('<br>')}</td><td class="nt">${nl(l.note)}<span class="ok cb" role="checkbox" aria-checked="false" tabindex="0" aria-label="Récupéré"></span></td></tr>`).join('') : lignesDoc.map(l => l.type === 'titre'
     ? `<tr class="ti"><td colspan="5">${esc(l.designation)}</td></tr>`
     : `<tr><td class="no">${++n}</td><td class="nm"><b>${esc(l.designation)}</b>${l.detail ? `<small>${nl(l.detail)}</small>` : ''}${itemsDoc(l)}${(l.allergenes || []).length ? `<small class="al">⚠ ${esc(l.allergenes.join(', '))}</small>` : ''}</td><td class="q">${esc(qteTexte(l)) || '—'}</td><td class="q prep">${esc(l.qtePrepa).split(' · ').join('<br>')}</td><td class="nt">${nl(l.note)}<span class="ok cb" role="checkbox" aria-checked="false" tabindex="0" aria-label="Produit prêt"></span></td></tr>`).join('');
-  const hor = HORAIRES.filter(([k]) => b.horaires[k]);
+  const hor = HORAIRES.filter(([k]) => b.horaires[k] && (!recup || ['fin', 'reprise'].includes(k)));
+  const roles = recup ? [ROLE_RECUP] : ROLES;
+  const RI = recupInfos(b);
   return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex, nofollow">
-<title>${esc(titreBon(b))}</title>
+<title>${recup ? 'Bon de récupération · ' + esc(b.client.nom || '') : esc(titreBon(b))}</title>
 <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 @page { size: A4 portrait; margin: 11mm 10mm 12mm; }
@@ -258,14 +276,16 @@ tr.ti td { background: #f6f1e5; font-weight: 600; color: #5b4a2e; text-transform
 .it li { display: flex; align-items: center; gap: 1.6mm; margin: .3mm 0; }
 .it li b { display: inline-block; min-width: 6mm; color: #1d3b2f; }
 /* une case par produit et par choix, cochée par la personne qui prépare (Jean-Luc, 2026-11-27) ; à l'écran elle se coche d'un clic */
-.cb { flex: none; display: inline-block; width: 3.6mm; height: 3.6mm; border: .3mm solid #1d3b2f; border-radius: .8mm; background: #fff; cursor: pointer; position: relative; }
+.cb { flex: none; display: inline-block; width: 4.4mm; height: 4.4mm; border: .45mm solid #1d3b2f; border-radius: .8mm; background: #fff; cursor: pointer; position: relative; }
 .cb.on::after { content: '✓'; position: absolute; inset: 0; display: grid; place-items: center; font-size: 3.4mm; line-height: 1; font-weight: 700; color: #1d3b2f; }
-.ok.on::after { font-size: 4.2mm; }
+.ok.on::after { font-size: 4.6mm; }
+.eq2 { grid-template-columns: 1fr !important; }
+.hor .lr b { font-size: 10pt; }
 .cb:focus-visible { outline: .5mm solid #b08a4f; outline-offset: .3mm; }
 th.q, td.q { width: 26mm; } td.q { font-weight: 600; }
 td.prep { background: #fffdf6; overflow-wrap: anywhere; hyphens: auto; }
-th.nt, td.nt { width: 52mm; } td.nt { position: relative; padding-right: 9mm; font-size: 8.6pt; }
-.ok { position: absolute; right: 1.8mm; top: 1.6mm; width: 4.6mm; height: 4.6mm; border: .35mm solid #1d3b2f; border-radius: 1mm; }
+th.nt, td.nt { width: 52mm; } td.nt { position: relative; padding-right: 10mm; font-size: 8.6pt; }
+.ok { position: absolute; right: 1.8mm; top: 1.6mm; width: 5.4mm; height: 5.4mm; border: .5mm solid #1d3b2f; border-radius: 1mm; }
 .rq { margin-top: 3.4mm; border: .3mm solid #d9cfbb; border-radius: 2mm; padding: 2.2mm 3mm; break-inside: avoid; }
 .rq h3 { margin: 0 0 1mm; font-size: 7.4pt; text-transform: uppercase; letter-spacing: .08em; color: #b08a4f; }
 .rq p { margin: 0; }
@@ -277,26 +297,26 @@ footer { margin-top: 3mm; display: flex; justify-content: space-between; font-si
 @media print { body { background: #fff; } .barre { display: none; } .pg { margin: 0; padding: 0; box-shadow: none; width: auto; min-height: 0; } }
 @media screen and (max-width: 820px) { .pg { zoom: .46; } }
 </style></head><body>
-<div class="barre"><span>Bon de préparation · ${prod.length} produit${prod.length > 1 ? 's' : ''} · sans prix</span><button type="button" onclick="window.print()">🖨 Imprimer ou enregistrer en PDF</button>${retour ? `<a class="g" href="${esc(retour)}">← Retour au back-office</a>` : ''}</div>
+<div class="barre"><span>${recup ? 'Bon de récupération' : 'Bon de préparation'} · ${prod.length} produit${prod.length > 1 ? 's' : ''} · sans prix</span><button type="button" onclick="window.print()">🖨 Imprimer ou enregistrer en PDF</button>${retour ? `<a class="g" href="${esc(retour)}">← Retour au back-office</a>` : ''}</div>
 <section class="pg">
-<header><div class="logo"><img src="${esc(E.logo || '/brand/monogramme.svg')}" alt=""></div><div class="tx"><h1>BON DE PRÉPARATION DE COMMANDE</h1><p class="st">${esc(nomM)} · à l’attention de la cuisine et du service préparation</p></div>
+<header><div class="logo"><img src="${esc(E.logo || '/brand/monogramme.svg')}" alt=""></div><div class="tx"><h1>${recup ? 'BON DE RÉCUPÉRATION' : 'BON DE PRÉPARATION DE COMMANDE'}</h1><p class="st">${esc(nomM)} · ${recup ? 'à l’attention du livreur : tout ce qu’il faut reprendre après l’événement' : 'à l’attention de la cuisine et du service préparation'}</p></div>
 <div class="rf">${b.devisNumero ? `<b>Devis ${esc(b.devisNumero)}</b>` : ''}${b.factureNumero ? `<span>Facture ${esc(b.factureNumero)}</span>` : ''}<span>Édité le ${esc(dateCourte(maintenant))}${par ? ' par ' + esc(par) : ''}</span></div></header>
 <div class="blocs">
 <div class="bl"><h3>Client</h3><p class="big">${v(b.client.nom)}</p>${b.client.societe ? `<p class="l"><i>Société</i> ${esc(b.client.societe)}</p>` : ''}<p class="l"><i>Téléphone</i> ${v(b.client.tel)}</p>${b.contactSurPlace ? `<p class="l"><i>Contact sur place</i> ${esc(b.contactSurPlace)}</p>` : ''}</div>
 <div class="bl"><h3>Événement</h3><p class="date">${b.evenement.date ? esc(dateLongue(b.evenement.date)) : v('')}</p><p class="l"><i>Type</i> ${v(b.evenement.type)}</p><p class="l"><i>Invités</i> ${b.evenement.invites ? `<b>${esc(b.evenement.invites)} personnes</b>` : v('')}</p><p class="l"><i>Lieu / livraison</i> <span>${v(lieuTexte(b))}</span></p>${b.acces ? `<p class="l"><i>Accès</i> <span>${nl(b.acces)}</span></p>` : ''}</div>
 </div>
-${b.allergies || b.allergenesProduits.length ? `<div class="alerte">${b.allergies ? `<p><b>⚠ Allergies / régimes signalés :</b> ${nl(b.allergies)}</p>` : ''}${b.allergenesProduits.length ? `<p><b>Allergènes présents dans la commande :</b> ${esc(b.allergenesProduits.join(', '))}</p>` : ''}</div>` : ''}
-${hor.length ? `<div class="hor">${hor.map(([k, lab]) => `<div><small>${esc(lab)}</small><b>${esc(b.horaires[k])}</b></div>`).join('')}</div>` : ''}
-<div class="equipe">${ROLES.map(([k, lab]) => equipe(k, lab)).join('')}</div>
-<h2>À PRÉPARER <span>${prod.length} produit${prod.length > 1 ? 's' : ''}${b.evenement.invites ? ' · ' + esc(b.evenement.invites) + ' invités' : ''}</span></h2>
-<table><thead><tr><th class="no">N°</th><th>Produit et choix</th><th class="q">Quantité du devis</th><th class="q">Quantité à préparer</th><th class="nt">Remarque pour la préparation · ✓ prêt</th></tr></thead><tbody>${rows || '<tr><td colspan="5">Aucun produit.</td></tr>'}</tbody></table>
-${b.remarques ? `<div class="rq"><h3>Remarque pour la préparation</h3><p>${nl(b.remarques)}</p></div>` : ''}
-<div class="sig"><div><b>Préparé par</b>Nom, date et heure</div><div><b>Vérifié au départ par</b>Nom, date et heure</div></div>
+${!recup && (b.allergies || b.allergenesProduits.length) ? `<div class="alerte">${b.allergies ? `<p><b>⚠ Allergies / régimes signalés :</b> ${nl(b.allergies)}</p>` : ''}${b.allergenesProduits.length ? `<p><b>Allergènes présents dans la commande :</b> ${esc(b.allergenesProduits.join(', '))}</p>` : ''}</div>` : ''}
+${recup ? `<div class="hor" style="grid-template-columns:1fr 1fr 2fr"><div><small>Jour de la récupération</small><b>${esc(RI.quand)}</b></div><div><small>Heure</small><b>${RI.heure ? esc(RI.heure) : '<span class="pt"></span>'}</b></div><div class="lr"><small>Lieu de la récupération</small><b>${esc(RI.lieu)}</b></div></div>` : hor.length ? `<div class="hor">${hor.map(([k, lab]) => `<div><small>${esc(lab)}</small><b>${esc(b.horaires[k])}</b></div>`).join('')}</div>` : ''}
+<div class="equipe${recup ? ' eq2' : ''}">${roles.map(([k, lab]) => equipe(k, lab)).join('')}</div>
+<h2>${recup ? 'À RÉCUPÉRER' : 'À PRÉPARER'} <span>${prod.length} produit${prod.length > 1 ? 's' : ''}${b.evenement.invites ? ' · ' + esc(b.evenement.invites) + ' invités' : ''}</span></h2>
+<table><thead><tr><th class="no">N°</th><th>Produit et choix</th><th class="q">Quantité du devis</th><th class="q">${recup ? 'Quantité livrée' : 'Quantité à préparer'}</th><th class="nt">${recup ? 'Remarque · ✓ récupéré' : 'Remarque pour la préparation · ✓ prêt'}</th></tr></thead><tbody>${rows || `<tr><td colspan="5">${recup ? 'Rien à récupérer : cochez « À récupérer » sur les lignes du bon de préparation.' : 'Aucun produit.'}</td></tr>`}</tbody></table>
+${b.remarques && !recup ? `<div class="rq"><h3>Remarque pour la préparation</h3><p>${nl(b.remarques)}</p></div>` : ''}
+<div class="sig">${recup ? '<div><b>Récupéré par</b>Nom, date et heure</div><div><b>Contrôlé au retour au laboratoire par</b>Nom, date et heure</div>' : '<div><b>Préparé par</b>Nom, date et heure</div><div><b>Vérifié au départ par</b>Nom, date et heure</div>'}</div>
 <footer><span>Document interne · ${esc(nomM)} · ne pas remettre au client</span><span>${esc(b.client.nom)}${b.evenement.date ? ' · ' + esc(dateCourte(b.evenement.date)) : ''}</span></footer>
 </section>
 <script>
 (() => {
-  const K = 'mg_prep_coche_' + location.pathname, cases = [...document.querySelectorAll('.cb')];
+  const K = 'mg_prep_coche_' + location.pathname + location.search.replace(/[?&]t=\d+/, ''), cases = [...document.querySelectorAll('.cb')];
   let fait = []; try { fait = JSON.parse(localStorage.getItem(K) || '[]'); } catch (e) {}
   const pose = (c, on) => { c.classList.toggle('on', on); c.setAttribute('aria-checked', on ? 'true' : 'false'); };
   cases.forEach((c, i) => pose(c, fait.includes(i)));
@@ -332,7 +352,10 @@ const smsTexte = (b, lien) => `Magnolia : bon de préparation ${b.client.nom || 
 
 
 /* Messages à l'équipe (Jean-Luc, 2026-11-27) : un SMS ou un e-mail par groupe (régisseurs, livraison, personnel), rédigé par l'IA sur consigne */
-const NOM_ROLE = { regisseurs: 'régisseurs', livreurs: 'livreurs', personnel: 'personnel sur l’événement' };
+const NOM_ROLE = { regisseurs: 'régisseurs', livreurs: 'livreurs', personnel: 'personnel sur l’événement', recuperateurs: 'livreurs de la récupération' };
+/* récupération : jour, heure, lieu (par défaut celui de l'événement) et la liste de ce qu'il faut reprendre */
+const recupInfos = b => { const r = b.recuperation || {}; return { quand: r.date ? dateCourte(r.date) : (b.evenement?.date ? dateCourte(b.evenement.date) : 'date à confirmer'), heure: r.heure || b.horaires?.reprise || '', lieu: r.lieu || lieuTexte(b) || 'à confirmer' }; };
+const aRecuperer = b => (b.lignes || []).filter(l => l.type !== 'titre' && l.recup).map(l => { const it = itemsTexte(l); return it.length ? it.join(', ') : `${l.qtePrepa || l.qteDevis ? (l.qtePrepa || (String(l.qteDevis).replace('.', ',') + ' ' + nomUnite(l.qteDevis, l.unite)).trim()) + ' · ' : ''}${l.designation}`; });
 function infosRole(b, role) {
   const h = b.horaires || {}, e = b.evenement || {};
   const reg = (b.regisseurs || []).map(p => p.nom + (p.tel ? ' ' + p.tel : '')).join(', ');
@@ -345,12 +368,18 @@ function infosRole(b, role) {
   if (role === 'livreurs') { if (b.acces) L.push('Accès : ' + b.acces.replace(/\n/g, ' ')); if (b.contactSurPlace) L.push('Contact sur place : ' + b.contactSurPlace); else if (b.client.tel) L.push('Téléphone du client : ' + b.client.tel); }
   if (role === 'regisseurs') { if (b.client.tel) L.push('Téléphone du client : ' + b.client.tel); if (b.contactSurPlace) L.push('Contact sur place : ' + b.contactSurPlace); if (b.allergies) L.push('Allergies signalées : ' + b.allergies.replace(/\n/g, ' ')); }
   if (role === 'personnel' && reg) L.push('Régisseur : ' + reg);
+  if (role === 'recuperateurs') { const r = recupInfos(b); L.splice(1, L.length - 1, `Récupération : ${r.quand}${r.heure ? ' à ' + r.heure : ''}`, 'Lieu : ' + r.lieu); if (b.acces) L.push('Accès : ' + b.acces.replace(/\n/g, ' ')); if (b.contactSurPlace) L.push('Contact sur place : ' + b.contactSurPlace); else if (b.client.tel) L.push('Téléphone du client : ' + b.client.tel); const a = aRecuperer(b); if (a.length) L.push('À récupérer : ' + a.join(' ; ')); return L; }
   if (role !== 'personnel' && b.remarques) L.push('Remarque pour la préparation : ' + b.remarques.replace(/\n/g, ' '));
   return L;
 }
 function modeleMessage(b, role, canal) {
   const e = b.evenement || {}, h = b.horaires || {};
   const quand = e.date ? dateCourte(e.date) : 'date à confirmer';
+  if (role === 'recuperateurs') {
+    const r = recupInfos(b), a = aRecuperer(b);
+    if (canal === 'sms') return { sujet: '', texte: `Magnolia : récupération ${b.client.nom || ''} le ${r.quand}${r.heure ? ' à ' + r.heure : ''}. Adresse : ${r.lieu}.${a.length ? ' À reprendre : ' + a.join(', ') + '.' : ''} Merci de confirmer.`.replace(/\s+/g, ' ') };
+    return { sujet: `Magnolia · Récupération ${b.client.nom || ''} · ${r.quand}`, texte: `Bonjour,\n\nVoici les informations pour la récupération du matériel :\n\n${infosRole(b, role).map(x => '• ' + x).join('\n')}\n\nMerci de me confirmer votre présence.\n\nMagnolia Traiteur` };
+  }
   if (canal === 'sms') {
     const heure = role === 'livreurs' ? (h.depart ? 'départ labo ' + h.depart : '') + (h.livraison ? (h.depart ? ', ' : '') + 'livraison ' + h.livraison : '') : [h.debut && 'début ' + h.debut, h.fin && 'fin ' + h.fin].filter(Boolean).join(', ') || (h.livraison ? 'arrivée ' + h.livraison : '');
     return { sujet: '', texte: `Magnolia : ${role === 'livreurs' ? 'livraison' : 'événement'} ${b.client.nom || ''} le ${quand}${heure ? ' (' + heure + ')' : ''}. Adresse : ${lieuTexte(b) || 'à confirmer'}.${role === 'livreurs' && b.contactSurPlace ? ' Contact : ' + b.contactSurPlace + '.' : ''} Merci de confirmer.`.replace(/\s+/g, ' ') };
@@ -367,4 +396,4 @@ ${consigne ? 'Consigne de la personne qui envoie (prioritaire) : ' + consigne + 
 Réponds uniquement en JSON : {${sms ? '' : '"sujet": "...", '}"texte": "..."}`;
 }
 
-module.exports = { completerLignes, itemsNappe, qteAuto, choixProduit, choixProduits, NOM_ROLE, modeleMessage, promptMessage, infosRole, LISTES, listesPrepa, compoDe, listeDe, itemsTexte, ROLES, HORAIRES, bonDepuis, lignesDepuisDevis, nettoyer, documentHtml, emailHtml, messageDefaut, smsTexte, titreBon, dateCourte, allergenesDe };
+module.exports = { ROLE_RECUP, ROLES_MSG, aRecuperer, completerLignes, itemsNappe, qteAuto, choixProduit, choixProduits, NOM_ROLE, modeleMessage, promptMessage, infosRole, LISTES, listesPrepa, compoDe, listeDe, itemsTexte, ROLES, HORAIRES, bonDepuis, lignesDepuisDevis, nettoyer, documentHtml, emailHtml, messageDefaut, smsTexte, titreBon, dateCourte, allergenesDe };

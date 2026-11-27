@@ -153,3 +153,17 @@ test('prépa : ligne de nappes du devis → taille, couleur, extensible, nombre'
   assert.equal(vieux[0].liste, 'nappes');
   assert.deepEqual(vieux[0].items[0], { nom: '240 × 300 cm', couleur: 'Noire', type: 'Extensible', n: 2 });
 });
+
+test('prépa : bon de récupération = lignes « À récupérer » seulement', () => {
+  const P = require('../server/prepa');
+  const by = new Map([['tables', { slug: 'tables', rubrique: 'mobilier-a-la-location', titre: 'Tables rectangulaires' }], ['champ', { slug: 'champ', rubrique: 'boissons', titre: 'Champagne' }]]);
+  const d = { id: 'd1', numero: 'D-1', evenement: { date: '2026-12-12', adresse: '1 rue A', cp: '91300', ville: 'Massy' }, lignes: [{ produit: 'tables', designation: 'Tables rectangulaires', qte: 5, unite: 'table' }, { produit: 'champ', designation: 'Champagne', qte: 10, unite: 'bouteille' }, { produit: 'nappage-170-250-cm', designation: 'Nappage 170 × 250 cm', qte: 3, unite: 'nappe' }] };
+  const b = P.bonDepuis({ devis: d, bySlug: by });
+  assert.deepEqual(b.lignes.map(l => l.recup), [true, false, true]);
+  const n = P.nettoyer({ ...b, recuperation: { date: '2026-12-13', heure: '10 h', lieu: '' }, recuperateurs: [{ nom: 'paul durand', tel: '0612345678' }] }, {}, by);
+  assert.equal(n.recuperation.heure, '10 h'); assert.equal(n.recuperateurs[0].nom, 'Paul DURAND');
+  const html = P.documentHtml(n, { recup: true });
+  assert.match(html, /BON DE RÉCUPÉRATION/); assert.match(html, /Tables rectangulaires/); assert.doesNotMatch(html, /Champagne/); assert.match(html, /Paul DURAND/);
+  const sms = P.modeleMessage(n, 'recuperateurs', 'sms').texte;
+  assert.match(sms, /récupération/); assert.match(sms, /10 h/); assert.match(sms, /Tables/);
+});
