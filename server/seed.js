@@ -1359,6 +1359,18 @@ async function initSousRubriques(store, { log = console } = {}) {
     for (const [i, r] of L.entries()) if (r.data.ordre !== i + 1) await store.set('rubriques/' + r.id, { ...r.data, ordre: i + 1 });
     await store.set('site/reglages', { ...(await store.get('site/reglages')), ordreUnivers2: true });
   }
+  /* Jean-Luc (2026-11-27) : vignette « Saveurs du monde » juste avant « La carte Magnolia ». Le reste garde son ordre. Une fois. */
+  const ROv3 = await store.get('site/reglages');
+  if (ROv3 && !ROv3.ordreUnivers3) {
+    const rubs = (await store.list('rubriques')).sort((a, b) => (a.data.ordre ?? 99) - (b.data.ordre ?? 99));
+    const sdm = rubs.find(r => r.id === 'saveurs-du-monde');
+    if (sdm && rubs.some(r => r.id === 'carte-magnolia')) {
+      const L = rubs.filter(r => r !== sdm);
+      L.splice(L.findIndex(r => r.id === 'carte-magnolia'), 0, sdm);
+      for (const [i, r] of L.entries()) if (r.data.ordre !== i + 1) await store.set('rubriques/' + r.id, { ...r.data, ordre: i + 1 });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), ordreUnivers3: true });
+  }
 
   /* Buffet chinois à l'unité : minimum 5 (Jean-Luc, 2026-11-23, « 20 c'est impossible »). Le 20 venait de la valeur par défaut
      (UNITE.entrees = 20 pièces) posée quand les fiches à l'unité ont été créées à partir des options des buffets.
