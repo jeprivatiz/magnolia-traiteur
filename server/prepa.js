@@ -21,7 +21,8 @@ const HORAIRES = [
 const s = (v, n = 200) => String(v ?? '').replace(/[ \t]+/g, ' ').trim().slice(0, n);
 const txt = (v, n = 3000) => String(v ?? '').replace(/\r/g, '').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim().slice(0, n);
 const rid6 = () => Math.random().toString(36).slice(2, 8);
-const nomUnite = (q, u) => { u = String(u || '').trim(); if (!u) return ''; if (+q > 1 && /^(personne|pièce|portion|plateau|coffret|bouteille|heure|table|chaise|unité|corbeille|gâteau|cocktail|litre)$/.test(u)) return /eau$/.test(u) ? u + 'x' : u + 's'; return u; };
+/* pluriel de l'unité (Jean-Luc, 2026-11-27 : « 3 nappes ») : premier mot au pluriel dès 2 ; abréviations inchangées */
+const nomUnite = (q, u) => { u = String(u ?? '').trim(); if (!u || !(Math.abs(+String(q).replace(',', '.')) >= 2)) return u; const m = /^(\S+)(.*)$/.exec(u); const w = m[1]; if (/^(km|kg|g|l|cl|ml|m|cm|h|min|lot\b)$/i.test(w) && w !== 'lot') return u; if (/[sxz]$/i.test(w) || /[^\p{L}]/u.test(w)) return u; return (/(eau|au|eu)$/i.test(w) ? w + 'x' : w + 's') + m[2]; };
 const qteTexte = l => { const q = l.qteDevis; if (q === '' || q == null) return ''; return `${String(q).replace('.', ',')} ${nomUnite(q, l.unite)}`.trim(); };
 
 /* ligne de personnel du devis (serveur, maître d'hôtel, régisseur…) : pas à préparer en cuisine, rappelée dans le cadre « Équipe » */

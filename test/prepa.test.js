@@ -119,3 +119,10 @@ test('bon de préparation : nappes avec taille, couleur, extensible ou non', () 
   const b = P.nettoyer({ lignes: [{ type: 'produit', designation: 'Nappage', liste: 'nappes', items: [{ nom: '170 × 250 cm', couleur: 'Noire', type: 'Extensible', n: '12' }] }], client: {}, evenement: {}, horaires: {} });
   assert.match(P.documentHtml({ ...b, personnelDevis: [] }), /<b>12<\/b> 170 × 250 cm · nappe noire · extensible/);
 });
+
+test('bon de préparation : unités au pluriel (« 3 nappes »)', () => {
+  const P = require('../server/prepa');
+  const b = P.nettoyer({ lignes: [{ type: 'produit', designation: 'Nappe', qteDevis: 3, unite: 'nappe' }, { type: 'produit', designation: 'Plateau', qteDevis: 2, unite: 'plateau' }, { type: 'produit', designation: 'Vin', qteDevis: 1, unite: 'bouteille' }, { type: 'produit', designation: 'Livraison', qteDevis: 12, unite: 'km' }], client: {}, evenement: {}, horaires: {} });
+  const h = P.documentHtml({ ...b, personnelDevis: [] });
+  for (const x of ['3 nappes', '2 plateaux', '1 bouteille<', '12 km']) assert.ok(h.includes(x), x);
+});

@@ -425,8 +425,9 @@
 
   const pcOpts = P => { const g = {}; P.forEach((p, i) => (g[p.groupe] = g[p.groupe] || []).push(`<option value="${i}">${esc(p.nom)}${(p.metiers || []).length ? ' · ' + esc(p.metiers.join(', ')) : ''}</option>`)); return Object.entries(g).map(([k, v]) => `<optgroup label="${esc(k)}">${v.join('')}</optgroup>`).join(''); };
   const pcChips = (b, k) => (b[k] || []).length ? b[k].map((p, i) => `<span class="pc-chip"><b>${esc(p.nom)}</b>${p.tel ? ` <small>${esc(p.tel)}</small>` : ''}<button type="button" data-pcrm="${k}:${i}" aria-label="Retirer ${esc(p.nom)}">×</button></span>`).join('') : '<span class="muted sm">Personne pour le moment.</span>';
-  const PC_PLUR = /^(personne|pièce|portion|plateau|coffret|bouteille|heure|table|chaise|unité|corbeille|gâteau|cocktail|litre)$/;
-  const pcQte = l => l.qteDevis === '' || l.qteDevis == null ? '—' : `${String(l.qteDevis).replace('.', ',')} ${esc(+l.qteDevis > 1 && PC_PLUR.test(l.unite || '') ? (l.unite === 'gâteau' || l.unite === 'plateau' ? l.unite + 'x' : l.unite + 's') : l.unite || '')}`;
+  /* pluriel de l'unité (même règle que server/prepa.js nomUnite) : « 3 nappes », « 2 plateaux », « 2 lots de 6 » */
+  const pcUnite = (q, u) => { u = String(u ?? '').trim(); if (!u || !(Math.abs(+String(q).replace(',', '.')) >= 2)) return u; const m = /^(\S+)(.*)$/.exec(u); const w = m[1]; if (/^(km|kg|g|l|cl|ml|m|cm|h|min|lot\b)$/i.test(w) && w !== 'lot') return u; if (/[sxz]$/i.test(w) || /[^\p{L}]/u.test(w)) return u; return (/(eau|au|eu)$/i.test(w) ? w + 'x' : w + 's') + m[2]; };
+  const pcQte = l => l.qteDevis === '' || l.qteDevis == null ? '—' : `${String(l.qteDevis).replace('.', ',')} ${esc(pcUnite(l.qteDevis, l.unite))}`;
   /* détail d'une ligne (Jean-Luc, 2026-11-27) : choix du client (entrées, plats, desserts) avec leur nombre, softs ou matériel en liste déroulante + nombre */
   const PC_LIB = { compo: 'Choix du client · nombre de chaque', softs: 'Softs · nombre de chaque', materiel: 'Matériel · nombre de chaque', nappes: 'Nappes · taille, couleur, extensible ou non, nombre' };
   const pcSel = (k, v, L, lab) => `<select data-it="${k}" aria-label="${lab}">${v && !L.includes(v) ? `<option selected>${esc(v)}</option>` : ''}${v ? '' : `<option value="">${lab}…</option>`}${L.map(o => `<option${o === v ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
