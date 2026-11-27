@@ -1175,10 +1175,87 @@
   };
 
 
+
+  /* ---------- dictée partout (Jean-Luc, 2026-11-27) : chaque zone de texte du back-office a son micro 🎤.
+     Un clic dans une case fait apparaître le micro dans son coin ; le texte dicté s'insère là où est le curseur.
+     Les cases qui ont déjà leur propre bouton « 🎤 Dicter » (data-mic-propre) sont laissées telles quelles. ---------- */
+  {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const TYPES_OK = new Set(['', 'text', 'search', 'url']);
+    const dictable = el => {
+      if (!el || el.disabled || el.readOnly || el.dataset?.micPropre || el.closest?.('[data-nomic], .login')) return false;
+      if (el.isContentEditable && el.matches('[contenteditable="true"]')) return true;
+      if (el.tagName === 'TEXTAREA') return true;
+      return el.tagName === 'INPUT' && TYPES_OK.has((el.getAttribute('type') || '').toLowerCase()) && !/numeric|decimal|tel|email/.test(el.inputMode || '');
+    };
+    const bt = document.createElement('button');
+    bt.type = 'button'; bt.className = 'mic-flot'; bt.hidden = true; bt.title = 'Dicter dans cette case'; bt.setAttribute('aria-label', 'Dicter dans cette case'); bt.textContent = '🎤';
+    const bulle = document.createElement('div'); bulle.className = 'mic-bulle'; bulle.hidden = true; bulle.setAttribute('role', 'status');
+    document.body.append(bt, bulle);
+    let cible = null, rec = null;
+    const placer = () => {
+      if (!cible || !cible.isConnected) { cacher(); return; }
+      const r = cible.getBoundingClientRect();
+      if (r.bottom < 0 || r.top > innerHeight || !r.width) { bt.hidden = true; return; }
+      const grand = cible.tagName !== 'INPUT' && r.height > 60;
+      bt.hidden = false;
+      bt.style.left = Math.max(4, r.right - 40) + 'px';
+      bt.style.top = (grand ? r.bottom - 40 : r.top + (r.height - 34) / 2) + 'px';
+      bulle.style.left = Math.max(8, Math.min(innerWidth - 268, r.right - 260)) + 'px';
+      bulle.style.top = Math.max(8, r.top - 38) + 'px';
+    };
+    const cacher = () => { if (rec) rec.stop(); bt.hidden = true; bulle.hidden = true; cible?.classList.remove('mic-cible'); cible = null; };
+    const dire = (t, err) => { bulle.textContent = t; bulle.hidden = !t; bulle.classList.toggle('err', !!err); };
+    /* texte dicté inséré au curseur (case) ou à la sélection (éditeur visuel) */
+    const inserer = (el, avant, apres, txt) => {
+      const sep = avant && !/\s$/.test(avant) ? ' ' : '';
+      el.value = avant + sep + txt + (apres && !/^\s/.test(apres) && txt ? ' ' : '') + apres;
+      const pos = (avant + sep + txt).length; try { el.setSelectionRange(pos, pos); } catch { /* */ }
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+    const demarrer = () => {
+      if (!SR) { dire('Dictée indisponible sur ce navigateur. Sur iPhone : touchez le micro du clavier. Sur ordinateur : Chrome, Edge ou Safari.', true); setTimeout(() => dire(''), 6000); return; }
+      const el = cible; if (!el) return;
+      const ce = el.isContentEditable;
+      const caret = ce ? 0 : (el.selectionStart ?? el.value.length), fin = ce ? 0 : (el.selectionEnd ?? caret);
+      const avant = ce ? '' : el.value.slice(0, caret), apres = ce ? '' : el.value.slice(fin);
+      let ok = '';
+      rec = new SR(); rec.lang = 'fr-FR'; rec.interimResults = !ce; rec.continuous = true;
+      rec.onresult = ev => {
+        let tmp = '';
+        for (let i = ev.resultIndex; i < ev.results.length; i++) {
+          const r = ev.results[i], t = r[0].transcript.trim();
+          if (!r.isFinal) { tmp += ' ' + t; continue; }
+          if (ce) { el.focus(); document.execCommand('insertText', false, (ok ? ' ' : '') + t); el.dispatchEvent(new Event('input', { bubbles: true })); }
+          ok = (ok + ' ' + t).trim();
+        }
+        if (!ce) inserer(el, avant, apres, (ok + tmp).trim());
+      };
+      rec.onerror = ev => dire(ev.error === 'not-allowed' || ev.error === 'service-not-allowed' ? 'Le micro est bloqué : autorisez-le dans le navigateur, puis réessayez.' : ev.error === 'no-speech' ? 'Je n’ai rien entendu : réessayez en parlant près du micro.' : 'La dictée s’est arrêtée. Réessayez.', true);
+      rec.onend = () => { rec = null; bt.classList.remove('on'); bt.textContent = '🎤'; if (!bulle.classList.contains('err')) dire(''); };
+      try { rec.start(); bt.classList.add('on'); bt.textContent = '■'; dire('🔴 Je vous écoute… touchez ■ pour arrêter.'); } catch { rec = null; dire('Impossible de démarrer la dictée ici.', true); }
+    };
+    /* le bouton ne prend pas le focus : la case reste active et le curseur ne bouge pas */
+    bt.addEventListener('pointerdown', e => e.preventDefault());
+    bt.addEventListener('mousedown', e => e.preventDefault());
+    bt.addEventListener('click', () => { if (rec) rec.stop(); else demarrer(); });
+    document.addEventListener('focusin', e => {
+      const el = e.target;
+      if (el === bt) return;
+      if (!dictable(el)) { if (cible && el !== cible) cacher(); return; }
+      if (cible !== el) { if (rec) rec.stop(); cible?.classList.remove('mic-cible'); cible = el; el.classList.add('mic-cible'); }
+      placer();
+    });
+    document.addEventListener('focusout', e => { if (e.target === cible) setTimeout(() => { if (document.activeElement !== cible) cacher(); }, 150); });
+    addEventListener('scroll', () => { if (cible) placer(); }, { capture: true, passive: true });
+    addEventListener('resize', () => { if (cible) placer(); });
+    addEventListener('hashchange', cacher);
+    window.visualViewport?.addEventListener('resize', () => { if (cible) placer(); });
+  }
   /* ---------- commande avec l'IA (comme « ✨ Devis avec l'IA » de Je Privatise) :
      infos du client en vrac (texte ou dictée) → fiche client → prestations du catalogue → devis pré-rempli à vérifier ---------- */
   function micPour(btn, ta, msg, fin) {
-    if (!btn || !ta) return; const SR = window.SpeechRecognition || window.webkitSpeechRecognition; let rec = null, base = '';
+    if (!btn || !ta) return; ta.dataset.micPropre = '1'; const SR = window.SpeechRecognition || window.webkitSpeechRecognition; let rec = null, base = '';
     const dire = h => { if (msg) msg.innerHTML = h; };
     btn.onclick = () => {
       if (!SR) { dire('<span class="err">La dictée n’est pas disponible sur ce navigateur. Sur iPhone, utilisez le micro 🎤 du clavier ; sur ordinateur, Chrome, Edge ou Safari.</span>'); return; }
@@ -4069,21 +4146,6 @@
     draw();
     return { draw, enCours: () => photos.some(x => x.envoi) };
   }
-  /* dictée (iPhone, Chrome) : le texte dicté s'ajoute à la case */
-  function boutonDictee(btn, ta) {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) { btn.hidden = true; return; }
-    let rec = null;
-    btn.addEventListener('click', () => {
-      if (rec) { rec.stop(); return; }
-      rec = new SR(); rec.lang = 'fr-FR'; rec.continuous = true; rec.interimResults = false;
-      const lib = btn.textContent; btn.textContent = '⏹ Arrêter la dictée'; btn.classList.add('on');
-      rec.onresult = e => { for (let i = e.resultIndex; i < e.results.length; i++) if (e.results[i].isFinal) { ta.value = (ta.value ? ta.value.replace(/\s*$/, ' ') : '') + e.results[i][0].transcript.trim(); ta.dispatchEvent(new Event('input', { bubbles: true })); } };
-      rec.onend = () => { rec = null; btn.textContent = lib; btn.classList.remove('on'); };
-      rec.onerror = () => { toast('Dictée impossible : autorisez le micro, ou tapez le texte.', true); };
-      rec.start();
-    });
-  }
   async function blog(id) {
     if (id === 'nouveau') return blogNouveau();
     if (id) return blogArticle(id);
@@ -4132,7 +4194,7 @@
       <section class="box"><h2><span class="df-n">1</span>Racontez l’événement</h2>
         <p class="muted sm">Quelques lignes suffisent, comme vous le raconteriez à un client : pour qui, où, combien d’invités, ce qui a été servi, l’ambiance, ce qui a plu, une phrase du client si vous l’avez. L’IA n’invente rien : ce que vous n’écrivez pas, elle ne le dit pas.</p>
         <textarea name="notes" rows="9" placeholder="Ex. : Soirée pour une entreprise italienne (Milan) dans un hangar à Massy, 400 personnes. Buffet italien : antipasti, charcuterie, lasagnes, tiramisu. Bar à spritz à l’arrivée. 14 serveurs et maîtres d’hôtel. Le client nous a dit : « Nos collègues italiens se sont crus à la maison. »">${esc(d.notes || '')}</textarea>
-        <div class="row"><button type="button" class="btn ghost sm" data-dictee>🎤 Dicter</button><small class="muted" data-blnb></small></div>
+        <div class="row"><button type="button" class="btn ghost sm" data-dictee>🎤 Dicter</button><small class="muted" data-blnb></small><span class="muted sm" data-blmicmsg></span></div>
         <details class="bl-plus"${d.categorie || d.dateEvenement || d.lieu || d.invites ? ' open' : ''}><summary>Préciser (facultatif) : clientèle, date, lieu, invités</summary>
         <div class="g3"><label>Clientèle<select name="categorie"><option value="">L’IA choisit</option>${Object.entries(BLOG_CAT).map(([k, v]) => `<option value="${k}"${d.categorie === k ? ' selected' : ''}>${v}</option>`).join('')}</select></label>
         <label>Type d’événement<select name="typeEvenement"><option value="">L’IA choisit</option>${(r.types || []).map(t => `<option${d.typeEvenement === t ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></label>
@@ -4153,7 +4215,7 @@
     const garder = () => { const o = Object.fromEntries(new FormData(f)); mem.set(BL_MEM, JSON.stringify({ ...o, photos: n.photos.filter(p => !p.envoi), video: n.video })); $('[data-blphn]').textContent = n.photos.length ? `(${n.photos.length} photo${n.photos.length > 1 ? 's' : ''})` : ''; $('[data-blnb]').textContent = f.notes.value.trim() ? f.notes.value.trim().split(/\s+/).length + ' mots' : ''; };
     const gal = galerieBlog($('#blPh'), n.photos, { onChange: garder, legendes: false });
     f.addEventListener('input', garder); f.addEventListener('change', garder); garder();
-    boutonDictee($('[data-dictee]', f), f.notes);
+    micPour($('[data-dictee]', f), f.notes, $('[data-blmicmsg]', f));
     $('[data-blvidp]').addEventListener('click', async () => { const u = await pickMedia(); if (!u) return; if (!/\.mp4$/i.test(u)) return toast('Choisissez une vidéo (fichier .mp4).', true); n.video = u; garder(); render(); });
     $('[data-blvidx]')?.addEventListener('click', () => { n.video = ''; garder(); render(); });
     f.addEventListener('submit', async e => {
@@ -4184,11 +4246,11 @@
     const types = (BL.l?.types) || (await api(A + '/blog')).types;
     const pub = a.statut === 'publie';
     const ch = a.chiffres || [];
-    return page(`${esc(a.titre || 'Reportage')} ${pub ? '<span class="pill d-accepte">✓ Publié</span>' : '<span class="pill d-envoye">Brouillon</span>'}`, `<a class="btn ghost" href="#/blog">← Tous les reportages</a><button type="button" class="btn ghost" data-blvoir>👁 Voir la page</button>`, `
+    return page(`${esc(a.titre || 'Reportage')} ${pub ? '<span class="pill d-accepte">✓ Publié</span>' : '<span class="pill d-envoye">Brouillon</span>'}`, `<a class="btn ghost" href="#/blog">← Tous les reportages</a><button type="button" class="btn ghost" data-blvoir>👁 Voir le blog</button>`, `
       <section class="box hl bl-ia"><h2>✨ Demander une modification à l’IA</h2>
         <p class="muted sm">Ex. : « plus court », « parle davantage du bar à spritz », « ton plus chaleureux », « ajoute que le montage a pris une journée ». L’IA réécrit le reportage ; vous relisez avant de publier.</p>
-        <div class="bl-ia-row"><textarea data-blcons rows="2" placeholder="Votre demande à l’IA…"></textarea><button type="button" class="btn" data-blre>✨ Réécrire</button></div>
-        <details><summary class="sm">Vos notes de départ</summary><textarea data-blnotes rows="5">${esc(a.notes || '')}</textarea><p class="muted sm">L’IA s’appuie sur ces notes : complétez-les si une information manque (elle n’invente rien).</p></details></section>
+        <div class="bl-ia-row"><textarea data-blcons rows="2" placeholder="Votre demande à l’IA… (tapez ou dictez avec 🎤)"></textarea><div class="bl-ia-btns"><button type="button" class="btn ghost" data-blmic>🎤 Dicter</button><button type="button" class="btn" data-blre>✨ Réécrire</button></div></div><p class="muted sm" data-blmicmsg></p>
+        <details><summary class="sm">Vos notes de départ</summary><textarea data-blnotes rows="5">${esc(a.notes || '')}</textarea><div class="row"><button type="button" class="btn ghost sm" data-blnotesmic>🎤 Dicter</button><span class="muted sm" data-blmicmsg2></span></div><p class="muted sm">L’IA s’appuie sur ces notes : complétez-les si une information manque (elle n’invente rien).</p></details></section>
       <form id="blA">
       <section class="box"><h2>Titre et présentation</h2>
         <label>Titre du reportage<input name="titre" value="${esc(a.titre || '')}" maxlength="160" required></label>
@@ -4211,7 +4273,7 @@
         <div class="chips" data-blprods></div><div class="bl-pr-add"><input type="search" data-blpq placeholder="Ajouter une prestation : tapez son nom…"><div class="bl-pr-res" data-blpres></div></div></section>
       <section class="box"><h2>Google</h2><div class="g2"><label>Titre dans Google<input name="seoTitre" value="${esc(a.seoTitre || '')}" maxlength="70"></label><label>Mots-clés <small class="muted">(séparés par une virgule)</small><input name="tags" value="${esc((a.tags || []).join(', '))}"></label></div>
         <label>Description dans Google<textarea name="seoDescription" rows="2" maxlength="170">${esc(a.seoDescription || '')}</textarea></label></section>
-      <div class="actions sticky"><button class="btn">Enregistrer</button>${pub ? '<button type="button" class="btn ghost" data-blpub="brouillon">Retirer du site</button>' : '<button type="button" class="btn db-or" data-blpub="publie">✓ Publier sur le site</button>'}<button type="button" class="btn ghost" data-blvoir>👁 Voir la page</button><button type="button" class="btn ghost bl-del" data-bldel>🗑 Supprimer</button><span class="muted" id="dirty"></span></div>
+      <div class="actions sticky"><button class="btn">Enregistrer</button>${pub ? '<button type="button" class="btn ghost" data-blpub="brouillon">Retirer du site</button>' : '<button type="button" class="btn db-or" data-blpub="publie">✓ Publier sur le site</button>'}<button type="button" class="btn ghost" data-blvoir>👁 Voir le blog</button><button type="button" class="btn ghost bl-del" data-bldel>🗑 Supprimer</button><span class="muted" id="dirty"></span></div>
       </form>`);
   }
   blogArticle.after = id => {
@@ -4270,6 +4332,8 @@
       if (!confirm('Supprimer définitivement ce reportage ?\n\nLes photos restent dans la médiathèque.')) return;
       try { await api(`${A}/blog/${id}`, { method: 'DELETE' }); BL.l = null; toast('Reportage supprimé.'); location.hash = '#/blog'; } catch (err) { toast(err.message, true); }
     });
+    micPour($('[data-blmic]'), $('[data-blcons]'), $('[data-blmicmsg]'));
+    micPour($('[data-blnotesmic]'), $('[data-blnotes]'), $('[data-blmicmsg2]'));
     $('[data-blre]').addEventListener('click', async ev => {
       const cons = $('[data-blcons]').value.trim();
       if (!cons) { toast('Écrivez ce que l’IA doit changer.', true); $('[data-blcons]').focus(); return; }

@@ -2175,3 +2175,20 @@ small.cl-src { display: block; }
 .bl-img img { position: absolute; inset: 0; }
 .bl-pr-add input { width: 100%; }
 @media (max-width: 700px) { .bl-go { flex-direction: column; align-items: stretch; } .bl-go .btn { width: 100%; } .bl-go .muted { text-align: center; } }
+.bl-ia-btns { display: flex; flex-direction: column; gap: 8px; }
+[data-blmic].on, [data-blnotesmic].on, [data-dictee].on { background: #fbeeea; border-color: #b3412e; color: #b3412e; }
+@media (max-width: 700px) { .bl-ia-btns { flex-direction: row; } .bl-ia-btns .btn { flex: 1; } }
+
+/* dictée partout (Jean-Luc, 2026-11-27) : micro 🎤 dans le coin de la case active ; petite icône dans le coin de chaque grande case */
+.mic-flot { position: fixed; z-index: 9999; width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--or); background: #fffaf0; color: var(--vert); font-size: 16px; line-height: 1; display: grid; place-items: center; cursor: pointer; box-shadow: 0 4px 14px rgba(0, 0, 0, .18); padding: 0; }
+.mic-flot[hidden] { display: none; }
+.mic-flot:hover { background: #fff3dc; }
+.mic-flot.on { background: #b3412e; border-color: #b3412e; color: #fff; animation: micPouls 1.2s ease-in-out infinite; }
+@keyframes micPouls { 0%, 100% { box-shadow: 0 0 0 0 rgba(179, 65, 46, .45); } 50% { box-shadow: 0 0 0 8px rgba(179, 65, 46, 0); } }
+.mic-bulle { position: fixed; z-index: 9999; max-width: 260px; padding: 6px 10px; border-radius: 10px; background: #1d3b2f; color: #fff; font-size: .8rem; line-height: 1.35; box-shadow: 0 6px 18px rgba(0, 0, 0, .2); pointer-events: none; }
+.mic-bulle.err { background: #8a2f1e; }
+.mic-bulle[hidden] { display: none; }
+input.mic-cible { padding-right: 44px !important; }
+textarea.mic-cible { padding-bottom: 40px !important; }
+textarea:not([data-mic-propre]) { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23b08a4f' stroke-width='1.7' stroke-linecap='round'%3E%3Crect x='9' y='3' width='6' height='11' rx='3'/%3E%3Cpath d='M5 11a7 7 0 0 0 14 0M12 18v3'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px bottom 10px; background-size: 16px; }
+textarea.mic-cible { background-image: none; }
