@@ -3630,10 +3630,11 @@
           <div class="sp-edit"><span class="sp-lab">Description sous la photo <small class="muted">(s’affiche juste sous la photo de la page produit. Au collage, les lignes vides sont retirées ; une ligne vide que vous ajoutez avec Entrée reste visible. « Liste à puces » : une puce par ligne ; Entrée sur une puce vide termine la liste.)</small></span>
           <div class="sp-barre"><button type="button" class="btn ghost sm ia-btn" data-sp-ia title="L’IA propose une version enrichie ; relisez puis enregistrez">✨ Améliorer avec l’IA</button><button type="button" class="btn ghost sm" data-gras title="Mettre la sélection en gras (ou l’enlever)"><b>G</b> Gras</button><button type="button" class="btn ghost sm" data-puces title="Met les lignes sélectionnées (ou la ligne du curseur) en liste à puces ; recliquez pour l’enlever. Astuce : tapez « - » puis espace en début de ligne."><span class="puce-ico" aria-hidden="true"></span> Liste à puces</button><button type="button" class="btn ghost sm" data-titres-gras title="Met en gras les lignes écrites tout en MAJUSCULES">Titres en MAJUSCULES en gras</button><button type="button" class="btn ghost sm" data-sans-gras title="Retire le gras de la sélection (ou de tout le texte)">Retirer le gras</button></div>
           <div class="sp-zone" contenteditable="true" role="textbox" aria-multiline="true" data-sp-edit data-vide="Ex. NOS MINI PIÈCES puis, à la ligne, pain polaire - saumon fumé - fromage frais"></div>
+          <div class="ia-ligne"><button type="button" class="btn sm ia-btn ia-maj" data-desc-ia>✨ Mettre à jour la description sous le prix avec l’IA</button><small class="muted">Résume ce texte en une phrase d’accroche affichée sous le prix, puis enregistre.</small></div>
           <textarea name="sousPhoto" hidden>${esc((p.sousPhoto || []).join('\n'))}</textarea></div>
           <label>Accroche (cartes et Google)<textarea name="extrait" rows="2">${esc(p.extrait || '')}</textarea></label>
-          <label>Description (un paragraphe par ligne)<textarea name="description" rows="4" data-colle>${esc((p.description || []).join('\n'))}</textarea></label>
-          <div class="ia-ligne"><button type="button" class="btn ghost sm ia-btn" data-desc-ia>✨ Améliorer la description avec l’IA</button><small class="muted">L’IA s’appuie sur la « Description sous la photo » pour écrire une phrase qui donne envie de commander ; relisez-la puis enregistrez.</small></div>
+          <label>Description sous le prix <small class="muted">(un paragraphe par ligne)</small><textarea name="description" rows="4" data-colle>${esc((p.description || []).join('\n'))}</textarea></label>
+          <div class="ia-ligne"><button type="button" class="btn sm ia-btn ia-maj" data-desc-ia>✨ Mettre à jour avec l’IA (d’après la description sous la photo)</button><small class="muted">L’IA résume la « Description sous la photo » en une phrase qui donne envie de commander, la pose ici et enregistre la fiche : le site est à jour aussitôt. Recliquez quand vous changez le texte sous la photo.</small></div>
           ${seoBloc('produit', p.seoTitre, p.seoDescription, ` data-id="${esc(p.id || p.slug)}"`)}
         </section>
         <section class="box"><h2>Prix et quantités</h2>${peut('prix') ? '' : '<p class="muted sm">🔒 Les prix sont verrouillés pour votre compte (droit « Modifier les prix »).</p>'}
@@ -3838,12 +3839,22 @@
         const lib = btn.textContent; btn.disabled = true; btn.textContent = '✨ L’IA rédige…';
         try {
           const r = await api(A + '/ia/texte-produit', { method: 'POST', body: { id, champ, lignes, titre: form.titre.value, description: form.description.value, sousPhoto: ta.value } });
-          poser(r.lignes); dirty(); toast('Proposition de l’IA posée : relisez puis enregistrez.');
+          poser(r.lignes); if (champ !== 'description') { dirty(); toast('Proposition de l’IA posée : relisez puis enregistrez.'); }
         } catch (err) { toast(err.message, true); }
         finally { btn.disabled = false; btn.textContent = lib; }
       };
       $('[data-sp-ia]', form)?.addEventListener('click', e => iaTexte(e.currentTarget, 'sousPhoto', lit(), l => { affiche(l); sync(); }));
-      $('[data-desc-ia]', form)?.addEventListener('click', e => iaTexte(e.currentTarget, 'description', form.description.value.split('\n'), l => { form.description.value = l.join('\n'); }));
+      /* « ✨ Mettre à jour … avec l'IA » (Jean-Luc, 2026-11-27) : la description sous le prix est réécrite d'après la
+         description sous la photo, puis la fiche est enregistrée aussitôt (le site est à jour sans autre clic) */
+      $$('[data-desc-ia]', form).forEach(b => b.addEventListener('click', e => {
+        if (!lit().length) { toast('Écrivez d’abord la « Description sous la photo » : l’IA s’en sert pour la description sous le prix.', true); return; }
+        const btns = $$('[data-desc-ia]', form); btns.forEach(x => { x.disabled = true; });
+        iaTexte(e.currentTarget, 'description', form.description.value.split('\n'), l => {
+          form.description.value = l.join('\n');
+          form.description.classList.add('ia-pose'); setTimeout(() => form.description.classList.toggle('ia-pose', false), 2500);
+          form.requestSubmit();
+        }).finally(() => btns.forEach(x => { x.disabled = false; }));
+      }));
       ed.addEventListener('paste', e => {
         const txt = e.clipboardData?.getData('text/plain'); if (txt == null) return;
         e.preventDefault();
