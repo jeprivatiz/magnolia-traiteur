@@ -64,6 +64,21 @@ function compoDe(l, p) {
   }
   return out;
 }
+/* ligne de nappes du devis (Jean-Luc, 2026-11-27) : taille, couleur et extensible ou non repris du nom quand il les donne, nombre = quantité du devis */
+const tailleNappe = t => { const m = /(\d+\s*[×x]\s*\d+\s*cm|[ØO]\s*\d+\s*cm)/i.exec(String(t || '')); return m ? m[1].replace(/\s*[×x]\s*/, ' × ').replace(/\s+cm/, ' cm') : ''; };
+function itemsNappe(designation, qte) {
+  const t = String(designation || '').toLowerCase();
+  return [{ nom: tailleNappe(designation) || '170 × 250 cm', couleur: /noir/.test(t) ? 'Noire' : 'Blanche', type: /extensible/.test(t) && !/non[ -]extensible/.test(t) ? 'Extensible' : 'Non extensible', n: Number(qte) || '' }];
+}
+/* bon enregistré avant l'arrivée d'une liste (nappes, softs, matériel) : on la rajoute sur ses lignes, sans toucher au reste */
+function completerLignes(lignes = []) {
+  return lignes.map(l => {
+    if (l?.type !== 'produit' || l.liste) return l;
+    const liste = listeDe(l.produit, l.designation); if (!liste) return l;
+    const items = (l.items || []).length ? l.items : liste === 'nappes' ? itemsNappe(l.designation, l.qteDevis) : [];
+    return { ...l, liste, items, ...(liste === 'nappes' && !l.qtePrepa ? { qtePrepa: qteAuto({ liste, items }), qteAuto: true } : {}) };
+  });
+}
 /* menus déroulants des formules (Jean-Luc, 2026-11-27 : « entrée, plat, dessert » = une liste pour les entrées, une pour les plats, une pour les desserts) :
    pour chaque fiche à choix, les groupes (sans « Vos ») et leurs options, même si le client n'a encore rien choisi */
 const nomGroupe = g => s(String(g.titre || '').replace(/^vos\s+/i, ''), 60).replace(/^./, c => c.toUpperCase());
@@ -97,8 +112,8 @@ function lignesDepuisDevis(devis, bySlug = new Map()) {
     if (l.type === 'titre') { if (s(l.designation)) out.push({ id: 'l' + rid6(), type: 'titre', designation: s(l.designation, 300) }); continue; }
     if (estLivraison(l) || estPersonnelL(l, bySlug)) continue;
     const p = bySlug.get(l.produit), designation = s(String(l.designation || p?.titre || '').replace(/\*\*/g, ''), 300);
-    const liste = listeDe(l.produit, designation), items = liste === 'compo' || !liste ? compoDe(l, p) : [];
-    out.push({ id: 'l' + rid6(), type: 'produit', produit: s(l.produit, 160), designation, detail: items.length ? '' : txt(l.detail, 600), qteDevis: Number(l.qte) || '', unite: s(l.unite, 40), qtePrepa: qteAuto({ liste, items }), qteAuto: true, note: txt(l.note, 400), allergenes: [...(p?.allergenes || [])], liste: items.length || (!liste && choixProduit(p).length) ? 'compo' : liste, items });
+    const liste = listeDe(l.produit, designation), items = liste === 'compo' || !liste ? compoDe(l, p) : liste === 'nappes' ? itemsNappe(designation, l.qte) : [];
+    out.push({ id: 'l' + rid6(), type: 'produit', produit: s(l.produit, 160), designation, detail: items.length ? '' : txt(l.detail, 600), qteDevis: Number(l.qte) || '', unite: s(l.unite, 40), qtePrepa: qteAuto({ liste, items }), qteAuto: true, note: txt(l.note, 400), allergenes: [...(p?.allergenes || [])], liste: liste || (items.length || choixProduit(p).length ? 'compo' : ''), items });
   }
   /* un intertitre sans produit en dessous ne sert à rien */
   return out.filter((x, i) => x.type !== 'titre' || (out[i + 1] && out[i + 1].type !== 'titre'));
@@ -311,7 +326,7 @@ function infosRole(b, role) {
   const hor = HORAIRES.filter(([k]) => h[k]).map(([k, lab]) => `${lab} : ${h[k]}`).join(' ; ');
   if (hor) L.push('Horaires : ' + hor);
   if (role === 'livreurs') { if (b.acces) L.push('Accès : ' + b.acces.replace(/\n/g, ' ')); if (b.contactSurPlace) L.push('Contact sur place : ' + b.contactSurPlace); else if (b.client.tel) L.push('Téléphone du client : ' + b.client.tel); }
-  if (role === 'regisseurs') { if (b.client.tel) L.push('Téléphone du client : ' + b.client.tel); if (b.contactSurPlace) L.push('Contact sur place : ' + b.contactSurPlace); for (const [k, lab] of ROLES) if (k !== 'regisseurs' && (b[k] || []).length) L.push(`${lab} : ${b[k].map(p => p.nom).join(', ')}`); if (b.allergies) L.push('Allergies signalées : ' + b.allergies.replace(/\n/g, ' ')); }
+  if (role === 'regisseurs') { if (b.client.tel) L.push('Téléphone du client : ' + b.client.tel); if (b.contactSurPlace) L.push('Contact sur place : ' + b.contactSurPlace); if (b.allergies) L.push('Allergies signalées : ' + b.allergies.replace(/\n/g, ' ')); }
   if (role === 'personnel' && reg) L.push('Régisseur : ' + reg);
   if (role !== 'personnel' && b.remarques) L.push('Remarque pour la préparation : ' + b.remarques.replace(/\n/g, ' '));
   return L;
@@ -335,4 +350,4 @@ ${consigne ? 'Consigne de la personne qui envoie (prioritaire) : ' + consigne + 
 Réponds uniquement en JSON : {${sms ? '' : '"sujet": "...", '}"texte": "..."}`;
 }
 
-module.exports = { qteAuto, choixProduit, choixProduits, NOM_ROLE, modeleMessage, promptMessage, infosRole, LISTES, listesPrepa, compoDe, listeDe, itemsTexte, ROLES, HORAIRES, bonDepuis, lignesDepuisDevis, nettoyer, documentHtml, emailHtml, messageDefaut, smsTexte, titreBon, dateCourte, allergenesDe };
+module.exports = { completerLignes, itemsNappe, qteAuto, choixProduit, choixProduits, NOM_ROLE, modeleMessage, promptMessage, infosRole, LISTES, listesPrepa, compoDe, listeDe, itemsTexte, ROLES, HORAIRES, bonDepuis, lignesDepuisDevis, nettoyer, documentHtml, emailHtml, messageDefaut, smsTexte, titreBon, dateCourte, allergenesDe };

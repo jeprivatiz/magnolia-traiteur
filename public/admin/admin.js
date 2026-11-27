@@ -538,7 +538,9 @@
     nb();
     f.addEventListener('input', () => { PC.sale = true; });
     f.addEventListener('submit', e => e.preventDefault());
-    const ajouter = (k, p) => { if (!p.nom) return; const l = b()[k] = b()[k] || []; if (l.some(x => x.nom.toLowerCase() === p.nom.toLowerCase())) { toast(`${p.nom} est déjà dans la liste.`); return; } l.push(p); $(`[data-chips="${k}"]`).innerHTML = pcChips(b(), k); PC.sale = true; };
+    /* une personne n'est que dans un seul groupe (Jean-Luc, 2026-11-27 : un livreur n'apparaît jamais dans les régisseurs) */
+    const autreGroupe = (k, nom) => (PC.x.roles || []).find(([r]) => r !== k && (b()[r] || []).some(x => x.nom.toLowerCase() === String(nom).toLowerCase()));
+    const ajouter = (k, p) => { if (!p.nom) return; const ag = autreGroupe(k, p.nom); if (ag) { toast(`${p.nom} est déjà dans « ${ag[1]} ». Retirez-le(la) d’abord de ce groupe.`, true); return; } const l = b()[k] = b()[k] || []; if (l.some(x => x.nom.toLowerCase() === p.nom.toLowerCase())) { toast(`${p.nom} est déjà dans la liste.`); return; } l.push(p); $(`[data-chips="${k}"]`).innerHTML = pcChips(b(), k); PC.sale = true; };
     /* une quantité tapée à la main n'est plus remplacée ; vidée, elle se remplit de nouveau d'après les choix */
     f.addEventListener('input', e => {
       const r = e.target.closest('[data-pclignes] .pc-l'); if (!r) return; const l = b().lignes[+r.dataset.i]; if (!l) return;
@@ -556,7 +558,7 @@
     /* recherche d'une personne (équipe + prestataires) : suggestions sous la case, un clic l'ajoute au groupe */
     const sugg = (k, q) => {
       const box = $(`[data-sugg="${k}"]`), n = String(q || '').trim().toLowerCase();
-      const deja = new Set((b()[k] || []).map(p => p.nom.toLowerCase()));
+      const deja = new Set((PC.x.roles || []).flatMap(([r]) => (b()[r] || []).map(p => p.nom.toLowerCase())));
       const L = PC.x.personnes.map((p, i) => ({ p, i })).filter(({ p }) => !deja.has(p.nom.toLowerCase()) && (!n || [p.nom, p.groupe, ...(p.metiers || [])].join(' ').toLowerCase().includes(n))).slice(0, 12);
       box.innerHTML = L.length ? L.map(({ p, i }) => `<button type="button" data-pcpick="${k}:${i}"><b>${esc(p.nom)}</b><small>${esc([(p.metiers || []).join(', ') || p.groupe, p.tel].filter(Boolean).join(' · '))}</small></button>`).join('') : `<p class="muted sm">Personne trouvée${n ? ` : tapez le nom dans « ou tapez un nom » ci-dessous` : ''}.</p>`;
       box.hidden = false;
