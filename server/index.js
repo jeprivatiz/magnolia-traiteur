@@ -3068,6 +3068,29 @@ Réponds uniquement en JSON : {${sms ? '' : '"sujet": "...", '}"texte": "..."}`;
     const pr = cls.map(x => x.data).filter(c => c && !c.supprime && (c.genre === 'prestataire' || (c.genre !== 'client' && (c.metiers || []).length))).map(c => ({ nom: c.nom || '', tel: c.tel || '', email: c.email || '', groupe: 'Prestataires', metiers: (c.metiers || []).slice(0, 4) }));
     return [...eq, ...pr].filter(p => p.nom).sort((a, b) => a.groupe.localeCompare(b.groupe) || a.nom.localeCompare(b.nom, 'fr'));
   }
+  /* packs d'organisation (kits de mise en place internes, jamais sur le site) : collection `kits`, remplie une fois depuis server/kits.js */
+  const KITS = require('./kits');
+  async function kitsListe() {
+    let L = (await store.list('kits')).map(x => x.data).filter(Boolean);
+    if (!L.length && !(await store.get('_migr/kits'))) { for (const k of KITS.KITS) await store.set('kits/' + k.id, { ...k, creeLe: new Date().toISOString() }); await store.set('_migr/kits', { at: new Date().toISOString() }); L = KITS.KITS; }
+    return L.sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
+  }
+  A.get('/prepa-kits', wrap(async (req, res) => res.set('Cache-Control', 'no-store').json({ kits: await kitsListe() })));
+  A.post('/prepa-kits', sameSite, json, wrap(async (req, res) => {
+    const k = KITS.nettoyerKit(req.body || {}, 'k' + rid(8));
+    await store.set('kits/' + k.id, { ...k, creeLe: new Date().toISOString(), par: req.ctx.name || '' });
+    audit(req.ctx, 'pack d’organisation créé', 'kits/' + k.id, k.nom); res.json({ kit: k });
+  }));
+  A.put('/prepa-kits/:id', sameSite, json, wrap(async (req, res) => {
+    const avant = await store.get('kits/' + req.params.id); if (!avant) return res.status(404).json({ error: 'Pack introuvable.' });
+    const k = KITS.nettoyerKit(req.body || {}, avant.id);
+    await store.set('kits/' + k.id, { ...avant, ...k, majLe: new Date().toISOString(), majPar: req.ctx.name || '' });
+    audit(req.ctx, 'pack d’organisation modifié', 'kits/' + k.id, k.nom); res.json({ kit: k });
+  }));
+  A.delete('/prepa-kits/:id', sameSite, wrap(async (req, res) => {
+    const avant = await store.get('kits/' + req.params.id); if (!avant) return res.status(404).json({ error: 'Pack introuvable.' });
+    await store.delete('kits/' + req.params.id); audit(req.ctx, 'pack d’organisation supprimé', 'kits/' + req.params.id, avant.nom); res.json({ ok: true });
+  }));
   A.get('/prepa', wrap(async (req, res) => {
     const [dv, fa, dem, bons, vis] = await Promise.all([store.list('devis'), store.list('factures'), store.list('demandes'), store.list('prepas'), visibles(req)]);
     const facDe = new Map(); for (const f of fa.map(x => x.data).filter(f => f?.devisId && f.type !== 'avoir' && !f.annuleeParAvoir)) facDe.set(f.devisId, f.numero);
@@ -3088,7 +3111,7 @@ Réponds uniquement en JSON : {${sms ? '' : '"sujet": "...", '}"texte": "..."}`;
     const neuf = PREP.bonDepuis(x);
     /* ?reprendre=1 : on repart des lignes du devis (le reste du bon est gardé) */
     const bon = avant ? (req.query.reprendre ? { ...avant, lignes: neuf.lignes, personnelDevis: neuf.personnelDevis, allergenesProduits: neuf.allergenesProduits } : { ...avant, lignes: PREP.completerLignes(avant.lignes, x.bySlug) }) : neuf;
-    res.set('Cache-Control', 'no-store').json({ bon, existe: !!avant, devis: { numero: x.devis.numero, statut: x.devis.statut, facture: x.facture?.numero || '' }, personnes: await personnesPrepa(), roles: PREP.ROLES, roleRecup: PREP.ROLE_RECUP, horaires: PREP.HORAIRES, listes: PREP.listesPrepa(x.produits), choix: PREP.choixProduits(bon.lignes, x.bySlug), iaActive: ia.actif, message: PREP.messageDefaut(bon, req.ctx.name || '') });
+    res.set('Cache-Control', 'no-store').json({ bon, existe: !!avant, devis: { numero: x.devis.numero, statut: x.devis.statut, facture: x.facture?.numero || '' }, personnes: await personnesPrepa(), roles: PREP.ROLES, roleRecup: PREP.ROLE_RECUP, horaires: PREP.HORAIRES, listes: PREP.listesPrepa(x.produits), kits: await kitsListe(), choix: PREP.choixProduits(bon.lignes, x.bySlug), iaActive: ia.actif, message: PREP.messageDefaut(bon, req.ctx.name || '') });
   }));
   A.put('/prepa/:id', sameSite, json, wrap(async (req, res) => {
     const x = await contextePrepa(req.params.id);
