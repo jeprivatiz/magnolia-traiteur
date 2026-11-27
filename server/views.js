@@ -193,13 +193,13 @@ function universListe(c) {
     : [{ slug: r.slug, nom: r.nom, href: rubHref(r), photo: r.photoAccueil || r.photo || r.bandeauPhoto, prods: c.byRub.get(r.slug) || [] }]);
   return l.some(u => u.slug === 'lieux') ? l : [...l, lieux];
 }
-/* Vignette « La carte Magnolia » : sur une table ronde de mariage, un menu en carton se relève, s'ouvre sur
-   « Entrée · Plat · Dessert », se referme et se repose, en boucle (Jean-Luc, 2026-11-24). Dessiné en HTML/CSS (pas d'image),
-   animé en CSS (public/css/site.css, bloc « cm- »), mis en pause hors de l'écran (public/js/site.js), fixe et ouvert si animations réduites. */
-const FLEUR_MENU = '<svg viewBox="0 0 40 40" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"><path d="M20 30c-3-5-3-12 0-19 3 7 3 14 0 19z"/><path d="M20 30c-6-2-10-7-11-14 6 2 10 7 11 14z"/><path d="M20 30c6-2 10-7 11-14-6 2-10 7-11 14z"/><path d="M20 30c-5 1-10-1-13-5 5-1 10 1 13 5z"/><path d="M20 30c5 1 10-1 13-5-5-1-10 1-13 5z"/><path d="M20 30v5"/></g></svg>';
-const MENU_TABLE = `<span class="cm-scene" aria-hidden="true"><span class="cm-ombre"></span><span class="cm-livre">
-<span class="cm-page cm-dedans"><span class="cm-cadre"><i class="cm-l">Entrée</i><i class="cm-sep"></i><i class="cm-l">Plat</i><i class="cm-sep"></i><i class="cm-l">Dessert</i></span></span>
-<span class="cm-couv"><span class="cm-page cm-avant"><span class="cm-cadre">${FLEUR_MENU}<b>Menu</b><small>Magnolia</small></span></span><span class="cm-page cm-arriere"><span class="cm-cadre"><small>Le repas</small><b>servi à table</b>${FLEUR_MENU}</span></span></span>
+/* Vignette « La carte Magnolia » : sur une table ronde de mariage, une carte de menu recto verso (feuillage aquarelle,
+   « Menu » au recto ; Entrée · Plat · Fromage · Desserts au verso) tourne lentement sur elle-même, en boucle (Jean-Luc, 2026-11-27,
+   remplace le menu dessiné qui s'ouvrait). Photos détourées : public/site/c/accueil/menu-recto.webp et menu-verso.webp (prénoms du
+   modèle effacés). Animée en CSS (public/css/site.css, bloc « cm- »), en pause hors de l'écran (public/js/site.js), recto fixe si animations réduites. */
+const MENU_TABLE = `<span class="cm-scene" aria-hidden="true"><span class="cm-ombre"></span><span class="cm-carte">
+<img class="cm-face" src="/site/c/accueil/menu-recto.webp" alt="" width="480" height="1040" loading="lazy" decoding="async">
+<img class="cm-face cm-dos" src="/site/c/accueil/menu-verso.webp" alt="" width="480" height="1040" loading="lazy" decoding="async">
 </span></span>`;
 /* Vignettes d'univers vivantes (Jean-Luc, 2026-11-24) : une courte vidéo en boucle, muette, par-dessus la photo de la vignette.
    Vraies vidéos libres de droits (sources : data/credits-videos-accueil.md), jamais d'IA. Fichiers dans public/site/v/accueil :

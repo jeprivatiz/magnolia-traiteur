@@ -745,7 +745,7 @@ document.querySelector('.lsearch')?.addEventListener('submit', e => {
   if (window.ResizeObserver && info) new ResizeObserver(ajuste).observe(info);
 })();
 
-/* Accueil : le menu animé de la vignette « La carte Magnolia » ne tourne que lorsqu'il est à l'écran (économie de batterie sur iPhone) */
+/* Accueil : la carte de menu qui tourne sur la vignette « La carte Magnolia » ne tourne que lorsqu'il est à l'écran (économie de batterie sur iPhone) */
 (function () {
   const t = document.querySelector('.tile .cm-scene')?.closest('.tile');
   if (!t || !('IntersectionObserver' in window)) return;
