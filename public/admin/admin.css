@@ -2459,3 +2459,5 @@ tr.rem-det > td { padding: 4px 0 12px 14px; }
 .qs-rel .qs-rel-to .err{color:#c0392b}
 .qs-rel-ia{display:flex;gap:8px;flex-wrap:wrap}
 .qs-rel-ia input{flex:1 1 240px}
+.apm-sms{background:light-dark(#f2f2f7,#1c1c1e);border-radius:18px;padding:18px 14px;margin:8px 0}
+.apm-sms>div{background:light-dark(#e5e5ea,#3a3a3c);color:var(--bo-ink);border-radius:18px 18px 18px 4px;padding:10px 14px;max-width:85%;font-size:15px;line-height:1.4;word-break:break-word}

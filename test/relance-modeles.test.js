@@ -39,7 +39,8 @@ test('relance : modèles remplis, texte modifié, historique', async () => {
     const dem = (await call('/api/admin/demandes')).j.find(x => /Lina/.test(x.contact?.nom));
     await call('/api/admin/demandes/' + dem.id, { method: 'PUT', body: { ...dem, statut: 'accord' } });
     const M2 = (await call('/api/admin/actions/relance-modeles-demande/' + dem.id)).j;
-    assert.equal(M2.devis, null); assert.equal(M2.modeles[0].id, 'demande-suivi'); assert.match(M2.modeles[0].texte, /Bonjour Lina/);
+    assert.equal(M2.devis, null);
+    assert.ok(!/Lina\w*\d|Bonjour ,/.test(M2.modeles[0].texte)); assert.equal(M2.modeles[0].id, 'demande-suivi'); assert.match(M2.modeles[0].texte, /Bonjour Lina/);
     assert.equal((await call('/api/admin/actions/relancer-demande/' + dem.id, { method: 'POST', body: { modele: 'demande-suivi' } })).status, 200);
     const dem2 = (await call('/api/admin/demandes/' + dem.id)).j;
     assert.equal(dem2.statut, 'accord'); assert.equal(dem2.relancesNotees.length, 1); assert.equal(dem2.relancesNotees[0].how, 'e-mail');
