@@ -68,7 +68,14 @@ function adsConv(R) {
 /* Jean-Luc (2026-11-23) : « plateau de fruits de mer » ne doit jamais être coupé en deux lignes → espaces insécables partout */
 const INSECABLES = [[/\b(plateaux?) (de) (fruits) (de) (mer)\b/gi, '$1\u00a0$2\u00a0$3\u00a0$4\u00a0$5'], [/\b(fruits) (de) (mer)\b/gi, '$1\u00a0$2\u00a0$3']];
 const insecables = html => INSECABLES.reduce((h, [re, r]) => h.replace(re, r), String(html));
-function layout(...args) { return insecables(layoutBrut(...args)); }
+/* Médiathèque (Jean-Luc, 2026-11-27) : une image sans texte alternatif reçoit le nom donné dans la médiathèque (lu par Google) */
+const altMedias = (html, noms) => !noms || !Object.keys(noms).length ? html : html.replace(/<img\b[^>]*>/g, tag => {
+  const src = (tag.match(/\ssrc="([^"]+)"/) || [])[1]; if (!src || /aria-hidden/.test(tag)) return tag;
+  const nom = noms[src.replace(/&amp;/g, '&').split(/[?#]/)[0]]; if (!nom) return tag;
+  if (/\salt="[^"]+"/.test(tag)) return tag;
+  return /\salt=""/.test(tag) ? tag.replace(/\salt=""/, ` alt="${esc(nom)}"`) : tag.replace(/^<img\b/, `<img alt="${esc(nom)}"`);
+});
+function layout(...args) { return insecables(altMedias(layoutBrut(...args), args[0]?.medias?.noms)); }
 function layoutBrut(c, { title, description = '', body, path = '/', schema = null, bodyClass = '', image = '', head = '', scripts = '', partage = '' }) {
   const R = c.reglages;
   /* un titre Google qui porte déjà la marque (« … | Magnolia Traiteur ») n'est pas doublé */

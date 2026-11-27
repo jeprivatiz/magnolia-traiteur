@@ -75,7 +75,23 @@ function createBrevo({ env = process.env, store, log = console } = {}) {
     catch (e) { log.error?.('[brevo] sms', e.message); await rec('sms', body, { error: e.message }); return { error: e.message }; }
   }
 
-  return { sendEmail, sendSms, live };
+  /* crédits restants du compte Brevo (SMS, et e-mails si le forfait a une limite d'envoi) ; relus toutes les 2 minutes au plus */
+  let compteCache = null;
+  async function compte() {
+    if (!live) return { live: false, sms: null, email: null };
+    if (compteCache && Date.now() - compteCache.at < 120e3) return compteCache.v;
+    try {
+      const r = await fetch(API + '/account', { headers: { 'api-key': key, accept: 'application/json' } });
+      if (!r.ok) throw new Error('Brevo ' + r.status);
+      const d = await r.json(), plan = Array.isArray(d?.plan) ? d.plan : [];
+      const sms = plan.find(x => x.type === 'sms'), mail = plan.find(x => x.type !== 'sms' && x.creditsType === 'sendLimit');
+      const v = { live: true, sms: sms ? Math.floor(+sms.credits || 0) : 0, email: mail ? Math.floor(+mail.credits || 0) : null, forfait: plan.find(x => x.type !== 'sms')?.type || '' };
+      compteCache = { at: Date.now(), v };
+      return v;
+    } catch (e) { log.warn?.('[brevo] compte', e.message); return { live: true, sms: null, email: null, erreur: true }; }
+  }
+
+  return { sendEmail, sendSms, live, compte };
 }
 
 module.exports = { createBrevo, normPhone, isEmail, esc };

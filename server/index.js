@@ -30,11 +30,14 @@ const LC = require('./livraison-client');
 const FAC = require('./factures');
 const { creerEntreprises } = require('./entreprises');
 const DR = require('./droits');
+const REM = require('./remuneration');
 const SRC = require('./sources');
 const HIST = require('./historique');
+const HSUP = require('./heures-sup');
 const TAR = require('./tarifs');
 const BLOG = require('./blog');
 const BLOGV = require('./blog-pages');
+const ROUT = require('./routage-alertes');
 
 const ROOT = path.join(__dirname, '..');
 const PUBLIC = path.join(ROOT, 'public');
@@ -197,8 +200,31 @@ async function createApp(opts = {}) {
     }
     await store.set('_migr/sansHotGulab', { at: new Date().toISOString() });
   }
+  /* une seule fois (Jean-Luc, 2026-11-27) : 2 € pour toutes les actions du barème de rémunération ; un montant déjà saisi (autre que 0) est gardé */
+  if (!(await store.get('_migr/bareme2e'))) {
+    const bar = (await store.get('_remuneration/bareme')) || {};
+    const m = { ...(bar.montants || {}) };
+    for (const a of REM.ACTIONS) if (!(+m[a.k] > 0)) m[a.k] = 200;
+    await store.set('_remuneration/bareme', { ...bar, montants: m, majLe: new Date().toISOString(), majPar: bar.majPar || 'Jean-Luc (2 € partout)' });
+    await store.set('_migr/bareme2e', { at: new Date().toISOString() });
+  }
   /* une seule fois (demande de Jean-Luc, 2026-11-25) : la fiche « La cave de Magnolia » (Vins rouges, blancs et rosés, « Sur devis ») est retirée du catalogue,
      et c'est la page Boissons qui prend ce nom, avec le sous-titre « Du vin au soft, en passant par les alcools. » (l'adresse /boissons ne change pas). */
+  /* relances toutes les 48 h (Jean-Luc, 2026-11-27) : noms « Relance 1 / 2 / 3 · dernière » à la place de J+3 / J+7 (si le nom n'a pas été changé) */
+  if (!(await store.get('_migr/relances48h'))) {
+    const anciens = { 'relance-j3': 'Relance devis (J+3)', 'relance-j7': 'Relance devis (J+7, disponibilité)', 'relance-derniere': 'Dernière relance (avant de libérer la date)' };
+    for (const m of require('./seed').MODELES_DEFAUT.filter(x => anciens[x.id])) {
+      const cur = await store.get('modeles/' + m.id);
+      if (cur && cur.nom === anciens[m.id]) await store.set('modeles/' + m.id, { ...cur, nom: m.nom });
+    }
+    await store.set('_migr/relances48h', { at: new Date().toISOString() });
+  }
+  /* 3e modèle de relance « Dernière relance » ajouté une fois aux bases existantes (Jean-Luc, 2026-11-27) */
+  if (!(await store.get('_migr/relanceDerniere'))) {
+    const m = require('./seed').MODELES_DEFAUT.find(x => x.id === 'relance-derniere');
+    if (m && !(await store.get('modeles/' + m.id))) await store.set('modeles/' + m.id, m);
+    await store.set('_migr/relanceDerniere', { at: new Date().toISOString() });
+  }
   if (!(await store.get('_migr/caveMagnolia'))) {
     const net = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
     for (const { id, data: p } of await store.list('produits')) {
@@ -615,6 +641,21 @@ async function createApp(opts = {}) {
     for (const t of String(R.alertes?.sms || '').split(/[,;]+/).map(s => s.trim()).filter(Boolean)) await brevo.sendSms({ to: t, content: sms || sujet, lien: false });
   }
 
+  /* nouvelle demande de devis : les règles « Qui prévenir selon la demande » (server/routage-alertes.js) choisissent qui reçoit l'alerte et par quel canal */
+  async function alerterDemande(demande, auto, sujet, html, sms) {
+    const R = (await cat.get()).reglages;
+    const users = (await store.list('_users')).map(d => d.data).filter(Boolean);
+    const r = ROUT.router(R, users, ROUT.profil(demande, auto));
+    const lienBo = `${SITE}/admin#/demandes/${demande.id}`;
+    const smsTxt = `${sms || sujet} ${lienBo}`;
+    for (const x of r.destinataires) {
+      const pq = `<p style="color:#7a6a4f;font-size:12px">Vous recevez cette alerte au titre de : ${esc(x.regles.join(', '))} (Équipe &amp; activité › Qui prévenir selon la demande).</p>`;
+      if (x.canaux.includes('email') && isEmail(x.email)) await brevo.sendEmail({ to: x.email, name: x.nom, subject: sujet, html: html + pq, text: html.replace(/<[^>]+>/g, ' ') }).catch(e => log.error?.(e));
+      if (x.canaux.includes('sms') && x.tel) await brevo.sendSms({ to: x.tel, content: smsTxt, lien: false }).catch(e => log.error?.(e));
+    }
+    return r;
+  }
+
   const s = (v, n = 200) => String(v ?? '').trim().slice(0, n);
   app.post('/api/demandes', sameSite, json, wrap(async (req, res) => {
     if (!publicWrites(req.ip)) return res.status(429).json({ error: 'Trop d’envois. Réessayez dans quelques minutes ou appelez-nous.' });
@@ -668,7 +709,7 @@ async function createApp(opts = {}) {
     brevo.sendEmail({ to: contact.email, name: contact.nom, subject: `Magnolia Traiteur : votre demande ${ref} est bien reçue`, replyTo: R.email,
       html: `<p>Bonjour ${esc(contact.nom.split(' ')[0])},</p><p>Merci pour votre demande${demande.evenement.date ? ' pour le ' + esc(dateFr(demande.evenement.date)) : ''}. Notre équipe vérifie les disponibilités et revient vers vous rapidement avec votre devis.</p>${recap ? `<ul>${recap}</ul><p>Total estimé : <b>${euros(demande.totalEstimeCents)} TTC</b> (à confirmer).</p>` : ''}<p>Suivez votre demande dans votre espace : <a href="${lien}">Mon espace Magnolia</a></p><p>À très vite,<br>L’équipe Magnolia Traiteur<br>${esc(R.telephone)}</p>`,
       text: `Merci pour votre demande ${ref}. Votre espace : ${lien}` }).catch(() => {});
-    alerterEquipe(`Nouvelle ${demande.type === 'contact' ? 'question' : 'demande de devis'} ${ref} : ${contact.nom}`, `<p><b>${esc(contact.nom)}</b> ${esc(contact.societe)} · ${esc(contact.email)} · ${esc(contact.tel)}</p><p>${esc(demande.evenement.type)} · ${esc(dateFr(demande.evenement.date))} · ${demande.evenement.invites} invités · ${esc(demande.evenement.ville)}</p><ul>${recap}</ul><p>${esc(demande.message)}</p>${auto?.raisons?.length ? `<p><b>Devis à préparer à la main :</b> ${esc(auto.raisons.join(' ; '))}.</p>` : ''}<p><a href="${SITE}/admin#/demandes/${id}">Ouvrir dans le back-office</a></p>`, `Magnolia : nouvelle demande ${ref} de ${contact.nom}, ${demande.evenement.invites} pers. le ${demande.evenement.date}`).catch(() => {});
+    alerterDemande(demande, auto, `${auto?.raisons?.length ? '⚠ ' : ''}Nouvelle ${demande.type === 'contact' ? 'question' : 'demande de devis'} ${ref} : ${contact.nom}`, `<p><b>${esc(contact.nom)}</b> ${esc(contact.societe)} · ${esc(contact.email)} · ${esc(contact.tel)}</p><p>${esc(demande.evenement.type)} · ${esc(dateFr(demande.evenement.date))} · ${demande.evenement.invites} invités · ${esc(demande.evenement.ville)}</p><ul>${recap}</ul><p>${esc(demande.message)}</p>${auto?.raisons?.length ? `<p><b>Devis à préparer à la main :</b> ${esc(auto.raisons.join(' ; '))}.</p>` : ''}<p><a href="${SITE}/admin#/demandes/${id}">Ouvrir dans le back-office</a></p>`, `Magnolia : nouvelle demande ${ref} de ${contact.nom}${demande.totalEstimeCents ? ', ' + euros(demande.totalEstimeCents) : ''}, ${demande.evenement.invites} pers. le ${dateFr(demande.evenement.date)}${auto?.raisons?.length ? '. Devis à faire à la main' : ''}.`).catch(() => {});
     /* le lien direct vers l'espace n'est rendu qu'à un nouveau client ; un client connu le reçoit par e-mail */
     res.json({ ok: true, ref, totalEstimeCents: demande.totalEstimeCents, espace: nouveau ? lien.replace(SITE, '') : '/espace-client' });
   }));
@@ -730,6 +771,13 @@ async function createApp(opts = {}) {
     const idx = await store.get('_devistoken/' + sha(token));
     return idx ? store.get('devis/' + idx.id) : null;
   }
+  /* bon de préparation ouvert par la personne qui prépare (lien de l'e-mail / du SMS), sans connexion : jamais de prix */
+  app.get('/preparation/:token', wrap(async (req, res, next) => {
+    if (!/^[\w-]{16,40}$/.test(req.params.token)) return next();
+    const b = (await store.list('prepas')).map(x => x.data).find(x => x?.token === req.params.token);
+    if (!b) return next();
+    res.set('Cache-Control', 'no-store').set('X-Robots-Tag', 'noindex, nofollow').type('html').send(require('./prepa').documentHtml(b, { R: (await cat.get()).reglages || {}, par: b.majPar || '', recup: req.query.recup === '1' }));
+  }));
   app.get('/devis/:token', wrap(async (req, res, next) => {
     const d = await devisParToken(req.params.token);
     if (!d || d.statut === 'brouillon') return next();
@@ -916,18 +964,19 @@ async function createApp(opts = {}) {
   const voitDoc = async (req, coll, id) => { const v = OPP.includes(coll) ? await visibles(req) : null; return !v || v[coll].has(id); };
   /* droits par écran, et opportunités des autres commerciaux introuvables par leur adresse */
   const ROUTES_DOC = [
-    [/^\/actions\/(?:envoyer-devis|relancer|dupliquer-devis|facture-depuis-devis|reglement-devis)\/([^/]+)/, 'devis'],
+    [/^\/actions\/(?:envoyer-devis|relancer|relance-modeles|dupliquer-devis|facture-depuis-devis|reglement-devis)\/([^/]+)/, 'devis'],
     [/^\/devis\/([^/]+)\/apercu/, 'devis'],
+    [/^\/prepa\/([^/]+)/, 'devis'],
     [/^\/factures\/([^/]+)\/apercu/, 'factures'],
     [/^\/actions\/(?:facture|facture-reglement|facture-reglement-retirer|facture-payee|envoyer-facture|relancer-facture|archiver-facture|avoir-facture)\/([^/]+)/, 'factures'],
-    [/^\/actions\/devis-depuis-demande\/([^/]+)/, 'demandes'],
+    [/^\/actions\/(?:devis-depuis-demande|reserver|relance-modeles-demande|relancer-demande)\/([^/]+)/, 'demandes'],
   ];
   A.use(wrap(async (req, res, next) => {
     const p = req.path, dr = req.ctx.droits || {};
     if (/^\/(?:factures(?:\/|$)|actions\/(?:factures$|facture\/|facture-|envoyer-facture|relancer-facture|archiver-facture|avoir-facture|reglement-devis))/.test(p) && !dr.factures) return refus(res, 'factures');
     if (/^\/(?:diffusion\/|ia\/diffusion-)/.test(p) && !dr.diffusion) return refus(res, 'diffusion');
     if (/^\/ia\/(?:seo|texte-produit)$/.test(p) && !dr.produits) return refus(res, 'produits');
-    if (/^\/actions\/(?:journal|envois)$/.test(p) && !dr.equipe) return refus(res, 'equipe');
+    if (/^\/actions\/(?:journal|envois|remuneration(?:\/.*)?)$/.test(p) && !dr.equipe) return refus(res, 'equipe');
     if (req.method !== 'GET' && p !== '/actions/presence') presence(req.ctx); /* une action compte aussi comme un signe de vie */
     if (req.method !== 'GET') {
       const coll = p.split('/')[1];
@@ -1009,6 +1058,7 @@ async function createApp(opts = {}) {
   A.put('/site', sameSite, json, wrap(async (req, res) => {
     const before = (await store.get('site/reglages')) || {};
     const body = { ...(req.body || {}) }; delete body.updatedAt;
+    if (body.alertes && typeof body.alertes === 'object') body.alertes = { ...body.alertes, regles: ROUT.nettes(body.alertes.regles ?? before.alertes?.regles), defaut: ROUT.defautNet(body.alertes.defaut ?? before.alertes?.defaut) };
     const changes = Object.keys(body).filter(k => stable(body[k]) !== stable(before[k]));
     const refuses = changes.filter(k => !req.ctx.droits[GARDE_SITE[k] || 'site']);
     if (refuses.length && refuses.length === changes.length) return refus(res, GARDE_SITE[refuses[0]] || 'site');
@@ -1059,6 +1109,7 @@ async function createApp(opts = {}) {
   /* ---------- historique commercial de l'ancien CRM (Teamleader) : affaires depuis 2017 (server/historique.js) ---------- */
   const historique = HIST.creerHistorique({ store, sources: { liste: () => SOURCES.liste(), ajouter: n => SOURCES.ajouter(n) }, log });
   historique.routes(A, { sameSite, manager: peut('fichiers'), wrap, audit });
+  HSUP.routes(app, A, { sameSite, json, wrap, audit, store, brevo, ia, SITE, peutEquipe: peut('equipe'), log });
   /* affaires visibles : toutes, ou « seulement ses opportunités » = les siennes et celles sans commercial */
   async function affairesVisibles(req) {
     const vis = await visibles(req);
@@ -1190,7 +1241,8 @@ async function createApp(opts = {}) {
     }
     if (q.filtre === 'importes') l = l.filter(a => a.importe); else if (q.filtre === 'autres') l = l.filter(a => !a.importe);
     const par = Math.min(200, Math.max(10, parseInt(q.par, 10) || 50)), page = Math.max(1, parseInt(q.page, 10) || 1);
-    res.json({ total: l.length, tous: items.length, importes: items.filter(a => a.importe).length, acheteurs: items.filter(a => a.acheteur).length, entreprises: await ENT.nombre(), facettes, page, par, items: l.slice((page - 1) * par, page * par).map(a => ({ ...a.c, nbDemandes: a.nb, verrou: a.verrou, histo: a.histo ? { commandes: a.histo.commandes, perdues: a.histo.perdues, caHtCents: a.histo.caHtCents, derniere: a.histo.derniere } : null, fac: a.fac ? { factures: a.fac.factures, netHtCents: a.fac.netHtCents, duCents: a.fac.duCents } : null })), effacables: q.ids === undefined && q.avecIds ? l.filter(a => !a.verrou).map(a => a.id) : undefined });
+    const joignables = { email: l.filter(a => a.k.email && !a.k.stopEmail && !a.c.nePasContacter).length, sms: l.filter(a => a.k.mobile && !a.k.stopSms && !a.c.nePasContacter).length };
+    res.json({ joignables, total: l.length, tous: items.length, importes: items.filter(a => a.importe).length, acheteurs: items.filter(a => a.acheteur).length, entreprises: await ENT.nombre(), facettes, page, par, items: l.slice((page - 1) * par, page * par).map(a => ({ ...a.c, nbDemandes: a.nb, verrou: a.verrou, histo: a.histo ? { commandes: a.histo.commandes, perdues: a.histo.perdues, caHtCents: a.histo.caHtCents, derniere: a.histo.derniere } : null, fac: a.fac ? { factures: a.fac.factures, netHtCents: a.fac.netHtCents, duCents: a.fac.duCents } : null })), effacables: q.ids === undefined && q.avecIds ? l.filter(a => !a.verrou).map(a => a.id) : undefined });
   }));
 
   /* effacer des contacts cochés (Jean-Luc, 2026-11-24) : jamais un contact qui a une demande, un devis ou une facture ;
@@ -1462,7 +1514,7 @@ async function createApp(opts = {}) {
       if (before) { if (before.modele) data.modele = true; else delete data.modele; } /* ⭐ Modèle : changé seulement par son bouton (un devis ouvert avant ne l'efface pas) */
       if (before?.commentaires) data.commentaires = before.commentaires; /* écrits par le client : jamais effacés par un enregistrement du back-office */
     }
-    if (coll === 'demandes' && before && data.statut && data.statut !== before.statut) data.historique = [...(before.historique || []), { at: new Date().toISOString(), statut: data.statut, par: req.ctx.name || req.ctx.email }];
+    if (coll === 'demandes' && before && data.statut && data.statut !== before.statut) data.historique = [...(before.historique || []), { at: new Date().toISOString(), statut: data.statut, par: req.ctx.name || req.ctx.email, ...(data.statut === 'refuse' && data.motifRefus ? { motif: s(data.motifRefus, 120) } : {}) }];
     if (coll === 'demandes' && before) {
       if (before.priseEnCharge && !data.priseEnCharge) data.priseEnCharge = before.priseEnCharge;
       const bouge = (data.statut && data.statut !== before.statut) || (data.commercial || '') !== (before.commercial || '') || (data.notes || '') !== (before.notes || '') || (data.relancesNotees || []).length !== (before.relancesNotees || []).length;
@@ -1913,11 +1965,11 @@ async function createApp(opts = {}) {
       message: `Merci pour votre demande${demande.evenement?.date ? ' pour le ' + dateFr(demande.evenement.date) : ''}. Votre devis est prêt : ${euros(totaux(d).ttcCents)} TTC. Vous pouvez le consulter et le signer en ligne dès maintenant.\nUn conseiller Magnolia vous appelle très vite pour vérifier les détails avec vous${prenom ? ', ' + prenom : ''}.` });
     audit(IA_CTX, 'devis envoyé automatiquement', 'devis/' + id, d.numero);
     const ct = demande.contact || {}, e = demande.evenement || {};
-    alerterEquipe(`✨ Devis ${d.numero} envoyé par l’IA à ${ct.nom} : à rappeler`,
+    const routage = await alerterDemande(demande, { envoye: true, ttcCents }, `✨ Devis ${d.numero} envoyé par l’IA à ${ct.nom} : à rappeler`,
       `<p>La demande <b>${esc(demande.ref)}</b> était complète : l’IA a créé le devis <b>${esc(d.numero)}</b> (${euros(ttcCents)} TTC) et l’a envoyé tout de suite au client, par e-mail${cl.tel ? ' et SMS' : ''}.</p><p><b>Merci de rappeler le client</b> : <b>${esc(ct.nom)}</b> ${esc(ct.societe || '')} · <a href="tel:${esc(ct.tel)}">${esc(ct.tel)}</a> · ${esc(ct.email)}</p><p>${esc(e.type)} · ${esc(dateFr(e.date))} · ${e.invites} invités · ${esc([e.cp, e.ville].filter(Boolean).join(' '))}</p>${demande.message ? `<p>Message du client : « ${esc(demande.message)} »</p>` : ''}<p><a href="${SITE}/admin#/devis/${id}">Ouvrir le devis</a> · <a href="${lien}">Voir ce que voit le client</a></p>`,
-      `Magnolia : devis ${d.numero} (${euros(ttcCents)}) envoyé par l'IA à ${ct.nom}, ${e.invites} pers. le ${dateFr(e.date)}. Rappelez le client : ${ct.tel}`).catch(() => {});
+      `Magnolia : devis ${d.numero} (${euros(ttcCents)}) envoyé par l'IA à ${ct.nom}, ${e.invites} pers. le ${dateFr(e.date)}. Rappelez le client : ${ct.tel}`).catch(() => null);
     /* SMS d'avertissement (Jean-Luc, 2026-11-25) : chaque devis parti tout seul est signalé à ce numéro (modifiable dans Demandes de devis) */
-    const deja = new Set(String(R.alertes?.sms || '').split(/[,;]+/).map(x => x.replace(/\D/g, '').slice(-9)).filter(Boolean));
+    const deja = new Set((routage?.destinataires || []).filter(x => x.canaux.includes('sms')).map(x => String(x.tel).replace(/\D/g, '').slice(-9)).filter(Boolean));
     for (const t of String(R.devisAutoSms ?? DEVIS_AUTO_SMS).split(/[,;]+/).map(x => x.trim()).filter(Boolean)) {
       if (deja.has(t.replace(/\D/g, '').slice(-9))) continue; /* déjà prévenu par les alertes de l'équipe */
       await brevo.sendSms({ to: t, lien: false, content: `Magnolia Traiteur : demande de devis reçue sur le site, devis envoyé par l'IA. ${ct.nom}, ${euros(ttcCents)} TTC, ${e.invites} pers. le ${dateFr(e.date)}. Tél. client : ${ct.tel}` }).catch(() => {});
@@ -1925,19 +1977,122 @@ async function createApp(opts = {}) {
     return { ...auto, envoye: true, devisId: id, numero: d.numero, ttcCents, raisons: [] };
   }
 
+  /* nom du client pour « Bonjour {prenom} » : jamais un nom fabriqué à partir de l'adresse e-mail (« Tarabernard75 ») */
+  const cleNom = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const remplirR = (t, v) => remplir(t, v).replace(/Bonjour ,/g, 'Bonjour,');
+  function nomRelance(email, ...noms) {
+    const loc = cleNom(String(email || '').split('@')[0]);
+    const ok = n => { const k = cleNom(n); return k.length > 1 && !/\d/.test(n) && !(loc && !/\s/.test(n) && k === loc); };
+    return noms.map(n => String(n || '').trim()).find(ok) || '';
+  }
+  const varsRelance = (d, cl, autres = []) => { const nom = nomRelance(cl?.email, ...autres, cl?.nom, d.clientNom); return { prenom: nom.split(' ')[0], nom, numero: d.numero, evenement: String(d.evenement?.type || 'événement').toLowerCase(), date: dateFr(d.evenement?.date), lien: `${SITE}/devis/${d.token}`, montant: euros(totaux(d).ttcCents) }; };
+  /* cadre « Relancer » du Suivi client : les modèles de relance déjà remplis pour ce devis (nom du client, lien, date…) */
+  A.get('/actions/relance-modeles/:id', wrap(async (req, res) => {
+    const d = await store.get('devis/' + req.params.id);
+    if (!d) return res.status(404).json({ error: 'Devis introuvable.' });
+    const cl = await store.get('clients/' + d.clientId), vars = varsRelance(d, cl);
+    const mods = (await store.list('modeles')).map(x => x.data).filter(m => m && m.id !== 'merci');
+    const ordre = m => ({ 'relance-j3': 1, 'relance-j7': 2, 'relance-derniere': 3, 'sms-relance': 9 }[m.id] || (m.canal === 'sms' ? 8 : 5));
+    res.json({ email: cl?.email || '', tel: cl?.tel || '', relances: (d.relances || []).length, modeles: mods.sort((a, b) => ordre(a) - ordre(b)).map(m => ({ id: m.id, nom: m.nom, canal: m.canal, sujet: remplirR(m.sujet || '', vars), texte: remplirR(m.texte || '', vars) })) });
+  }));
+  /* ✨ l'IA réécrit la relance (consigne facultative : « plus court », « proposer un appel »…) */
+  A.post('/ia/relance', sameSite, json, wrap(async (req, res) => {
+    if (!iaLimit(req.ctx.uid)) return res.status(429).json({ error: 'Trop de demandes : réessayez dans une minute.' });
+    const c = req.body?.demandeId ? await cibleRelance(s(req.body.demandeId, 60)) : null;
+    const d = c ? (c.devis || { numero: c.dem.ref, evenement: c.dem.evenement, clientId: c.dem.clientId, clientNom: c.dem.contact?.nom, sansDevis: true }) : await store.get('devis/' + s(req.body?.devisId, 60));
+    if (!d) return res.status(404).json({ error: 'Devis introuvable.' });
+    const sms = req.body?.canal === 'sms', texte = s(req.body?.texte, 4000), sujet = s(req.body?.sujet, 200), consigne = s(req.body?.consigne, 500);
+    const v = c ? c.vars : varsRelance(d, await store.get('clients/' + d.clientId));
+    const prompt = `Tu es le commercial de Magnolia Traiteur (traiteur événementiel, Villebon-sur-Yvette). Réécris ce message de relance pour un client ${d.sansDevis ? 'dont la demande est en cours (le devis n’est pas encore envoyé)' : 'qui n’a pas encore accepté son devis'}.
+Client : ${v.nom || 'inconnu'} · ${v.evenement} du ${v.date} · ${d.sansDevis ? 'demande ' + v.numero : 'devis ' + v.numero + ' de ' + v.montant + ' TTC'}.
+Règles : français, vouvoiement, chaleureux et professionnel, sans pression excessive, aucune information inventée (prix, remise, disponibilité) ; garde le lien tel quel : ${v.lien}. ${sms ? 'SMS : 300 caractères maximum, signé « Magnolia Traiteur ».' : 'E-mail court (6 à 10 lignes), signé « L’équipe Magnolia Traiteur » avec le 07 63 66 98 92.'}
+${consigne ? 'Consigne du commercial : ' + consigne + '\n' : ''}Message actuel :${sms ? '' : '\nObjet : ' + sujet}
+${texte}
+
+Réponds uniquement en JSON : {${sms ? '' : '"sujet": "...", '}"texte": "..."}`;
+    try {
+      const r = IA.json(await ia.demander(prompt, { effort: 'low', maxTokens: 1500 })) || {};
+      const t = String(r.texte || '').trim();
+      if (!t) return res.status(502).json({ error: 'L’IA n’a pas proposé de texte. Réessayez.' });
+      res.json({ sujet: sms ? '' : String(r.sujet || sujet).slice(0, 200), texte: t.slice(0, sms ? 640 : 4000) });
+    } catch (e) { iaErreur(res, e); }
+  }));
   A.post('/actions/relancer/:id', sameSite, json, wrap(async (req, res) => {
     const d = await store.get('devis/' + req.params.id);
     const m = await store.get('modeles/' + s(req.body?.modele, 60));
     if (!d || !m) return res.status(404).json({ error: 'Devis ou modèle introuvable.' });
     const cl = await store.get('clients/' + d.clientId);
-    const vars = { prenom: (cl?.nom || '').split(' ')[0], nom: cl?.nom || '', numero: d.numero, evenement: String(d.evenement?.type || 'événement').toLowerCase(), date: dateFr(d.evenement?.date), lien: `${SITE}/devis/${d.token}`, montant: euros(totaux(d).ttcCents) };
-    if (m.canal === 'sms') await brevo.sendSms({ to: cl?.tel, content: remplir(m.texte, vars) });
-    else await brevo.sendEmail({ to: cl?.email, name: cl?.nom, subject: remplir(m.sujet, vars), html: esc(remplir(m.texte, vars)).replace(/\n/g, '<br>'), text: remplir(m.texte, vars) });
+    const vars = varsRelance(d, cl);
+    /* texte relu / modifié dans le cadre « Relancer » du Suivi client : il remplace celui du modèle */
+    const texte = remplirR(s(req.body?.texte, 5000) || m.texte, vars), sujet = remplirR(s(req.body?.sujet, 200) || m.sujet, vars);
+    if (m.canal === 'sms') { if (!cl?.tel) return res.status(400).json({ error: 'Pas de portable sur la fiche du client.' }); await brevo.sendSms({ to: cl.tel, content: texte }); }
+    else { if (!cl?.email) return res.status(400).json({ error: 'Pas d’e-mail sur la fiche du client.' }); await brevo.sendEmail({ to: cl.email, name: cl.nom, subject: sujet, html: esc(texte).replace(/\n/g, '<br>'), text: texte }); }
     const now = new Date().toISOString();
-    await store.set('devis/' + d.id, { ...d, derniereRelance: now, relances: [...(d.relances || []), { at: now, modele: m.nom, par: req.ctx.name }] });
-    if (d.demandeId) await changerStatut(d.demandeId, 'relance', req.ctx.name);
+    await store.set('devis/' + d.id, { ...d, derniereRelance: now, relances: [...(d.relances || []), { at: now, modele: m.nom, canal: m.canal, sujet: m.canal === 'sms' ? '' : sujet, texte: texte.slice(0, 3000), par: req.ctx.name }] });
+    if (d.demandeId) await relanceStatut(d.demandeId, req.ctx.name);
     audit(req.ctx, 'relance envoyée', 'devis/' + d.id, m.nom);
     res.json({ ok: true });
+  }));
+  /* une relance ne fait jamais reculer une fiche déjà en « Accord » ou « Réservé » */
+  async function relanceStatut(demandeId, par) {
+    const dm = await store.get('demandes/' + demandeId);
+    if (dm && ['demande', 'devis_envoye'].includes(dm.statut)) await changerStatut(demandeId, 'relance', par);
+  }
+  /* Relance depuis la carte du Suivi client, par la fiche (demande) : avec le devis envoyé s'il y en a un,
+     sinon une relance de la demande elle-même (pas encore de devis : le lien mène au site). */
+  async function cibleRelance(demId) {
+    const dem = await store.get('demandes/' + demId);
+    if (!dem) return null;
+    const l = (await store.list('devis')).map(x => x.data).filter(x => x && x.demandeId === dem.id).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+    const devis = l.find(x => x.statut === 'accepte') || l.find(x => x.statut === 'envoye') || null;
+    const cl = await store.get('clients/' + (devis?.clientId || dem.clientId)) || { nom: dem.contact?.nom, email: dem.contact?.email, tel: dem.contact?.tel };
+    const nom = nomRelance(cl.email || dem.contact?.email, dem.contact?.nom, cl.nom);
+    const vars = devis ? varsRelance(devis, cl, [dem.contact?.nom]) : { prenom: nom.split(' ')[0], nom, numero: dem.ref || '', evenement: String(dem.evenement?.type || 'événement').toLowerCase(), date: dateFr(dem.evenement?.date), lien: SITE, montant: dem.totalEstimeCents ? euros(dem.totalEstimeCents) : '' };
+    return { dem, devis, cl, vars };
+  }
+  const NB_RELANCES = 3; /* même valeur dans public/admin/admin.js */
+  const MODELES_SANS_DEVIS = [
+    { id: 'demande-suivi', nom: 'Suivi de votre demande (pas encore de devis)', canal: 'email', sujet: 'Votre demande pour votre {evenement} du {date}', texte: 'Bonjour {prenom},\n\nNous avons bien reçu votre demande pour votre {evenement} du {date} et nous préparons votre devis.\nPour qu’il vous ressemble, pouvez-vous nous confirmer le nombre d’invités, l’adresse et l’horaire de livraison ?\nUn simple retour à cet e-mail suffit, ou appelez-nous au 07 63 66 98 92.\n\nBelle journée,\nL’équipe Magnolia Traiteur' },
+    { id: 'demande-sms', nom: 'SMS : suivi de votre demande', canal: 'sms', sujet: '', texte: 'Magnolia Traiteur : nous préparons votre devis pour le {date}. Une précision ? Appelez-nous au 07 63 66 98 92. {lien}' },
+  ];
+  A.get('/actions/relance-modeles-demande/:id', wrap(async (req, res) => {
+    const c = await cibleRelance(req.params.id);
+    if (!c) return res.status(404).json({ error: 'Fiche introuvable.' });
+    const ordre = m => ({ 'relance-j3': 1, 'relance-j7': 2, 'relance-derniere': 3, 'sms-relance': 9 }[m.id] || (m.canal === 'sms' ? 8 : 5));
+    const mods = c.devis ? (await store.list('modeles')).map(x => x.data).filter(m => m && m.id !== 'merci').sort((a, b) => ordre(a) - ordre(b)) : MODELES_SANS_DEVIS;
+    const nb = (c.devis?.relances || []).length + (c.dem.relancesNotees || []).filter(r => r.modele).length;
+    res.json({ email: c.cl.email || '', tel: c.cl.tel || '', relances: nb, devis: c.devis ? { id: c.devis.id, numero: c.devis.numero } : null, ref: c.dem.ref || '',
+      modeles: mods.map(m => ({ id: m.id, nom: m.nom, canal: m.canal, sujet: remplirR(m.sujet || '', c.vars), texte: remplirR(m.texte || '', c.vars) })) });
+  }));
+  A.post('/actions/relancer-demande/:id', sameSite, json, wrap(async (req, res) => {
+    const c = await cibleRelance(req.params.id);
+    if (!c) return res.status(404).json({ error: 'Fiche introuvable.' });
+    const id = s(req.body?.modele, 60);
+    const m = c.devis ? await store.get('modeles/' + id) : MODELES_SANS_DEVIS.find(x => x.id === id);
+    if (!m) return res.status(404).json({ error: 'Modèle introuvable.' });
+    const texte = remplirR(s(req.body?.texte, 5000) || m.texte, c.vars), sujet = remplirR(s(req.body?.sujet, 200) || m.sujet, c.vars);
+    if (m.canal === 'sms') { if (!c.cl.tel) return res.status(400).json({ error: 'Pas de portable sur la fiche du client.' }); await brevo.sendSms({ to: c.cl.tel, content: texte }); }
+    else { if (!c.cl.email) return res.status(400).json({ error: 'Pas d’e-mail sur la fiche du client.' }); await brevo.sendEmail({ to: c.cl.email, name: c.cl.nom, subject: sujet, html: esc(texte).replace(/\n/g, '<br>'), text: texte }); }
+    const now = new Date().toISOString(), trace = { at: now, modele: m.nom, canal: m.canal, sujet: m.canal === 'sms' ? '' : sujet, texte: texte.slice(0, 3000), par: req.ctx.name };
+    if (c.devis) {
+      const d = await store.get('devis/' + c.devis.id);
+      await store.set('devis/' + d.id, { ...d, derniereRelance: now, relances: [...(d.relances || []), trace] });
+    } else {
+      const dm = await store.get('demandes/' + c.dem.id);
+      await store.set('demandes/' + dm.id, priseDe({ ...dm, relancesNotees: [...(dm.relancesNotees || []), { ...trace, how: m.canal === 'sms' ? 'SMS' : 'e-mail' }] }, req.ctx.name, 'relance'));
+    }
+    await relanceStatut(c.dem.id, req.ctx.name);
+    audit(req.ctx, 'relance envoyée', c.devis ? 'devis/' + c.devis.id : 'demandes/' + c.dem.id, m.nom);
+    /* dernière relance (Jean-Luc, 2026-11-27) : la fiche encore ouverte passe en « Refusé », raison « Sans réponse après N relances » */
+    const dm = await store.get('demandes/' + c.dem.id), dv = c.devis ? await store.get('devis/' + c.devis.id) : null;
+    const apres = x => !dm.reactiveeLe || String(x.at) > dm.reactiveeLe;
+    const n = (dv?.relances || []).filter(apres).length + (dm.relancesNotees || []).filter(r => r.modele && apres(r)).length;
+    if (n >= NB_RELANCES && ['demande', 'devis_envoye', 'relance'].includes(dm.statut)) {
+      const motif = `Sans réponse après ${NB_RELANCES} relances`, at = new Date().toISOString();
+      await store.set('demandes/' + dm.id, { ...dm, statut: 'refuse', motifRefus: motif, historique: [...(dm.historique || []), { at, statut: 'refuse', par: req.ctx.name, motif }] });
+      return res.json({ ok: true, refuse: true, relances: n });
+    }
+    res.json({ ok: true, relances: n });
   }));
 
   /* ---------- factures (CRM) : règlements en plusieurs acomptes, envoi, relances, archives, avoirs ---------- */
@@ -1987,19 +2142,43 @@ async function createApp(opts = {}) {
     res.json({ ok: true, id: (await creerFacture(d, type, req.ctx)).id });
   }));
   /* un règlement du client sur un devis signé : la facture du devis est créée (« à envoyer ») ou complétée */
+  /* règlement du client sur un devis accepté : la facture « totale » du devis est créée (« à envoyer ») ou complétée, la fiche passe en « Réservé » */
+  async function reglementSurDevis(d, body, ctx) {
+    const r = FAC.nouveauReglement(body, ctx.name, rid);
+    const ex = (await store.list('factures')).map(x => x.data).filter(f => f.devisId === d.id && f.type === 'totale' && !f.annuleeParAvoir).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))[0];
+    const f = ex || await creerFacture(d, 'totale', ctx);
+    r.at = new Date().toISOString(); /* après la création de la facture, pour l'historique */
+    const next = FAC.resume({ ...f, reglements: [...(f.reglements || []), r] });
+    await store.set('factures/' + f.id, next);
+    if (d.demandeId) await changerStatut(d.demandeId, 'reserve', ctx.name);
+    audit(ctx, 'règlement enregistré', 'factures/' + f.id, `${f.numero} · ${euros(r.montantCents)} · ${r.moyen}`);
+    return { ok: true, id: f.id, numero: f.numero, cree: !ex, resteCents: next.resteCents, payee: next.payee, regleCents: next.regleCents, totalCents: next.totalCents };
+  }
   A.post('/actions/reglement-devis/:id', sameSite, json, wrap(async (req, res) => {
     const d = await store.get('devis/' + req.params.id);
     if (!d) return res.status(404).json({ error: 'Devis introuvable.' });
     if (d.statut !== 'accepte') return res.status(400).json({ error: 'Le devis doit d’abord être signé par le client.' });
-    let r; try { r = FAC.nouveauReglement(req.body, req.ctx.name, rid); } catch (e) { return res.status(400).json({ error: e.message }); }
-    const ex = (await store.list('factures')).map(x => x.data).filter(f => f.devisId === d.id && f.type === 'totale' && !f.annuleeParAvoir).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))[0];
-    const f = ex || await creerFacture(d, 'totale', req.ctx);
-    r.at = new Date().toISOString(); /* après la création de la facture, pour l'historique */
-    const next = FAC.resume({ ...f, reglements: [...(f.reglements || []), r] });
-    await store.set('factures/' + f.id, next);
-    if (d.demandeId) await changerStatut(d.demandeId, 'reserve', req.ctx.name);
-    audit(req.ctx, 'règlement enregistré', 'factures/' + f.id, `${f.numero} · ${euros(r.montantCents)} · ${r.moyen}`);
-    res.json({ ok: true, id: f.id, numero: f.numero, cree: !ex, resteCents: next.resteCents });
+    try { res.json(await reglementSurDevis(d, req.body, req.ctx)); } catch (e) { res.status(400).json({ error: e.message }); }
+  }));
+  /* « Réserver » depuis Suivi client (Jean-Luc, 2026-11-27) : acompte reçu (chèque, virement…) → le devis de la fiche est
+     accepté s'il ne l'était pas (accord sans signature en ligne, noté), le règlement est enregistré sur sa facture
+     (créée au besoin, avec le reste dû) et la fiche quitte « En cours » pour « Réservé ». */
+  A.post('/actions/reserver/:id', sameSite, json, wrap(async (req, res) => {
+    const dem = await store.get('demandes/' + req.params.id);
+    if (!dem) return res.status(404).json({ error: 'Fiche introuvable.' });
+    const l = (await store.list('devis')).map(x => x.data).filter(x => x && x.demandeId === dem.id).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+    let d = l.find(x => x.statut === 'accepte') || l.find(x => x.statut === 'envoye') || l.find(x => x.statut !== 'refuse') || l[0];
+    if (!d) d = await store.get('devis/' + await devisDepuisDemande(dem, req.ctx));
+    if (!(d.lignes || []).length || !(totaux(d).ttcCents > 0)) return res.status(400).json({ error: `Le devis ${d.numero} est vide : ajoutez d’abord les prestations, puis réservez.` });
+    try { FAC.nouveauReglement(req.body, req.ctx.name, rid); } catch (e) { return res.status(400).json({ error: e.message }); }
+    if (d.statut !== 'accepte') {
+      const now = new Date().toISOString();
+      d = { ...d, statut: 'accepte', accordManuel: { at: now, par: req.ctx.name, comment: 'Acompte reçu (' + (FAC.MOYENS.includes(req.body?.moyen) ? req.body.moyen : 'Virement') + ')' }, envoyeLe: d.envoyeLe || null };
+      await store.set('devis/' + d.id, d);
+      audit(req.ctx, 'devis accepté (acompte reçu)', 'devis/' + d.id, d.numero);
+    }
+    const r = await reglementSurDevis(d, req.body, req.ctx);
+    res.json({ ...r, devisId: d.id, devisNumero: d.numero, devisTtcCents: totaux(d).ttcCents });
   }));
   A.post('/actions/facture-reglement/:id', sameSite, json, wrap(async (req, res) => {
     const f = await store.get('factures/' + req.params.id);
@@ -2242,7 +2421,7 @@ async function createApp(opts = {}) {
     for (const d of demandes) {
       const e = d.evenement || {};
       add(d.createdAt, 'demande', d.type === 'contact' ? `Message reçu : ${d.sujet || 'question'}` : `Demande de devis ${d.ref || ''}`.trim(), { detail: [e.type, e.date ? dateFr(e.date) : '', e.invites ? e.invites + ' pers.' : '', e.ville].filter(Boolean).join(' · ') + (d.message ? '\n« ' + String(d.message).slice(0, 400) + ' »' : ''), montantCents: d.totalEstimeCents || null, montantLib: 'estimé', par: d.source || (d.lignes?.length ? 'site' : ''), lien: '#/demandes/' + d.id });
-      for (const h of (d.historique || []).slice(1)) if (!['devis_envoye', 'relance'].includes(h.statut)) add(h.at, 'statut', 'Étape : ' + (lbl[h.statut] || h.statut), { par: h.par, ref: d.ref, lien: '#/demandes/' + d.id });
+      for (const h of (d.historique || []).slice(1)) if (!['devis_envoye', 'relance'].includes(h.statut)) add(h.at, 'statut', 'Étape : ' + (lbl[h.statut] || h.statut) + (h.motif ? ' · motif : ' + h.motif : ''), { par: h.par, ref: d.ref, lien: '#/demandes/' + d.id });
       for (const r of d.relancesNotees || []) add(r.at, r.how === 'appel' ? 'appel' : 'note', r.how === 'appel' ? 'Appel téléphonique' : 'Relance faite (notée)', { par: r.par, ref: d.ref });
       if (d.notes) add(d.updatedAt || d.createdAt, 'note', 'Note sur la demande ' + (d.ref || ''), { detail: d.notes, fixe: true });
     }
@@ -2349,7 +2528,20 @@ async function createApp(opts = {}) {
   const canalDe = v => (v === 'sms' ? 'sms' : 'email');
   const critDe = b => ({ statut: ['commandes', 'prospects'].includes(b?.statut) ? b.statut : '', montantMin: Math.max(0, Math.round(+b?.montantMin || 0)), deps: (Array.isArray(b?.deps) ? b.deps : []).map(x => s(x, 3)).slice(0, 120), types: (Array.isArray(b?.types) ? b.types : []).map(x => s(x, 60)).slice(0, 40), pro: ['pro', 'part'].includes(b?.pro) ? b.pro : '', accord: !!b?.accord, metiers: (Array.isArray(b?.metiers) ? b.metiers : []).map(x => s(x, 60)).slice(0, 40), dj: (Array.isArray(b?.dj) ? b.dj : []).map(x => s(x, 60)).slice(0, 40), contactDe: (Array.isArray(b?.contactDe) ? b.contactDe : []).map(x => s(x, 80)).slice(0, 60), civ: ['Mme', 'M.'].includes(b?.civ) ? b.civ : '' });
   /* destinataires : mode « critères » (tous ceux qui correspondent, moins ceux décochés) ou « un par un » (seulement ceux cochés) */
-  function destinataires(l, canal, b) {
+  /* mode « recherche » : les contacts trouvés par la recherche multicritère de la liste Contacts (mêmes filtres, côté serveur) */
+  const rechercheDe = b => { const r = b && typeof b === 'object' ? b : {}, k = {}; for (const x of CRIT_CLIENTS) if (r.k?.[x]) k[x] = s(r.k[x], 80); return { q: s(r.q, 80), filtre: ['importes', 'autres'].includes(r.filtre) ? r.filtre : '', vue: r.vue === 'clients' ? 'clients' : '', k }; };
+  async function idsRecherche(b) {
+    const r = rechercheDe(b), { items } = await annuaireServeur();
+    let l = filtrerCriteres(filtrerClients(items, r.q), r.k);
+    if (r.vue === 'clients') l = l.filter(a => a.acheteur);
+    if (r.filtre === 'importes') l = l.filter(a => a.importe); else if (r.filtre === 'autres') l = l.filter(a => !a.importe);
+    return new Set(l.map(a => a.id));
+  }
+  async function destinataires(l, canal, b) {
+    if (b?.mode === 'recherche') {
+      const ids = await idsRecherche(b.recherche), ex = new Set((b.exclus || []).map(String));
+      return DIF.filtrer(l, canal, {}).filter(p => ids.has(p.id) && !ex.has(p.id));
+    }
     const base = DIF.filtrer(l, canal, critDe(b?.criteres));
     if (b?.mode === 'manuel') { const ins = new Set((b.inclus || []).map(String)); return DIF.filtrer(l, canal, {}).filter(p => ins.has(p.id)); }
     const ex = new Set((b?.exclus || []).map(String));
@@ -2369,17 +2561,20 @@ async function createApp(opts = {}) {
       ia: ia.actif, brevo: brevo.live, lienSms: await lienSms(), moi: { email: req.ctx.email || '', tel: String(R.alertes?.sms || '').split(/[,;]/)[0].trim() }, creneauSms: DIF.creneauSms(),
     });
   }));
+  A.get('/diffusion/credits', wrap(async (req, res) => { res.set('Cache-Control', 'no-store'); res.json(await brevo.compte?.() || { live: brevo.live, sms: null, email: null }); }));
   A.post('/diffusion/selection', sameSite, json, wrap(async (req, res) => {
     const l = await lesProfils(), canal = canalDe(req.body?.canal), b = req.body || {};
-    const choisis = destinataires(l, canal, b), ids = new Set(choisis.map(p => p.id));
-    /* liste affichée : en mode critères, ceux qui correspondent ; en mode un par un, tout le fichier joignable */
+    const choisis = await destinataires(l, canal, b), ids = new Set(choisis.map(p => p.id));
+    /* liste affichée : en mode critères, ceux qui correspondent ; en mode un par un, tout le fichier joignable ; en mode recherche, les contacts trouvés */
     const k = critDe(b.criteres);
-    let vue = b.mode === 'manuel' ? DIF.filtrer(l, canal, { q: b.q }) : DIF.filtrer(l, canal, { ...k, q: b.q });
+    let trouves = null, nonJoignables = 0;
+    if (b.mode === 'recherche') { const tous = await idsRecherche(b.recherche), ok = DIF.filtrer(l, canal, {}); trouves = ok.filter(p => tous.has(p.id)); nonJoignables = tous.size - trouves.length; }
+    let vue = b.mode === 'manuel' ? DIF.filtrer(l, canal, { q: b.q }) : b.mode === 'recherche' ? DIF.filtrer(trouves, canal, { q: b.q }) : DIF.filtrer(l, canal, { ...k, q: b.q });
     if (b.seulementCoches) vue = vue.filter(p => ids.has(p.id));
     vue.sort((a, c) => (c.totalCents - a.totalCents) || String(c.derniere).localeCompare(String(a.derniere)));
     const page = Math.max(0, +b.page | 0), N = 50;
     res.json({
-      nb: choisis.length, correspondent: b.mode === 'manuel' ? null : DIF.filtrer(l, canal, k).length, vue: vue.length, page, pages: Math.ceil(vue.length / N),
+      nb: choisis.length, correspondent: b.mode === 'manuel' ? null : trouves ? trouves.length : DIF.filtrer(l, canal, k).length, nonJoignables, vue: vue.length, page, pages: Math.ceil(vue.length / N),
       lignes: vue.slice(page * N, page * N + N).map(p => ({ id: p.id, nom: p.nom, societe: p.societe, contact: canal === 'email' ? p.email : p.tel, deps: p.deps, totalCents: p.totalCents, nbCommandes: p.nbCommandes, derniere: p.derniere, coche: ids.has(p.id) })),
     });
   }));
@@ -2450,12 +2645,14 @@ async function createApp(opts = {}) {
     const err = await verifier(m, canal); if (err) return res.status(400).json({ error: err });
     if (canal === 'sms') { const cr = DIF.creneauSms(); if (!cr.ok) return res.status(400).json({ error: cr.raison }); }
     profilsCache = null;
-    const liste = destinataires(await lesProfils(), canal, req.body);
+    const liste = await destinataires(await lesProfils(), canal, req.body);
     if (!liste.length) return res.status(400).json({ error: 'Aucun destinataire sélectionné.' });
+    if (canal === 'sms') { const cpt = await brevo.compte?.(), besoin = liste.length * DIF.comptage(DIF.smsFinal(m.texte, { prenom: 'Alexandra', lien: await lienSms() })).sms; if (cpt?.sms != null && besoin > cpt.sms) return res.status(400).json({ error: `Pas assez de crédits SMS : il en faut ${besoin.toLocaleString('fr-FR')}, il en reste ${cpt.sms.toLocaleString('fr-FR')} sur Brevo. Rechargez le compte Brevo ou réduisez la sélection.` }); }
+    else { const cpt = await brevo.compte?.(); if (cpt?.email != null && liste.length > cpt.email) return res.status(400).json({ error: `Le forfait Brevo n’autorise plus que ${cpt.email.toLocaleString('fr-FR')} e-mails : réduisez la sélection ou changez de forfait.` }); }
     if (+req.body?.confirme !== liste.length) return res.status(409).json({ error: `Le nombre de destinataires a changé (${liste.length}). Vérifiez puis confirmez à nouveau.`, nb: liste.length });
     const id = 'cp_' + rid(8), now = new Date().toISOString();
     const nbSms = canal === 'sms' ? DIF.comptage(DIF.smsFinal(m.texte, { prenom: 'Alexandra', lien: await lienSms() })).sms : 0;
-    const camp = { id, canal, message: m, criteres: critDe(req.body?.criteres), mode: req.body?.mode === 'manuel' ? 'manuel' : 'criteres', nb: liste.length, nbSms, ids: liste.map(p => p.id), envoyes: 0, echecs: [], statut: 'en_cours', live: brevo.live, at: now, par: req.ctx.name || req.ctx.email || '' };
+    const camp = { id, canal, message: m, criteres: critDe(req.body?.criteres), mode: ['manuel', 'recherche'].includes(req.body?.mode) ? req.body.mode : 'criteres', ...(req.body?.mode === 'recherche' ? { recherche: rechercheDe(req.body.recherche) } : {}), nb: liste.length, nbSms, ids: liste.map(p => p.id), envoyes: 0, echecs: [], statut: 'en_cours', live: brevo.live, at: now, par: req.ctx.name || req.ctx.email || '' };
     await store.set('_campagnes/' + id, camp);
     audit(req.ctx, canal === 'sms' ? 'SMS groupé envoyé' : 'e-mail groupé envoyé', '_campagnes/' + id, `${liste.length} destinataires · ${m.objet || m.texte.slice(0, 60)}`);
     res.json({ ok: true, id, nb: liste.length });
@@ -2564,6 +2761,16 @@ async function createApp(opts = {}) {
     res.json({ ok: true });
   }));
   /* essai d'envoi : un e-mail à la personne connectée, et un SMS si un numéro est donné */
+  /* « Simuler une demande » : qui serait prévenu, avec les règles affichées à l'écran (même pas encore enregistrées) */
+  A.post('/actions/alertes-simuler', sameSite, json, peut('equipe'), wrap(async (req, res) => {
+    const b = req.body || {}, t = b.test || {};
+    const R0 = (await cat.get()).reglages;
+    const R = { ...R0, alertes: { ...(R0.alertes || {}), ...(Array.isArray(b.personnes) ? { personnes: b.personnes.slice(0, 50).map(x => ({ nom: s(x?.nom, 80), tel: s(x?.tel, 30), email: s(x?.email, 160) })) } : {}), regles: ROUT.nettes(b.regles ?? R0.alertes?.regles), defaut: ROUT.defautNet(b.defaut ?? R0.alertes?.defaut) } };
+    const users = (await store.list('_users')).map(d => d.data).filter(Boolean);
+    const demande = { type: t.question ? 'contact' : 'devis', totalEstimeCents: Math.round((parseFloat(String(t.montant || 0).replace(/\s/g, '').replace(',', '.')) || 0) * 100), evenement: { date: /^\d{4}-\d{2}-\d{2}$/.test(t.date || '') ? t.date : '', invites: Math.max(0, +t.invites | 0) } };
+    const p = ROUT.profil(demande, t.situation === 'auto' ? { envoye: true } : { envoye: false, raisons: ['simulation'] });
+    res.json({ profil: p, ...ROUT.router(R, users, p) });
+  }));
   A.post('/actions/envoi-test', sameSite, json, wrap(async (req, res) => {
     const u = await store.get('_users/' + req.ctx.uid);
     if (!u?.email) return res.status(400).json({ error: 'Compte sans e-mail.' });
@@ -2736,6 +2943,33 @@ async function createApp(opts = {}) {
     const personnes = [...pers.values()].sort((a, b) => b.minutes - a.minutes || b.actions - a.actions || a.who.localeCompare(b.who, 'fr'));
     res.json({ intact, total: rows.length, nb: lignes.length, lignes: lignes.slice(-500).reverse(), personnes, depuis, du, au, qui });
   }));
+  /* Rémunération par action (Jean-Luc, 2026-11-27) : barème € par action + gains de chacun sur la période, d'après le journal */
+  A.get('/actions/remuneration', wrap(async (req, res) => {
+    const jourOk = j => /^\d{4}-\d{2}-\d{2}$/.test(j || '');
+    let du = jourOk(req.query.du) ? req.query.du : '', au = jourOk(req.query.au) ? req.query.au : '';
+    if (du && au && du > au) [du, au] = [au, du];
+    const bar = (await store.get('_remuneration/bareme')) || {};
+    const cents = REM.nettoyerBareme(Object.fromEntries(Object.entries(bar.montants || {}).map(([k, c]) => [k, (+c || 0) / 100])));
+    const users = (await store.list('_users')).filter(u => u.data);
+    const comptes = new Map(users.map(u => [u.id, u.data.name || u.data.email || '']));
+    const parNom = new Map(users.map(u => [nomCle(u.data.name), u.id]));
+    const signes = [];
+    for (const { id, data: d } of await store.list('devis')) {
+      if (!d || d.statut !== 'accepte' || !d.signature?.at) continue;
+      const uid = parNom.get(nomCle(d.commercial)); if (!uid) continue;
+      signes.push({ uid, at: d.signature.at, resume: `${d.numero || id}${d.clientNom ? ' · ' + d.clientNom : ''}` });
+    }
+    const rows = (await store.list('_audit')).map(d => d.data).filter(Boolean).sort((a, b) => a.n - b.n);
+    const personnes = REM.calculer({ rows, signes, cents, comptes, jourDe: jourParis, dansJour: j => (!du || j >= du) && (!au || j <= au) });
+    res.json({ du, au, actions: REM.ACTIONS.map(a => ({ k: a.k, groupe: a.groupe, nom: a.nom, unique: !!a.unique, cents: cents[a.k] })), personnes, majLe: bar.majLe || '', majPar: bar.majPar || '', modifiable: !!req.ctx.droits?.admin });
+  }));
+  A.put('/actions/remuneration/bareme', sameSite, json, peut('admin'), wrap(async (req, res) => {
+    const montants = REM.nettoyerBareme(req.body?.montants || {});
+    await store.set('_remuneration/bareme', { montants, majLe: new Date().toISOString(), majPar: req.ctx.name || '' });
+    const nb = Object.values(montants).filter(Boolean).length;
+    audit(req.ctx, 'barème de rémunération modifié', '_remuneration/bareme', `${nb} action${nb > 1 ? 's' : ''} rémunérée${nb > 1 ? 's' : ''}`);
+    res.json({ ok: true, montants });
+  }));
   /* signe de vie envoyé par la page du back-office tant que la personne s'en sert */
   A.post('/actions/presence', sameSite, wrap(async (req, res) => { await presence(req.ctx); res.json({ ok: true }); }));
   A.get('/actions/envois', wrap(async (req, res) => res.json({ live: brevo.live, envois: (await store.list('_outbox')).map(d => d.data).sort((a, b) => b.at.localeCompare(a.at)).slice(0, 100) })));
@@ -2758,12 +2992,218 @@ async function createApp(opts = {}) {
     const site = [];
     const walk = (dir, base) => { try { for (const e of fs.readdirSync(dir, { withFileTypes: true })) { const p = path.join(dir, e.name); if (e.isDirectory()) walk(p, base + '/' + e.name); else if (/\.(webp|jpe?g|png|mp4)$/i.test(e.name)) site.push({ url: base + '/' + e.name, type: /mp4$/i.test(e.name) ? 'video/mp4' : 'image' }); } } catch { /* */ } };
     walk(path.join(PUBLIC, 'site'), '/site');
-    res.json({ envoyes: envoyes.sort((a, b) => b.at.localeCompare(a.at)), site });
+    const M = await mediasReg(), cache = new Set(M.caches), noms = M.noms;
+    const avecNom = x => ({ ...x, nom: noms[x.url] || '' });
+    res.json({ envoyes: envoyes.filter(x => !cache.has(x.url)).sort((a, b) => b.at.localeCompare(a.at)).map(avecNom), site: site.filter(x => !cache.has(x.url)).map(avecNom) });
+  }));
+  /* Médiathèque (Jean-Luc, 2026-11-27) : nommer une image (recherche + texte alternatif pour Google) et supprimer des images */
+  const mediasReg = async () => { const d = await store.get('site/medias') || {}; return { noms: d.noms || {}, caches: d.caches || [] }; };
+  const mediaOk = u => typeof u === 'string' && /^\/(media|site)\/[^?#<>"]+$/.test(u) && !u.includes('..');
+  A.put('/actions/media-nom', sameSite, json, peut('site'), wrap(async (req, res) => {
+    const url = req.body?.url, nom = String(req.body?.nom || '').replace(/\s+/g, ' ').trim().slice(0, 140);
+    if (!mediaOk(url)) return res.status(400).json({ error: 'Image inconnue.' });
+    const M = await mediasReg(); if (nom) M.noms[url] = nom; else delete M.noms[url];
+    await store.set('site/medias', M); cat.invalidate(); audit(req.ctx, 'image nommée', url + (nom ? ' → ' + nom : ' (nom retiré)'));
+    res.json({ ok: true, nom });
+  }));
+  /* où une image est encore utilisée : fiches, rubriques, lieux, pages, reportages, réglages du site, et le code du site */
+  const usagesMedias = async urls => {
+    const [rub, prod, lieux, pages, blog, reg] = await Promise.all([store.list('rubriques'), store.list('produits'), store.list('lieux'), store.list('pages'), store.list('blog'), store.get('site/reglages')]);
+    const sources = [
+      ...prod.map(d => ['Fiche « ' + (d.data?.titre || d.id) + ' »', d.data]),
+      ...rub.map(d => ['Rubrique « ' + (d.data?.titre || d.data?.nom || d.id) + ' »', d.data]),
+      ...lieux.map(d => ['Lieu « ' + (d.data?.nom || d.data?.titre || d.id) + ' »', d.data]),
+      ...pages.map(d => ['Page ' + (d.data?.url || d.id), d.data]),
+      ...blog.map(d => ['Reportage « ' + (d.data?.titre || d.id) + ' »', d.data]),
+      ['Photos & textes du site (bandeaux, accueil…)', reg],
+    ].map(([lib, o]) => [lib, JSON.stringify(o || '')]);
+    for (const f of ['server/views.js', 'server/cartes.js', 'public/css/site.css', 'public/js/site.js']) { try { sources.push(['Mise en page du site', fs.readFileSync(path.join(ROOT, f), 'utf8')]); } catch { /* */ } }
+    const out = {};
+    for (const u of urls) {
+      const re = new RegExp(u.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![\\w.-])');
+      out[u] = [...new Set(sources.filter(([, t]) => re.test(t)).map(([lib]) => lib))];
+    }
+    return out;
+  };
+  A.post('/actions/medias/usages', sameSite, json, peut('site'), wrap(async (req, res) => {
+    const urls = (Array.isArray(req.body?.urls) ? req.body.urls : []).filter(mediaOk).slice(0, 500);
+    res.json({ usages: await usagesMedias(urls) });
+  }));
+  A.post('/actions/medias/supprimer', sameSite, json, peut('site'), wrap(async (req, res) => {
+    const urls = [...new Set((Array.isArray(req.body?.urls) ? req.body.urls : []).filter(mediaOk))].slice(0, 500);
+    if (!urls.length) return res.status(400).json({ error: 'Aucune image choisie.' });
+    const M = await mediasReg(); let n = 0;
+    for (const u of urls) {
+      if (u.startsWith('/media/')) {
+        const nom = path.basename(decodeURIComponent(u.slice(7)));
+        try { fs.unlinkSync(path.join(uploadDir, nom)); } catch { /* déjà absent */ }
+        await store.delete('_assets/' + nom.replace(/\./g, '_'));
+      } else if (!M.caches.includes(u)) M.caches.push(u); /* photos reprises du brouillon : retirées de la médiathèque */
+      delete M.noms[u]; n++;
+    }
+    await store.set('site/medias', M); cat.invalidate(); audit(req.ctx, 'images supprimées de la médiathèque', n + ' : ' + urls.slice(0, 5).join(', ') + (urls.length > 5 ? '…' : ''));
+    res.json({ ok: true, n });
   }));
   A.post('/actions/reimporter', sameSite, peut('admin'), wrap(async (req, res) => {
     const r = await seed(store, { force: true, log }); await importerAvisAncienSite(store, { log }); await initSousRubriques(store, { log });
     cat.invalidate(); audit(req.ctx, 'catalogue réimporté depuis le brouillon', '');
     res.json({ ok: true, ...r });
+  }));
+  /* ---------- Prépa de commande (Jean-Luc, 2026-11-27) : bon de préparation pour la cuisine, depuis un devis signé / une facture ----------
+     Collection `prepas` (id = id du devis). Jamais de prix. Lien sans connexion /preparation/:token pour la personne qui prépare. */
+  const PREP = require('./prepa');
+  const txt = (v, n = 3000) => String(v ?? '').replace(/\r/g, '').trim().slice(0, n);
+  const aujourdhui = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Paris' });
+  async function contextePrepa(devisId) {
+    const d = await store.get('devis/' + devisId);
+    if (!d) return null;
+    const [cl, dem, fa, c] = await Promise.all([d.clientId ? store.get('clients/' + d.clientId) : null, d.demandeId ? store.get('demandes/' + d.demandeId) : null, store.list('factures'), cat.get()]);
+    const facture = fa.map(x => x.data).filter(f => f && f.devisId === d.id && f.type !== 'avoir' && !f.annuleeParAvoir).sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')))[0] || null;
+    return { devis: { ...d, id: d.id || devisId }, client: cl, demande: dem, facture, bySlug: c.bySlug, produits: c.produits, R: c.reglages || {} };
+  }
+  /* noms proposés dans les listes déroulantes : comptes de l'équipe + prestataires (fiches « Prestataire » des contacts) */
+  async function personnesPrepa() {
+    const [us, cls] = await Promise.all([store.list('_users'), store.list('clients')]);
+    const eq = us.filter(u => !u.data.disabled).map(u => { const p = partiesNom(u.data); return { nom: [p.prenom, p.nomFamille].filter(Boolean).join(' ') || u.data.name || u.data.email, tel: u.data.portable || '', email: u.data.email || '', groupe: 'Équipe Magnolia' }; });
+    const pr = cls.map(x => x.data).filter(c => c && !c.supprime && (c.genre === 'prestataire' || (c.genre !== 'client' && (c.metiers || []).length))).map(c => ({ nom: c.nom || '', tel: c.tel || '', email: c.email || '', groupe: 'Prestataires', metiers: (c.metiers || []).slice(0, 4) }));
+    return [...eq, ...pr].filter(p => p.nom).sort((a, b) => a.groupe.localeCompare(b.groupe) || a.nom.localeCompare(b.nom, 'fr'));
+  }
+  /* packs d'organisation (kits de mise en place internes, jamais sur le site) : collection `kits`, remplie une fois depuis server/kits.js */
+  const KITS = require('./kits');
+  async function kitsListe() {
+    let L = (await store.list('kits')).map(x => x.data).filter(Boolean);
+    if (!L.length && !(await store.get('_migr/kits'))) { for (const k of KITS.KITS) await store.set('kits/' + k.id, { ...k, creeLe: new Date().toISOString() }); await store.set('_migr/kits', { at: new Date().toISOString() }); L = KITS.KITS; }
+    return L.sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
+  }
+  A.get('/prepa-kits', wrap(async (req, res) => res.set('Cache-Control', 'no-store').json({ kits: await kitsListe() })));
+  A.post('/prepa-kits', sameSite, json, wrap(async (req, res) => {
+    const k = KITS.nettoyerKit(req.body || {}, 'k' + rid(8));
+    await store.set('kits/' + k.id, { ...k, creeLe: new Date().toISOString(), par: req.ctx.name || '' });
+    audit(req.ctx, 'pack d’organisation créé', 'kits/' + k.id, k.nom); res.json({ kit: k });
+  }));
+  A.put('/prepa-kits/:id', sameSite, json, wrap(async (req, res) => {
+    const avant = await store.get('kits/' + req.params.id); if (!avant) return res.status(404).json({ error: 'Pack introuvable.' });
+    const k = KITS.nettoyerKit(req.body || {}, avant.id);
+    await store.set('kits/' + k.id, { ...avant, ...k, majLe: new Date().toISOString(), majPar: req.ctx.name || '' });
+    audit(req.ctx, 'pack d’organisation modifié', 'kits/' + k.id, k.nom); res.json({ kit: k });
+  }));
+  A.delete('/prepa-kits/:id', sameSite, wrap(async (req, res) => {
+    const avant = await store.get('kits/' + req.params.id); if (!avant) return res.status(404).json({ error: 'Pack introuvable.' });
+    await store.delete('kits/' + req.params.id); audit(req.ctx, 'pack d’organisation supprimé', 'kits/' + req.params.id, avant.nom); res.json({ ok: true });
+  }));
+  A.get('/prepa', wrap(async (req, res) => {
+    const [dv, fa, dem, bons, vis, ret] = await Promise.all([store.list('devis'), store.list('factures'), store.list('demandes'), store.list('prepas'), visibles(req), store.list('prepasRetires')]);
+    const retire = new Set(ret.map(x => x.id));
+    const facDe = new Map(); for (const f of fa.map(x => x.data).filter(f => f?.devisId && f.type !== 'avoir' && !f.annuleeParAvoir)) facDe.set(f.devisId, f.numero);
+    const demSt = new Map(dem.map(x => [x.data?.id || x.id, x.data?.statut]));
+    const bonDe = new Map(bons.map(b => [b.id, b.data]));
+    const L = dv.map(x => ({ ...x.data, id: x.data?.id || x.id })).filter(d => !vis || vis.devis.has(d.id)).filter(d => d.statut !== 'refuse').map(d => {
+      const b = bonDe.get(d.id), st = demSt.get(d.demandeId);
+      const confirme = d.statut === 'accepte' || facDe.has(d.id) || ['accord', 'reserve', 'termine'].includes(st);
+      const env = (b?.envois || []).slice(-1)[0];
+      return { devisId: d.id, numero: d.numero, client: b?.client?.nom || d.clientNom || '', date: b?.evenement?.date || d.evenement?.date || '', type: d.evenement?.type || '', invites: b?.evenement?.invites || d.evenement?.invites || '', ville: d.evenement?.ville || '', lieu: d.evenement?.lieu || '', statut: d.statut, reserve: st === 'reserve', facture: facDe.get(d.id) || '', confirme, retire: retire.has(d.id), bon: b ? { maj: b.updatedAt || b.creeLe, envoyeLe: env?.at || '', envoyeA: env?.a || '' } : null };
+    });
+    res.set('Cache-Control', 'no-store').json({ aujourdhui: aujourdhui(), devis: L.sort((a, b) => String(a.date || '9999').localeCompare(String(b.date || '9999'))) });
+  }));
+  A.get('/prepa/:id', wrap(async (req, res) => {
+    const x = await contextePrepa(req.params.id);
+    if (!x) return res.status(404).json({ error: 'Devis introuvable.' });
+    const avant = await store.get('prepas/' + req.params.id);
+    const neuf = PREP.bonDepuis(x);
+    /* ?reprendre=1 : on repart des lignes du devis (le reste du bon est gardé) */
+    const bon = avant ? (req.query.reprendre ? { ...avant, lignes: neuf.lignes, personnelDevis: neuf.personnelDevis, allergenesProduits: neuf.allergenesProduits } : { ...avant, lignes: PREP.completerLignes(avant.lignes, x.bySlug) }) : neuf;
+    res.set('Cache-Control', 'no-store').json({ bon, existe: !!avant, devis: { numero: x.devis.numero, statut: x.devis.statut, facture: x.facture?.numero || '' }, personnes: await personnesPrepa(), roles: PREP.ROLES, roleRecup: PREP.ROLE_RECUP, horaires: PREP.HORAIRES, listes: PREP.listesPrepa(x.produits), kits: await kitsListe(), choix: PREP.choixProduits(bon.lignes, x.bySlug), iaActive: ia.actif, message: PREP.messageDefaut(bon, req.ctx.name || '') });
+  }));
+  A.put('/prepa/:id', sameSite, json, wrap(async (req, res) => {
+    const x = await contextePrepa(req.params.id);
+    if (!x) return res.status(404).json({ error: 'Devis introuvable.' });
+    const avant = (await store.get('prepas/' + req.params.id)) || {};
+    const bon = { ...PREP.nettoyer({ ...req.body, devisId: req.params.id }, { id: req.params.id, devisId: req.params.id, creePar: req.ctx.name || '', ...avant }, x.bySlug), updatedAt: new Date().toISOString(), majPar: req.ctx.name || '' };
+    await store.set('prepas/' + req.params.id, bon); await store.delete('prepasRetires/' + req.params.id);
+    audit(req.ctx, avant.id ? 'bon de préparation modifié' : 'bon de préparation créé', 'prepas/' + req.params.id, `${x.devis.numero || ''} · ${bon.client.nom}`);
+    res.json({ ok: true, bon });
+  }));
+  /* effacer un bon de préparation (le devis et la facture ne sont jamais touchés) : on repart du devis à la prochaine ouverture */
+  A.delete('/prepa/:id', sameSite, wrap(async (req, res) => {
+    const avant = await store.get('prepas/' + req.params.id), dv = await store.get('devis/' + req.params.id);
+    if (!avant && !dv) return res.status(404).json({ error: 'Événement introuvable.' });
+    if (avant) await store.delete('prepas/' + req.params.id);
+    await store.set('prepasRetires/' + req.params.id, { at: new Date().toISOString(), par: req.ctx.name || '' });
+    audit(req.ctx, 'événement retiré de la prépa de commande', 'prepas/' + req.params.id, `${avant?.client?.nom || dv?.clientNom || ''} · ${dv?.numero || ''}`); res.json({ ok: true });
+  }));
+  /* remettre dans la liste un événement retiré (le bon repart du devis) */
+  A.post('/prepa/:id/remettre', sameSite, wrap(async (req, res) => {
+    await store.delete('prepasRetires/' + req.params.id);
+    audit(req.ctx, 'événement remis dans la prépa de commande', 'prepas/' + req.params.id, ''); res.json({ ok: true });
+  }));
+  A.get('/prepa/:id/document', wrap(async (req, res) => {
+    const x = await contextePrepa(req.params.id);
+    if (!x) return res.status(404).send('Devis introuvable.');
+    const b0 = (await store.get('prepas/' + req.params.id)) || PREP.bonDepuis(x), bon = { ...b0, lignes: PREP.completerLignes(b0.lignes, x.bySlug) };
+    res.set('Cache-Control', 'no-store').set('X-Robots-Tag', 'noindex').type('html').send(PREP.documentHtml(bon, { R: x.R, retour: '/admin#/prepa/' + encodeURIComponent(req.params.id), par: bon.majPar || req.ctx.name || '', recup: req.query.recup === '1' }));
+  }));
+  /* message à un groupe de l'équipe (régisseurs, livraison, personnel) : modèle, rédaction par l'IA, envoi SMS ou e-mail */
+  const ROLE_OK = r => PREP.ROLES_MSG.some(([k]) => k === r);
+  A.post('/prepa/:id/ia', sameSite, json, wrap(async (req, res) => {
+    const bon = await store.get('prepas/' + req.params.id);
+    if (!bon) return res.status(400).json({ error: 'Enregistrez d’abord le bon de préparation.' });
+    const role = s(req.body?.role, 20), canal = req.body?.canal === 'sms' ? 'sms' : 'email';
+    if (!ROLE_OK(role)) return res.status(400).json({ error: 'Groupe inconnu.' });
+    if (req.body?.modele) return res.json({ ...PREP.modeleMessage(bon, role, canal), ia: false });
+    if (!iaLimit(req.ctx.uid)) return res.status(429).json({ error: 'Trop de demandes : réessayez dans une minute.' });
+    try {
+      const r = IA.json(await ia.demander(PREP.promptMessage({ b: bon, role, canal, consigne: s(req.body?.consigne, 800), texte: txt(req.body?.texte, 4000), sujet: s(req.body?.sujet, 200), expediteur: req.ctx.name || '' }), { effort: 'low', maxTokens: 1500 })) || {};
+      const tx = String(r.texte || '').trim();
+      if (!tx) return res.status(502).json({ error: 'L’IA n’a pas proposé de texte. Réessayez.' });
+      res.json({ sujet: canal === 'sms' ? '' : String(r.sujet || '').slice(0, 200), texte: tx.slice(0, canal === 'sms' ? 640 : 4000), ia: true });
+    } catch (e) { iaErreur(res, e); }
+  }));
+  A.post('/prepa/:id/message', sameSite, json, wrap(async (req, res) => {
+    const bon = await store.get('prepas/' + req.params.id);
+    if (!bon) return res.status(400).json({ error: 'Enregistrez d’abord le bon de préparation.' });
+    const b = req.body || {}, role = s(b.role, 20), canal = b.canal === 'sms' ? 'sms' : 'email', texte = txt(b.texte, canal === 'sms' ? 640 : 6000);
+    if (!ROLE_OK(role)) return res.status(400).json({ error: 'Groupe inconnu.' });
+    if (!texte) return res.status(400).json({ error: 'Le message est vide.' });
+    const dest = (Array.isArray(b.a) ? b.a : []).slice(0, 40).map(p => ({ nom: s(p?.nom, 80), email: s(p?.email, 160).toLowerCase(), tel: normTel(p?.tel)?.ok ? normTel(p.tel).tel : '' }));
+    /* chaque groupe ne reçoit que ses propres personnes (Jean-Luc, 2026-11-27 : un livreur n'est jamais dans les régisseurs) */
+    const duGroupe = new Set((bon[role] || []).map(p => String(p.nom || '').toLowerCase()));
+    const ok = dest.filter(p => duGroupe.has(p.nom.toLowerCase())).filter(p => canal === 'sms' ? p.tel : isEmail(p.email));
+    if (!ok.length) return res.status(400).json({ error: canal === 'sms' ? 'Aucune des personnes cochées n’a de portable valable.' : 'Aucune des personnes cochées n’a d’e-mail valable.' });
+    const R = (await cat.get()).reglages || {};
+    const sujet = s(b.sujet, 160) || 'Magnolia Traiteur · ' + PREP.titreBon(bon);
+    const sans = dest.filter(p => !ok.includes(p)).map(p => p.nom);
+    for (const p of ok) {
+      if (canal === 'sms') await brevo.sendSms({ to: p.tel, lien: false, content: texte });
+      else await brevo.sendEmail({ to: p.email, name: p.nom, replyTo: req.ctx.email || R.email, subject: sujet, html: `<div style="font-family:Arial,Helvetica,sans-serif;color:#1d2a24;max-width:640px">${esc(texte).replace(/\n/g, '<br>')}</div>`, text: texte });
+    }
+    const envois = [...(bon.envois || []), { at: new Date().toISOString(), par: req.ctx.name || '', a: ok.map(p => p.nom || p.tel || p.email).join(', '), canaux: [canal], groupe: role, ...(canal === 'email' ? { sujet } : {}), texte, ...(sans.length ? { sans: sans.join(', ') } : {}) }].slice(-300);
+    await store.set('prepas/' + req.params.id, { ...bon, envois });
+    audit(req.ctx, 'message à l’équipe (prépa de commande)', 'prepas/' + req.params.id, `${PREP.NOM_ROLE[role]} · ${canal} · ${ok.length}`);
+    res.json({ ok: true, a: ok.map(p => p.nom), sans, envois });
+  }));
+  A.post('/prepa/:id/envoyer', sameSite, json, wrap(async (req, res) => {
+    const bon = await store.get('prepas/' + req.params.id);
+    if (!bon) return res.status(400).json({ error: 'Enregistrez d’abord le bon de préparation.' });
+    const b = req.body || {}, canaux = [].concat(b.canaux || []).filter(c => c === 'email' || c === 'sms');
+    const dest = (Array.isArray(b.a) ? b.a : []).slice(0, 10).map(p => ({ nom: s(p?.nom, 80), email: s(p?.email, 160).toLowerCase(), tel: normTel(p?.tel)?.ok ? normTel(p.tel).tel : '' })).filter(p => p.email || p.tel);
+    if (!canaux.length) return res.status(400).json({ error: 'Cochez « E-mail » et / ou « SMS ».' });
+    if (!dest.length) return res.status(400).json({ error: 'Choisissez la personne qui reçoit le bon (avec son e-mail ou son portable).' });
+    if (canaux.includes('email') && !dest.some(p => isEmail(p.email))) return res.status(400).json({ error: 'Aucune adresse e-mail valable pour l’envoi par e-mail.' });
+    if (canaux.includes('sms') && !dest.some(p => p.tel)) return res.status(400).json({ error: 'Aucun numéro de portable valable pour l’envoi par SMS.' });
+    const token = bon.token || rid(18);
+    const lien = SITE + '/preparation/' + token;
+    const R = (await cat.get()).reglages || {};
+    const sujet = s(b.sujet, 160) || PREP.titreBon(bon);
+    const html = PREP.emailHtml(bon, { message: txt(b.message), lien, R });
+    const faits = [];
+    for (const p of dest) {
+      if (canaux.includes('email') && isEmail(p.email)) { await brevo.sendEmail({ to: p.email, name: p.nom, replyTo: req.ctx.email || R.email, subject: sujet, html, text: `${txt(b.message)}\n\nBon de préparation : ${lien}` }); faits.push(p.nom || p.email); }
+      if (canaux.includes('sms') && p.tel) { await brevo.sendSms({ to: p.tel, lien: false, content: PREP.smsTexte(bon, lien) }); if (!faits.includes(p.nom || p.tel)) faits.push(p.nom || p.tel); }
+    }
+    const envois = [...(bon.envois || []), { at: new Date().toISOString(), par: req.ctx.name || '', a: faits.join(', '), canaux, sujet, texte: [txt(b.message), canaux.includes('sms') ? PREP.smsTexte(bon, lien) : ''].filter(Boolean).join('\n\n') }].slice(-300);
+    await store.set('prepas/' + req.params.id, { ...bon, token, envois });
+    audit(req.ctx, 'bon de préparation envoyé', 'prepas/' + req.params.id, `${faits.join(', ')} (${canaux.join(' + ')})`);
+    res.json({ ok: true, lien, a: faits, envois });
   }));
   /* ---------- Validation tarifs (Jean-Luc, 2026-11-26) : fiches fournisseurs, document A4 à faire signer, scans signés ----------
      Tout est interne : rien de cela n'est lu par les pages du site. Droit « Modifier les prix » (comme les prix d'achat). */
