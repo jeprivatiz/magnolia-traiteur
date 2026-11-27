@@ -24,7 +24,7 @@ const SUGGESTIONS_ACCUEIL = [
   { label: 'Paëlla', lien: '/saveurs-du-monde/paella-party' },
   { label: 'Couscous party', lien: '/saveurs-du-monde/couscous-party' },
   { label: 'Barbecue party', lien: '/boutique?q=barbecue' },
-  { label: 'Pièces montées', lien: '' },
+  { label: 'Coffrets à partager', lien: '/coffrets-plateaux' },
   { label: 'Plateau de fruits de mer', lien: '/grand-large' },
   { label: 'DJ', lien: '' },
   { label: 'Louer des verres', lien: '/boutique?q=verres' },
@@ -1009,6 +1009,14 @@ async function initSousRubriques(store, { log = console } = {}) {
   if (RSb5 && !RSb5.bullesAccueil5) {
     const sg = (RSb5.accueil?.suggestions || []).filter(x => !/^hu[iî]tres?$/i.test(String(typeof x === 'string' ? x : x?.label || '').trim()));
     await store.set('site/reglages', { ...RSb5, accueil: { ...(RSb5.accueil || {}), suggestions: sg }, bullesAccueil5: true });
+  }
+  /* Jean-Luc (2026-11-27) : bulle « Pièces montées » remplacée par « Coffrets à partager » (vers la rubrique Coffrets & plateaux). Une fois. */
+  const RSb6 = await store.get('site/reglages');
+  if (RSb6 && !RSb6.bullesAccueil6) {
+    const nom = x => String(typeof x === 'string' ? x : x?.label || '').trim();
+    let sg = (RSb6.accueil?.suggestions || []).map(x => /^pi[eè]ces? mont[ée]es?$/i.test(nom(x)) ? { label: 'Coffrets à partager', lien: '/coffrets-plateaux' } : x);
+    sg = sg.filter((x, i) => !/^coffrets à partager$/i.test(nom(x)) || sg.findIndex(y => /^coffrets à partager$/i.test(nom(y))) === i);
+    await store.set('site/reglages', { ...RSb6, accueil: { ...(RSb6.accueil || {}), suggestions: sg }, bullesAccueil6: true });
   }
   /* prix corrigé par Jean-Luc (2026-11-22) : le brouillon avait repris le prix de « Entrées + plat » (21,90 €). Une fois. */
   const RSc = await store.get('site/reglages');
