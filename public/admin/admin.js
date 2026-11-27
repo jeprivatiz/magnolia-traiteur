@@ -1073,6 +1073,14 @@
   const d1 = x => x ? new Date(x).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : '';
   const etape = (cls, label, sub, mark) => `<div class="qs-st ${cls}"><div class="qs-dot">${mark || ''}</div><b>${esc(label)}</b><i>${esc(sub || '—')}</i></div>`;
   const btnEtape = (o, k, html) => o.d.statut === 'refuse' ? html : `<button type="button" class="qs-stb" data-qstep="${k}" data-q="${o.d.id}" title="Cliquer pour mettre à jour">${html}</button>`;
+  /* sous « Accord client » : validé en ligne par le client, ou validé par le commercial qui a cliqué (Jean-Luc, 2026-11-27) */
+  function accordPar(o) {
+    const h = (o.d.historique || []).filter(x => x.statut === 'accord' || x.statut === 'reserve').pop();
+    if (h && /en ligne/.test(h.par || '')) return 'validé en ligne · ' + d1(h.at);
+    const par = o.main?.accordManuel?.par || h?.par || '';
+    const at = (o.d.historique || []).filter(x => x.statut === 'accord').pop()?.at || o.main?.accordManuel?.at || h?.at;
+    return (par ? 'validé par ' + par : 'validé') + (at ? ' · ' + d1(at) : '');
+  }
   function frise(o) {
     const st = o.d.statut, decided = ['accord', 'reserve', 'termine', 'refuse'].includes(st), sent = !!o.envoyeLe;
     const out = [etape('done', 'Demande', d1(o.d.createdAt) + (o.d.source ? ' · ' + (/IA/.test(o.d.source) ? '✨ IA' : 'tél.') : o.d.lignes ? ' · site' : ''), '✓')];
@@ -1085,7 +1093,7 @@
     if (st === 'refuse') out.push(etape('lost', 'Refusé', 'classé · ' + d1(o.at('refuse')), '✕'));
     else {
       const acc = ['accord', 'reserve', 'termine'].includes(st), sig = o.main?.statut === 'accepte' && o.main.signature;
-      out.push(btnEtape(o, 'accord', acc ? etape('done acc', 'Accord client', sig ? 'signé en ligne · ' + d1(o.main.signature.at) : o.main?.accordManuel ? 'acompte reçu · ' + d1(o.main.accordManuel.at) : d1(o.at('accord') || o.at('reserve')), '✓') : etape('opt', 'Accord client', '+ en attente d’acompte')));
+      out.push(btnEtape(o, 'accord', acc ? etape('done acc', 'Accord client', sig ? 'validé en ligne · ' + d1(o.main.signature.at) : accordPar(o), '✓') : etape('opt', 'Accord client', '+ en attente d’acompte')));
       out.push(btnEtape(o, 'reserve', ['reserve', 'termine'].includes(st) ? etape('done', 'Réservé', 'acompte reçu · ' + d1(o.at('reserve')), '✓') : etape('opt', 'Réservé', acc ? 'en attente d’acompte' : '+ réserver')));
       if (!acc) out.push(btnEtape(o, 'refuse', etape('opt refuse', 'Refusé', 'si le client refuse')));
     }
