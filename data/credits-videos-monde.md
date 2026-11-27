@@ -27,4 +27,4 @@ Une vidéo différente par formule (Pexels, licence Pexels, 800×600 en boucle a
 |---|---|---|---|
 | Entrées + plat | buffet-chafing-plats | Assiette garnie d'un plat et de son accompagnement devant une rangée de chafing dishes | https://www.pexels.com/video/28099100/ (LayG Traveller) |
 | Assortiment 13 pièces salées | bouchees-vapeur | Bouchées vapeur dressées à la baguette dans des paniers en bambou | https://www.pexels.com/video/8094284/ (Mikhail Nilov) |
-| Entrées + plat + dessert | table-repas-complet | Grande table de plats chinois : canard laqué, riz, brioches grillées, brochettes, nouilles | https://www.pexels.com/video/6645760/ (RDNE Stock project) |
+| Entrées + plat + dessert | (vidéo d’origine chinois-boucle remise le 2026-11-27, demande de Jean-Luc) | — |

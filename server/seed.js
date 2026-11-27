@@ -912,14 +912,29 @@ async function initSousRubriques(store, { log = console } = {}) {
      à la main dans le back-office n'est pas touchée. */
   const RCv = await store.get('site/reglages');
   if (RCv && !RCv.chinoisVideos1) {
-    const VC = { 'buffet-chinois-entrees-plat': 'buffet-chafing-plats', 'buffet-chinois-assortiment-13-pieces-salees': 'bouchees-vapeur', 'buffet-chinois-entrees-plat-dessert': 'table-repas-complet' };
+    const VC = { 'buffet-chinois-entrees-plat': 'buffet-chafing-plats', 'buffet-chinois-assortiment-13-pieces-salees': 'bouchees-vapeur', 'buffet-chinois-entrees-plat-dessert': null };
     for (const [id, n] of Object.entries(VC)) {
       const x = await store.get('produits/' + id);
-      if (!x || (x.video?.src && x.video.src !== '/site/v/chinois-boucle.mp4')) continue;
+      if (!n || !x || (x.video?.src && x.video.src !== '/site/v/chinois-boucle.mp4')) continue;
       const { sansVideo, ...reste } = x;
       await store.set('produits/' + id, { ...reste, video: { src: `/site/v/chinois/${n}.mp4`, poster: `/site/v/chinois/${n}.jpg` } });
     }
     await store.set('site/reglages', { ...(await store.get('site/reglages')), chinoisVideos1: true });
+  }
+
+  /* Buffet chinois « Entrées + plat + dessert » (Jean-Luc, 2026-11-27) : retour à sa vidéo d'origine (chafing dishes,
+     chinois-boucle) à la place de la grande table ; prix 23,90 € TTC par personne et prix d'achat donné par Jean-Luc.
+     Une fois ; un prix ou une vidéo changés à la main dans le back-office ne sont pas touchés. */
+  const RCd = await store.get('site/reglages');
+  if (RCd && !RCd.chinoisDessert2390) {
+    const x = await store.get('produits/buffet-chinois-entrees-plat-dessert');
+    if (x) {
+      const n = { ...x };
+      if (!n.video?.src || n.video.src === '/site/v/chinois/table-repas-complet.mp4') n.video = { src: '/site/v/chinois-boucle.mp4', poster: '/site/v/chinois-boucle.jpg' };
+      if (n.prixCents === 2960) { n.prixCents = 2390; if (n.prixTexte) n.prixTexte = '23,90 € TTC'; n.coutCents = 1838; }
+      await store.set('produits/buffet-chinois-entrees-plat-dessert', n);
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), chinoisDessert2390: true });
   }
 
   /* plateaux de sushis : compositions, prix et photos du site actuel magnoliatraiteur.fr/plateaux-de-sushis (Jean-Luc, 2026-11-22).
