@@ -3122,6 +3122,12 @@ Réponds uniquement en JSON : {${sms ? '' : '"sujet": "...", '}"texte": "..."}`;
     audit(req.ctx, avant.id ? 'bon de préparation modifié' : 'bon de préparation créé', 'prepas/' + req.params.id, `${x.devis.numero || ''} · ${bon.client.nom}`);
     res.json({ ok: true, bon });
   }));
+  /* effacer un bon de préparation (le devis et la facture ne sont jamais touchés) : on repart du devis à la prochaine ouverture */
+  A.delete('/prepa/:id', sameSite, wrap(async (req, res) => {
+    const avant = await store.get('prepas/' + req.params.id); if (!avant) return res.status(404).json({ error: 'Ce bon n’existe plus.' });
+    await store.delete('prepas/' + req.params.id);
+    audit(req.ctx, 'bon de préparation effacé', 'prepas/' + req.params.id, `${avant.client?.nom || ''}`); res.json({ ok: true });
+  }));
   A.get('/prepa/:id/document', wrap(async (req, res) => {
     const x = await contextePrepa(req.params.id);
     if (!x) return res.status(404).send('Devis introuvable.');
