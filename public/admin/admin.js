@@ -563,7 +563,7 @@
         <label>Accès pour les livreurs <small class="muted">(étage, digicode, stationnement…)</small><textarea data-f="acces" rows="2">${esc(b.acces)}</textarea></label>
       </section>
       </div>
-      <section class="box pc-box"><h2>🕒 Horaires</h2><div class="pc-hor">${x.horaires.map(([k, lab]) => pcHeure('horaires.' + k, lab, h[k])).join('')}</div></section>
+      <section class="box pc-box"><h2>🕒 Horaires</h2><div class="pc-hor">${x.horaires.map(([k, lab]) => k === 'reprise' ? `<div class="pc-hrep"><span class="pc-hrepl">${lab} <small class="muted">(jour et heure)</small></span><div class="pc-hrep2"><label><span class="pc-sr">Jour de la reprise</span><input type="date" data-f="recuperation.date" data-twin="rdate" value="${esc((b.recuperation || {}).date || e.date || '')}"></label>${pcHeure('horaires.reprise', '<span class="pc-sr">Heure de la reprise</span>', h.reprise || (b.recuperation || {}).heure || '').replace('<select ', '<select data-twin="rheure" ')}</div></div>` : pcHeure('horaires.' + k, lab, h[k])).join('')}</div></section>
       <section class="box pc-box"><h2>👥 Équipe sur l’événement <button type="button" class="pc-hbtn pc-hall" data-pchist="">🕘 Historique de tous les envois <b>${env.length}</b></button></h2>
         <p class="muted sm">Choisissez dans la liste (équipe Magnolia et prestataires des Contacts) ou tapez un nom. ${b.personnelDevis.length ? `<b>Prévu au devis :</b> ${esc(b.personnelDevis.join(' · '))}` : ''}</p>
         <div class="pc-roles">${x.roles.map(([k, lab]) => pcRole(k, lab)).join('')}</div>
@@ -577,7 +577,7 @@
       <section class="box pc-box"><h2>📝 Remarque pour la préparation</h2><textarea data-f="remarques" rows="3" placeholder="Tout ce que la préparation doit savoir : présentation, vaisselle, ordre de sortie…">${esc(b.remarques)}</textarea></section>
       <section class="box pc-box pc-recupbox"><h2>♻ Bon de récupération <small class="muted pc-nb" data-pcnbr2></small></h2>
         <p class="muted sm">Ce que le livreur doit reprendre après l’événement : les lignes cochées <b>♻ À récupérer</b> dans « À préparer ». Indiquez le jour, l’heure, le lieu et qui récupère.</p>
-        <div class="pc-rhor">${inp('recuperation.date', 'Jour de la récupération', (b.recuperation || {}).date || e.date, ' type="date"')}${pcHeure('recuperation.heure', 'Heure de la récupération', (b.recuperation || {}).heure || h.reprise || '')}${inp('recuperation.lieu', 'Lieu de la récupération', (b.recuperation || {}).lieu, ` placeholder="${esc([e.lieu, e.adresse, [e.cp, e.ville].filter(Boolean).join(' ')].filter(Boolean).join(', ') || 'Adresse de l’événement')}"`)}</div>
+        <div class="pc-rhor">${inp('recuperation.date', 'Jour de la récupération', (b.recuperation || {}).date || e.date, ' type="date" data-twin="rdate"')}${pcHeure('recuperation.heure', 'Heure de la récupération', h.reprise || (b.recuperation || {}).heure || '').replace('<select ', '<select data-twin="rheure" ')}${inp('recuperation.lieu', 'Lieu de la récupération', (b.recuperation || {}).lieu, ` placeholder="${esc([e.lieu, e.adresse, [e.cp, e.ville].filter(Boolean).join(' ')].filter(Boolean).join(', ') || 'Adresse de l’événement')}"`)}</div>
         <div class="pc-rl" data-pcrl></div>
         <div class="pc-roles pc-roles1">${x.roleRecup ? pcRole(x.roleRecup[0], x.roleRecup[1] + ' · qui récupère') : ''}</div>
         <div class="row"><button type="button" class="btn vt-or" data-pcdoc="recup">♻ Voir et imprimer le bon de récupération</button></div>
@@ -589,6 +589,9 @@
   /* lit l'écran dans PC.x.bon */
   /* « Quantité à préparer » d'après les choix (même règle que server/prepa.js qteAuto) : « 60 entrées · 30 plats » ; tant qu'on ne la tape pas soi-même */
   const pcQteAuto = l => { const it = (l.items || []).filter(x => x.nom && +x.n > 0); if (!it.length) return ''; const g = new Map(); for (const x of it) { const k = x.groupe || ({ softs: 'softs', materiel: 'articles', nappes: 'nappes' })[l.liste] || 'pièces'; g.set(k, (g.get(k) || 0) + (+x.n)); } return [...g].map(([k, n]) => `${n} ${String(k).toLowerCase()}`).join(' · '); };
+  /* reprise du matériel (Horaires) = jour et heure du bon de récupération : les deux champs restent identiques */
+  document.addEventListener('input', e => pcJumeau(e.target), true); document.addEventListener('change', e => pcJumeau(e.target), true);
+  function pcJumeau(el) { const k = el?.dataset?.twin; if (!k) return; $$(`[data-twin="${k}"]`).forEach(x => { if (x !== el && x.value !== el.value) { if (x.tagName === 'SELECT' && el.value && ![...x.options].some(o => o.value === el.value)) x.add(new Option(el.value, el.value)); x.value = el.value; } }); }
   function pcLire() {
     const b = PC.x.bon, f = $('#pcF'); if (!f) return b;
     $$('[data-f]', f).forEach(i => { const [a, k] = i.dataset.f.split('.'); if (k) (b[a] = b[a] || {})[k] = i.value; else b[a] = i.value; });

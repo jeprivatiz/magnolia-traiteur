@@ -2682,3 +2682,13 @@ tr.rem-det > td { padding: 4px 0 12px 14px; }
 .dv-pq-r li.on, .dv-pq-r li[data-v]:hover { background: var(--doux); }
 .dv-pq-r li[data-none] { cursor: default; background: none; font-style: italic; }
 @media (max-width: 700px) { .dv-pq { flex-basis: 100%; } .dv-pq-r { max-height: 50vh; } }
+
+/* Horaires : reprise du matériel = jour + heure (peut être le lendemain) */
+.pc-hor { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.pc-hrep { grid-column: span 2; display: flex; flex-direction: column; }
+.pc-hrepl { font-size: .86rem; font-weight: 600; color: var(--texte); margin-bottom: 4px; }
+.pc-hrep2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.pc-hrep2 label { margin: 0; }
+.pc-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@media (max-width: 1100px) { .pc-hor { grid-template-columns: repeat(3, minmax(0, 1fr)); } .pc-hrep { grid-column: span 2; } }
+@media (max-width: 700px) { .pc-hor { grid-template-columns: repeat(2, minmax(0, 1fr)); } .pc-hrep { grid-column: 1 / -1; } }
