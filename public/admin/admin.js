@@ -1076,11 +1076,11 @@
   function frise(o) {
     const st = o.d.statut, decided = ['accord', 'reserve', 'termine', 'refuse'].includes(st), sent = !!o.envoyeLe;
     const out = [etape('done', 'Demande', d1(o.d.createdAt) + (o.d.source ? ' · ' + (/IA/.test(o.d.source) ? '✨ IA' : 'tél.') : o.d.lignes ? ' · site' : ''), '✓')];
-    out.push(sent ? etape('done', 'Devis envoyé', d1(o.envoyeLe) + (o.envoyePar ? ' · par ' + o.envoyePar : ''), '✓') : `<button type="button" class="qs-stb" data-qdevis="${o.d.id}" title="Préparer le devis">${etape('now', 'Devis à envoyer', o.main ? 'brouillon' : 'à préparer')}</button>`);
+    out.push(sent ? etape('done', 'Devis envoyé', d1(o.envoyeLe) + (o.envoyePar ? ' · par ' + o.envoyePar : ''), '✓') : `<button type="button" class="qs-stb" data-qdevis="${o.d.id}" title="Préparer le devis">${etape('now todo', 'Devis à envoyer', o.main ? 'brouillon, pas encore envoyé' : 'à préparer')}</button>`);
     const rel = o.relances[o.relances.length - 1];
-    const relB = h => sent && !decided ? `<button type="button" class="qs-stb" data-qrel="${o.d.id}" title="Relancer le client">${h}</button>` : h;
+    const relB = h => sent && !decided ? `<button type="button" class="qs-stb" data-qrel="${o.d.id}" title="Choisir un modèle et envoyer une relance">${h}</button>` : h;
     out.push(relB(o.late && sent ? etape('warn', 'À relancer', 'depuis ' + (o.late >= 48 ? Math.floor(o.late / 24) + ' jours' : o.late + ' h'), '!')
-      : rel ? etape(decided ? 'done' : 'now', 'Relancé', d1(rel.at) + ' · ' + rel.how, decided ? '✓' : '')
+      : rel ? etape('done relok', '✓ Relance envoyée', d1(rel.at) + ' · ' + rel.how + (o.relances.length > 1 ? ' · ' + o.relances.length + ' relances' : ''), '✓')
       : etape(decided ? 'skip' : sent ? 'opt' : '', 'Relance', decided ? 'pas utile' : sent ? '+ relancer' : '—')));
     if (st === 'refuse') out.push(etape('lost', 'Refusé', 'classé · ' + d1(o.at('refuse')), '✕'));
     else {
@@ -1118,6 +1118,36 @@
       <div class="row"><button class="btn" type="submit">✓ Valider : acompte reçu</button><button class="btn ghost" type="button" data-rsvx>Annuler</button><button class="btn ghost sm" type="button" data-rsvsans="${o.d.id}" title="Passer en Réservé sans enregistrer de paiement">Réserver sans paiement</button></div>
     </form>`;
   }
+  /* « Relancer » (Jean-Luc, 2026-11-27) : cadre sous la frise avec la liste des modèles de relance (déjà remplis avec le nom
+     du client, le n° et le lien du devis), texte modifiable, ✨ IA, puis « Envoyer ». La relance est notée et l'étape passe en vert. */
+  function formRelance(o) {
+    const R = SV.rel, D = R.data;
+    if (!D) return `<div class="qs-rsv qs-rel" data-relform="${o.d.id}"><p class="muted">Chargement des modèles de relance…</p></div>`;
+    const m = D.modeles.find(x => x.id === R.mod) || D.modeles[0];
+    if (!m) return `<div class="qs-rsv qs-rel"><p>Aucun modèle de relance. Ajoutez-en dans Outils › Modèles.</p><div class="row"><button class="btn ghost" type="button" data-relx>Fermer</button></div></div>`;
+    const sms = m.canal === 'sms', dest = sms ? D.tel : D.email;
+    return `<form class="qs-rsv qs-rel" data-relform="${o.d.id}">
+      <div class="qs-rsv-h"><b>✉ Relancer ${esc(o.d.contact?.nom || 'le client')}</b><span class="muted sm">${D.relances ? D.relances + ' relance' + (D.relances > 1 ? 's' : '') + ' déjà envoyée' + (D.relances > 1 ? 's' : '') + ' · ' : ''}devis n° ${esc(o.main.numero)}</span></div>
+      <label class="qs-rel-mod">Modèle de relance<select name="modele" data-relmod>${D.modeles.map(x => `<option value="${esc(x.id)}"${x.id === m.id ? ' selected' : ''}>${x.canal === 'sms' ? '💬 ' : '✉ '}${esc(x.nom)}</option>`).join('')}</select></label>
+      <p class="sm qs-rel-to">${sms ? '💬 SMS' : '✉ E-mail'} envoyé à <b>${dest ? esc(dest) : `<span class="err">aucun ${sms ? 'portable' : 'e-mail'} sur la fiche</span>`}</b></p>
+      ${sms ? '' : `<label>Objet<input name="sujet" value="${esc(m.sujet)}"></label>`}
+      <label>Message <small class="muted">(modifiable, ou dictez avec le micro 🎤)</small><textarea name="texte" rows="${sms ? 3 : 9}">${esc(m.texte)}</textarea></label>
+      <div class="qs-rel-ia"><input name="consigne" placeholder="Consigne pour l’IA (facultatif) : plus court, proposer un appel…" aria-label="Consigne pour l’IA"><button class="btn ghost" type="button" data-relia>✨ Réécrire avec l’IA</button></div>
+      <div class="row"><button class="btn" type="submit"${dest ? '' : ' disabled'}>📨 Envoyer la relance</button><button class="btn ghost" type="button" data-relx>Annuler</button></div>
+    </form>`;
+  }
+  async function ouvrirRelance(id, canal) {
+    const x = (cache.opps || []).find(y => y.d.id === id); if (!x?.main) return toast('Pas encore de devis envoyé à relancer.', true);
+    SV.rsv = null; SV.rel = { id, canal, data: null }; suiviDessin();
+    try {
+      const D = await api(`${A}/actions/relance-modeles/${x.main.id}`);
+      if (SV.rel?.id !== id) return;
+      const em = D.modeles.filter(m => m.canal !== 'sms'), sm = D.modeles.filter(m => m.canal === 'sms');
+      const def = canal === 'sms' ? sm[0] : em[Math.min(D.relances, em.length - 1)] || D.modeles[0];
+      SV.rel = { id, canal, data: D, mod: def?.id }; suiviDessin();
+      const f = $(`[data-relform="${id}"]`); f?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    } catch (err) { SV.rel = null; suiviDessin(); toast(err.message, true); }
+  }
   function carte(o) {
     const c = o.d.contact || {}, e = o.d.evenement || {}, tel = String(c.tel || '').replace(/[^\d+]/g, ''), first = (c.nom || '').split(' ')[0];
     const ini = (c.nom || '?').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
@@ -1129,7 +1159,7 @@
         <div class="qs-co"><button type="button" class="qs-own-pick${o.com ? '' : ' none'}" data-qown="${o.d.id}" title="Attribuer ou changer le commercial">👤 ${esc(o.com || 'Non attribué')} <span aria-hidden="true">▾</span></button></div>
         <div class="qs-ev">${e.type ? '<b>' + esc(e.type) + '</b> · ' : ''}${esc([e.date ? dateFr(e.date, { day: 'numeric', month: 'short', year: 'numeric' }) : 'date à définir', e.invites ? e.invites + ' pers.' : '', e.ville || ''].filter(Boolean).join(' · '))}${canalDe(o.main) || canalDe(o.d) ? ' ' + pillSource(canalDe(o.main) || canalDe(o.d)) : ''}</div></div></div>
       <div class="qs-right">${k4Html(o.main ? chiffres(o.main) : chiffres(o.d, { lignes: lignesDemande(o.d), ttc: o.d.totalEstimeCents }), o.main ? '#/devis/' + o.main.id : '')}<div class="qs-ht">${o.main ? 'devis n° ' + esc(o.main.numero) : 'estimation du site'}</div></div>
-      ${frise(o)}${SV.rsv === o.d.id ? formReserver(o) : ''}
+      ${frise(o)}${SV.rsv === o.d.id ? formReserver(o) : ''}${SV.rel?.id === o.d.id ? formRelance(o) : ''}
       <div class="qs-foot"><div class="qs-info">${o.d.notes ? `<div class="qs-note">📝 ${esc(String(o.d.notes).slice(0, 140))}</div>` : ''}</div><div class="qs-acts">${o.late ? '' : icons}${['refuse', 'reserve', 'termine'].includes(o.d.statut) ? `<button class="qs-back" type="button" data-qback="${o.d.id}" title="Remettre dans les opportunités en cours">↺ Remettre en cours</button>` : ''}${o.main && o.main.statut !== 'brouillon' ? `<a class="qs-back" href="/devis/${esc(o.main.token)}" target="_blank" title="Le devis tel que le client le voit">📨 ${o.main.statut === 'accepte' ? 'Devis signé' : 'Devis envoyé'}</a>` : ''}${!o.main && !['refuse', 'termine'].includes(o.d.statut) ? `<button class="qs-back anc-q" type="button" data-qanc="${o.d.id}" title="Créer le devis en reprenant un ancien devis proche">📂 Ancien devis</button>` : ''}${o.d.clientId ? `<a class="qs-back" href="#/clients/${esc(o.d.clientId)}" title="Tout ce qui s’est passé avec ce client">🕘 Historique</a>` : ''}<button class="qs-open" type="button" data-qopen="${o.d.id}">${o.cat === 'draft' ? 'Terminer' : 'Ouvrir'}</button></div></div>
       ${o.late ? `<div class="qs-alert"><b>⚠ Plus de 24 h sans nouvelles.</b> <span>${o.envoyeLe ? `Rappelez ${esc(first || 'ce client')} ou relancez-le.` : `La demande de ${esc(first || 'ce client')} attend son devis.`}</span><span class="sp"></span>${tel ? `<a class="qs-pill dark" href="tel:${esc(tel)}" data-qappel="${o.d.id}">📞 Appeler</a>` : ''}${o.envoyeLe && c.email ? `<button class="qs-pill" type="button" data-qrel="${o.d.id}" data-canal="mail">✉ Relancer par e-mail</button>` : ''}${o.envoyeLe && tel ? `<button class="qs-pill" type="button" data-qrel="${o.d.id}" data-canal="sms">💬 Relancer par SMS</button>` : ''}${o.envoyeLe ? '' : `<button class="qs-pill dark" type="button" data-qdevis="${o.d.id}">✎ Préparer le devis</button>`}<button class="qs-pill" type="button" data-qfait="${o.d.id}">✓ Relance faite (noter)</button></div>` : ''}
     </article>`;
@@ -1154,7 +1184,22 @@
       if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return; e.preventDefault();
       l[i]?.classList.remove('on'); i = (i + (e.key === 'ArrowDown' ? 1 : -1) + l.length) % l.length; l[i].classList.add('on'); l[i].scrollIntoView({ block: 'nearest' });
     });
+    box.addEventListener('change', e => {
+      if (!e.target.matches('[data-relmod]') || !SV.rel?.data) return;
+      SV.rel.mod = e.target.value; suiviDessin();
+    });
     box.addEventListener('submit', async e => {
+      const g = e.target.closest('[data-relform]');
+      if (g) {
+        e.preventDefault();
+        const x = (cache.opps || []).find(y => y.d.id === g.dataset.relform), b = g.querySelector('[type=submit]');
+        b.disabled = true; b.textContent = 'Envoi…';
+        try {
+          await api(`${A}/actions/relancer/${x.main.id}`, { method: 'POST', body: { modele: g.modele.value, sujet: g.sujet?.value || '', texte: g.texte.value } });
+          SV.rel = null; await majDemande(x.d.id, d => d, '✓ Relance envoyée à ' + (x.d.contact?.nom || 'au client') + '.');
+        } catch (err) { toast(err.message, true); b.disabled = false; b.textContent = '📨 Envoyer la relance'; }
+        return;
+      }
       const f = e.target.closest('[data-rsvform]'); if (!f) return; e.preventDefault();
       const montantCents = Math.round((nombreFr(f.montant.value) || 0) * 100);
       if (!(montantCents > 0)) { toast('Indiquez le montant reçu.', true); return f.montant.focus(); }
@@ -1172,13 +1217,16 @@
       if (t?.dataset.qf) { SV.f = t.dataset.qf; return suiviDessin(); }
       if (t?.dataset.qappel) { majDemande(t.dataset.qappel, d => ({ ...d, relancesNotees: [...(d.relancesNotees || []), { at: new Date().toISOString(), how: 'appel', par: session.nom }] })); return; }
       if (t?.dataset.qfait) { e.stopPropagation(); return majDemande(t.dataset.qfait, d => ({ ...d, statut: d.statut === 'devis_envoye' ? 'relance' : d.statut, relancesNotees: [...(d.relancesNotees || []), { at: new Date().toISOString(), how: 'noté', par: session.nom }] }), 'Relance notée.'); }
-      if (t?.dataset.qrel) {
-        const x = o(t.dataset.qrel); if (!x?.main) return toast('Pas encore de devis envoyé à relancer.', true);
-        const canal = t.dataset.canal || (x.d.contact?.email ? 'mail' : 'sms');
-        const nom = canal === 'sms' ? 'SMS de relance' : (x.relances.length ? 'Relance à 7 jours' : 'Relance à 3 jours');
-        if (!confirm(`Envoyer « ${nom} » à ${x.d.contact?.nom || 'ce client'} par ${canal === 'sms' ? 'SMS' : 'e-mail'} ?`)) return;
-        try { await api(`${A}/actions/relancer/${x.main.id}`, { method: 'POST', body: { modele: canal === 'sms' ? 'sms-relance' : x.relances.length ? 'relance-j7' : 'relance-j3' } }); await majDemande(x.d.id, d => d, 'Relance envoyée.'); } catch (err) { toast(err.message, true); }
-        return;
+      if (t?.dataset.qrel) { e.stopPropagation(); return ouvrirRelance(t.dataset.qrel, t.dataset.canal); }
+      if (t?.dataset.relx != null) { SV.rel = null; return suiviDessin(); }
+      if (t?.dataset.relia != null) {
+        const f = t.closest('form'), x = o(f.dataset.relform), m = SV.rel.data.modeles.find(y => y.id === f.modele.value);
+        t.disabled = true; const lab = t.textContent; t.textContent = '✨ L’IA écrit…';
+        try {
+          const r = await api(`${A}/ia/relance`, { method: 'POST', body: { devisId: x.main.id, canal: m.canal, sujet: f.sujet?.value || '', texte: f.texte.value, consigne: f.consigne.value } });
+          if (f.sujet && r.sujet) f.sujet.value = r.sujet; f.texte.value = r.texte; toast('Texte réécrit par l’IA : relisez-le avant d’envoyer.');
+        } catch (err) { toast(err.message, true); }
+        t.disabled = false; t.textContent = lab; return;
       }
       if (t?.dataset.qanc) { const r = await api(`${A}/actions/devis-depuis-demande/${t.dataset.qanc}`, { method: 'POST' }); location.hash = '#/devis/' + r.id + '?anciens=1'; return; }
       if (t?.dataset.qdevis) { const x = o(t.dataset.qdevis); if (x?.main) { location.hash = '#/devis/' + x.main.id; return; } const r = await api(`${A}/actions/devis-depuis-demande/${t.dataset.qdevis}`, { method: 'POST' }); location.hash = '#/devis/' + r.id; return; }

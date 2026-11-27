@@ -2405,3 +2405,16 @@ tr.rem-det > td { padding: 4px 0 12px 14px; }
   .qs-rsv .row .btn{flex:1 1 auto}
   .qs-rsv .row .btn.sm{margin-left:0}
 }
+/* Suivi client (2026-11-27) : devis pas encore envoyé en rouge ; relance envoyée en vert ; cadre « Relancer » */
+.qs-st.todo .qs-dot{border-color:#c0392b}
+.qs-st.todo b,.qs-st.todo i{color:#c0392b}
+.qs-st.relok .qs-dot{background:#2f8a4a;border-color:#2f8a4a}
+.qs-st.relok b,.qs-st.relok i{color:#2f8a4a}
+.qs-stb:has(.qs-st.relok){background:light-dark(#e6f4ea,#173222);border-radius:10px}
+.qs-rel label{display:flex;flex-direction:column;gap:4px;font-size:12.5px;font-weight:600;margin:0}
+.qs-rel input,.qs-rel select,.qs-rel textarea{background:var(--bo-card);border:1.5px solid light-dark(#b9d9c5,#3a5a47);border-radius:10px;padding:9px 10px;font:inherit;font-size:14px;font-weight:400;width:100%;box-sizing:border-box}
+.qs-rel select{font-weight:600;min-height:42px}
+.qs-rel textarea{line-height:1.45;resize:vertical}
+.qs-rel .qs-rel-to .err{color:#c0392b}
+.qs-rel-ia{display:flex;gap:8px;flex-wrap:wrap}
+.qs-rel-ia input{flex:1 1 240px}
