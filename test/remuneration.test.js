@@ -21,7 +21,7 @@ test('rémunération : barème, gains par personne, une fois par fiche et par jo
     assert.equal((await romain('/api/admin/actions/remuneration')).status, 403, 'réservé au droit Équipe');
 
     const r0 = (await chef('/api/admin/actions/remuneration')).j;
-    assert.ok(r0.actions.length > 10 && r0.actions.every(a => a.cents === 0), 'tout à 0 € par défaut');
+    assert.ok(r0.actions.length > 10 && r0.actions.every(a => a.cents === 200), '2 € partout (règle de Jean-Luc du 2026-11-27)');
     assert.equal(r0.modifiable, true);
 
     /* Romain crée une fiche client puis la modifie trois fois le même jour */
@@ -42,6 +42,7 @@ test('rémunération : barème, gains par personne, une fois par fiche et par jo
     assert.equal(det.client_cree.nb, 1); assert.equal(det.client_cree.totalCents, 250);
     assert.equal(det.client_modifie.nb, 1, 'trois modifications le même jour = une seule');
     assert.equal(pr.totalCents, 350);
+    assert.equal(s.j.montants.note, 0, 'un montant vidé reste à 0 : la reprise 2 € ne passe qu’une fois');
     assert.ok(!r1.personnes.some(p => p.cle === 'ia'), 'l’IA n’est pas payée');
 
     const vide = (await chef('/api/admin/actions/remuneration?du=2020-01-01&au=2020-01-31')).j;
