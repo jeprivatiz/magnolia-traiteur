@@ -1218,7 +1218,8 @@ async function createApp(opts = {}) {
     }
     if (q.filtre === 'importes') l = l.filter(a => a.importe); else if (q.filtre === 'autres') l = l.filter(a => !a.importe);
     const par = Math.min(200, Math.max(10, parseInt(q.par, 10) || 50)), page = Math.max(1, parseInt(q.page, 10) || 1);
-    res.json({ total: l.length, tous: items.length, importes: items.filter(a => a.importe).length, acheteurs: items.filter(a => a.acheteur).length, entreprises: await ENT.nombre(), facettes, page, par, items: l.slice((page - 1) * par, page * par).map(a => ({ ...a.c, nbDemandes: a.nb, verrou: a.verrou, histo: a.histo ? { commandes: a.histo.commandes, perdues: a.histo.perdues, caHtCents: a.histo.caHtCents, derniere: a.histo.derniere } : null, fac: a.fac ? { factures: a.fac.factures, netHtCents: a.fac.netHtCents, duCents: a.fac.duCents } : null })), effacables: q.ids === undefined && q.avecIds ? l.filter(a => !a.verrou).map(a => a.id) : undefined });
+    const joignables = { email: l.filter(a => a.k.email && !a.k.stopEmail && !a.c.nePasContacter).length, sms: l.filter(a => a.k.mobile && !a.k.stopSms && !a.c.nePasContacter).length };
+    res.json({ joignables, total: l.length, tous: items.length, importes: items.filter(a => a.importe).length, acheteurs: items.filter(a => a.acheteur).length, entreprises: await ENT.nombre(), facettes, page, par, items: l.slice((page - 1) * par, page * par).map(a => ({ ...a.c, nbDemandes: a.nb, verrou: a.verrou, histo: a.histo ? { commandes: a.histo.commandes, perdues: a.histo.perdues, caHtCents: a.histo.caHtCents, derniere: a.histo.derniere } : null, fac: a.fac ? { factures: a.fac.factures, netHtCents: a.fac.netHtCents, duCents: a.fac.duCents } : null })), effacables: q.ids === undefined && q.avecIds ? l.filter(a => !a.verrou).map(a => a.id) : undefined });
   }));
 
   /* effacer des contacts cochés (Jean-Luc, 2026-11-24) : jamais un contact qui a une demande, un devis ou une facture ;
@@ -2401,7 +2402,20 @@ async function createApp(opts = {}) {
   const canalDe = v => (v === 'sms' ? 'sms' : 'email');
   const critDe = b => ({ statut: ['commandes', 'prospects'].includes(b?.statut) ? b.statut : '', montantMin: Math.max(0, Math.round(+b?.montantMin || 0)), deps: (Array.isArray(b?.deps) ? b.deps : []).map(x => s(x, 3)).slice(0, 120), types: (Array.isArray(b?.types) ? b.types : []).map(x => s(x, 60)).slice(0, 40), pro: ['pro', 'part'].includes(b?.pro) ? b.pro : '', accord: !!b?.accord, metiers: (Array.isArray(b?.metiers) ? b.metiers : []).map(x => s(x, 60)).slice(0, 40), dj: (Array.isArray(b?.dj) ? b.dj : []).map(x => s(x, 60)).slice(0, 40), contactDe: (Array.isArray(b?.contactDe) ? b.contactDe : []).map(x => s(x, 80)).slice(0, 60), civ: ['Mme', 'M.'].includes(b?.civ) ? b.civ : '' });
   /* destinataires : mode « critères » (tous ceux qui correspondent, moins ceux décochés) ou « un par un » (seulement ceux cochés) */
-  function destinataires(l, canal, b) {
+  /* mode « recherche » : les contacts trouvés par la recherche multicritère de la liste Contacts (mêmes filtres, côté serveur) */
+  const rechercheDe = b => { const r = b && typeof b === 'object' ? b : {}, k = {}; for (const x of CRIT_CLIENTS) if (r.k?.[x]) k[x] = s(r.k[x], 80); return { q: s(r.q, 80), filtre: ['importes', 'autres'].includes(r.filtre) ? r.filtre : '', vue: r.vue === 'clients' ? 'clients' : '', k }; };
+  async function idsRecherche(b) {
+    const r = rechercheDe(b), { items } = await annuaireServeur();
+    let l = filtrerCriteres(filtrerClients(items, r.q), r.k);
+    if (r.vue === 'clients') l = l.filter(a => a.acheteur);
+    if (r.filtre === 'importes') l = l.filter(a => a.importe); else if (r.filtre === 'autres') l = l.filter(a => !a.importe);
+    return new Set(l.map(a => a.id));
+  }
+  async function destinataires(l, canal, b) {
+    if (b?.mode === 'recherche') {
+      const ids = await idsRecherche(b.recherche), ex = new Set((b.exclus || []).map(String));
+      return DIF.filtrer(l, canal, {}).filter(p => ids.has(p.id) && !ex.has(p.id));
+    }
     const base = DIF.filtrer(l, canal, critDe(b?.criteres));
     if (b?.mode === 'manuel') { const ins = new Set((b.inclus || []).map(String)); return DIF.filtrer(l, canal, {}).filter(p => ins.has(p.id)); }
     const ex = new Set((b?.exclus || []).map(String));
@@ -2421,17 +2435,20 @@ async function createApp(opts = {}) {
       ia: ia.actif, brevo: brevo.live, lienSms: await lienSms(), moi: { email: req.ctx.email || '', tel: String(R.alertes?.sms || '').split(/[,;]/)[0].trim() }, creneauSms: DIF.creneauSms(),
     });
   }));
+  A.get('/diffusion/credits', wrap(async (req, res) => { res.set('Cache-Control', 'no-store'); res.json(await brevo.compte?.() || { live: brevo.live, sms: null, email: null }); }));
   A.post('/diffusion/selection', sameSite, json, wrap(async (req, res) => {
     const l = await lesProfils(), canal = canalDe(req.body?.canal), b = req.body || {};
-    const choisis = destinataires(l, canal, b), ids = new Set(choisis.map(p => p.id));
-    /* liste affichée : en mode critères, ceux qui correspondent ; en mode un par un, tout le fichier joignable */
+    const choisis = await destinataires(l, canal, b), ids = new Set(choisis.map(p => p.id));
+    /* liste affichée : en mode critères, ceux qui correspondent ; en mode un par un, tout le fichier joignable ; en mode recherche, les contacts trouvés */
     const k = critDe(b.criteres);
-    let vue = b.mode === 'manuel' ? DIF.filtrer(l, canal, { q: b.q }) : DIF.filtrer(l, canal, { ...k, q: b.q });
+    let trouves = null, nonJoignables = 0;
+    if (b.mode === 'recherche') { const tous = await idsRecherche(b.recherche), ok = DIF.filtrer(l, canal, {}); trouves = ok.filter(p => tous.has(p.id)); nonJoignables = tous.size - trouves.length; }
+    let vue = b.mode === 'manuel' ? DIF.filtrer(l, canal, { q: b.q }) : b.mode === 'recherche' ? DIF.filtrer(trouves, canal, { q: b.q }) : DIF.filtrer(l, canal, { ...k, q: b.q });
     if (b.seulementCoches) vue = vue.filter(p => ids.has(p.id));
     vue.sort((a, c) => (c.totalCents - a.totalCents) || String(c.derniere).localeCompare(String(a.derniere)));
     const page = Math.max(0, +b.page | 0), N = 50;
     res.json({
-      nb: choisis.length, correspondent: b.mode === 'manuel' ? null : DIF.filtrer(l, canal, k).length, vue: vue.length, page, pages: Math.ceil(vue.length / N),
+      nb: choisis.length, correspondent: b.mode === 'manuel' ? null : trouves ? trouves.length : DIF.filtrer(l, canal, k).length, nonJoignables, vue: vue.length, page, pages: Math.ceil(vue.length / N),
       lignes: vue.slice(page * N, page * N + N).map(p => ({ id: p.id, nom: p.nom, societe: p.societe, contact: canal === 'email' ? p.email : p.tel, deps: p.deps, totalCents: p.totalCents, nbCommandes: p.nbCommandes, derniere: p.derniere, coche: ids.has(p.id) })),
     });
   }));
@@ -2502,12 +2519,14 @@ async function createApp(opts = {}) {
     const err = await verifier(m, canal); if (err) return res.status(400).json({ error: err });
     if (canal === 'sms') { const cr = DIF.creneauSms(); if (!cr.ok) return res.status(400).json({ error: cr.raison }); }
     profilsCache = null;
-    const liste = destinataires(await lesProfils(), canal, req.body);
+    const liste = await destinataires(await lesProfils(), canal, req.body);
     if (!liste.length) return res.status(400).json({ error: 'Aucun destinataire sélectionné.' });
+    if (canal === 'sms') { const cpt = await brevo.compte?.(), besoin = liste.length * DIF.comptage(DIF.smsFinal(m.texte, { prenom: 'Alexandra', lien: await lienSms() })).sms; if (cpt?.sms != null && besoin > cpt.sms) return res.status(400).json({ error: `Pas assez de crédits SMS : il en faut ${besoin.toLocaleString('fr-FR')}, il en reste ${cpt.sms.toLocaleString('fr-FR')} sur Brevo. Rechargez le compte Brevo ou réduisez la sélection.` }); }
+    else { const cpt = await brevo.compte?.(); if (cpt?.email != null && liste.length > cpt.email) return res.status(400).json({ error: `Le forfait Brevo n’autorise plus que ${cpt.email.toLocaleString('fr-FR')} e-mails : réduisez la sélection ou changez de forfait.` }); }
     if (+req.body?.confirme !== liste.length) return res.status(409).json({ error: `Le nombre de destinataires a changé (${liste.length}). Vérifiez puis confirmez à nouveau.`, nb: liste.length });
     const id = 'cp_' + rid(8), now = new Date().toISOString();
     const nbSms = canal === 'sms' ? DIF.comptage(DIF.smsFinal(m.texte, { prenom: 'Alexandra', lien: await lienSms() })).sms : 0;
-    const camp = { id, canal, message: m, criteres: critDe(req.body?.criteres), mode: req.body?.mode === 'manuel' ? 'manuel' : 'criteres', nb: liste.length, nbSms, ids: liste.map(p => p.id), envoyes: 0, echecs: [], statut: 'en_cours', live: brevo.live, at: now, par: req.ctx.name || req.ctx.email || '' };
+    const camp = { id, canal, message: m, criteres: critDe(req.body?.criteres), mode: ['manuel', 'recherche'].includes(req.body?.mode) ? req.body.mode : 'criteres', ...(req.body?.mode === 'recherche' ? { recherche: rechercheDe(req.body.recherche) } : {}), nb: liste.length, nbSms, ids: liste.map(p => p.id), envoyes: 0, echecs: [], statut: 'en_cours', live: brevo.live, at: now, par: req.ctx.name || req.ctx.email || '' };
     await store.set('_campagnes/' + id, camp);
     audit(req.ctx, canal === 'sms' ? 'SMS groupé envoyé' : 'e-mail groupé envoyé', '_campagnes/' + id, `${liste.length} destinataires · ${m.objet || m.texte.slice(0, 60)}`);
     res.json({ ok: true, id, nb: liste.length });
