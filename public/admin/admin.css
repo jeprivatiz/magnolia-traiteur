@@ -2371,3 +2371,12 @@ tr.rem-det > td { padding: 4px 0 12px 14px; }
 .mdp-in { max-width: 460px; }
 .mdp-in form label { display: block; margin-bottom: 10px; }
 .hs-form [hidden] { display: none !important; }
+
+.hs-recap { margin: 4px 0 14px; max-width: 560px; }
+.hs-recap h3 { margin-bottom: 6px; }
+.hs-rt td:nth-child(n+2), .hs-rt th:nth-child(n+2) { text-align: right; }
+.hs-rtot td { font-weight: 600; background: var(--doux); }
+.hs-hor { white-space: nowrap; }
+.hs-fait { background: #e5f2e8; color: #1f5130; border-radius: 8px; padding: 10px 12px; margin: 0 0 12px; }
+@media (prefers-color-scheme: dark) { .hs-fait { background: #1f3527; color: #cfe8d6; } }
+@media (max-width: 700px) { .hs-rt thead { display: table-header-group; } .hs-rt tr { display: table-row; padding: 0; } .hs-rt td { display: table-cell; padding: 6px 8px; } }

@@ -4603,6 +4603,7 @@
      Chacun déclare les siennes ; en semaine seulement avant 9 h ou après 18 h, le week-end toute la journée.
      L'admin (droit « equipe ») voit tout : filtre par personne et par période, total par personne, liens de la mini-application. */
   const hsF = { qui: '', per: 'mois', du: '', au: '' };
+  let hsDernier = '';
   const HS_PER = [['mois', 'Ce mois-ci'], ['moisP', 'Le mois dernier'], ['sem', 'Cette semaine'], ['m3', 'Les 3 derniers mois'], ['an', 'Cette année'], ['tout', 'Tout'], ['choix', 'Dates au choix…']];
   const hsBornes = () => {
     const t = jourIci();
@@ -4642,6 +4643,7 @@
     box.innerHTML = `<h2>⏱ Heures supplémentaires</h2>
       <p class="hs-regle">Du <b>lundi au vendredi</b>, on déclare seulement ce qui est fait <b>avant 9 h</b> ou <b>après 18 h</b> (9 h – 18 h = horaires normaux). Le <b>samedi et le dimanche</b> : toute la journée. ${admin ? 'Vous voyez les heures de toute l’équipe.' : 'Vous voyez seulement les vôtres.'}</p>
       <form class="hs-form" id="hsForm" novalidate>
+        ${hsDernier ? `<p class="hs-fait">✅ ${esc(hsDernier)} <b>Pour un autre jour</b> : remplissez à nouveau ci-dessous et enregistrez.</p>` : ''}
         <div class="hs-dire"><button type="button" class="btn hs-dire-btn" data-hsdire>🎤 Dire mes heures</button><span class="muted sm">ex. « J’ai travaillé mardi de 18 h à 20 h sur la création de fiches produits » : l’IA remplit le jour, les heures et coche les cases. Vous vérifiez, puis vous enregistrez.</span>
           <div class="hs-dire-z" data-hsdirez hidden><textarea data-hsphrase rows="2" placeholder="Ou écrivez la phrase ici"></textarea><button type="button" class="btn ghost sm" data-hsremplir>✨ Remplir les cases</button></div><p class="sm" data-hsdmsg aria-live="polite"></p></div>
         <div class="hs-g">
@@ -4670,9 +4672,9 @@
         <label>Période<select data-hsper>${HS_PER.map(([k, t]) => `<option value="${k}"${k === hsF.per ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
         ${hsF.per === 'choix' ? `<label>Du<input type="date" data-hsdu value="${esc(hsF.du)}"></label><label>Au<input type="date" data-hsau value="${esc(hsF.au)}"></label>` : ''}
       </div>
-      <div class="hs-totaux">${admin && r.totaux.length > 1 ? r.totaux.map(t => `<span class="hs-tot"><b>${esc(t.nom)}</b> ${hsDuree(t.minutes)} <small>(${t.nb} fois)</small></span>`).join('') : ''}<span class="hs-tot hs-tot-g"><b>Total</b> ${hsDuree(r.minutes)} <small>(${r.liste.length} déclaration${r.liste.length > 1 ? 's' : ''})</small></span></div>
+      <div class="hs-recap"><h3>📊 Récapitulatif de la période</h3><table class="hs-t hs-rt"><thead><tr><th>Personne</th><th>Déclarations</th><th>Total d’heures</th></tr></thead><tbody>${r.totaux.map(t => `<tr><td>${esc(t.nom)}</td><td>${t.nb}</td><td><b>${hsDuree(t.minutes)}</b></td></tr>`).join('')}<tr class="hs-rtot"><td>Total</td><td>${r.liste.length}</td><td><b>${hsDuree(r.minutes)}</b></td></tr></tbody></table></div>
       ${admin && r.liste.length ? `<div class="hs-sel"><label class="chk"><input type="checkbox" data-hstout> Tout cocher</label><button type="button" class="btn sm hs-supbtn" data-hssupsel disabled>🗑 Supprimer la sélection</button><span class="muted sm" data-hsnb></span></div>` : ''}
-      ${r.liste.length ? `<div class="hs-scroll"><table class="hs-t"><thead><tr><th>Jour</th>${admin ? '<th>Personne</th>' : ''}<th>Horaire</th><th>Durée</th><th>Sur quoi</th></tr></thead><tbody>${r.liste.map(x => `<tr${admin ? ` data-hsrow="${x.id}"` : ''}><td class="hs-j">${admin ? `<input type="checkbox" class="hs-chk" data-hschk="${x.id}" aria-label="Sélectionner"> ` : ''}${hsDate(x.date)}</td>${admin ? `<td>${esc(x.nom)}</td>` : ''}<td>${x.debut.replace(':', ' h ')} – ${x.fin.replace(':', ' h ')}</td><td><b>${hsDuree(x.minutes)}</b></td><td class="hs-quoi">${esc(x.quoi)}${x.depuis === 'telephone' ? ' <span class="pill hs-tel" title="Déclaré depuis son téléphone">📱</span>' : ''}${x.par && x.par !== x.nom ? `<small class="muted"> · saisi par ${esc(x.par)}</small>` : ''}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Aucune heure supplémentaire sur cette période.</p>'}`;
+      ${r.liste.length ? `<div class="hs-scroll"><table class="hs-t"><thead><tr><th>Jour</th>${admin ? '<th>Personne</th>' : ''}<th>Horaire et durée</th><th>Sur quoi</th></tr></thead><tbody>${r.liste.map(x => `<tr${admin ? ` data-hsrow="${x.id}"` : ''}><td class="hs-j">${admin ? `<input type="checkbox" class="hs-chk" data-hschk="${x.id}" aria-label="Sélectionner"> ` : ''}${hsDate(x.date)}</td>${admin ? `<td>${esc(x.nom)}</td>` : ''}<td class="hs-hor">${x.debut.replace(':', ' h ')} → ${x.fin.replace(':', ' h ')} · <b>${hsDuree(x.minutes)}</b></td><td class="hs-quoi">${esc(x.quoi)}${x.depuis === 'telephone' ? ' <span class="pill hs-tel" title="Déclaré depuis son téléphone">📱</span>' : ''}${x.par && x.par !== x.nom ? `<small class="muted"> · saisi par ${esc(x.par)}</small>` : ''}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Aucune heure supplémentaire sur cette période.</p>'}`;
     const f = $('#hsForm'), maj = () => { const v = hsVerif(f.date.value, f.debut.value, f.fin.value), el = $('[data-hsduree]'); el.className = 'hs-duree' + (v.err ? ' err' : ''); el.textContent = v.err || `Durée : ${hsDuree(v.min)}${v.lendemain ? ' (jusqu’au lendemain)' : ''}`; return v; };
     let touche = false;
     f.date.addEventListener('change', () => { if (!touche) { const w = [0, 6].includes(hsJs(f.date.value)); f.debut.value = w ? '09:00' : '18:00'; f.fin.value = w ? '13:00' : '20:00'; } maj(); });
@@ -4710,7 +4712,7 @@
       const taches = $$('input[name=t]:checked', f).map(c => c.value), autre = $('[data-hsautre]', f).checked ? f.autre.value.trim() : '';
       if ($('[data-hsautre]', f).checked && autre.length < 2) { toast('Écrivez la tâche « Autre ».', true); f.autre.focus(); return; }
       if (!taches.length && !autre) { toast('Cochez au moins une tâche.', true); return; }
-      try { const x = await api(A + '/actions/heures-sup', { method: 'POST', body: { uid: f.uid?.value || '', date: f.date.value, debut: f.debut.value, fin: f.fin.value, taches, autre, precision: f.precision.value } }); toast(`Enregistré : ${x.nom}, ${hsDate(x.date)}, ${hsDuree(x.minutes)}.`); hsCharger(); } catch (err) { toast(err.message, true); }
+      try { const x = await api(A + '/actions/heures-sup', { method: 'POST', body: { uid: f.uid?.value || '', date: f.date.value, debut: f.debut.value, fin: f.fin.value, taches, autre, precision: f.precision.value } }); toast(`Enregistré : ${x.nom}, ${hsDate(x.date)}, ${hsDuree(x.minutes)}.`); hsDernier = `Enregistré : ${x.nom}, ${hsDate(x.date)}, ${x.debut.replace(':', ' h ')} → ${x.fin.replace(':', ' h ')} · ${hsDuree(x.minutes)}.`; await hsCharger(); hsDernier = ''; $('#hsForm [name=date]')?.focus(); } catch (err) { toast(err.message, true); }
     });
     $('[data-hsqui]')?.addEventListener('change', e => { hsF.qui = e.target.value; hsCharger(); });
     $('[data-hsper]').addEventListener('change', e => { hsF.per = e.target.value; if (hsF.per === 'choix' && !hsF.du) { hsF.du = jourIci().slice(0, 8) + '01'; hsF.au = jourIci(); } hsCharger(); });

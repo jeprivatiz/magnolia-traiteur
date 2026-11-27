@@ -71,7 +71,7 @@ test('back-office, mini-application et lien par SMS', async () => {
     const mob = await anonyme('/api/heures/' + t, { method: 'POST', body: { date: '2026-11-21', debut: '09:00', fin: '12:00', quoi: 'Buffet samedi' } });
     assert.equal(mob.status, 200, mob.t); assert.equal(mob.j.nom, 'Romain GOUJON');
     assert.match((await anonyme('/api/heures/' + t, { method: 'POST', body: { date: '2026-11-24', debut: '12:00', fin: '14:00', quoi: 'x y z' } })).j.error, /avant 9 h/);
-    const ma = (await anonyme('/api/heures/' + t)).j; assert.equal(ma.liste.length, 2); assert.ok(!('uid' in ma.liste[0]));
+    const ma = (await anonyme('/api/heures/' + t)).j; assert.equal(ma.liste.length, 2); assert.deepEqual(ma.recap.tout, { nb: 2, minutes: 360 }, 'récapitulatif : nombre et total'); assert.ok(!('uid' in ma.liste[0]));
     const vue2 = (await chef('/api/admin/actions/heures-sup?qui=' + uidR)).j.liste;
     assert.equal(vue2.find(x => x.date === '2026-11-21').depuis, 'telephone', 'arrive à son nom dans le back-office');
     /* tâches en cases + « Autre » ajoutée à la liste */
