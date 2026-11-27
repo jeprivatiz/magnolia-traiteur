@@ -2290,3 +2290,36 @@ tr.rem-det > td { padding: 4px 0 12px 14px; }
 .rem-l > span:first-child { flex: 1; min-width: 0; }
 .rem-eur { flex: 0 0 auto; }
 @media (max-width: 600px) { .rem-dtab th:nth-child(3), .rem-dtab td:nth-child(3) { display: none; } tr.rem-det > td { padding-left: 0; } .rem-dtab td:first-child { min-width: 9em; } }
+
+/* ---------- Heures supplémentaires (Équipe & activité) ---------- */
+.hs-regle { background: var(--doux); border-left: 4px solid var(--or); border-radius: 8px; padding: 10px 12px; margin: 0 0 14px; font-size: .92rem; }
+.hs-form { border: 1px solid var(--ligne); border-radius: var(--r); padding: 14px; background: var(--fond); }
+.hs-g { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px 14px; }
+.hs-form label { display: block; font-weight: 500; }
+.hs-form textarea { width: 100%; margin-top: 4px; }
+.hs-duree { margin: 10px 0; font-weight: 600; color: var(--vert-ok); }
+.hs-duree.err { color: var(--rouge); }
+.hs-app { margin: 14px 0 6px; padding: 12px 14px; border: 1px dashed var(--or); border-radius: var(--r); background: var(--carte); }
+.hs-app .row { margin-top: 8px; }
+.hs-h3 { margin: 18px 0 8px; }
+.hs-filtres { display: flex; flex-wrap: wrap; gap: 10px 14px; margin-bottom: 10px; }
+.hs-filtres label { min-width: 180px; font-weight: 500; }
+.hs-totaux { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.hs-tot { background: var(--doux); border: 1px solid var(--ligne); border-radius: 999px; padding: 5px 12px; font-size: .9rem; }
+.hs-tot-g { background: var(--vert); color: #fff; border-color: var(--vert); }
+@media (prefers-color-scheme: dark) { .hs-tot-g { color: #111815; } }
+.hs-scroll { overflow-x: auto; }
+.hs-t { width: 100%; border-collapse: collapse; font-size: .92rem; }
+.hs-t th { text-align: left; font-weight: 600; color: var(--gris); border-bottom: 2px solid var(--ligne); padding: 6px 8px; white-space: nowrap; }
+.hs-t td { border-bottom: 1px solid var(--ligne); padding: 8px; vertical-align: top; }
+.hs-j { white-space: nowrap; text-transform: capitalize; }
+.hs-quoi { white-space: pre-line; min-width: 200px; }
+.hs-btns { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+.hs-liens { margin-top: 10px; }
+.hs-tel { font-size: .75rem; padding: 0 6px; }
+@media (max-width: 700px) {
+  .hs-t thead { display: none; }
+  .hs-t tr { display: block; border-bottom: 1px solid var(--ligne); padding: 8px 0; }
+  .hs-t td { display: block; border: 0; padding: 2px 0; min-width: 0; }
+  .hs-filtres label { min-width: 0; flex: 1 1 140px; }
+}
