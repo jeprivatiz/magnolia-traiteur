@@ -142,3 +142,14 @@ test('prépa : quantité à préparer remplie d’après les choix', () => {
   assert.equal(P.qteAuto({ liste: 'nappes', items: [{ nom: '170 × 250 cm', n: 8 }, { nom: '240 × 300 cm', n: 4 }] }), '12 nappes');
   assert.equal(P.qteAuto({ liste: 'compo', items: [] }), '');
 });
+
+test('prépa : ligne de nappes du devis → taille, couleur, extensible, nombre', () => {
+  const P = require('../server/prepa');
+  const L = P.lignesDepuisDevis({ lignes: [{ produit: 'nappage-170-250-cm', designation: 'Nappage — 170 × 250 cm', qte: 3, unite: 'nappe' }] }, new Map());
+  assert.equal(L[0].liste, 'nappes');
+  assert.deepEqual(L[0].items, [{ nom: '170 × 250 cm', couleur: 'Blanche', type: 'Non extensible', n: 3 }]);
+  assert.equal(L[0].qtePrepa, '3 nappes');
+  const vieux = P.completerLignes([{ type: 'produit', produit: 'nappe-noire', designation: 'Nappe noire extensible 240 x 300 cm', qteDevis: 2, liste: '', items: [], qtePrepa: '' }]);
+  assert.equal(vieux[0].liste, 'nappes');
+  assert.deepEqual(vieux[0].items[0], { nom: '240 × 300 cm', couleur: 'Noire', type: 'Extensible', n: 2 });
+});

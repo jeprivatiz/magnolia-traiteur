@@ -3087,7 +3087,7 @@ Réponds uniquement en JSON : {${sms ? '' : '"sujet": "...", '}"texte": "..."}`;
     const avant = await store.get('prepas/' + req.params.id);
     const neuf = PREP.bonDepuis(x);
     /* ?reprendre=1 : on repart des lignes du devis (le reste du bon est gardé) */
-    const bon = avant ? (req.query.reprendre ? { ...avant, lignes: neuf.lignes, personnelDevis: neuf.personnelDevis, allergenesProduits: neuf.allergenesProduits } : avant) : neuf;
+    const bon = avant ? (req.query.reprendre ? { ...avant, lignes: neuf.lignes, personnelDevis: neuf.personnelDevis, allergenesProduits: neuf.allergenesProduits } : { ...avant, lignes: PREP.completerLignes(avant.lignes) }) : neuf;
     res.set('Cache-Control', 'no-store').json({ bon, existe: !!avant, devis: { numero: x.devis.numero, statut: x.devis.statut, facture: x.facture?.numero || '' }, personnes: await personnesPrepa(), roles: PREP.ROLES, horaires: PREP.HORAIRES, listes: PREP.listesPrepa(x.produits), choix: PREP.choixProduits(bon.lignes, x.bySlug), iaActive: ia.actif, message: PREP.messageDefaut(bon, req.ctx.name || '') });
   }));
   A.put('/prepa/:id', sameSite, json, wrap(async (req, res) => {
@@ -3128,7 +3128,9 @@ Réponds uniquement en JSON : {${sms ? '' : '"sujet": "...", '}"texte": "..."}`;
     if (!ROLE_OK(role)) return res.status(400).json({ error: 'Groupe inconnu.' });
     if (!texte) return res.status(400).json({ error: 'Le message est vide.' });
     const dest = (Array.isArray(b.a) ? b.a : []).slice(0, 40).map(p => ({ nom: s(p?.nom, 80), email: s(p?.email, 160).toLowerCase(), tel: normTel(p?.tel)?.ok ? normTel(p.tel).tel : '' }));
-    const ok = dest.filter(p => canal === 'sms' ? p.tel : isEmail(p.email));
+    /* chaque groupe ne reçoit que ses propres personnes (Jean-Luc, 2026-11-27 : un livreur n'est jamais dans les régisseurs) */
+    const duGroupe = new Set((bon[role] || []).map(p => String(p.nom || '').toLowerCase()));
+    const ok = dest.filter(p => duGroupe.has(p.nom.toLowerCase())).filter(p => canal === 'sms' ? p.tel : isEmail(p.email));
     if (!ok.length) return res.status(400).json({ error: canal === 'sms' ? 'Aucune des personnes cochées n’a de portable valable.' : 'Aucune des personnes cochées n’a d’e-mail valable.' });
     const R = (await cat.get()).reglages || {};
     const sujet = s(b.sujet, 160) || 'Magnolia Traiteur · ' + PREP.titreBon(bon);
