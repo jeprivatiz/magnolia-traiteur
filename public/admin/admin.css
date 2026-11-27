@@ -2527,3 +2527,16 @@ tr.rem-det > td { padding: 4px 0 12px 14px; }
 }
 .apm-sms{background:light-dark(#f2f2f7,#1c1c1e);border-radius:18px;padding:18px 14px;margin:8px 0}
 .apm-sms>div{background:light-dark(#e5e5ea,#3a3a3c);color:var(--bo-ink);border-radius:18px 18px 18px 4px;padding:10px 14px;max-width:85%;font-size:15px;line-height:1.4;word-break:break-word}
+/* Suivi client : raison du refus obligatoire (2026-11-27) */
+.qs-card>.qs-ref{border-color:light-dark(#e3b3ac,#6b3a33);background:light-dark(#fbefed,#2a1a18)}
+.qs-ref .qs-rsv-h b{color:light-dark(#a3352b,#f0a59b)}
+.qs-ref-l{display:flex;flex-wrap:wrap;gap:8px}
+.qs-ref-b{border:1.5px solid light-dark(#e3c6c1,#6b4a45);background:var(--bo-card);color:var(--bo-ink);border-radius:99px;padding:8px 14px;font:inherit;font-size:13.5px;font-weight:600;cursor:pointer}
+.qs-ref-b:hover{border-color:#a3352b}
+.qs-ref-b.on{background:#a3352b;border-color:#a3352b;color:#fff}
+.qs-ref-b.autre{border-style:dashed}
+.qs-ref-autre{display:flex;flex-direction:column;gap:4px;font-size:12.5px;font-weight:600}
+.qs-ref-autre input{background:var(--bo-card);border:1.5px solid light-dark(#e3c6c1,#6b4a45);border-radius:10px;padding:9px 10px;font:inherit;font-size:14px}
+.qs-motifs{display:flex;flex-wrap:wrap;gap:6px;align-items:center;width:100%;margin-top:6px}
+.qs-rel-der{margin:0;padding:8px 12px;border-radius:10px;background:light-dark(#fbefed,#2a1a18);color:light-dark(#8a2b22,#f0a59b)}
+.qs-ref-autre[hidden]{display:none}

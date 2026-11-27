@@ -1505,7 +1505,7 @@ async function createApp(opts = {}) {
       if (before) { if (before.modele) data.modele = true; else delete data.modele; } /* ⭐ Modèle : changé seulement par son bouton (un devis ouvert avant ne l'efface pas) */
       if (before?.commentaires) data.commentaires = before.commentaires; /* écrits par le client : jamais effacés par un enregistrement du back-office */
     }
-    if (coll === 'demandes' && before && data.statut && data.statut !== before.statut) data.historique = [...(before.historique || []), { at: new Date().toISOString(), statut: data.statut, par: req.ctx.name || req.ctx.email }];
+    if (coll === 'demandes' && before && data.statut && data.statut !== before.statut) data.historique = [...(before.historique || []), { at: new Date().toISOString(), statut: data.statut, par: req.ctx.name || req.ctx.email, ...(data.statut === 'refuse' && data.motifRefus ? { motif: s(data.motifRefus, 120) } : {}) }];
     if (coll === 'demandes' && before) {
       if (before.priseEnCharge && !data.priseEnCharge) data.priseEnCharge = before.priseEnCharge;
       const bouge = (data.statut && data.statut !== before.statut) || (data.commercial || '') !== (before.commercial || '') || (data.notes || '') !== (before.notes || '') || (data.relancesNotees || []).length !== (before.relancesNotees || []).length;
@@ -2041,6 +2041,7 @@ Réponds uniquement en JSON : {${sms ? '' : '"sujet": "...", '}"texte": "..."}`;
     const vars = devis ? varsRelance(devis, cl, [dem.contact?.nom]) : { prenom: nom.split(' ')[0], nom, numero: dem.ref || '', evenement: String(dem.evenement?.type || 'événement').toLowerCase(), date: dateFr(dem.evenement?.date), lien: SITE, montant: dem.totalEstimeCents ? euros(dem.totalEstimeCents) : '' };
     return { dem, devis, cl, vars };
   }
+  const NB_RELANCES = 3; /* même valeur dans public/admin/admin.js */
   const MODELES_SANS_DEVIS = [
     { id: 'demande-suivi', nom: 'Suivi de votre demande (pas encore de devis)', canal: 'email', sujet: 'Votre demande pour votre {evenement} du {date}', texte: 'Bonjour {prenom},\n\nNous avons bien reçu votre demande pour votre {evenement} du {date} et nous préparons votre devis.\nPour qu’il vous ressemble, pouvez-vous nous confirmer le nombre d’invités, l’adresse et l’horaire de livraison ?\nUn simple retour à cet e-mail suffit, ou appelez-nous au 07 63 66 98 92.\n\nBelle journée,\nL’équipe Magnolia Traiteur' },
     { id: 'demande-sms', nom: 'SMS : suivi de votre demande', canal: 'sms', sujet: '', texte: 'Magnolia Traiteur : nous préparons votre devis pour le {date}. Une précision ? Appelez-nous au 07 63 66 98 92. {lien}' },
@@ -2073,7 +2074,16 @@ Réponds uniquement en JSON : {${sms ? '' : '"sujet": "...", '}"texte": "..."}`;
     }
     await relanceStatut(c.dem.id, req.ctx.name);
     audit(req.ctx, 'relance envoyée', c.devis ? 'devis/' + c.devis.id : 'demandes/' + c.dem.id, m.nom);
-    res.json({ ok: true });
+    /* dernière relance (Jean-Luc, 2026-11-27) : la fiche encore ouverte passe en « Refusé », raison « Sans réponse après N relances » */
+    const dm = await store.get('demandes/' + c.dem.id), dv = c.devis ? await store.get('devis/' + c.devis.id) : null;
+    const apres = x => !dm.reactiveeLe || String(x.at) > dm.reactiveeLe;
+    const n = (dv?.relances || []).filter(apres).length + (dm.relancesNotees || []).filter(r => r.modele && apres(r)).length;
+    if (n >= NB_RELANCES && ['demande', 'devis_envoye', 'relance'].includes(dm.statut)) {
+      const motif = `Sans réponse après ${NB_RELANCES} relances`, at = new Date().toISOString();
+      await store.set('demandes/' + dm.id, { ...dm, statut: 'refuse', motifRefus: motif, historique: [...(dm.historique || []), { at, statut: 'refuse', par: req.ctx.name, motif }] });
+      return res.json({ ok: true, refuse: true, relances: n });
+    }
+    res.json({ ok: true, relances: n });
   }));
 
   /* ---------- factures (CRM) : règlements en plusieurs acomptes, envoi, relances, archives, avoirs ---------- */
@@ -2402,7 +2412,7 @@ Réponds uniquement en JSON : {${sms ? '' : '"sujet": "...", '}"texte": "..."}`;
     for (const d of demandes) {
       const e = d.evenement || {};
       add(d.createdAt, 'demande', d.type === 'contact' ? `Message reçu : ${d.sujet || 'question'}` : `Demande de devis ${d.ref || ''}`.trim(), { detail: [e.type, e.date ? dateFr(e.date) : '', e.invites ? e.invites + ' pers.' : '', e.ville].filter(Boolean).join(' · ') + (d.message ? '\n« ' + String(d.message).slice(0, 400) + ' »' : ''), montantCents: d.totalEstimeCents || null, montantLib: 'estimé', par: d.source || (d.lignes?.length ? 'site' : ''), lien: '#/demandes/' + d.id });
-      for (const h of (d.historique || []).slice(1)) if (!['devis_envoye', 'relance'].includes(h.statut)) add(h.at, 'statut', 'Étape : ' + (lbl[h.statut] || h.statut), { par: h.par, ref: d.ref, lien: '#/demandes/' + d.id });
+      for (const h of (d.historique || []).slice(1)) if (!['devis_envoye', 'relance'].includes(h.statut)) add(h.at, 'statut', 'Étape : ' + (lbl[h.statut] || h.statut) + (h.motif ? ' · motif : ' + h.motif : ''), { par: h.par, ref: d.ref, lien: '#/demandes/' + d.id });
       for (const r of d.relancesNotees || []) add(r.at, r.how === 'appel' ? 'appel' : 'note', r.how === 'appel' ? 'Appel téléphonique' : 'Relance faite (notée)', { par: r.par, ref: d.ref });
       if (d.notes) add(d.updatedAt || d.createdAt, 'note', 'Note sur la demande ' + (d.ref || ''), { detail: d.notes, fixe: true });
     }

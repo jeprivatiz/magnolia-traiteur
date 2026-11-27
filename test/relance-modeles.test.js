@@ -43,6 +43,16 @@ test('relance : modèles remplis, texte modifié, historique', async () => {
     assert.ok(!/Lina\w*\d|Bonjour ,/.test(M2.modeles[0].texte)); assert.equal(M2.modeles[0].id, 'demande-suivi'); assert.match(M2.modeles[0].texte, /Bonjour Lina/);
     assert.equal((await call('/api/admin/actions/relancer-demande/' + dem.id, { method: 'POST', body: { modele: 'demande-suivi' } })).status, 200);
     const dem2 = (await call('/api/admin/demandes/' + dem.id)).j;
-    assert.equal(dem2.statut, 'accord'); assert.equal(dem2.relancesNotees.length, 1); assert.equal(dem2.relancesNotees[0].how, 'e-mail');
+    assert.equal(dem2.statut, 'accord');
+    // 3 relances sur une fiche ouverte : la 3e la classe en « Refusé » (sans réponse après 3 relances) ; réactivée, le compte repart à zéro
+    await call('/api/admin/demandes/' + dem.id, { method: 'PUT', body: { ...dem2, statut: 'demande' } });
+    const rel = () => call('/api/admin/actions/relancer-demande/' + dem.id, { method: 'POST', body: { modele: 'demande-suivi' } });
+    let rr = await rel(); assert.equal(rr.j.relances, 2); assert.ok(!rr.j.refuse);
+    rr = await rel(); assert.equal(rr.j.refuse, true);
+    let dem3 = (await call('/api/admin/demandes/' + dem.id)).j;
+    assert.equal(dem3.statut, 'refuse'); assert.match(dem3.motifRefus, /Sans réponse après 3 relances/);
+    await call('/api/admin/demandes/' + dem.id, { method: 'PUT', body: { ...dem3, statut: 'demande', motifRefus: '', reactiveeLe: new Date(Date.now() + 1000).toISOString() } });
+    await new Promise(r => setTimeout(r, 1100));
+    rr = await rel(); assert.equal(rr.j.relances, 1); assert.ok(!rr.j.refuse); assert.equal(dem2.relancesNotees.length, 1); assert.equal(dem2.relancesNotees[0].how, 'e-mail');
   } finally { srv.close(); }
 });
