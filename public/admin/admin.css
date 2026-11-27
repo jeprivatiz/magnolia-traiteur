@@ -2622,3 +2622,5 @@ tr.rem-det > td { padding: 4px 0 12px 14px; }
 .pc-rl li small { display: block; color: #6b6b6b; }
 .pc-roles1 { grid-template-columns: minmax(0, 520px) !important; margin-bottom: 12px; }
 @media (max-width: 760px) { .pc-rhor { grid-template-columns: 1fr 1fr; } .pc-rhor > :last-child { grid-column: 1 / -1; } }
+.pc-2l { display: inline-flex; flex-direction: column; align-items: center; line-height: 1.15; }
+.pc-2l small { font-size: .74rem; font-weight: 600; color: #9a7a3c; text-transform: uppercase; letter-spacing: .04em; margin-top: 2px; }
