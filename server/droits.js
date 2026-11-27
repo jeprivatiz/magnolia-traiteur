@@ -15,9 +15,9 @@ const DROITS = [
   { k: 'effacerContacts', nom: 'Effacer des contacts', aide: 'Cocher des contacts dans Clients et les effacer (jamais un contact qui a une demande, un devis ou une facture). Annulable.' },
   { k: 'devisSignes', nom: 'Modifier un devis signé', aide: 'Changer un devis déjà signé par le client.' },
   { k: 'site', nom: 'Photos et textes du site', aide: 'Bandeaux, textes de l’accueil, avis clients, médiathèque.' },
-  { k: 'entreprise', nom: 'Mon entreprise', aide: 'SIRET, assurance, banque et IBAN, logo des devis et factures.' },
+  { k: 'entreprise', nom: 'Mon entreprise', aide: 'SIRET, assurance, banque et IBAN, logo des devis et factures. Réservé à l’Administrateur.', adminSeul: true },
   { k: 'outils', nom: 'Modèles de relance et CGV', aide: 'Écran Outils : modèles de relance, CGV et pages légales.' },
-  { k: 'equipe', nom: 'Gérer l’équipe', aide: 'Ajouter des personnes, changer leurs droits, alertes de l’équipe, journal d’activité.' },
+  { k: 'equipe', nom: 'Gérer l’équipe', aide: 'Équipe & activité : comptes, droits, alertes, journal, heures supplémentaires. Réservé à l’Administrateur.', adminSeul: true },
 ];
 const CLES = DROITS.map(d => d.k);
 /* ce que pouvait faire un « Collaborateur » avant les droits détaillés */
@@ -26,14 +26,17 @@ const COLLAB_AVANT = { toutes: true, produits: true, prix: true, diffusion: true
 const MODELES = {
   commercial: { nom: 'Commercial', droits: { diffusion: true } },
   produits: { nom: 'Responsable produits', droits: { toutes: true, produits: true, prix: true, site: true, fichiers: true } },
-  bureau: { nom: 'Assistante / comptabilité', droits: { toutes: true, factures: true, fichiers: true, entreprise: true, outils: true } },
+  bureau: { nom: 'Assistante / comptabilité', droits: { toutes: true, factures: true, fichiers: true, outils: true } },
   admin: { nom: 'Administrateur', droits: { admin: true } },
 };
 
 const tout = () => Object.fromEntries(CLES.map(k => [k, true]));
 function nettoyer(d) {
   const o = Object.fromEntries(CLES.map(k => [k, !!(d && d[k] === true)]));
-  return o.admin ? tout() : o;
+  if (o.admin) return tout();
+  /* Équipe & activité et Mon entreprise : seulement l'Administrateur (le manager), Jean-Luc 2026-11-27 */
+  for (const x of DROITS) if (x.adminSeul) o[x.k] = false;
+  return o;
 }
 /* droits réels d'un compte */
 function droitsDe(u) {

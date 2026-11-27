@@ -110,3 +110,12 @@ test('back-office, mini-application et lien par SMS', async () => {
     assert.equal((await chef('/api/admin/actions/heures-sup')).j.liste.length, tous.length - 2);
   } finally { srv.close(); }
 });
+
+test('Équipe & activité et Mon entreprise : Administrateur seulement', () => {
+  const DR = require('../server/droits');
+  const d = DR.nettoyer({ toutes: true, equipe: true, entreprise: true, factures: true });
+  assert.equal(d.equipe, false); assert.equal(d.entreprise, false); assert.equal(d.factures, true);
+  const a = DR.nettoyer({ admin: true }); assert.equal(a.equipe, true); assert.equal(a.entreprise, true);
+  assert.ok(!Object.values(DR.MODELES).some(m => !m.droits.admin && (m.droits.equipe || m.droits.entreprise)));
+  assert.equal(DR.droitsDe({ role: 'collab' }).entreprise, false);
+});
