@@ -2697,3 +2697,12 @@ tr.rem-det > td { padding: 4px 0 12px 14px; }
 .pc-kitlt tr[data-href] { cursor: pointer; }
 .pc-kitlt td.n { text-align: right; }
 .pc-kith { margin: 14px 0 8px; }
+
+/* Catalogue › rubrique : « Vidéo de la vignette » à côté de la photo (Jean-Luc, 2026-11-27) */
+.span3.phrow:has(.pfv) { grid-template-columns: minmax(200px, 320px) minmax(200px, 280px) 1fr; }
+@media (max-width: 900px) { .span3.phrow:has(.pfv) { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 700px) { .span3.phrow:has(.pfv) { grid-template-columns: 1fr; } }
+.pfv .pf-img { aspect-ratio: 4 / 5; max-height: 340px; }
+.pfv .pf-orig { position: absolute; top: 8px; left: 8px; background: rgba(255, 255, 255, .92); color: var(--vert, #1f3d2b); font-size: .75rem; font-weight: 600; padding: 3px 8px; border-radius: 999px; }
+.pfv .btn.or { background: var(--or, #b8924a); color: #fff; border-color: var(--or, #b8924a); }
+.pfv .lab small { font-weight: 400; }

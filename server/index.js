@@ -2975,11 +2975,11 @@ Réponds uniquement en JSON : {${sms ? '' : '"sujet": "...", '}"texte": "..."}`;
   A.get('/actions/envois', wrap(async (req, res) => res.json({ live: brevo.live, envois: (await store.list('_outbox')).map(d => d.data).sort((a, b) => b.at.localeCompare(a.at)).slice(0, 100) })));
 
   /* photos et vidéos : envoyées depuis le back-office, rangées hors du dossier de l'application */
-  const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 60 * 1024 * 1024 } });
-  const EXT = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'image/svg+xml': 'svg', 'video/mp4': 'mp4', 'application/pdf': 'pdf' };
-  A.post('/actions/upload', sameSite, (req, res, next) => upload.single('fichier')(req, res, err => err ? res.status(400).json({ error: err.code === 'LIMIT_FILE_SIZE' ? 'Fichier trop lourd (60 Mo maximum).' : 'Envoi impossible.' }) : next()), wrap(async (req, res) => {
+  const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 150 * 1024 * 1024 } });
+  const EXT = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'image/svg+xml': 'svg', 'video/mp4': 'mp4', 'video/quicktime': 'mov', 'video/x-m4v': 'm4v', 'video/webm': 'webm', 'application/pdf': 'pdf' };
+  A.post('/actions/upload', sameSite, (req, res, next) => upload.single('fichier')(req, res, err => err ? res.status(400).json({ error: err.code === 'LIMIT_FILE_SIZE' ? 'Fichier trop lourd (150 Mo maximum).' : 'Envoi impossible.' }) : next()), wrap(async (req, res) => {
     const f = req.file; if (!f) return res.status(400).json({ error: 'Aucun fichier.' });
-    const ext = EXT[f.mimetype]; if (!ext) return res.status(415).json({ error: 'Format non pris en charge (JPG, PNG, WebP, MP4, PDF).' });
+    const ext = EXT[f.mimetype]; if (!ext) return res.status(415).json({ error: 'Format non pris en charge (JPG, PNG, WebP, MP4, MOV, PDF).' });
     const nom = slugify(path.parse(f.originalname || 'photo').name).slice(0, 40) + '-' + rid(5).toLowerCase().replace(/[^a-z0-9]/g, '') + '.' + ext;
     fs.writeFileSync(path.join(uploadDir, nom), f.buffer);
     await store.set('_assets/' + nom.replace(/\./g, '_'), { nom, type: f.mimetype, octets: f.size, at: new Date().toISOString(), par: req.ctx.name });
@@ -2987,6 +2987,8 @@ Réponds uniquement en JSON : {${sms ? '' : '"sujet": "...", '}"texte": "..."}`;
     res.json({ ok: true, url: '/media/' + nom });
   }));
   A.get('/actions/bandeaux-defaut', (req, res) => res.json(views.BANDEAUX_DEFAUT));
+  /* vidéos d'origine des vignettes de l'accueil (posées dans le code) : montrées au back-office quand aucune vidéo n'a été envoyée */
+  A.get('/actions/videos-accueil', (req, res) => res.json(Object.fromEntries(Object.entries(views.VIDEOS_ACCUEIL).filter(([, n]) => fs.existsSync(path.join(ROOT, 'public', 'site', 'v', 'accueil', n + '.mp4'))).map(([k, n]) => [k, `/site/v/accueil/${n}.mp4`]))));
   A.get('/actions/medias', wrap(async (req, res) => {
     const envoyes = (await store.list('_assets')).map(d => ({ url: '/media/' + d.data.nom, type: d.data.type, at: d.data.at }));
     const site = [];
