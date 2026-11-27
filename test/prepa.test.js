@@ -6,10 +6,11 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
+let vuParIa = '';
 test('bon de préparation de commande', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mg-'));
   const { createApp } = require('../server/index');
-  const app = await createApp({ env: { DB_FILE: path.join(dir, 'db.json'), UPLOAD_DIR: path.join(dir, 'up'), ADMIN_EMAIL: 'chef@magnolia.test', ADMIN_PASSWORD: 'mot-de-passe-essai', BREVO_API_KEY: '', DB_HOST: '', ANTHROPIC_API_KEY: '' }, noTimers: true, log: { log() {}, warn() {}, error() {}, info() {} } });
+  const app = await createApp({ env: { DB_FILE: path.join(dir, 'db.json'), UPLOAD_DIR: path.join(dir, 'up'), ADMIN_EMAIL: 'chef@magnolia.test', ADMIN_PASSWORD: 'mot-de-passe-essai', BREVO_API_KEY: '', DB_HOST: '', ANTHROPIC_API_KEY: '' }, iaAsk: async p => { vuParIa = p; return JSON.stringify({ texte: 'Magnolia : RDV 16 h, passer par l’entrée de service.' }); }, noTimers: true, log: { log() {}, warn() {}, error() {}, info() {} } });
   const srv = app.listen(0);
   const base = 'http://127.0.0.1:' + srv.address().port;
   let cookie = '';
@@ -74,5 +75,39 @@ test('bon de préparation de commande', async () => {
     assert.match(html, /Marcel DURAND/); assert.doesNotMatch(html, /Retour au back-office/);
     assert.equal((await fetch(base + '/preparation/zzzzzzzzzzzzzzzzzzzzzzzz')).status, 404);
     assert.equal((await call('/api/admin/prepa/' + id)).j.bon.envois.length, 1);
+    // listes déroulantes : softs et matériel
+    assert.ok(g.listes.softs.some(n => /Coca/i.test(n)), JSON.stringify(g.listes.softs));
+    assert.ok(g.listes.materiel.some(n => /Bain-marie|chafing/i.test(n)));
+    // détail d'une ligne : softs + nombre, gardés à l'enregistrement et sur le bon
+    const b3 = { ...g2.bon, lignes: [...g2.bon.lignes, { type: 'produit', designation: 'Pack softs', liste: 'softs', items: [{ nom: 'Coca-Cola (1,5 L)', n: '12' }, { nom: '', n: 3 }] }] };
+    const s3 = (await call('/api/admin/prepa/' + id, { method: 'PUT', body: b3 })).j;
+    const ps = s3.bon.lignes.find(l => l.liste === 'softs');
+    assert.deepEqual(ps.items, [{ groupe: '', nom: 'Coca-Cola (1,5 L)', n: 12 }]);
+    assert.match((await call('/api/admin/prepa/' + id + '/document')).j, /<b>12<\/b> Coca-Cola/);
+    // message au groupe des livreurs : modèle, IA, envoi SMS
+    const mo = (await call('/api/admin/prepa/' + id + '/ia', { method: 'POST', body: { role: 'livreurs', canal: 'sms', modele: true } })).j;
+    assert.match(mo.texte, /^Magnolia : livraison Marcel DURAND/);
+    assert.match(mo.texte, /16 h/);
+    const ia = await call('/api/admin/prepa/' + id + '/ia', { method: 'POST', body: { role: 'livreurs', canal: 'sms', consigne: 'passer par l’entrée de service' } });
+    assert.equal(ia.status, 200, JSON.stringify(ia.j)); assert.match(ia.j.texte, /entrée de service/);
+    assert.match(vuParIa, /entrée de service/); assert.match(vuParIa, /17 h 30/); assert.doesNotMatch(vuParIa, /€/);
+    assert.equal((await call('/api/admin/prepa/' + id + '/message', { method: 'POST', body: { role: 'livreurs', canal: 'sms', texte: 'Coucou', a: [{ nom: 'Romain GOUJON' }] } })).status, 400);
+    const ms = await call('/api/admin/prepa/' + id + '/message', { method: 'POST', body: { role: 'livreurs', canal: 'sms', texte: mo.texte, a: [{ nom: 'Romain GOUJON', tel: '06 20 30 40 50' }, { nom: 'Sans tel' }] } });
+    assert.equal(ms.status, 200, JSON.stringify(ms.j)); assert.deepEqual(ms.j.a, ['Romain GOUJON']); assert.deepEqual(ms.j.sans, ['Sans tel']);
+    assert.equal(ms.j.envois.slice(-1)[0].groupe, 'livreurs');
   } finally { srv.close(); }
+});
+
+test('bon de préparation : choix du client d’un buffet avec le nombre de chaque', () => {
+  const P = require('../server/prepa');
+  const p = { slug: 'buffet', titre: 'Buffet antillais — Plat seul', groupes: [
+    { id: 'g1', titre: 'Vos plats', mode: 'quantites', options: [{ id: 'a', label: 'Colombo de poulet' }, { id: 'b', label: 'Colombo de porc' }] },
+    { id: 'g2', titre: 'Vos accompagnements', mode: null, options: [{ id: 'r', label: 'Riz nature' }] }] };
+  const L = P.lignesDepuisDevis({ lignes: [{ produit: 'buffet', designation: p.titre, detail: 'Plats : …', qte: 40, unite: 'personne', choix: { g1: ['a:25', 'b:15'], g2: ['r'] } }, { produit: 'pack-softs-en-individuel', designation: 'Pack softs en individuel', qte: 40 }, { produit: 'materiel-traiteur', designation: 'Matériel traiteur', qte: 1 }] }, new Map([['buffet', p]]));
+  assert.equal(L[0].liste, 'compo');
+  assert.equal(L[0].detail, '');
+  assert.deepEqual(L[0].items, [{ groupe: 'Plats', nom: 'Colombo de poulet', n: 25 }, { groupe: 'Plats', nom: 'Colombo de porc', n: 15 }, { groupe: 'Accompagnements', nom: 'Riz nature', n: 40 }]);
+  assert.equal(L[1].liste, 'softs'); assert.equal(L[2].liste, 'materiel');
+  const html = P.documentHtml({ ...P.nettoyer({ lignes: L, client: {}, evenement: {}, horaires: {} }), personnelDevis: [] });
+  assert.match(html, /Plats · 40 au total/);
 });

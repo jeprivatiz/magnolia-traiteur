@@ -400,12 +400,22 @@
   const pcChips = (b, k) => (b[k] || []).length ? b[k].map((p, i) => `<span class="pc-chip"><b>${esc(p.nom)}</b>${p.tel ? ` <small>${esc(p.tel)}</small>` : ''}<button type="button" data-pcrm="${k}:${i}" aria-label="Retirer ${esc(p.nom)}">×</button></span>`).join('') : '<span class="muted sm">Personne pour le moment.</span>';
   const PC_PLUR = /^(personne|pièce|portion|plateau|coffret|bouteille|heure|table|chaise|unité|corbeille|gâteau|cocktail|litre)$/;
   const pcQte = l => l.qteDevis === '' || l.qteDevis == null ? '—' : `${String(l.qteDevis).replace('.', ',')} ${esc(+l.qteDevis > 1 && PC_PLUR.test(l.unite || '') ? (l.unite === 'gâteau' || l.unite === 'plateau' ? l.unite + 'x' : l.unite + 's') : l.unite || '')}`;
+  /* détail d'une ligne (Jean-Luc, 2026-11-27) : choix du client (entrées, plats, desserts) avec leur nombre, softs ou matériel en liste déroulante + nombre */
+  const PC_LIB = { compo: 'Choix du client · nombre de chaque', softs: 'Softs · nombre de chaque', materiel: 'Matériel · nombre de chaque' };
+  function pcItemsHtml(l, i) {
+    const it = l.items || []; if (!l.liste && !it.length) return '';
+    const L = (PC.x?.listes || {})[l.liste] || [];
+    const tot = {}; for (const x of it) if (x.groupe) tot[x.groupe] = (tot[x.groupe] || 0) + (+x.n || 0);
+    const rows = it.map((x, j) => `<div class="pc-itr" data-j="${j}">${x.groupe && x.groupe !== it[j - 1]?.groupe ? `<span class="pc-itg">${esc(x.groupe)}</span>` : ''}${L.length && (!x.nom || L.includes(x.nom)) && !x.libre ? `<select data-it="nom" aria-label="Choix">${x.nom ? '' : '<option value="">— Choisir —</option>'}${L.map(o => `<option${o === x.nom ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select>` : `<input data-it="nom" value="${esc(x.nom)}" placeholder="${l.liste === 'materiel' ? 'ex. Plateaux inox' : l.liste === 'softs' ? 'ex. Orangina 33 cl' : 'ex. Colombo de poulet'}" aria-label="Nom">`}<input data-it="n" type="number" min="0" inputmode="numeric" value="${esc(x.n ?? '')}" placeholder="Nb" aria-label="Nombre"><button type="button" class="pc-itx" data-itrm="${i}:${j}" aria-label="Retirer">×</button></div>`).join('');
+    const sous = Object.keys(tot).length > 1 || Object.values(tot).some(v => v) ? `<small class="pc-ittot">${Object.entries(tot).map(([g, n]) => `${esc(g)} : <b>${n}</b>`).join(' · ')}</small>` : '';
+    return `<div class="pc-it"><small class="pc-ith">${esc(PC_LIB[l.liste] || PC_LIB.compo)}</small>${rows}${sous}<div class="pc-itadd">${L.length ? `<select data-itadd="${i}" aria-label="Ajouter"><option value="">➕ Ajouter ${l.liste === 'softs' ? 'un soft' : 'du matériel'}…</option>${L.map(o => `<option>${esc(o)}</option>`).join('')}</select>` : ''}<button type="button" class="btn ghost sm" data-itlibre="${i}">✏ ${L.length ? 'Autre (à taper)' : 'Ajouter un choix'}</button></div></div>`;
+  }
   function pcLignesHtml(b) {
     let n = 0;
     return b.lignes.map((l, i) => l.type === 'titre'
       ? `<div class="pc-l pc-ti" data-i="${i}"><input data-lf="designation" value="${esc(l.designation)}" aria-label="Intertitre" placeholder="Intertitre (ex. Entrées)"><button type="button" class="pc-x" data-pclrm="${i}" title="Retirer cette ligne" aria-label="Retirer">🗑</button></div>`
       : `<div class="pc-l" data-i="${i}"><span class="pc-no">${++n}</span>
-        <div class="pc-pr"><input data-lf="designation" value="${esc(l.designation)}" placeholder="Produit" aria-label="Produit">${l.detail || !l.produit ? `<textarea data-lf="detail" rows="${Math.min(4, Math.max(1, String(l.detail || '').split('\n').length))}" placeholder="Choix, composition (facultatif)" aria-label="Choix">${esc(l.detail || '')}</textarea>` : ''}${(l.allergenes || []).length ? `<small class="pc-al">⚠ ${esc(l.allergenes.join(', '))}</small>` : ''}</div>
+        <div class="pc-pr"><input data-lf="designation" value="${esc(l.designation)}" placeholder="Produit" aria-label="Produit">${l.detail || !l.produit ? `<textarea data-lf="detail" rows="${Math.min(4, Math.max(1, String(l.detail || '').split('\n').length))}" placeholder="Choix, composition (facultatif)" aria-label="Choix">${esc(l.detail || '')}</textarea>` : ''}${(l.allergenes || []).length ? `<small class="pc-al">⚠ ${esc(l.allergenes.join(', '))}</small>` : ''}${pcItemsHtml(l, i)}</div>
         <div class="pc-q"><small>Quantité du devis</small>${l.produit ? `<b>${pcQte(l)}</b>` : `<input data-lf="qteDevis" inputmode="decimal" value="${esc(l.qteDevis ?? '')}" placeholder="—" aria-label="Quantité">`}</div>
         <label class="pc-q pc-qp"><small>Quantité à préparer</small><input data-lf="qtePrepa" value="${esc(l.qtePrepa || '')}" placeholder="à venir"></label>
         <label class="pc-nt"><small>Remarque cuisine</small><input data-lf="note" value="${esc(l.note || '')}" placeholder="ex. sans piment, à part…"></label>
@@ -442,16 +452,17 @@
       <section class="box pc-box"><h2>👥 Équipe sur l’événement</h2>
         <p class="muted sm">Choisissez dans la liste (équipe Magnolia et prestataires des Contacts) ou tapez un nom. ${b.personnelDevis.length ? `<b>Prévu au devis :</b> ${esc(b.personnelDevis.join(' · '))}` : ''}</p>
         <div class="pc-roles">${x.roles.map(([k, lab]) => `<div class="pc-role" data-role="${k}"><h3>${PC_ICO[k] || ''} ${esc(lab)}</h3><div class="pc-chips" data-chips="${k}">${pcChips(b, k)}</div>
-          <select data-pcsel="${k}" aria-label="Ajouter : ${esc(lab)}"><option value="">➕ Choisir dans la liste…</option>${pcOpts(x.personnes)}</select>
-          <div class="pc-libre"><input data-pclibre="${k}" placeholder="ou tapez un nom" aria-label="Nom"><input data-pctel="${k}" type="tel" placeholder="Portable" aria-label="Portable"><button type="button" class="btn ghost sm" data-pcajout="${k}">Ajouter</button></div></div>`).join('')}</div>
+          <div class="pc-rech"><input type="search" data-pcrech="${k}" placeholder="🔍 Rechercher : équipe, prestataires…" aria-label="Rechercher une personne : ${esc(lab)}" autocomplete="off"><div class="pc-sugg" data-sugg="${k}" hidden></div></div>
+          <div class="pc-libre"><input data-pclibre="${k}" placeholder="ou tapez un nom" aria-label="Nom"><input data-pctel="${k}" type="tel" placeholder="Portable" aria-label="Portable"><button type="button" class="btn ghost sm" data-pcajout="${k}">Ajouter</button></div>
+          <div class="pc-rbtn"><button type="button" class="btn sm pc-sms" data-pcmsg="${k}:sms">💬 SMS au groupe</button><button type="button" class="btn sm ghost" data-pcmsg="${k}:email">✉ E-mail au groupe</button></div></div>`).join('')}</div>
       </section>
       <section class="box pc-box"><h2>📋 À préparer <small class="muted pc-nb" data-pcnb></small></h2>
         <p class="muted sm">Toutes les lignes du devis (sans les prix, la livraison et le personnel). La colonne <b>Quantité à préparer</b> est prête pour les quantités détaillées de la cuisine.</p>
         <div class="pc-lignes" data-pclignes>${pcLignesHtml(b)}</div>
-        <div class="row pc-addl"><button type="button" class="btn ghost sm" data-pcadd="produit">➕ Ajouter un produit</button><button type="button" class="btn ghost sm" data-pcadd="titre">➕ Ajouter un intertitre</button><button type="button" class="btn ghost sm" data-pcrep>↻ Reprendre les lignes du devis</button></div>
+        <div class="row pc-addl"><button type="button" class="btn ghost sm" data-pcadd="produit">➕ Ajouter un produit</button><button type="button" class="btn ghost sm" data-pcadd="titre">➕ Ajouter un intertitre</button><button type="button" class="btn ghost sm" data-pcadd="materiel">➕ Matériel traiteur</button><button type="button" class="btn ghost sm" data-pcadd="softs">➕ Pack softs</button><button type="button" class="btn ghost sm" data-pcrep>↻ Reprendre les lignes du devis</button></div>
       </section>
       <section class="box pc-box"><h2>📝 Remarques pour la cuisine</h2><textarea data-f="remarques" rows="3" placeholder="Tout ce que la cuisine doit savoir : présentation, vaisselle, ordre de sortie…">${esc(b.remarques)}</textarea></section>
-      ${env.length ? `<section class="box pc-box"><h2>✉ Envois</h2><ul class="pc-env">${env.map(v => `<li><b>${esc(dateH(v.at))}</b> · à ${esc(v.a)} <span class="muted">(${esc((v.canaux || []).map(k => k === 'sms' ? 'SMS' : 'e-mail').join(' + '))}${v.par ? ', par ' + esc(v.par) : ''})</span></li>`).join('')}</ul></section>` : ''}
+      ${env.length ? `<section class="box pc-box"><h2>✉ Envois</h2><ul class="pc-env">${env.map(v => `<li><b>${esc(dateH(v.at))}</b> · ${v.groupe ? `<b>${esc((x.roles.find(r => r[0] === v.groupe) || [, v.groupe])[1])}</b> : ` : 'bon envoyé à '}${esc(v.a)} <span class="muted">(${esc((v.canaux || []).map(k => k === 'sms' ? 'SMS' : 'e-mail').join(' + '))}${v.par ? ', par ' + esc(v.par) : ''})</span></li>`).join('')}</ul></section>` : ''}
       <div class="row pc-bas"><button type="button" class="btn vt-or" data-pcsave>💾 Enregistrer</button><button type="button" class="btn ghost" data-pcdoc>🖨 Aperçu A4 · Imprimer</button><button type="button" class="btn ghost" data-pcenv>✉ Envoyer à la cuisine</button></div>
       </form>`);
   }
@@ -459,7 +470,7 @@
   function pcLire() {
     const b = PC.x.bon, f = $('#pcF'); if (!f) return b;
     $$('[data-f]', f).forEach(i => { const [a, k] = i.dataset.f.split('.'); if (k) b[a][k] = i.value; else b[a] = i.value; });
-    $$('[data-pclignes] .pc-l', f).forEach(r => { const l = b.lignes[+r.dataset.i]; if (l) $$('[data-lf]', r).forEach(i => { l[i.dataset.lf] = i.value; }); });
+    $$('[data-pclignes] .pc-l', f).forEach(r => { const l = b.lignes[+r.dataset.i]; if (!l) return; $$('[data-lf]', r).forEach(i => { l[i.dataset.lf] = i.value; }); $$('.pc-itr', r).forEach(x => { const it = (l.items || [])[+x.dataset.j]; if (it) $$('[data-it]', x).forEach(i => { it[i.dataset.it] = i.dataset.it === 'n' ? (i.value === '' ? '' : +i.value) : i.value; }); }); });
     return b;
   }
   async function pcSauver(silence) {
@@ -478,19 +489,42 @@
     f.addEventListener('submit', e => e.preventDefault());
     const ajouter = (k, p) => { if (!p.nom) return; const l = b()[k] = b()[k] || []; if (l.some(x => x.nom.toLowerCase() === p.nom.toLowerCase())) { toast(`${p.nom} est déjà dans la liste.`); return; } l.push(p); $(`[data-chips="${k}"]`).innerHTML = pcChips(b(), k); PC.sale = true; };
     f.addEventListener('change', e => {
-      const s = e.target.closest('[data-pcsel]'); if (!s || s.value === '') return;
-      const p = PC.x.personnes[+s.value]; ajouter(s.dataset.pcsel, { nom: p.nom, tel: p.tel || '', email: p.email || '' }); s.value = '';
+      const s = e.target.closest('[data-itadd]'); if (!s || s.value === '') return;
+      pcLire(); const l = b().lignes[+s.dataset.itadd]; (l.items = l.items || []).push({ nom: s.value, n: '' }); redessiner(); PC.sale = true;
+      $(`[data-pclignes] .pc-l[data-i="${s.dataset.itadd}"] .pc-itr:last-of-type [data-it="n"]`)?.focus();
+    });
+    /* recherche d'une personne (équipe + prestataires) : suggestions sous la case, un clic l'ajoute au groupe */
+    const sugg = (k, q) => {
+      const box = $(`[data-sugg="${k}"]`), n = String(q || '').trim().toLowerCase();
+      const deja = new Set((b()[k] || []).map(p => p.nom.toLowerCase()));
+      const L = PC.x.personnes.map((p, i) => ({ p, i })).filter(({ p }) => !deja.has(p.nom.toLowerCase()) && (!n || [p.nom, p.groupe, ...(p.metiers || [])].join(' ').toLowerCase().includes(n))).slice(0, 12);
+      box.innerHTML = L.length ? L.map(({ p, i }) => `<button type="button" data-pcpick="${k}:${i}"><b>${esc(p.nom)}</b><small>${esc([(p.metiers || []).join(', ') || p.groupe, p.tel].filter(Boolean).join(' · '))}</small></button>`).join('') : `<p class="muted sm">Personne trouvée${n ? ` : tapez le nom dans « ou tapez un nom » ci-dessous` : ''}.</p>`;
+      box.hidden = false;
+    };
+    $$('[data-pcrech]').forEach(i => {
+      i.addEventListener('focus', () => sugg(i.dataset.pcrech, i.value));
+      i.addEventListener('input', () => sugg(i.dataset.pcrech, i.value));
+      i.addEventListener('blur', () => setTimeout(() => { const s = $(`[data-sugg="${i.dataset.pcrech}"]`); if (s && !s.contains(document.activeElement)) s.hidden = true; }, 200));
+      i.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $(`[data-sugg="${i.dataset.pcrech}"] [data-pcpick]`)?.click(); } if (e.key === 'Escape') $(`[data-sugg="${i.dataset.pcrech}"]`).hidden = true; });
     });
     f.addEventListener('keydown', e => { const i = e.target.closest('[data-pclibre],[data-pctel]'); if (i && e.key === 'Enter') { e.preventDefault(); f.querySelector(`[data-pcajout="${i.dataset.pclibre || i.dataset.pctel}"]`).click(); } });
     f.addEventListener('click', async e => {
       const aj = e.target.closest('[data-pcajout]');
       if (aj) { const k = aj.dataset.pcajout, n = $(`[data-pclibre="${k}"]`), t = $(`[data-pctel="${k}"]`); const nom = nomPropre(n.value); if (!nom) { n.focus(); toast('Tapez d’abord un nom.', true); return; } ajouter(k, { nom, tel: t.value.trim(), email: '' }); n.value = ''; t.value = ''; return; }
+      const pk = e.target.closest('[data-pcpick]');
+      if (pk) { const [k, i] = pk.dataset.pcpick.split(':'); const p = PC.x.personnes[+i]; ajouter(k, { nom: p.nom, tel: p.tel || '', email: p.email || '' }); const r = $(`[data-pcrech="${k}"]`); r.value = ''; $(`[data-sugg="${k}"]`).hidden = true; toast(`${p.nom} ajouté(e).`); return; }
+      const ir = e.target.closest('[data-itrm]');
+      if (ir) { pcLire(); const [i, j] = ir.dataset.itrm.split(':'); b().lignes[+i].items.splice(+j, 1); redessiner(); PC.sale = true; return; }
+      const il = e.target.closest('[data-itlibre]');
+      if (il) { pcLire(); const l = b().lignes[+il.dataset.itlibre]; (l.items = l.items || []).push({ nom: '', n: '', libre: true }); if (!l.liste) l.liste = 'compo'; redessiner(); PC.sale = true; $(`[data-pclignes] .pc-l[data-i="${il.dataset.itlibre}"] .pc-itr:last-of-type [data-it="nom"]`)?.focus(); return; }
+      const mg = e.target.closest('[data-pcmsg]');
+      if (mg) { const [k, c] = mg.dataset.pcmsg.split(':'); if (!(b()[k] || []).length) { toast('Ajoutez d’abord des personnes dans ce groupe.', true); return; } try { await pcSauver(true); pcMessage(id, k, c); } catch (err) { toast(err.message, true); } return; }
       const rm = e.target.closest('[data-pcrm]');
       if (rm) { const [k, i] = rm.dataset.pcrm.split(':'); b()[k].splice(+i, 1); $(`[data-chips="${k}"]`).innerHTML = pcChips(b(), k); PC.sale = true; return; }
       const lr = e.target.closest('[data-pclrm]');
       if (lr) { pcLire(); b().lignes.splice(+lr.dataset.pclrm, 1); redessiner(); PC.sale = true; return; }
       const ad = e.target.closest('[data-pcadd]');
-      if (ad) { pcLire(); b().lignes.push(ad.dataset.pcadd === 'titre' ? { type: 'titre', designation: '' } : { type: 'produit', produit: '', designation: '', detail: '', qteDevis: '', unite: '', qtePrepa: '', note: '' }); redessiner(); PC.sale = true; const r = $$('[data-pclignes] .pc-l').pop(); r?.querySelector('input')?.focus(); return; }
+      if (ad) { pcLire(); const k = ad.dataset.pcadd; b().lignes.push(k === 'titre' ? { type: 'titre', designation: '' } : { type: 'produit', produit: '', designation: k === 'materiel' ? 'Matériel traiteur' : k === 'softs' ? 'Pack softs' : '', detail: '', qteDevis: '', unite: '', qtePrepa: '', note: '', liste: k === 'produit' ? '' : k, items: [] }); redessiner(); PC.sale = true; const r = $$('[data-pclignes] .pc-l').pop(); r?.querySelector('input')?.focus(); return; }
     });
     $('[data-pcrep]').addEventListener('click', async () => {
       if (!confirm('Reprendre toutes les lignes du devis ?\n\nLes lignes « À préparer » actuelles (quantités à préparer et remarques comprises) seront remplacées. Le reste du bon ne change pas.')) return;
@@ -504,6 +538,52 @@
     }));
     $$('[data-pcenv]').forEach(x => x.addEventListener('click', async () => { try { await pcSauver(true); pcEnvoyer(id); } catch (err) { toast(err.message, true); } }));
   };
+  /* fenêtre « Message au groupe » (Jean-Luc, 2026-11-27) : SMS ou e-mail à tous les régisseurs / livreurs / personnel, rédigé par l'IA sur consigne */
+  function pcMessage(id, role, canal0) {
+    const x = PC.x, bon = x.bon, lab = (x.roles.find(r => r[0] === role) || [, role])[1];
+    const dest = (bon[role] || []).map(p => { const q = x.personnes.find(y => y.nom === p.nom); return { nom: p.nom, tel: p.tel || q?.tel || '', email: p.email || q?.email || '', on: true }; });
+    let canal = canal0;
+    const m = document.createElement('div'); m.className = 'modal df-modal'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-modal', 'true');
+    const liste = () => dest.map((p, i) => { const ok = canal === 'sms' ? p.tel : p.email; return `<label class="pc-dst${ok ? '' : ' pc-manque'}"><input type="checkbox" data-dst="${i}"${p.on && ok ? ' checked' : ''}${ok ? '' : ' disabled'}> <b>${esc(p.nom)}</b> <small class="muted">${ok ? esc(canal === 'sms' ? p.tel : p.email) : canal === 'sms' ? 'pas de portable : ajoutez-le dans le groupe' : 'pas d’e-mail connu'}</small></label>`; }).join('');
+    m.innerHTML = `<div class="modal-in pc-mod"><div class="bh"><h2><span data-ico>${canal === 'sms' ? '💬' : '✉'}</span> Message : ${esc(lab)}</h2><button type="button" class="x" data-x aria-label="Fermer">×</button></div>
+      <div class="pc-modc">
+      <div class="pc-seg" role="group" aria-label="Envoyer par"><button type="button" data-canal="sms">💬 SMS</button><button type="button" data-canal="email">✉ E-mail</button></div>
+      <div class="pc-dl" data-dl></div>
+      <div class="pc-iabox"><label>✨ Demandez à l’IA <small class="muted">(tapez ou dictez avec le micro 🎤 ce que vous voulez dire)</small><textarea data-cons rows="2" placeholder="ex. Rappelle-leur d’être là à 17 h en tenue noire, et de passer par l’entrée de service"></textarea></label><button type="button" class="btn vt-or sm" data-ia>✨ Rédiger avec l’IA</button><span class="muted sm" data-iaet></span></div>
+      <label data-sujl>Objet de l’e-mail<input data-sujet></label>
+      <label>Message <small class="muted" data-nb></small><textarea data-txt rows="8"></textarea></label>
+      </div>
+      <div class="row"><button type="button" class="btn vt-or" data-go></button><button type="button" class="btn ghost" data-x>Annuler</button><span class="muted sm" data-etat></span></div></div>`;
+    document.body.appendChild(m);
+    const T = $('[data-txt]', m), nb = () => { $('[data-nb]', m).textContent = canal === 'sms' ? `${T.value.length} caractères${T.value.length > 160 ? ' · ' + Math.ceil(T.value.length / 153) + ' SMS' : ''}` : ''; };
+    const modele = async () => { try { const r = await api(`${A}/prepa/${encodeURIComponent(id)}/ia`, { method: 'POST', body: { role, canal, modele: true } }); T.value = r.texte; $('[data-sujet]', m).value = r.sujet || ''; nb(); } catch (err) { toast(err.message, true); } };
+    const maj = () => {
+      $$('[data-canal]', m).forEach(b => { b.classList.toggle('on', b.dataset.canal === canal); b.setAttribute('aria-pressed', b.dataset.canal === canal); });
+      $('[data-ico]', m).textContent = canal === 'sms' ? '💬' : '✉';
+      $('[data-sujl]', m).hidden = canal === 'sms'; $('[data-dl]', m).innerHTML = liste();
+      $('[data-go]', m).textContent = canal === 'sms' ? '💬 Envoyer le SMS' : '✉ Envoyer l’e-mail'; nb();
+    };
+    maj(); modele();
+    T.addEventListener('input', nb);
+    m.addEventListener('change', e => { const c = e.target.closest('[data-dst]'); if (c) dest[+c.dataset.dst].on = c.checked; });
+    m.addEventListener('click', async e => {
+      if (e.target === m || e.target.closest('[data-x]')) { m.remove(); return; }
+      const cb = e.target.closest('[data-canal]'); if (cb && cb.dataset.canal !== canal) { canal = cb.dataset.canal; maj(); modele(); return; }
+      const ia = e.target.closest('[data-ia]');
+      if (ia) {
+        ia.disabled = true; $('[data-iaet]', m).textContent = 'L’IA rédige…';
+        try { const r = await api(`${A}/prepa/${encodeURIComponent(id)}/ia`, { method: 'POST', body: { role, canal, consigne: $('[data-cons]', m).value, texte: T.value, sujet: $('[data-sujet]', m).value } }); T.value = r.texte; if (r.sujet) $('[data-sujet]', m).value = r.sujet; nb(); $('[data-iaet]', m).textContent = 'Proposition de l’IA : relisez puis envoyez.'; }
+        catch (err) { $('[data-iaet]', m).textContent = ''; toast(err.message, true); } finally { ia.disabled = false; }
+        return;
+      }
+      const go = e.target.closest('[data-go]'); if (!go) return;
+      const a = dest.filter(p => p.on && (canal === 'sms' ? p.tel : p.email));
+      if (!a.length) { toast('Cochez au moins une personne.', true); return; }
+      go.disabled = true; $('[data-etat]', m).textContent = 'Envoi en cours…';
+      try { const r = await api(`${A}/prepa/${encodeURIComponent(id)}/message`, { method: 'POST', body: { role, canal, a, sujet: $('[data-sujet]', m).value, texte: T.value } }); m.remove(); toast(`${canal === 'sms' ? 'SMS' : 'E-mail'} envoyé à ${r.a.join(', ')}.`); render(); }
+      catch (err) { toast(err.message, true); $('[data-etat]', m).textContent = ''; go.disabled = false; }
+    });
+  }
   /* fenêtre « Envoyer le bon » : à qui (liste de l'équipe ou saisie libre), e-mail et / ou SMS (avec le lien du bon), message modifiable */
   function pcEnvoyer(id) {
     const x = PC.x, bon = x.bon;

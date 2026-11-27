@@ -35,14 +35,50 @@ function allergenesDe(lignes, bySlug) {
   return [...set].sort((a, b) => a.localeCompare(b, 'fr'));
 }
 
+
+/* Détail par produit (Jean-Luc, 2026-11-27) :
+   - buffets / formules : ce que le client a choisi (entrées, plats, desserts…) avec le nombre de chacun ;
+   - Pack softs en individuel : liste déroulante de tous les softs + nombre ;
+   - Matériel traiteur : liste déroulante de tout le matériel + nombre. */
+const LISTES = { softs: 'Softs', materiel: 'Matériel', compo: 'Choix du client' };
+function listeDe(slug, titre) {
+  const t = String(titre || '').toLowerCase();
+  if (/pack-softs?/.test(slug || '') || /pack\s+softs?/.test(t)) return 'softs';
+  if (/^materiel-traiteur/.test(slug || '') || /mat[ée]riel traiteur/.test(t)) return 'materiel';
+  return '';
+}
+/* choix du client d'une ligne : mode « en portions » = nombre choisi ; sinon chaque choix pour toute la quantité (modifiable) */
+function compoDe(l, p) {
+  const out = [];
+  for (const g of p?.groupes || []) {
+    for (const id of l.choix?.[g.id] || []) {
+      const [oid, n] = String(id).split(':'); const o = (g.options || []).find(x => x.id === oid);
+      if (!o) continue;
+      out.push({ groupe: s(String(g.titre || '').replace(/^vos\s+/i, ''), 60).replace(/^./, c => c.toUpperCase()), nom: s(o.label, 120), n: g.mode === 'quantites' ? Math.max(0, Math.round(+n || 0)) : (Number(l.qte) || '') });
+    }
+  }
+  return out;
+}
+/* listes proposées dans les menus déroulants : softs (La cave de Magnolia : sodas, jus, eaux) et matériel (Indispensables, Mobilier à la location) */
+function listesPrepa(produits = []) {
+  const nom = p => String(p.titre || '').replace(/\*\*/g, '').trim();
+  const uniq = l => [...new Set(l.filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fr'));
+  const softs = uniq(produits.filter(p => p && !p.fusionneDans && p.rubrique === 'boissons' && ['sodas', 'jus', 'eaux'].includes(p.rangement)).map(nom));
+  const HORS_MAT = /chauffeur|photo ?booth|d[ée]coration|tente|pack traiteur|^mat[ée]riel traiteur$/i;
+  const materiel = uniq(produits.filter(p => p && !p.fusionneDans && (p.rubrique === 'indispensables' || p.rubrique === 'mobilier-a-la-location' || (p.autresRubriques || []).includes('mobilier-a-la-location'))).map(nom).filter(n => !HORS_MAT.test(n)));
+  return { softs, materiel };
+}
+const itemsTexte = l => (l.items || []).filter(x => x.nom).map(x => `${x.n !== '' && x.n != null ? x.n + ' × ' : ''}${x.nom}`);
+
 /* lignes « À préparer » reprises du devis : titres gardés comme intertitres ; livraison et personnel à part */
 function lignesDepuisDevis(devis, bySlug = new Map()) {
   const out = [];
   for (const l of devis?.lignes || []) {
     if (l.type === 'titre') { if (s(l.designation)) out.push({ id: 'l' + rid6(), type: 'titre', designation: s(l.designation, 300) }); continue; }
     if (estLivraison(l) || estPersonnelL(l, bySlug)) continue;
-    const p = bySlug.get(l.produit);
-    out.push({ id: 'l' + rid6(), type: 'produit', produit: s(l.produit, 160), designation: s(String(l.designation || p?.titre || '').replace(/\*\*/g, ''), 300), detail: txt(l.detail, 600), qteDevis: Number(l.qte) || '', unite: s(l.unite, 40), qtePrepa: '', note: txt(l.note, 400), allergenes: [...(p?.allergenes || [])] });
+    const p = bySlug.get(l.produit), designation = s(String(l.designation || p?.titre || '').replace(/\*\*/g, ''), 300);
+    const liste = listeDe(l.produit, designation), items = liste === 'compo' || !liste ? compoDe(l, p) : [];
+    out.push({ id: 'l' + rid6(), type: 'produit', produit: s(l.produit, 160), designation, detail: items.length ? '' : txt(l.detail, 600), qteDevis: Number(l.qte) || '', unite: s(l.unite, 40), qtePrepa: '', note: txt(l.note, 400), allergenes: [...(p?.allergenes || [])], liste: items.length ? 'compo' : liste, items });
   }
   /* un intertitre sans produit en dessous ne sert à rien */
   return out.filter((x, i) => x.type !== 'titre' || (out[i + 1] && out[i + 1].type !== 'titre'));
@@ -86,7 +122,7 @@ function nettoyer(b = {}, avant = {}, bySlug = new Map()) {
   const c = b.client || {}, e = b.evenement || {}, h = b.horaires || {};
   const lignes = (Array.isArray(b.lignes) ? b.lignes : []).slice(0, 400).map(l => l?.type === 'titre'
     ? { id: s(l.id, 20) || 'l' + rid6(), type: 'titre', designation: s(l.designation, 300) }
-    : { id: s(l?.id, 20) || 'l' + rid6(), type: 'produit', produit: s(l?.produit, 160), designation: s(l?.designation, 300), detail: txt(l?.detail, 600), qteDevis: l?.qteDevis === '' || l?.qteDevis == null ? '' : Math.max(0, Math.min(1e6, +String(l.qteDevis).replace(',', '.') || 0)), unite: s(l?.unite, 40), qtePrepa: s(l?.qtePrepa, 60), note: txt(l?.note, 400), allergenes: (Array.isArray(l?.allergenes) ? l.allergenes : bySlug.get(l?.produit)?.allergenes || []).slice(0, 14).map(x => s(x, 30)) })
+    : { id: s(l?.id, 20) || 'l' + rid6(), type: 'produit', produit: s(l?.produit, 160), designation: s(l?.designation, 300), detail: txt(l?.detail, 600), qteDevis: l?.qteDevis === '' || l?.qteDevis == null ? '' : Math.max(0, Math.min(1e6, +String(l.qteDevis).replace(',', '.') || 0)), unite: s(l?.unite, 40), qtePrepa: s(l?.qtePrepa, 60), note: txt(l?.note, 400), allergenes: (Array.isArray(l?.allergenes) ? l.allergenes : bySlug.get(l?.produit)?.allergenes || []).slice(0, 14).map(x => s(x, 30)), liste: LISTES[l?.liste] ? l.liste : '', items: (Array.isArray(l?.items) ? l.items : []).slice(0, 80).map(x => ({ groupe: s(x?.groupe, 60), nom: s(x?.nom, 120), n: x?.n === '' || x?.n == null ? '' : Math.max(0, Math.min(1e6, Math.round(+String(x.n).replace(',', '.') || 0))) })).filter(x => x.nom) })
     .filter(l => l.designation || l.type === 'produit' && (l.qtePrepa || l.note));
   return {
     id: avant.id || s(b.devisId, 60), devisId: avant.devisId || s(b.devisId, 60), devisNumero: s(b.devisNumero ?? avant.devisNumero, 40), factureNumero: s(b.factureNumero ?? avant.factureNumero, 40),
@@ -109,6 +145,13 @@ const nl = t => esc(t).replace(/\n/g, '<br>');
 const lieuTexte = b => [b.evenement.lieu, b.evenement.adresse, [b.evenement.cp, b.evenement.ville].filter(Boolean).join(' ')].filter(Boolean).join(', ');
 const titreBon = b => `Bon de préparation · ${b.client.nom || 'client'}${b.evenement.date ? ' · ' + dateCourte(b.evenement.date) : ''}`;
 
+/* détail sous le produit dans le bon : groupés par « Entrées », « Plats »… */
+function itemsDoc(l) {
+  const it = (l.items || []).filter(x => x.nom); if (!it.length) return '';
+  const g = new Map(); for (const x of it) { const k = x.groupe || (l.liste === 'softs' ? 'Softs' : l.liste === 'materiel' ? 'Matériel' : ''); if (!g.has(k)) g.set(k, []); g.get(k).push(x); }
+  return `<div class="it">${[...g].map(([k, l2]) => `<div>${k ? `<em>${esc(k)}${l2.length > 1 && l2.every(x => x.n !== '') ? ` · ${l2.reduce((t, x) => t + (+x.n || 0), 0)} au total` : ''}</em>` : ''}<ul>${l2.map(x => `<li><b>${x.n !== '' && x.n != null ? esc(x.n) : '…'}</b> ${esc(x.nom)}</li>`).join('')}</ul></div>`).join('')}</div>`;
+}
+
 /* le bon en A4 (aperçu, impression, PDF, lien envoyé à la cuisine) — sans aucun prix */
 function documentHtml(b, { R = {}, retour = '', maintenant = new Date(), par = '' } = {}) {
   const E = R.entreprise || {};
@@ -119,7 +162,7 @@ function documentHtml(b, { R = {}, retour = '', maintenant = new Date(), par = '
   let n = 0;
   const rows = b.lignes.map(l => l.type === 'titre'
     ? `<tr class="ti"><td colspan="5">${esc(l.designation)}</td></tr>`
-    : `<tr><td class="no">${++n}</td><td class="nm"><b>${esc(l.designation)}</b>${l.detail ? `<small>${nl(l.detail)}</small>` : ''}${(l.allergenes || []).length ? `<small class="al">⚠ ${esc(l.allergenes.join(', '))}</small>` : ''}</td><td class="q">${esc(qteTexte(l)) || '—'}</td><td class="q prep">${esc(l.qtePrepa)}</td><td class="nt">${nl(l.note)}<span class="ok"></span></td></tr>`).join('');
+    : `<tr><td class="no">${++n}</td><td class="nm"><b>${esc(l.designation)}</b>${l.detail ? `<small>${nl(l.detail)}</small>` : ''}${itemsDoc(l)}${(l.allergenes || []).length ? `<small class="al">⚠ ${esc(l.allergenes.join(', '))}</small>` : ''}</td><td class="q">${esc(qteTexte(l)) || '—'}</td><td class="q prep">${esc(l.qtePrepa)}</td><td class="nt">${nl(l.note)}<span class="ok"></span></td></tr>`).join('');
   const hor = HORAIRES.filter(([k]) => b.horaires[k]);
   return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex, nofollow">
 <title>${esc(titreBon(b))}</title>
@@ -174,6 +217,10 @@ tr.ti td { background: #f6f1e5; font-weight: 600; color: #5b4a2e; text-transform
 .nm b { font-weight: 600; font-size: 9.6pt; }
 .nm small { display: block; color: #5d5f58; font-size: 8pt; margin-top: .6mm; }
 .nm small.al { color: #b4412f; }
+.it { display: flex; flex-wrap: wrap; gap: 1mm 6mm; margin-top: 1mm; }
+.it em { display: block; font-style: normal; font-size: 7.4pt; text-transform: uppercase; letter-spacing: .05em; color: #b08a4f; }
+.it ul { margin: .4mm 0 0; padding: 0; list-style: none; font-size: 8.8pt; }
+.it li b { display: inline-block; min-width: 7mm; color: #1d3b2f; }
 th.q, td.q { width: 26mm; } td.q { font-weight: 600; }
 td.prep { background: #fffdf6; }
 th.nt, td.nt { width: 52mm; } td.nt { position: relative; padding-right: 9mm; font-size: 8.6pt; }
@@ -213,7 +260,7 @@ function emailHtml(b, { message = '', lien = '', R = {} } = {}) {
   const nomM = R.entreprise?.raisonSociale || 'Magnolia Traiteur';
   const td = 'padding:6px 8px;border:1px solid #ddd3bf;vertical-align:top;font-size:14px';
   const rows = b.lignes.map(l => l.type === 'titre' ? `<tr><td colspan="3" style="${td};background:#f6f1e5;font-weight:600;text-transform:uppercase;font-size:12px;color:#5b4a2e">${esc(l.designation)}</td></tr>`
-    : `<tr><td style="${td}"><b>${esc(l.designation)}</b>${l.detail ? `<br><span style="color:#666;font-size:12px">${nl(l.detail)}</span>` : ''}${l.note ? `<br><span style="color:#8a5a1f;font-size:12px">${nl(l.note)}</span>` : ''}</td><td style="${td};white-space:nowrap">${esc(qteTexte(l)) || '—'}</td><td style="${td};white-space:nowrap">${esc(l.qtePrepa) || ''}</td></tr>`).join('');
+    : `<tr><td style="${td}"><b>${esc(l.designation)}</b>${l.detail ? `<br><span style="color:#666;font-size:12px">${nl(l.detail)}</span>` : ''}${itemsTexte(l).length ? `<br><span style="font-size:13px">${itemsTexte(l).map(esc).join('<br>')}</span>` : ''}${l.note ? `<br><span style="color:#8a5a1f;font-size:12px">${nl(l.note)}</span>` : ''}</td><td style="${td};white-space:nowrap">${esc(qteTexte(l)) || '—'}</td><td style="${td};white-space:nowrap">${esc(l.qtePrepa) || ''}</td></tr>`).join('');
   const eq = ROLES.map(([k, lab]) => b[k].length ? `<b>${esc(lab)} :</b> ${esc(b[k].map(p => p.nom + (p.tel ? ' (' + p.tel + ')' : '')).join(', '))}<br>` : '').join('');
   const hor = HORAIRES.filter(([k]) => b.horaires[k]).map(([k, lab]) => `${esc(lab)} : <b>${esc(b.horaires[k])}</b>`).join(' · ');
   return `<div style="font-family:Arial,Helvetica,sans-serif;color:#1d2a24;max-width:680px">
@@ -231,4 +278,41 @@ ${b.remarques ? `<p style="margin-top:10px"><b>Remarques :</b><br>${nl(b.remarqu
 const messageDefaut = (b, expediteur = '') => `Bonjour,\n\nVoici le bon de préparation de la commande de ${b.client.nom || 'notre client'}${b.evenement.date ? ' pour le ' + dateLongue(b.evenement.date) : ''}${b.evenement.invites ? ' (' + b.evenement.invites + ' invités)' : ''}.\nMerci de le vérifier et de me prévenir s’il manque quelque chose.\n\n${expediteur ? expediteur + '\n' : ''}Magnolia Traiteur`;
 const smsTexte = (b, lien) => `Magnolia : bon de préparation ${b.client.nom || ''}${b.evenement.date ? ' du ' + dateCourte(b.evenement.date) : ''}${b.evenement.invites ? ', ' + b.evenement.invites + ' pers.' : ''}. A ouvrir : ${lien}`.replace(/\s+/g, ' ');
 
-module.exports = { ROLES, HORAIRES, bonDepuis, lignesDepuisDevis, nettoyer, documentHtml, emailHtml, messageDefaut, smsTexte, titreBon, dateCourte, allergenesDe };
+
+/* Messages à l'équipe (Jean-Luc, 2026-11-27) : un SMS ou un e-mail par groupe (régisseurs, livraison, personnel), rédigé par l'IA sur consigne */
+const NOM_ROLE = { regisseurs: 'régisseurs', livreurs: 'livreurs', personnel: 'personnel sur l’événement' };
+function infosRole(b, role) {
+  const h = b.horaires || {}, e = b.evenement || {};
+  const reg = (b.regisseurs || []).map(p => p.nom + (p.tel ? ' ' + p.tel : '')).join(', ');
+  const L = [
+    `Événement : ${e.type || 'événement'} de ${b.client.nom || 'notre client'}${b.client.societe ? ' (' + b.client.societe + ')' : ''}, ${e.date ? dateLongue(e.date) : 'date à confirmer'}${e.invites ? ', ' + e.invites + ' invités' : ''}`,
+    `Lieu : ${lieuTexte(b) || 'à confirmer'}`,
+  ];
+  const hor = HORAIRES.filter(([k]) => h[k]).map(([k, lab]) => `${lab} : ${h[k]}`).join(' ; ');
+  if (hor) L.push('Horaires : ' + hor);
+  if (role === 'livreurs') { if (b.acces) L.push('Accès : ' + b.acces.replace(/\n/g, ' ')); if (b.contactSurPlace) L.push('Contact sur place : ' + b.contactSurPlace); else if (b.client.tel) L.push('Téléphone du client : ' + b.client.tel); }
+  if (role === 'regisseurs') { if (b.client.tel) L.push('Téléphone du client : ' + b.client.tel); if (b.contactSurPlace) L.push('Contact sur place : ' + b.contactSurPlace); for (const [k, lab] of ROLES) if (k !== 'regisseurs' && (b[k] || []).length) L.push(`${lab} : ${b[k].map(p => p.nom).join(', ')}`); if (b.allergies) L.push('Allergies signalées : ' + b.allergies.replace(/\n/g, ' ')); }
+  if (role === 'personnel' && reg) L.push('Régisseur : ' + reg);
+  if (role !== 'personnel' && b.remarques) L.push('Remarques : ' + b.remarques.replace(/\n/g, ' '));
+  return L;
+}
+function modeleMessage(b, role, canal) {
+  const e = b.evenement || {}, h = b.horaires || {};
+  const quand = e.date ? dateCourte(e.date) : 'date à confirmer';
+  if (canal === 'sms') {
+    const heure = role === 'livreurs' ? (h.depart ? 'départ labo ' + h.depart : '') + (h.livraison ? (h.depart ? ', ' : '') + 'livraison ' + h.livraison : '') : [h.debut && 'début ' + h.debut, h.fin && 'fin ' + h.fin].filter(Boolean).join(', ') || (h.livraison ? 'arrivée ' + h.livraison : '');
+    return { sujet: '', texte: `Magnolia : ${role === 'livreurs' ? 'livraison' : 'événement'} ${b.client.nom || ''} le ${quand}${heure ? ' (' + heure + ')' : ''}. Adresse : ${lieuTexte(b) || 'à confirmer'}.${role === 'livreurs' && b.contactSurPlace ? ' Contact : ' + b.contactSurPlace + '.' : ''} Merci de confirmer.`.replace(/\s+/g, ' ') };
+  }
+  return { sujet: `Magnolia · ${role === 'livreurs' ? 'Livraison' : 'Événement'} ${b.client.nom || ''} · ${quand}`, texte: `Bonjour,\n\nVoici les informations pour ${role === 'livreurs' ? 'la livraison' : 'l’événement'} du ${quand} :\n\n${infosRole(b, role).map(x => '• ' + x).join('\n')}\n\nMerci de me confirmer votre présence.\n\nMagnolia Traiteur` };
+}
+function promptMessage({ b, role, canal, consigne = '', texte = '', sujet = '', expediteur = '' }) {
+  const sms = canal === 'sms';
+  return `Tu rédiges, pour ${expediteur || 'l’équipe'} de Magnolia Traiteur (traiteur événementiel), un ${sms ? 'SMS' : 'e-mail'} INTERNE destiné au groupe « ${NOM_ROLE[role] || role} » qui travaille sur un événement.
+Informations du bon de préparation (n’en invente aucune autre ; aucun prix) :
+${infosRole(b, role).map(x => '- ' + x).join('\n')}
+Règles : français, tutoiement interdit (vouvoiement collectif « vous »), ton direct et cordial, phrases courtes, les heures et l’adresse bien visibles, demande de confirmation à la fin. ${sms ? 'SMS : 320 caractères maximum, sans emoji, commence par « Magnolia : ».' : 'E-mail : 6 à 14 lignes, avec un objet court, signé « Magnolia Traiteur ».'}
+${consigne ? 'Consigne de la personne qui envoie (prioritaire) : ' + consigne + '\n' : ''}${texte ? 'Brouillon actuel à améliorer :' + (sms ? '' : '\nObjet : ' + sujet) + '\n' + texte + '\n' : ''}
+Réponds uniquement en JSON : {${sms ? '' : '"sujet": "...", '}"texte": "..."}`;
+}
+
+module.exports = { NOM_ROLE, modeleMessage, promptMessage, infosRole, LISTES, listesPrepa, compoDe, listeDe, itemsTexte, ROLES, HORAIRES, bonDepuis, lignesDepuisDevis, nettoyer, documentHtml, emailHtml, messageDefaut, smsTexte, titreBon, dateCourte, allergenesDe };
