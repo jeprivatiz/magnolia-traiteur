@@ -2370,3 +2370,4 @@ tr.rem-det > td { padding: 4px 0 12px 14px; }
 .me-act { display: flex; gap: 10px; flex-wrap: wrap; }
 .mdp-in { max-width: 460px; }
 .mdp-in form label { display: block; margin-bottom: 10px; }
+.hs-form [hidden] { display: none !important; }
