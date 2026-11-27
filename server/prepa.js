@@ -211,9 +211,9 @@ function documentHtml(b, { R = {}, retour = '', maintenant = new Date(), par = '
   const lignesDoc = recup ? b.lignes.filter(l => l.type !== 'titre' && l.recup) : b.lignes;
   const prod = lignesDoc.filter(l => l.type !== 'titre');
   let n = 0;
-  const rows = recup ? lignesDoc.map(l => `<tr><td class="no">${++n}</td><td class="nm"><b>${esc(l.designation)}</b>${l.detail ? `<small>${nl(l.detail)}</small>` : ''}${itemsDoc(l)}</td><td class="q">${esc(qteTexte(l)) || '—'}</td><td class="q prep">${esc(l.qtePrepa).split(' · ').join('<br>')}</td><td class="nt">${nl(l.note)}<span class="ok cb" role="checkbox" aria-checked="false" tabindex="0" aria-label="Récupéré"></span></td></tr>`).join('') : lignesDoc.map(l => l.type === 'titre'
+  const rows = recup ? lignesDoc.map(l => `<tr><td class="no">${++n}</td><td class="nm"><div class="nmt"><span class="cb cbp" role="checkbox" aria-checked="false" tabindex="0" aria-label="${recup ? 'Récupéré' : 'Préparé'} : ${esc(l.designation)}"></span><b>${esc(l.designation)}</b></div>${l.detail ? `<small>${nl(l.detail)}</small>` : ''}${itemsDoc(l)}</td><td class="q">${esc(qteTexte(l)) || '—'}</td><td class="q prep">${esc(l.qtePrepa).split(' · ').join('<br>')}</td><td class="nt">${nl(l.note)}</td></tr>`).join('') : lignesDoc.map(l => l.type === 'titre'
     ? `<tr class="ti"><td colspan="5">${esc(l.designation)}</td></tr>`
-    : `<tr><td class="no">${++n}</td><td class="nm"><b>${esc(l.designation)}</b>${l.detail ? `<small>${nl(l.detail)}</small>` : ''}${itemsDoc(l)}${(l.allergenes || []).length ? `<small class="al">⚠ ${esc(l.allergenes.join(', '))}</small>` : ''}</td><td class="q">${esc(qteTexte(l)) || '—'}</td><td class="q prep">${esc(l.qtePrepa).split(' · ').join('<br>')}</td><td class="nt">${nl(l.note)}<span class="ok cb" role="checkbox" aria-checked="false" tabindex="0" aria-label="Produit prêt"></span></td></tr>`).join('');
+    : `<tr><td class="no">${++n}</td><td class="nm"><div class="nmt"><span class="cb cbp" role="checkbox" aria-checked="false" tabindex="0" aria-label="${recup ? 'Récupéré' : 'Préparé'} : ${esc(l.designation)}"></span><b>${esc(l.designation)}</b></div>${l.detail ? `<small>${nl(l.detail)}</small>` : ''}${itemsDoc(l)}${(l.allergenes || []).length ? `<small class="al">⚠ ${esc(l.allergenes.join(', '))}</small>` : ''}</td><td class="q">${esc(qteTexte(l)) || '—'}</td><td class="q prep">${esc(l.qtePrepa).split(' · ').join('<br>')}</td><td class="nt">${nl(l.note)}</td></tr>`).join('');
   const hor = HORAIRES.filter(([k]) => b.horaires[k] && (!recup || ['fin', 'reprise'].includes(k)));
   const roles = recup ? [ROLE_RECUP] : ROLES;
   const RI = recupInfos(b);
@@ -268,6 +268,10 @@ tr { break-inside: avoid; }
 tr.ti td { background: #f6f1e5; font-weight: 600; color: #5b4a2e; text-transform: uppercase; letter-spacing: .05em; font-size: 8pt; }
 .no { width: 7mm; text-align: center; color: #888; }
 .nm b { font-weight: 600; font-size: 9.6pt; }
+/* une case devant CHAQUE produit (Jean-Luc, 2026-11-27 : « tous les produits doivent avoir un carré ») */
+.nmt { display: flex; align-items: flex-start; gap: 2mm; }
+.cbp { width: 5.2mm !important; height: 5.2mm !important; border-width: .55mm !important; margin-top: -.2mm; }
+.cbp.on::after { font-size: 4.6mm !important; }
 .nm small { display: block; color: #5d5f58; font-size: 8pt; margin-top: .6mm; }
 .nm small.al { color: #b4412f; }
 .it { display: flex; flex-wrap: wrap; gap: 1mm 6mm; margin-top: 1mm; }
@@ -284,7 +288,7 @@ tr.ti td { background: #f6f1e5; font-weight: 600; color: #5b4a2e; text-transform
 .cb:focus-visible { outline: .5mm solid #b08a4f; outline-offset: .3mm; }
 th.q, td.q { width: 26mm; } td.q { font-weight: 600; }
 td.prep { background: #fffdf6; overflow-wrap: anywhere; hyphens: auto; }
-th.nt, td.nt { width: 52mm; } td.nt { position: relative; padding-right: 10mm; font-size: 8.6pt; }
+th.nt, td.nt { width: 52mm; } td.nt { position: relative; font-size: 8.6pt; }
 .ok { position: absolute; right: 1.8mm; top: 1.6mm; width: 5.4mm; height: 5.4mm; border: .5mm solid #1d3b2f; border-radius: 1mm; }
 .rq { margin-top: 3.4mm; border: .3mm solid #d9cfbb; border-radius: 2mm; padding: 2.2mm 3mm; break-inside: avoid; }
 .rq h3 { margin: 0 0 1mm; font-size: 7.4pt; text-transform: uppercase; letter-spacing: .08em; color: #b08a4f; }
@@ -309,7 +313,7 @@ ${!recup && (b.allergies || b.allergenesProduits.length) ? `<div class="alerte">
 ${recup ? `<div class="hor" style="grid-template-columns:1fr 1fr 2fr"><div><small>Jour de la récupération</small><b>${esc(RI.quand)}</b></div><div><small>Heure</small><b>${RI.heure ? esc(RI.heure) : '<span class="pt"></span>'}</b></div><div class="lr"><small>Lieu de la récupération</small><b>${esc(RI.lieu)}</b></div></div>` : hor.length ? `<div class="hor">${hor.map(([k, lab]) => `<div><small>${esc(lab)}</small><b>${esc(b.horaires[k])}</b></div>`).join('')}</div>` : ''}
 <div class="equipe${recup ? ' eq2' : ''}">${roles.map(([k, lab]) => equipe(k, lab)).join('')}</div>
 <h2>${recup ? 'À RÉCUPÉRER' : 'À PRÉPARER'} <span>${prod.length} produit${prod.length > 1 ? 's' : ''}${b.evenement.invites ? ' · ' + esc(b.evenement.invites) + ' invités' : ''}</span></h2>
-<table><thead><tr><th class="no">N°</th><th>Produit et choix</th><th class="q">Quantité du devis</th><th class="q">${recup ? 'Quantité livrée' : 'Quantité à préparer'}</th><th class="nt">${recup ? 'Remarque · ✓ récupéré' : 'Remarque pour la préparation · ✓ prêt'}</th></tr></thead><tbody>${rows || `<tr><td colspan="5">${recup ? 'Rien à récupérer : cochez « À récupérer » sur les lignes du bon de préparation.' : 'Aucun produit.'}</td></tr>`}</tbody></table>
+<table><thead><tr><th class="no">N°</th><th>☐ Produit et choix</th><th class="q">Quantité du devis</th><th class="q">${recup ? 'Quantité livrée' : 'Quantité à préparer'}</th><th class="nt">${recup ? 'Remarque' : 'Remarque pour la préparation'}</th></tr></thead><tbody>${rows || `<tr><td colspan="5">${recup ? 'Rien à récupérer : cochez « À récupérer » sur les lignes du bon de préparation.' : 'Aucun produit.'}</td></tr>`}</tbody></table>
 ${b.remarques && !recup ? `<div class="rq"><h3>Remarque pour la préparation</h3><p>${nl(b.remarques)}</p></div>` : ''}
 <div class="sig">${recup ? '<div><b>Récupéré par</b>Nom, date et heure</div><div><b>Contrôlé au retour au laboratoire par</b>Nom, date et heure</div>' : '<div><b>Préparé par</b>Nom, date et heure</div><div><b>Vérifié au départ par</b>Nom, date et heure</div>'}</div>
 <footer><span>Document interne · ${esc(nomM)} · ne pas remettre au client</span><span>${esc(b.client.nom)}${b.evenement.date ? ' · ' + esc(dateCourte(b.evenement.date)) : ''}</span></footer>
