@@ -946,7 +946,7 @@ async function createApp(opts = {}) {
     [/^\/devis\/([^/]+)\/apercu/, 'devis'],
     [/^\/factures\/([^/]+)\/apercu/, 'factures'],
     [/^\/actions\/(?:facture|facture-reglement|facture-reglement-retirer|facture-payee|envoyer-facture|relancer-facture|archiver-facture|avoir-facture)\/([^/]+)/, 'factures'],
-    [/^\/actions\/devis-depuis-demande\/([^/]+)/, 'demandes'],
+    [/^\/actions\/(?:devis-depuis-demande|reserver)\/([^/]+)/, 'demandes'],
   ];
   A.use(wrap(async (req, res, next) => {
     const p = req.path, dr = req.ctx.droits || {};
@@ -2015,19 +2015,43 @@ async function createApp(opts = {}) {
     res.json({ ok: true, id: (await creerFacture(d, type, req.ctx)).id });
   }));
   /* un règlement du client sur un devis signé : la facture du devis est créée (« à envoyer ») ou complétée */
+  /* règlement du client sur un devis accepté : la facture « totale » du devis est créée (« à envoyer ») ou complétée, la fiche passe en « Réservé » */
+  async function reglementSurDevis(d, body, ctx) {
+    const r = FAC.nouveauReglement(body, ctx.name, rid);
+    const ex = (await store.list('factures')).map(x => x.data).filter(f => f.devisId === d.id && f.type === 'totale' && !f.annuleeParAvoir).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))[0];
+    const f = ex || await creerFacture(d, 'totale', ctx);
+    r.at = new Date().toISOString(); /* après la création de la facture, pour l'historique */
+    const next = FAC.resume({ ...f, reglements: [...(f.reglements || []), r] });
+    await store.set('factures/' + f.id, next);
+    if (d.demandeId) await changerStatut(d.demandeId, 'reserve', ctx.name);
+    audit(ctx, 'règlement enregistré', 'factures/' + f.id, `${f.numero} · ${euros(r.montantCents)} · ${r.moyen}`);
+    return { ok: true, id: f.id, numero: f.numero, cree: !ex, resteCents: next.resteCents, payee: next.payee, regleCents: next.regleCents, totalCents: next.totalCents };
+  }
   A.post('/actions/reglement-devis/:id', sameSite, json, wrap(async (req, res) => {
     const d = await store.get('devis/' + req.params.id);
     if (!d) return res.status(404).json({ error: 'Devis introuvable.' });
     if (d.statut !== 'accepte') return res.status(400).json({ error: 'Le devis doit d’abord être signé par le client.' });
-    let r; try { r = FAC.nouveauReglement(req.body, req.ctx.name, rid); } catch (e) { return res.status(400).json({ error: e.message }); }
-    const ex = (await store.list('factures')).map(x => x.data).filter(f => f.devisId === d.id && f.type === 'totale' && !f.annuleeParAvoir).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))[0];
-    const f = ex || await creerFacture(d, 'totale', req.ctx);
-    r.at = new Date().toISOString(); /* après la création de la facture, pour l'historique */
-    const next = FAC.resume({ ...f, reglements: [...(f.reglements || []), r] });
-    await store.set('factures/' + f.id, next);
-    if (d.demandeId) await changerStatut(d.demandeId, 'reserve', req.ctx.name);
-    audit(req.ctx, 'règlement enregistré', 'factures/' + f.id, `${f.numero} · ${euros(r.montantCents)} · ${r.moyen}`);
-    res.json({ ok: true, id: f.id, numero: f.numero, cree: !ex, resteCents: next.resteCents });
+    try { res.json(await reglementSurDevis(d, req.body, req.ctx)); } catch (e) { res.status(400).json({ error: e.message }); }
+  }));
+  /* « Réserver » depuis Suivi client (Jean-Luc, 2026-11-27) : acompte reçu (chèque, virement…) → le devis de la fiche est
+     accepté s'il ne l'était pas (accord sans signature en ligne, noté), le règlement est enregistré sur sa facture
+     (créée au besoin, avec le reste dû) et la fiche quitte « En cours » pour « Réservé ». */
+  A.post('/actions/reserver/:id', sameSite, json, wrap(async (req, res) => {
+    const dem = await store.get('demandes/' + req.params.id);
+    if (!dem) return res.status(404).json({ error: 'Fiche introuvable.' });
+    const l = (await store.list('devis')).map(x => x.data).filter(x => x && x.demandeId === dem.id).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+    let d = l.find(x => x.statut === 'accepte') || l.find(x => x.statut === 'envoye') || l.find(x => x.statut !== 'refuse') || l[0];
+    if (!d) d = await store.get('devis/' + await devisDepuisDemande(dem, req.ctx));
+    if (!(d.lignes || []).length || !(totaux(d).ttcCents > 0)) return res.status(400).json({ error: `Le devis ${d.numero} est vide : ajoutez d’abord les prestations, puis réservez.` });
+    try { FAC.nouveauReglement(req.body, req.ctx.name, rid); } catch (e) { return res.status(400).json({ error: e.message }); }
+    if (d.statut !== 'accepte') {
+      const now = new Date().toISOString();
+      d = { ...d, statut: 'accepte', accordManuel: { at: now, par: req.ctx.name, comment: 'Acompte reçu (' + (FAC.MOYENS.includes(req.body?.moyen) ? req.body.moyen : 'Virement') + ')' }, envoyeLe: d.envoyeLe || null };
+      await store.set('devis/' + d.id, d);
+      audit(req.ctx, 'devis accepté (acompte reçu)', 'devis/' + d.id, d.numero);
+    }
+    const r = await reglementSurDevis(d, req.body, req.ctx);
+    res.json({ ...r, devisId: d.id, devisNumero: d.numero, devisTtcCents: totaux(d).ttcCents });
   }));
   A.post('/actions/facture-reglement/:id', sameSite, json, wrap(async (req, res) => {
     const f = await store.get('factures/' + req.params.id);

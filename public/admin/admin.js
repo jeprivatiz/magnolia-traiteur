@@ -1085,7 +1085,7 @@
     if (st === 'refuse') out.push(etape('lost', 'Refusé', 'classé · ' + d1(o.at('refuse')), '✕'));
     else {
       const acc = ['accord', 'reserve', 'termine'].includes(st), sig = o.main?.statut === 'accepte' && o.main.signature;
-      out.push(btnEtape(o, 'accord', acc ? etape('done acc', 'Accord client', sig ? 'signé en ligne · ' + d1(o.main.signature.at) : d1(o.at('accord') || o.at('reserve')), '✓') : etape('opt', 'Accord client', '+ en attente d’acompte')));
+      out.push(btnEtape(o, 'accord', acc ? etape('done acc', 'Accord client', sig ? 'signé en ligne · ' + d1(o.main.signature.at) : o.main?.accordManuel ? 'acompte reçu · ' + d1(o.main.accordManuel.at) : d1(o.at('accord') || o.at('reserve')), '✓') : etape('opt', 'Accord client', '+ en attente d’acompte')));
       out.push(btnEtape(o, 'reserve', ['reserve', 'termine'].includes(st) ? etape('done', 'Réservé', 'acompte reçu · ' + d1(o.at('reserve')), '✓') : etape('opt', 'Réservé', acc ? 'en attente d’acompte' : '+ réserver')));
       if (!acc) out.push(btnEtape(o, 'refuse', etape('opt refuse', 'Refusé', 'si le client refuse')));
     }
@@ -1101,6 +1101,23 @@
     if (o.cat === 'draft') return `<span class="qs-tag t-draft">Devis à envoyer</span>`;
     return `<span class="qs-tag t-sent">${o.relances.length ? 'Relancé' : 'Envoyé'}</span>`;
   }
+  /* « Réserver » (Jean-Luc, 2026-11-27) : le cadre « Acompte reçu » s'ouvre sous la frise ; à la validation, le règlement va
+     sur la facture du devis (créée au besoin, avec le reste dû) et la fiche quitte « En cours » pour « Réservé ». */
+  const MOYENS_RG = ['Chèque', 'Virement', 'Espèces', 'Carte bancaire', 'Lien de paiement', 'Chèques vacances / CESU', 'Autre'];
+  function formReserver(o) {
+    const ttc = o.montant || 0, ac = regleAcompte(ttc, o.main || o.d, cache.R?.tarifs);
+    const today = new Date().toISOString().slice(0, 10);
+    const attendu = !ttc ? '' : ac.total ? `Totalité attendue${ac.raison === 'proche' ? ' (événement dans moins de ' + ac.delai + ' jours)' : ac.raison === 'seuil' ? ' (commande de moins de ' + euros(ac.seuil) + ')' : ''} : <b>${euros(ac.cents)}</b>` : `Acompte de ${ac.pct} % attendu : <b>${euros(ac.cents)}</b> sur ${euros(ttc)}, solde ${ac.delai} jours avant l’événement`;
+    return `<form class="qs-rsv" data-rsvform="${o.d.id}">
+      <div class="qs-rsv-h"><b>💶 Acompte reçu</b><span class="muted sm">${attendu}${o.main ? ` · devis n° ${esc(o.main.numero)}` : ''}</span></div>
+      <div class="qs-rsv-g"><label>Montant reçu (€ TTC)<input name="montant" inputmode="decimal" required value="${ttc ? fromCents(ac.cents) : ''}" placeholder="ex. 450"></label>
+        <label>Mode de paiement<select name="moyen">${MOYENS_RG.map(m => `<option>${esc(m)}</option>`).join('')}</select></label>
+        <label>Date de réception<input type="date" name="date" required value="${today}" max="${today}"></label>
+        <label>Note (facultatif)<input name="note" placeholder="ex. chèque n° 1234, banque…"></label></div>
+      <p class="muted sm">La facture est créée (ou complétée) automatiquement dans <b>Factures</b> avec ce règlement et le reste dû, et la fiche passe dans « Réservés ».</p>
+      <div class="row"><button class="btn" type="submit">✓ Valider : acompte reçu</button><button class="btn ghost" type="button" data-rsvx>Annuler</button><button class="btn ghost sm" type="button" data-rsvsans="${o.d.id}" title="Passer en Réservé sans enregistrer de paiement">Réserver sans paiement</button></div>
+    </form>`;
+  }
   function carte(o) {
     const c = o.d.contact || {}, e = o.d.evenement || {}, tel = String(c.tel || '').replace(/[^\d+]/g, ''), first = (c.nom || '').split(' ')[0];
     const ini = (c.nom || '?').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
@@ -1112,7 +1129,7 @@
         <div class="qs-co"><button type="button" class="qs-own-pick${o.com ? '' : ' none'}" data-qown="${o.d.id}" title="Attribuer ou changer le commercial">👤 ${esc(o.com || 'Non attribué')} <span aria-hidden="true">▾</span></button></div>
         <div class="qs-ev">${e.type ? '<b>' + esc(e.type) + '</b> · ' : ''}${esc([e.date ? dateFr(e.date, { day: 'numeric', month: 'short', year: 'numeric' }) : 'date à définir', e.invites ? e.invites + ' pers.' : '', e.ville || ''].filter(Boolean).join(' · '))}${canalDe(o.main) || canalDe(o.d) ? ' ' + pillSource(canalDe(o.main) || canalDe(o.d)) : ''}</div></div></div>
       <div class="qs-right">${k4Html(o.main ? chiffres(o.main) : chiffres(o.d, { lignes: lignesDemande(o.d), ttc: o.d.totalEstimeCents }), o.main ? '#/devis/' + o.main.id : '')}<div class="qs-ht">${o.main ? 'devis n° ' + esc(o.main.numero) : 'estimation du site'}</div></div>
-      ${frise(o)}
+      ${frise(o)}${SV.rsv === o.d.id ? formReserver(o) : ''}
       <div class="qs-foot"><div class="qs-info">${o.d.notes ? `<div class="qs-note">📝 ${esc(String(o.d.notes).slice(0, 140))}</div>` : ''}</div><div class="qs-acts">${o.late ? '' : icons}${['refuse', 'reserve', 'termine'].includes(o.d.statut) ? `<button class="qs-back" type="button" data-qback="${o.d.id}" title="Remettre dans les opportunités en cours">↺ Remettre en cours</button>` : ''}${o.main && o.main.statut !== 'brouillon' ? `<a class="qs-back" href="/devis/${esc(o.main.token)}" target="_blank" title="Le devis tel que le client le voit">📨 ${o.main.statut === 'accepte' ? 'Devis signé' : 'Devis envoyé'}</a>` : ''}${!o.main && !['refuse', 'termine'].includes(o.d.statut) ? `<button class="qs-back anc-q" type="button" data-qanc="${o.d.id}" title="Créer le devis en reprenant un ancien devis proche">📂 Ancien devis</button>` : ''}${o.d.clientId ? `<a class="qs-back" href="#/clients/${esc(o.d.clientId)}" title="Tout ce qui s’est passé avec ce client">🕘 Historique</a>` : ''}<button class="qs-open" type="button" data-qopen="${o.d.id}">${o.cat === 'draft' ? 'Terminer' : 'Ouvrir'}</button></div></div>
       ${o.late ? `<div class="qs-alert"><b>⚠ Plus de 24 h sans nouvelles.</b> <span>${o.envoyeLe ? `Rappelez ${esc(first || 'ce client')} ou relancez-le.` : `La demande de ${esc(first || 'ce client')} attend son devis.`}</span><span class="sp"></span>${tel ? `<a class="qs-pill dark" href="tel:${esc(tel)}" data-qappel="${o.d.id}">📞 Appeler</a>` : ''}${o.envoyeLe && c.email ? `<button class="qs-pill" type="button" data-qrel="${o.d.id}" data-canal="mail">✉ Relancer par e-mail</button>` : ''}${o.envoyeLe && tel ? `<button class="qs-pill" type="button" data-qrel="${o.d.id}" data-canal="sms">💬 Relancer par SMS</button>` : ''}${o.envoyeLe ? '' : `<button class="qs-pill dark" type="button" data-qdevis="${o.d.id}">✎ Préparer le devis</button>`}<button class="qs-pill" type="button" data-qfait="${o.d.id}">✓ Relance faite (noter)</button></div>` : ''}
     </article>`;
@@ -1137,6 +1154,17 @@
       if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return; e.preventDefault();
       l[i]?.classList.remove('on'); i = (i + (e.key === 'ArrowDown' ? 1 : -1) + l.length) % l.length; l[i].classList.add('on'); l[i].scrollIntoView({ block: 'nearest' });
     });
+    box.addEventListener('submit', async e => {
+      const f = e.target.closest('[data-rsvform]'); if (!f) return; e.preventDefault();
+      const montantCents = Math.round((nombreFr(f.montant.value) || 0) * 100);
+      if (!(montantCents > 0)) { toast('Indiquez le montant reçu.', true); return f.montant.focus(); }
+      const b = f.querySelector('[type=submit]'); b.disabled = true; b.textContent = 'Enregistrement…';
+      try {
+        const r = await api(`${A}/actions/reserver/${f.dataset.rsvform}`, { method: 'POST', body: { montantCents, moyen: f.moyen.value, date: f.date.value, note: f.note.value } });
+        SV.rsv = null;
+        await majDemande(f.dataset.rsvform, d => d, `✓ Réservé : ${euros(montantCents)} reçus, facture ${r.numero} ${r.cree ? 'créée' : 'mise à jour'}${r.resteCents > 0 ? ' · reste dû ' + euros(r.resteCents) : ' · réglée'}.`);
+      } catch (err) { toast(err.message, true); b.disabled = false; b.textContent = '✓ Valider : acompte reçu'; }
+    });
     box.addEventListener('click', async e => {
       const t = e.target.closest('button,a'); const o = id => (cache.opps || []).find(x => x.d.id === id);
       if (t?.dataset.qp != null) { SV.p = t.dataset.qp; return suiviDessin(); }
@@ -1154,6 +1182,14 @@
       }
       if (t?.dataset.qanc) { const r = await api(`${A}/actions/devis-depuis-demande/${t.dataset.qanc}`, { method: 'POST' }); location.hash = '#/devis/' + r.id + '?anciens=1'; return; }
       if (t?.dataset.qdevis) { const x = o(t.dataset.qdevis); if (x?.main) { location.hash = '#/devis/' + x.main.id; return; } const r = await api(`${A}/actions/devis-depuis-demande/${t.dataset.qdevis}`, { method: 'POST' }); location.hash = '#/devis/' + r.id; return; }
+      if (t?.dataset.rsvx != null) { SV.rsv = null; return suiviDessin(); }
+      if (t?.dataset.rsvsans) { SV.rsv = null; return majDemande(t.dataset.rsvsans, d => ({ ...d, statut: 'reserve' }), 'Étape : ' + STATUTS.reserve); }
+      if (e.target.closest('.qs-rsv')) return;
+      if (t?.dataset.qstep === 'reserve' && !['reserve', 'termine'].includes(o(t.dataset.q)?.d.statut)) {
+        SV.rsv = SV.rsv === t.dataset.q ? null : t.dataset.q; suiviDessin();
+        const f = $(`[data-rsvform="${t.dataset.q}"]`); if (f) { f.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); f.montant.focus(); f.montant.select(); }
+        return;
+      }
       if (t?.dataset.qstep) {
         const k = t.dataset.qstep, x = o(t.dataset.q), cur = x.d.statut;
         const next = k === cur ? (k === 'reserve' ? 'accord' : x.envoyeLe ? 'devis_envoye' : 'demande') : k;
@@ -1634,7 +1670,7 @@
     return page(`Devis ${esc(d.numero)} <span class="pill d-${d.statut}">${DSTAT[d.statut]}</span>`, `<a class="btn ghost" href="#/devis">← Devis</a>${lock ? '' : '<button class="btn anc-btn" type="button" data-ancopen>📂 Partir d’un ancien devis</button>'}<button class="btn ghost" type="button" data-dvstar title="Les modèles sont proposés en tête quand on part d’un ancien devis">${d.modele ? '⭐ Modèle' : '☆ Marquer comme modèle'}</button><button class="btn ghost" type="button" data-dup>⧉ Dupliquer ce devis</button>${d.clientId ? `<button class="btn ghost" type="button" data-newcl>+ Nouveau devis pour ce client</button>` : ''}${d.statut !== 'brouillon' ? `<a class="btn ghost" href="/devis/${d.token}" target="_blank">Voir comme le client ↗</a>` : ''}`, `
       ${d.iaDraft && d.statut === 'brouillon' ? '<p class="aq-info">✨ Devis préparé avec l’IA à partir de la commande du client : vérifiez les lignes, les quantités et le texte, enregistrez, puis envoyez-le.</p>' : ''}
       ${(d.commentaires || []).length ? `<section class="box dv-coms"><h2>💬 Commentaires du client <small class="muted">(${d.commentaires.length})</small></h2><p class="muted sm">Laissés sur la page du devis : le commercial les reçoit par e-mail et SMS.</p><ul>${d.commentaires.slice().reverse().map(m => `<li><p>${esc(m.texte).replace(/\n/g, '<br>')}</p><small>${esc(m.nom || 'Client')} · ${dateH(m.at)}</small></li>`).join('')}</ul></section>` : ''}
-      ${signe ? `<p class="okbox">✓ Signé en ligne par <b>${esc(d.signature?.nom)}</b> le ${dateH(d.signature?.at)}.${lock ? ' Il faut le droit « Modifier un devis signé » pour le changer.' : ''}</p>` : ''}
+      ${signe ? `<p class="okbox">✓ ${d.signature ? `Signé en ligne par <b>${esc(d.signature.nom)}</b> le ${dateH(d.signature.at)}` : d.accordManuel ? `Accepté : ${esc(String(d.accordManuel.comment || 'acompte reçu').toLowerCase())}, noté par <b>${esc(d.accordManuel.par || 'l’équipe')}</b> le ${dateH(d.accordManuel.at)}` : 'Accepté par le client'}.${lock ? ' Il faut le droit « Modifier un devis signé » pour le changer.' : ''}</p>` : ''}
       <form id="dv" class="${lock ? 'lock' : ''}">
       <div class="cols">
         <section class="box"><h2>Client</h2><label class="dv-clq">Chercher dans tous les clients <small>(dont le fichier importé)</small><input type="search" data-dvclq placeholder="🔍 Nom, téléphone, e-mail, ville…" autocomplete="off"></label><label>Client<select name="clientId"><option value="">— Choisir —</option>${clientsL.sort((a, b) => (a.nom || '').localeCompare(b.nom || '')).map(c => `<option value="${c.id}"${c.id === d.clientId ? ' selected' : ''}>${esc(c.nom)} · ${esc(c.email)}</option>`).join('')}</select></label><label class="src-lab">🧭 Origine du contact <small>(par où le client nous a trouvés)</small>${selSource('canal', canalDe(d))}</label><p class="muted sm"><a href="#/clients/nouveau">+ Nouveau client</a>${d.clientId ? ` · <a href="#/clients/${esc(d.clientId)}">Fiche client</a>` : ''}</p>${(() => { const autres = (cache.tousDevis || []).filter(x => x.clientId && x.clientId === d.clientId && x.id !== d.id); return autres.length ? `<p class="sm"><b>Autres devis de ce client</b></p><ul class="histo">${autres.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).map(x => `<li><a href="#/devis/${x.id}">${esc(x.numero)}</a> · ${euros(tot(x).ttc)} <span class="pill d-${x.statut}">${DSTAT[x.statut]}</span></li>`).join('')}</ul>` : ''; })()}${d.copieDe ? `<p class="muted sm">Copie du devis ${esc(d.copieDe)}.</p>` : ''}${d.inspireDe ? `<p class="muted sm">📂 Préparé à partir de l’ancien devis ${esc(d.inspireDe)}.</p>` : ''}</section>
