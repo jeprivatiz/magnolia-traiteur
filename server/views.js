@@ -230,7 +230,9 @@ function univers(c) {
   const rubs = c.rubriques.filter(r => r.statut !== 'masque');
   /* Saveurs du monde : seule vignette animée, un petit globe qui tourne sur fond de verdure (Jean-Luc, 2026-11-24) */
   /* depuis le 2026-11-27, la vidéo des cuisiniers passe avant le globe (le globe reste si le fichier manque) */
-  const globe = r => { if (videoAccueil(r.slug)) return `<a class="tile" href="${rubHref(r)}">${videoAccueil(r.slug)}<span class="tile-t"><b>${esc(r.nom)}</b><small>${esc(r.accroche || 'Dix traiteurs, une seule maison')}</small></span></a>`;
+  /* provenance de chaque cuisinier, en petit en haut à droite, changée au milieu de chaque fondu (vidéo de 26 s : un visage toutes les 2,6 s, Jean-Luc 2026-11-27) */
+  const TAGS_CHEFS = ['Traiteur français', 'Traiteur africain', 'Traiteur chinois', 'Traiteur italien', 'Traiteur antillais', 'Traiteur libanais', 'Traiteur japonais', 'Traiteur espagnol', 'Traiteur indien', 'Traiteur maghrébin'];
+  const globe = r => { if (videoAccueil(r.slug)) return `<a class="tile" href="${rubHref(r)}">${videoAccueil(r.slug)}<span class="tile-tag" data-tags='${esc(JSON.stringify(TAGS_CHEFS))}' data-pas="2.6">${TAGS_CHEFS[0]}</span><span class="tile-t"><b>${esc(r.nom)}</b><small>${esc(r.accroche || 'Dix traiteurs, une seule maison')}</small></span></a>`;
     const ids = sousVisibles(r).map(x => (lieuDe(x)?.[2] || []).map(String)).filter(g => g.length).concat([['250']]); // un groupe de pays par spécialité (France en dernier)
     return `<a class="tile vg" href="${rubHref(r)}" data-vg='${esc(JSON.stringify(ids))}'>${img('/site/c/paysages/antilles.webp', '')}<canvas aria-hidden="true"></canvas><span class="tile-t"><b>${esc(r.nom)}</b><small>${esc(r.accroche || 'Dix traiteurs, une seule maison')}</small></span></a>`; };
   return rubs.map(r => r.slug === 'lieux' ? lieux : r.slug === 'saveurs-du-monde' ? globe(r) : `<a class="tile" href="${rubHref(r)}">

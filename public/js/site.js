@@ -768,6 +768,22 @@ document.querySelector('.lsearch')?.addEventListener('submit', e => {
   document.addEventListener('visibilitychange', () => { if (document.hidden) vids.forEach(v => v.pause()); else vues.forEach(joue); });
 })();
 
+/* Accueil, Saveurs du monde : la provenance du cuisinier affiché (en haut à droite) suit la vidéo.
+   Visage n de n×pas−0,5 s à (n+1)×pas−0,5 s ; après le dernier, la vidéo revient au premier. */
+(function () {
+  document.querySelectorAll('.tile-tag[data-tags]').forEach(tag => {
+    const v = tag.parentNode.querySelector('video'); if (!v) return;
+    const tags = JSON.parse(tag.dataset.tags), pas = parseFloat(tag.dataset.pas) || 2.6;
+    let cur = 0;
+    v.addEventListener('timeupdate', () => {
+      const i = Math.floor((v.currentTime + 0.5) / pas) % tags.length;
+      if (i === cur) return; cur = i;
+      tag.classList.add('chg');
+      setTimeout(() => { tag.textContent = tags[i]; tag.classList.remove('chg'); }, 250);
+    });
+  });
+})();
+
 /* Têtes de rubrique sur téléphone (Jean-Luc, 2026-11-25) : pages de plus de 20 produits en sections.
    Les vignettes s'affichent d'abord ; un toucher ouvre #section et ne montre qu'elle ; « Toutes les rubriques »
    ou le bouton retour du téléphone ramène aux vignettes. Sur ordinateur, le CSS montre tout comme avant. */
