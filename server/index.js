@@ -210,6 +210,12 @@ async function createApp(opts = {}) {
   }
   /* une seule fois (demande de Jean-Luc, 2026-11-25) : la fiche « La cave de Magnolia » (Vins rouges, blancs et rosés, « Sur devis ») est retirée du catalogue,
      et c'est la page Boissons qui prend ce nom, avec le sous-titre « Du vin au soft, en passant par les alcools. » (l'adresse /boissons ne change pas). */
+  /* 3e modèle de relance « Dernière relance » ajouté une fois aux bases existantes (Jean-Luc, 2026-11-27) */
+  if (!(await store.get('_migr/relanceDerniere'))) {
+    const m = require('./seed').MODELES_DEFAUT.find(x => x.id === 'relance-derniere');
+    if (m && !(await store.get('modeles/' + m.id))) await store.set('modeles/' + m.id, m);
+    await store.set('_migr/relanceDerniere', { at: new Date().toISOString() });
+  }
   if (!(await store.get('_migr/caveMagnolia'))) {
     const net = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
     for (const { id, data: p } of await store.list('produits')) {
@@ -942,7 +948,7 @@ async function createApp(opts = {}) {
   const voitDoc = async (req, coll, id) => { const v = OPP.includes(coll) ? await visibles(req) : null; return !v || v[coll].has(id); };
   /* droits par écran, et opportunités des autres commerciaux introuvables par leur adresse */
   const ROUTES_DOC = [
-    [/^\/actions\/(?:envoyer-devis|relancer|dupliquer-devis|facture-depuis-devis|reglement-devis)\/([^/]+)/, 'devis'],
+    [/^\/actions\/(?:envoyer-devis|relancer|relance-modeles|dupliquer-devis|facture-depuis-devis|reglement-devis)\/([^/]+)/, 'devis'],
     [/^\/devis\/([^/]+)\/apercu/, 'devis'],
     [/^\/factures\/([^/]+)\/apercu/, 'factures'],
     [/^\/actions\/(?:facture|facture-reglement|facture-reglement-retirer|facture-payee|envoyer-facture|relancer-facture|archiver-facture|avoir-facture)\/([^/]+)/, 'factures'],
@@ -1954,16 +1960,49 @@ async function createApp(opts = {}) {
     return { ...auto, envoye: true, devisId: id, numero: d.numero, ttcCents, raisons: [] };
   }
 
+  const varsRelance = (d, cl) => ({ prenom: (cl?.nom || d.clientNom || '').split(' ')[0], nom: cl?.nom || d.clientNom || '', numero: d.numero, evenement: String(d.evenement?.type || 'événement').toLowerCase(), date: dateFr(d.evenement?.date), lien: `${SITE}/devis/${d.token}`, montant: euros(totaux(d).ttcCents) });
+  /* cadre « Relancer » du Suivi client : les modèles de relance déjà remplis pour ce devis (nom du client, lien, date…) */
+  A.get('/actions/relance-modeles/:id', wrap(async (req, res) => {
+    const d = await store.get('devis/' + req.params.id);
+    if (!d) return res.status(404).json({ error: 'Devis introuvable.' });
+    const cl = await store.get('clients/' + d.clientId), vars = varsRelance(d, cl);
+    const mods = (await store.list('modeles')).map(x => x.data).filter(m => m && m.id !== 'merci');
+    const ordre = m => ({ 'relance-j3': 1, 'relance-j7': 2, 'relance-derniere': 3, 'sms-relance': 9 }[m.id] || (m.canal === 'sms' ? 8 : 5));
+    res.json({ email: cl?.email || '', tel: cl?.tel || '', relances: (d.relances || []).length, modeles: mods.sort((a, b) => ordre(a) - ordre(b)).map(m => ({ id: m.id, nom: m.nom, canal: m.canal, sujet: remplir(m.sujet || '', vars), texte: remplir(m.texte || '', vars) })) });
+  }));
+  /* ✨ l'IA réécrit la relance (consigne facultative : « plus court », « proposer un appel »…) */
+  A.post('/ia/relance', sameSite, json, wrap(async (req, res) => {
+    if (!iaLimit(req.ctx.uid)) return res.status(429).json({ error: 'Trop de demandes : réessayez dans une minute.' });
+    const d = await store.get('devis/' + s(req.body?.devisId, 60));
+    if (!d) return res.status(404).json({ error: 'Devis introuvable.' });
+    const sms = req.body?.canal === 'sms', texte = s(req.body?.texte, 4000), sujet = s(req.body?.sujet, 200), consigne = s(req.body?.consigne, 500);
+    const v = varsRelance(d, await store.get('clients/' + d.clientId));
+    const prompt = `Tu es le commercial de Magnolia Traiteur (traiteur événementiel, Villebon-sur-Yvette). Réécris ce message de relance pour un client qui n'a pas encore accepté son devis.
+Client : ${v.nom || 'inconnu'} · ${v.evenement} du ${v.date} · devis ${v.numero} de ${v.montant} TTC.
+Règles : français, vouvoiement, chaleureux et professionnel, sans pression excessive, aucune information inventée (prix, remise, disponibilité) ; garde le lien du devis tel quel : ${v.lien}. ${sms ? 'SMS : 300 caractères maximum, signé « Magnolia Traiteur ».' : 'E-mail court (6 à 10 lignes), signé « L’équipe Magnolia Traiteur » avec le 07 63 66 98 92.'}
+${consigne ? 'Consigne du commercial : ' + consigne + '\n' : ''}Message actuel :${sms ? '' : '\nObjet : ' + sujet}
+${texte}
+
+Réponds uniquement en JSON : {${sms ? '' : '"sujet": "...", '}"texte": "..."}`;
+    try {
+      const r = IA.json(await ia.demander(prompt, { effort: 'low', maxTokens: 1500 })) || {};
+      const t = String(r.texte || '').trim();
+      if (!t) return res.status(502).json({ error: 'L’IA n’a pas proposé de texte. Réessayez.' });
+      res.json({ sujet: sms ? '' : String(r.sujet || sujet).slice(0, 200), texte: t.slice(0, sms ? 640 : 4000) });
+    } catch (e) { iaErreur(res, e); }
+  }));
   A.post('/actions/relancer/:id', sameSite, json, wrap(async (req, res) => {
     const d = await store.get('devis/' + req.params.id);
     const m = await store.get('modeles/' + s(req.body?.modele, 60));
     if (!d || !m) return res.status(404).json({ error: 'Devis ou modèle introuvable.' });
     const cl = await store.get('clients/' + d.clientId);
-    const vars = { prenom: (cl?.nom || '').split(' ')[0], nom: cl?.nom || '', numero: d.numero, evenement: String(d.evenement?.type || 'événement').toLowerCase(), date: dateFr(d.evenement?.date), lien: `${SITE}/devis/${d.token}`, montant: euros(totaux(d).ttcCents) };
-    if (m.canal === 'sms') await brevo.sendSms({ to: cl?.tel, content: remplir(m.texte, vars) });
-    else await brevo.sendEmail({ to: cl?.email, name: cl?.nom, subject: remplir(m.sujet, vars), html: esc(remplir(m.texte, vars)).replace(/\n/g, '<br>'), text: remplir(m.texte, vars) });
+    const vars = varsRelance(d, cl);
+    /* texte relu / modifié dans le cadre « Relancer » du Suivi client : il remplace celui du modèle */
+    const texte = remplir(s(req.body?.texte, 5000) || m.texte, vars), sujet = remplir(s(req.body?.sujet, 200) || m.sujet, vars);
+    if (m.canal === 'sms') { if (!cl?.tel) return res.status(400).json({ error: 'Pas de portable sur la fiche du client.' }); await brevo.sendSms({ to: cl.tel, content: texte }); }
+    else { if (!cl?.email) return res.status(400).json({ error: 'Pas d’e-mail sur la fiche du client.' }); await brevo.sendEmail({ to: cl.email, name: cl.nom, subject: sujet, html: esc(texte).replace(/\n/g, '<br>'), text: texte }); }
     const now = new Date().toISOString();
-    await store.set('devis/' + d.id, { ...d, derniereRelance: now, relances: [...(d.relances || []), { at: now, modele: m.nom, par: req.ctx.name }] });
+    await store.set('devis/' + d.id, { ...d, derniereRelance: now, relances: [...(d.relances || []), { at: now, modele: m.nom, canal: m.canal, sujet: m.canal === 'sms' ? '' : sujet, texte: texte.slice(0, 3000), par: req.ctx.name }] });
     if (d.demandeId) await changerStatut(d.demandeId, 'relance', req.ctx.name);
     audit(req.ctx, 'relance envoyée', 'devis/' + d.id, m.nom);
     res.json({ ok: true });
