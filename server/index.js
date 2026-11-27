@@ -33,6 +33,8 @@ const DR = require('./droits');
 const SRC = require('./sources');
 const HIST = require('./historique');
 const TAR = require('./tarifs');
+const BLOG = require('./blog');
+const BLOGV = require('./blog-pages');
 
 const ROOT = path.join(__dirname, '..');
 const PUBLIC = path.join(ROOT, 'public');
@@ -550,7 +552,8 @@ async function createApp(opts = {}) {
     const urls = ['/', '/boutique', '/lieux', '/maison', '/zone-de-livraison', '/comment-commander', '/temoignages', '/contact',
       ...c.rubriques.filter(r => r.statut !== 'masque').map(r => '/' + r.slug),
       ...c.produits.filter(p => p.statut !== 'masque').map(p => `/${p.rubrique}/${p.slug}`),
-      ...c.lieux.filter(l => l.statut !== 'masque').map(l => '/lieux/' + l.slug)];
+      ...c.lieux.filter(l => l.statut !== 'masque').map(l => '/lieux/' + l.slug),
+      ...(c.blog.length ? ['/blog', ...c.blog.map(a => '/blog/' + a.slug)] : [])];
     res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.map(u => `<url><loc>${esc(SITE + u)}</loc></url>`).join('')}</urlset>`);
   }));
 
@@ -1303,6 +1306,121 @@ async function createApp(opts = {}) {
     const r = await SOURCES.ajouter(req.body?.nom);
     audit(req.ctx, 'source ajoutée', '_sources/liste', r.nom);
     res.json({ ok: true, nom: r.nom, sources: r.liste });
+  }));
+
+  /* ---------- blog « Nos événements en reportage » (Jean-Luc, 2026-11-27) : l'IA rédige, l'équipe relit puis publie ---------- */
+  const articlesBlog = async () => (await store.list('blog')).map(d => ({ id: d.id, ...d.data, _maj: d.updatedAt }));
+  async function etatBlog(now = Date.now()) {
+    const [articles, R, r] = await Promise.all([articlesBlog(), store.get('site/reglages'), store.get('_blog/rappel')]);
+    return BLOG.etatRappel({ articles, dernierRappel: r?.at, R: R || {}, now });
+  }
+  async function slugBlogLibre(slug, id) {
+    const pris = new Set((await articlesBlog()).filter(a => a.id !== id).map(a => a.slug));
+    let s = slug || 'reportage', k = 2; while (pris.has(s)) s = `${slug}-${k++}`; return s;
+  }
+  A.get('/blog', peut('site'), wrap(async (req, res) => {
+    const l = (await articlesBlog()).sort((a, b) => String(b.publieLe || b.createdAt || '').localeCompare(String(a.publieLe || a.createdAt || '')));
+    const R = (await store.get('site/reglages')) || {};
+    res.set('Cache-Control', 'no-store').json({ articles: l, rappel: await etatBlog(), reglages: { ...BLOG.reglagesRappel(R), tel: R.blog?.rappel?.tel || '', email: R.blog?.rappel?.email || '', alertesSms: R.alertes?.sms || '', alertesEmails: R.alertes?.emails || '' }, types: BLOG.TYPES, ia: ia.actif });
+  }));
+  A.get('/blog/etat', wrap(async (req, res) => res.set('Cache-Control', 'no-store').json(await etatBlog())));
+  A.put('/blog/reglages', sameSite, json, peut('site'), wrap(async (req, res) => {
+    const R = (await store.get('site/reglages')) || {};
+    const b = req.body || {};
+    const rappel = { actif: b.actif !== false, jours: Math.min(30, Math.max(1, parseInt(b.jours, 10) || 3)), heure: Math.min(20, Math.max(7, parseInt(b.heure, 10) || 9)), tel: String(b.tel || '').slice(0, 200), email: String(b.email || '').slice(0, 300) };
+    await store.set('site/reglages', { ...R, blog: { ...(R.blog || {}), rappel } });
+    cat.invalidate();
+    audit(req.ctx, 'réglages', 'site/reglages', 'rappel du blog');
+    res.json({ ok: true, rappel: await etatBlog() });
+  }));
+  A.get('/blog/:id', peut('site'), wrap(async (req, res) => {
+    const a = await store.get('blog/' + req.params.id);
+    if (!a) return res.status(404).json({ error: 'Reportage introuvable.' });
+    res.set('Cache-Control', 'no-store').json({ id: req.params.id, ...a });
+  }));
+  async function enregistrerArticle(id, body, ctx) {
+    const before = id ? await store.get('blog/' + id) : null;
+    const a = BLOG.nettoyerArticle(body, before);
+    if (!id) id = 'b_' + rid(8).replace(/[^A-Za-z0-9]/g, 'x');
+    if (!before || before.statut !== 'publie') a.slug = await slugBlogLibre(BLOG.nettoyerArticle({ ...body, slug: '' }).slug, id); /* tant que l'article n'est pas publié, son adresse suit son titre */
+    else a.slug = before.slug;
+    const data = { ...a, id, createdAt: before?.createdAt || new Date().toISOString(), creePar: before?.creePar || ctx.name || '', ia: body.ia || before?.ia || null, updatedAt: new Date().toISOString() };
+    await store.set('blog/' + id, data);
+    cat.invalidate();
+    return data;
+  }
+  A.post('/blog', sameSite, json, peut('site'), wrap(async (req, res) => {
+    const a = await enregistrerArticle(null, { ...(req.body || {}), statut: 'brouillon' }, req.ctx);
+    audit(req.ctx, 'création', 'blog/' + a.id, a.titre || 'reportage');
+    res.json({ ok: true, id: a.id, article: a });
+  }));
+  A.put('/blog/:id', sameSite, json, peut('site'), wrap(async (req, res) => {
+    const before = await store.get('blog/' + req.params.id);
+    if (!before) return res.status(404).json({ error: 'Reportage introuvable.' });
+    const body = { ...(req.body || {}) };
+    if (body.statut === 'publie') {
+      const b2 = BLOG.nettoyerArticle(body, before);
+      if (!b2.titre || !b2.sections.length || !b2.photos.length) return res.status(400).json({ error: 'Pour publier, il faut au moins un titre, un texte et une photo.' });
+    }
+    const a = await enregistrerArticle(req.params.id, body, req.ctx);
+    audit(req.ctx, before.statut !== a.statut ? (a.statut === 'publie' ? 'publication' : 'dépublication') : 'modification', 'blog/' + a.id, a.titre);
+    res.json({ ok: true, id: a.id, article: a });
+  }));
+  A.delete('/blog/:id', sameSite, peut('site'), wrap(async (req, res) => {
+    const before = await store.get('blog/' + req.params.id);
+    if (before) await store.set('_corbeille/blog-' + req.params.id + '-' + Date.now(), { path: 'blog/' + req.params.id, data: before, par: req.ctx.name, at: new Date().toISOString() });
+    await store.delete('blog/' + req.params.id);
+    cat.invalidate();
+    audit(req.ctx, 'suppression (corbeille)', 'blog/' + req.params.id, before?.titre || '');
+    res.json({ ok: true });
+  }));
+  /* l'IA rédige (ou réécrit avec une consigne) : photos réduites par le navigateur, envoyées en JPEG pour qu'elle les voie */
+  const jsonIaBlog = express.json({ limit: '25mb' });
+  A.post('/ia/blog', sameSite, jsonIaBlog, peut('site'), wrap(async (req, res) => {
+    if (!ia.actif) return res.status(503).json({ error: 'L’IA n’est pas branchée (clé ANTHROPIC_API_KEY manquante).' });
+    const b = req.body || {};
+    const before = b.id ? await store.get('blog/' + b.id) : null;
+    if (b.id && !before) return res.status(404).json({ error: 'Reportage introuvable.' });
+    const base = BLOG.nettoyerArticle({ ...(before || {}), ...b }, before);
+    if (!before && base.notes.length < 15) return res.status(400).json({ error: 'Écrivez quelques lignes sur l’événement (client, lieu, invités, ce qui a été servi…).' });
+    const images = (Array.isArray(b.images) ? b.images : []).slice(0, 20).map(x => String(x || '').replace(/^data:image\/\w+;base64,/, '')).filter(x => x && x.length < 2.5e6 && /^[A-Za-z0-9+/=]+$/.test(x));
+    const c = await cat.get();
+    const slugsValides = new Set(c.produits.filter(p => p.statut !== 'masque').map(p => p.slug));
+    const prompt = BLOG.promptArticle({ ...base, photos: base.photos, catalogue: BLOG.catalogueBlog(c), consigne: b.consigne || '', actuel: before && b.consigne ? { ...before, ...base } : null, aujourdhui: new Date().toLocaleDateString('fr-FR', { dateStyle: 'full', timeZone: 'Europe/Paris' }) });
+    let rep;
+    try { rep = IA.json(await ia.demander(prompt, { effort: 'medium', maxTokens: 8000, images })); }
+    catch (e) { return res.status(502).json({ error: e.code === 'refused' ? 'L’IA a refusé ce texte.' : 'L’IA n’a pas répondu. Réessayez dans un instant.' }); }
+    const prop = BLOG.articleDepuisIa(rep, { photos: base.photos, slugsValides, notes: base.notes + ' ' + (base.citation?.texte || '') });
+    const merged = { ...base };
+    for (const [k, v] of Object.entries(prop)) if (v !== undefined && v !== null && v !== '') merged[k] = v;
+    merged.citation = prop.citation; merged.produits = prop.produits.length ? prop.produits : base.produits;
+    merged.statut = before?.statut || 'brouillon';
+    merged.ia = { at: new Date().toISOString(), par: req.ctx.name || '', consigne: b.consigne ? String(b.consigne).slice(0, 500) : '' };
+    const a = await enregistrerArticle(before ? b.id : null, merged, req.ctx);
+    audit(req.ctx, before ? 'réécriture IA' : 'rédaction IA', 'blog/' + a.id, a.titre);
+    res.json({ ok: true, id: a.id, article: a });
+  }));
+  /* rappel tous les N jours (3 par défaut), de l'heure choisie à 20 h, heure de Paris : SMS + e-mail */
+  async function rappelBlog(now = Date.now(), { force = false, essai = false } = {}) {
+    const R = (await cat.get()).reglages;
+    const e = await etatBlog(now);
+    if (!essai && !force && (!e.actif || !e.aFaire)) return null;
+    const h = BLOG.heureParis(now);
+    if (!essai && !force && (h < e.heure || h >= 20)) return null;
+    const m = BLOG.messageRappel(SITE, e.jours);
+    const tels = String(R.blog?.rappel?.tel || R.alertes?.sms || '').split(/[,;]+/).map(x => x.trim()).filter(Boolean);
+    const mails = String(R.blog?.rappel?.email || R.alertes?.emails || env.ALERT_EMAILS || '').split(/[,;\s]+/).filter(isEmail);
+    for (const t of tels) await brevo.sendSms({ to: t, content: m.sms });
+    for (const x of mails) await brevo.sendEmail({ to: x, subject: m.sujet, html: m.html, text: m.html.replace(/<[^>]+>/g, ' ') });
+    if (!essai) await store.set('_blog/rappel', { at: new Date(now).toISOString(), sms: tels.length, emails: mails.length });
+    log.log?.(`[rappel blog] ${tels.length} SMS, ${mails.length} e-mail(s)${essai ? ' (essai)' : ''}`);
+    return { sms: tels.length, emails: mails.length };
+  }
+  app.locals.rappelBlog = rappelBlog;
+  A.post('/blog/rappel-essai', sameSite, peut('site'), wrap(async (req, res) => {
+    const r = await rappelBlog(Date.now(), { essai: true });
+    if (!r.sms && !r.emails) return res.status(400).json({ error: 'Aucun numéro ni e-mail : remplissez les cases du rappel (ou les alertes de l’équipe).' });
+    res.json({ ok: true, ...r });
   }));
 
   A.get('/:coll', wrap(async (req, res, next) => {
@@ -2952,6 +3070,15 @@ async function createApp(opts = {}) {
   app.get('/comment-commander', page(c => views.commander(c)));
   app.get('/temoignages', page(c => views.temoignages(c)));
   app.get('/contact', page(c => views.contact(c)));
+  app.get('/blog', page((c, req) => BLOGV.liste(c, { type: String(req.query.type || '') })));
+  app.get(['/reportages', '/nos-reportages'], (req, res) => res.redirect(301, '/blog'));
+  app.get('/blog/:slug', page(async (c, req, res, next) => {
+    let a = c.blog.find(x => x.slug === req.params.slug);
+    if (!a && apercu(req)) a = (await store.list('blog')).map(d => d.data).find(x => x.slug === req.params.slug);
+    if (!a) return next();
+    req._masque = a.statut !== 'publie';
+    return BLOGV.article(c, a);
+  }));
   for (const [u, t] of [['/cgv', 'Conditions générales de vente'], ['/mentions-legales', 'Mentions légales'], ['/confidentialite', 'Confidentialité'], ['/allergenes', 'Allergènes'], ['/conseils', 'Nos conseils'], ['/references', 'Nos références']]) app.get(u, page(c => views.legal(c, u, t)));
   /* pages spécialités du brouillon : gardées pour le référencement */
   const SPECIALITES = { '/buffet-antillais': ['Buffet antillais', 'antillais'], '/buffet-chinois': ['Buffet chinois', 'chinois'], '/buffet-indien': ['Buffet indien', 'indien'], '/paella': ['Paëlla', 'paella'], '/traiteur-vegetarien-vegan': ['Traiteur végétarien et vegan', 'vegetarien vegan'], '/art-de-surprendre': ['L’art de surprendre', 'magicien'] };
@@ -3015,6 +3142,8 @@ async function createApp(opts = {}) {
     setTimeout(() => alerte24h().catch(e => log.error?.('[alerte 24 h]', e)), 60e3).unref();
     setInterval(() => alerte24h().catch(e => log.error?.('[alerte 24 h]', e)), 36e5).unref();
     setInterval(() => rappelsRdv().catch(e => log.error?.('[rappel rdv]', e)), 6e4).unref();
+    setTimeout(() => rappelBlog().catch(e => log.error?.('[rappel blog]', e)), 90e3).unref();
+    setInterval(() => rappelBlog().catch(e => log.error?.('[rappel blog]', e)), 15 * 6e4).unref();
   }
 
   app.locals.store = store;

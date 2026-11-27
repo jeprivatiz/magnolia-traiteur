@@ -6,8 +6,8 @@ function createCatalogue(store) {
   let cache = null, loading = null;
 
   async function load() {
-    const [rub, prod, lieux, avis, reglages, pages] = await Promise.all([
-      store.list('rubriques'), store.list('produits'), store.list('lieux'), store.list('avis'), store.get('site/reglages'), store.list('pages'),
+    const [rub, prod, lieux, avis, reglages, pages, blog] = await Promise.all([
+      store.list('rubriques'), store.list('produits'), store.list('lieux'), store.list('avis'), store.get('site/reglages'), store.list('pages'), store.list('blog'),
     ]);
     const rubriques = rub.map(d => d.data).sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
     const produits = prod.map(d => d.data).sort((a, b) => (b.maison ? 1 : 0) - (a.maison ? 1 : 0) || (a.ordre ?? 0) - (b.ordre ?? 0));
@@ -24,6 +24,8 @@ function createCatalogue(store) {
     cache = {
       reglages: reglages || {}, rubriques, produits, bySlug, byRub, lieux: lieuxL, index,
       avis: avis.map(d => ({ id: d.id, ...d.data })).filter(a => a.statut === 'visible' || a.statut === 'vedette' || !a.statut).sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0)),
+      /* reportages publiés, du plus récent au plus ancien (accueil, /blog) */
+      blog: blog.map(d => d.data).filter(a => a && a.statut === 'publie' && a.slug).sort((a, b) => String(b.publieLe || '').localeCompare(String(a.publieLe || ''))),
       pages: Object.fromEntries(pages.map(d => [d.data.url, d.data])),
       loadedAt: Date.now(),
     };

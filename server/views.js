@@ -127,7 +127,7 @@ ${schema ? `<script type="application/ld+json">${JSON.stringify(schema).replace(
     <p class="eyebrow">Nos univers</p>
     <ul class="drawer-l">${rubs.map(r => `<li><a href="${rubHref(r)}">${esc(r.nom)}<span>${c.byRub.get(r.slug)?.length || ''}</span></a></li>`).join('')}<li><a href="/lieux">Lieux de réception<span>${c.lieux.filter(l => l.statut !== 'masque').length}</span></a></li></ul>
     <p class="eyebrow">Magnolia</p>
-    <ul class="drawer-l small"><li><a href="/maison">La maison</a></li><li><a href="/comment-commander">Comment commander</a></li><li><a href="/temoignages">Avis clients</a></li><li><a href="/zone-de-livraison">Nos zones de livraison</a></li><li><a href="/contact">Contact</a></li><li><a href="/espace-client">Mon espace client</a></li></ul>
+    <ul class="drawer-l small"><li><a href="/maison">La maison</a></li><li><a href="/comment-commander">Comment commander</a></li><li><a href="/temoignages">Avis clients</a></li>${c.blog?.length ? '<li><a href="/blog">Nos reportages</a></li>' : ''}<li><a href="/zone-de-livraison">Nos zones de livraison</a></li><li><a href="/contact">Contact</a></li><li><a href="/espace-client">Mon espace client</a></li></ul>
     ${igLien(R, 'drawer-ig', `${igCouleur('igm')}<span><b>Suivez-nous sur Instagram</b>${esc(igCompte(R.instagram))}</span>`, false)}
     <a class="btn btn-or wide" href="tel:${esc((R.telephone || '').replace(/\s/g, ''))}">${icon.phone} ${esc(R.telephone)}</a>
   </div>
@@ -150,7 +150,7 @@ ${schema ? `<script type="application/ld+json">${JSON.stringify(schema).replace(
     <div class="foot-brand"><a class="brand foot-logo" href="/" aria-label="${esc(R.nom)}, accueil">${MONO}<span class="brand-txt">Magnolia<small>${esc(R.sousNom || 'Traiteur · Événementiel')}</small></span></a><p class="slogan">${esc(R.slogan || '')}</p>
       <a class="btn btn-ghost-light" href="/ma-selection">Composer mon événement</a></div>
     <div><h2>Nos univers</h2><ul>${rubs.map(r => `<li><a href="${rubHref(r)}">${esc(r.nom)}</a></li>`).join('')}<li><a href="/lieux">Lieux de réception</a></li></ul></div>
-    <div><h2>Magnolia</h2><ul><li><a href="/boutique">La boutique</a></li><li><a href="/ma-selection">Ma sélection</a></li><li><a href="/comment-commander">Comment commander</a></li><li><a href="/zone-de-livraison">Nos zones de livraison</a></li><li><a href="/temoignages">Témoignages</a></li><li><a href="/maison">La maison Magnolia</a></li><li><a href="/contact">Contact</a></li><li><a href="/espace-client">Mon espace client</a></li></ul></div>
+    <div><h2>Magnolia</h2><ul><li><a href="/boutique">La boutique</a></li><li><a href="/ma-selection">Ma sélection</a></li><li><a href="/comment-commander">Comment commander</a></li><li><a href="/zone-de-livraison">Nos zones de livraison</a></li><li><a href="/temoignages">Témoignages</a></li>${c.blog?.length ? '<li><a href="/blog">Nos reportages (blog)</a></li>' : ''}<li><a href="/maison">La maison Magnolia</a></li><li><a href="/contact">Contact</a></li><li><a href="/espace-client">Mon espace client</a></li></ul></div>
     <div><h2>Nous joindre</h2><ul class="contact"><li><a href="tel:${esc((R.telephone || '').replace(/\s/g, ''))}">${esc(R.telephone)}</a></li><li><a href="mailto:${esc(R.email)}">${esc(R.email)}</a></li><li>${esc(R.adresse)}</li><li>${esc(R.horaires)}</li></ul>${igLien(R, 'foot-ig', `${igCouleur('igf')}<span>Suivez-nous<b>${esc(igCompte(R.instagram))}</b></span>`, false)}</div>
   </div>
   <div class="foot-bas"><p>${esc(R.mentionPied || '')}</p><p><a href="/mentions-legales">Mentions légales</a> · <a href="/confidentialite">Confidentialité</a> · <a href="/cgv">CGV</a> · <a href="/allergenes">Allergènes</a><span data-cookies> · <a href="#cookies">Gérer mes cookies</a></span> · © ${new Date().getFullYear()} ${esc(R.nom)}</p></div>
@@ -326,6 +326,7 @@ ${bandeLogos(c, { lien: true, titre: 'Particuliers et entreprises : ils nous fon
 ${inc.length ? `<section class="wrap"><div class="sec-h"><div><p class="eyebrow">À partager, à savourer, à célébrer</p><h2>Les incontournables</h2></div><a class="lnk" href="/boutique">Voir toute la boutique ${icon.arrow}</a></div>
   <div class="cards scroller">${inc.map(p => card(p, c)).join('')}</div></section>` : ''}
 ${etapes(c)}
+${require('./blog-pages').encart(c)}
 <section class="maison band-vert"><div class="wrap maison-in"><div><p class="eyebrow light">La maison Magnolia</p><h2>Le plaisir de recevoir, le goût de partager</h2>
   <p>Anniversaire, mariage, fête de famille ou réception professionnelle : cocktails, buffets, spécialités du monde, animations, personnel, matériel, artistes et lieux, réunis dans une seule demande.</p>
   <a class="btn btn-ghost-light" href="/maison">Découvrir la maison</a></div>${img(A.photoMaison, 'L’équipe Magnolia devant un buffet')}</div></section>
