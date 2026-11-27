@@ -3134,12 +3134,12 @@ Réponds uniquement en JSON : {${sms ? '' : '"sujet": "...", '}"texte": "..."}`;
     if (!ok.length) return res.status(400).json({ error: canal === 'sms' ? 'Aucune des personnes cochées n’a de portable valable.' : 'Aucune des personnes cochées n’a d’e-mail valable.' });
     const R = (await cat.get()).reglages || {};
     const sujet = s(b.sujet, 160) || 'Magnolia Traiteur · ' + PREP.titreBon(bon);
+    const sans = dest.filter(p => !ok.includes(p)).map(p => p.nom);
     for (const p of ok) {
       if (canal === 'sms') await brevo.sendSms({ to: p.tel, lien: false, content: texte });
       else await brevo.sendEmail({ to: p.email, name: p.nom, replyTo: req.ctx.email || R.email, subject: sujet, html: `<div style="font-family:Arial,Helvetica,sans-serif;color:#1d2a24;max-width:640px">${esc(texte).replace(/\n/g, '<br>')}</div>`, text: texte });
     }
-    const sans = dest.filter(p => !ok.includes(p)).map(p => p.nom);
-    const envois = [...(bon.envois || []), { at: new Date().toISOString(), par: req.ctx.name || '', a: ok.map(p => p.nom || p.tel || p.email).join(', '), canaux: [canal], groupe: role }].slice(-30);
+    const envois = [...(bon.envois || []), { at: new Date().toISOString(), par: req.ctx.name || '', a: ok.map(p => p.nom || p.tel || p.email).join(', '), canaux: [canal], groupe: role, ...(canal === 'email' ? { sujet } : {}), texte, ...(sans.length ? { sans: sans.join(', ') } : {}) }].slice(-300);
     await store.set('prepas/' + req.params.id, { ...bon, envois });
     audit(req.ctx, 'message à l’équipe (prépa de commande)', 'prepas/' + req.params.id, `${PREP.NOM_ROLE[role]} · ${canal} · ${ok.length}`);
     res.json({ ok: true, a: ok.map(p => p.nom), sans, envois });
@@ -3163,7 +3163,7 @@ Réponds uniquement en JSON : {${sms ? '' : '"sujet": "...", '}"texte": "..."}`;
       if (canaux.includes('email') && isEmail(p.email)) { await brevo.sendEmail({ to: p.email, name: p.nom, replyTo: req.ctx.email || R.email, subject: sujet, html, text: `${txt(b.message)}\n\nBon de préparation : ${lien}` }); faits.push(p.nom || p.email); }
       if (canaux.includes('sms') && p.tel) { await brevo.sendSms({ to: p.tel, lien: false, content: PREP.smsTexte(bon, lien) }); if (!faits.includes(p.nom || p.tel)) faits.push(p.nom || p.tel); }
     }
-    const envois = [...(bon.envois || []), { at: new Date().toISOString(), par: req.ctx.name || '', a: faits.join(', '), canaux }].slice(-30);
+    const envois = [...(bon.envois || []), { at: new Date().toISOString(), par: req.ctx.name || '', a: faits.join(', '), canaux, sujet, texte: [txt(b.message), canaux.includes('sms') ? PREP.smsTexte(bon, lien) : ''].filter(Boolean).join('\n\n') }].slice(-300);
     await store.set('prepas/' + req.params.id, { ...bon, token, envois });
     audit(req.ctx, 'bon de préparation envoyé', 'prepas/' + req.params.id, `${faits.join(', ')} (${canaux.join(' + ')})`);
     res.json({ ok: true, lien, a: faits, envois });
