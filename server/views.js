@@ -130,7 +130,7 @@ ${schema ? `<script type="application/ld+json">${JSON.stringify(schema).replace(
 <div class="drawer" data-menu hidden>
   <div class="drawer-in" role="dialog" aria-modal="true" aria-label="Menu">
     <div class="drawer-h"><span class="brand-txt">Magnolia<small>${esc(R.sousNom || '')}</small></span><button type="button" class="x" data-close-menu aria-label="Fermer">×</button></div>
-    <form class="drawer-s" action="/boutique" role="search"><input type="search" name="q" placeholder="Paëlla, DJ, huîtres…" aria-label="Rechercher"><button aria-label="Rechercher">${icon.search}</button></form>
+    <form class="drawer-s" action="/boutique" role="search"><input type="search" name="q" placeholder="Paëlla, DJ, fruits de mer…" aria-label="Rechercher"><button aria-label="Rechercher">${icon.search}</button></form>
     <p class="eyebrow">Nos univers</p>
     <ul class="drawer-l">${rubs.map(r => `<li><a href="${rubHref(r)}">${esc(r.nom)}<span>${c.byRub.get(r.slug)?.length || ''}</span></a></li>`).join('')}<li><a href="/lieux">Lieux de réception<span>${c.lieux.filter(l => l.statut !== 'masque').length}</span></a></li></ul>
     <p class="eyebrow">Magnolia</p>
@@ -323,7 +323,7 @@ ${bandeLogos(c, { lien: true, titre: 'Particuliers et entreprises : ils nous fon
 })()}</section>
 <section class="recherche wrap">
   <h2 class="center">Que recherchez-vous ?</h2><p class="eyebrow center sous-titre">Entrez ou dictez votre envie</p>
-  <form class="bigsearch inline" action="/boutique" role="search" data-live-search>${icon.search}<input type="search" name="q" placeholder="Paëlla, DJ, huîtres, personnel…" aria-label="Que recherchez-vous ?" autocomplete="off"><button type="button" class="mic" data-dictee aria-label="Dicter ma recherche">${icon.mic}<span>Dicter</span></button></form>
+  <form class="bigsearch inline" action="/boutique" role="search" data-live-search>${icon.search}<input type="search" name="q" placeholder="Paëlla, DJ, fruits de mer, personnel…" aria-label="Que recherchez-vous ?" autocomplete="off"><button type="button" class="mic" data-dictee aria-label="Dicter ma recherche">${icon.mic}<span>Dicter</span></button></form>
   ${aideRech(R, 'center')}
   <div class="live" data-live-results></div>
   ${suggChips(R, 'center')}
@@ -561,7 +561,7 @@ ${avant}<section class="wrap shop" id="prestations" data-shop${rubm ? ' data-rub
   <div class="shop-bar">
     ${chips}<div class="chips scroll-x" role="tablist"${chips ? ' hidden' : ''}>${liste ? '' : `<a class="chip${!rub ? ' on' : ''}" href="/boutique" data-filter="">Tout <small>${c.produits.filter(p => p.statut !== 'masque').length}</small></a>`}${liste ? '' : rubs.map(x => `<a class="chip${x.slug === rub ? ' on' : ''}" href="/${x.slug}"${x.slug === 'saveurs-du-monde' || x.parSections ? ' data-lien' : ` data-filter="${x.slug}"`}>${esc(x.nom)} <small>${c.byRub.get(x.slug)?.length || 0}</small></a>`).join('')}</div>
     <div class="shop-tools">
-      <form class="shop-q" action="/boutique" role="search">${icon.search}<input type="search" name="q" value="${esc(q)}" placeholder="Paëlla, DJ, huîtres…" aria-label="Rechercher dans la boutique" data-shop-q></form>
+      <form class="shop-q" action="/boutique" role="search">${icon.search}<input type="search" name="q" value="${esc(q)}" placeholder="Paëlla, DJ, fruits de mer…" aria-label="Rechercher dans la boutique" data-shop-q></form>
       <label class="tri"><span class="sr">Trier</span><select data-sort><option value="ordre">Classement</option><option value="az">Ordre alphabétique (A à Z)</option><option value="asc">Prix croissant</option><option value="desc">Prix décroissant</option></select></label>
     </div>${rubm ? rubmRetour() : ''}
   </div>

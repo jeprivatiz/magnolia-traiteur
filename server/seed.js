@@ -23,7 +23,6 @@ const SUGGESTIONS_ACCUEIL = [
   { label: 'Buffet antillais', lien: '/saveurs-du-monde/buffet-antillais' },
   { label: 'Paëlla', lien: '/saveurs-du-monde/paella-party' },
   { label: 'Couscous party', lien: '/saveurs-du-monde/couscous-party' },
-  { label: 'Huîtres', lien: '' },
   { label: 'Barbecue party', lien: '/boutique?q=barbecue' },
   { label: 'Pièces montées', lien: '' },
   { label: 'Plateau de fruits de mer', lien: '/grand-large' },
@@ -1004,6 +1003,12 @@ async function initSousRubriques(store, { log = console } = {}) {
   if (RSb4 && !RSb4.bullesAccueil4) {
     const sg = (RSb4.accueil?.suggestions || []).filter(x => !/^(candy ?bar|fontaine [aà] chocolat)$/i.test(String(typeof x === 'string' ? x : x?.label || '').trim()));
     await store.set('site/reglages', { ...RSb4, accueil: { ...(RSb4.accueil || {}), suggestions: sg }, bullesAccueil4: true });
+  }
+  /* Jean-Luc (2026-11-27) : plus de bulle « Huîtres » sous la recherche (déjà couvert par « Plateau de fruits de mer » ; produits gardés au catalogue). Une fois. */
+  const RSb5 = await store.get('site/reglages');
+  if (RSb5 && !RSb5.bullesAccueil5) {
+    const sg = (RSb5.accueil?.suggestions || []).filter(x => !/^hu[iî]tres?$/i.test(String(typeof x === 'string' ? x : x?.label || '').trim()));
+    await store.set('site/reglages', { ...RSb5, accueil: { ...(RSb5.accueil || {}), suggestions: sg }, bullesAccueil5: true });
   }
   /* prix corrigé par Jean-Luc (2026-11-22) : le brouillon avait repris le prix de « Entrées + plat » (21,90 €). Une fois. */
   const RSc = await store.get('site/reglages');
