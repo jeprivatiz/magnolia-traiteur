@@ -132,7 +132,7 @@
   }, true);
   /* droits détaillés du compte connecté (Équipe & activité) ; « Administrateur » a tout */
   const peut = k => !!session?.droits?.[k];
-  const DROIT_ECRAN = { factures: 'factures', catalogue: 'produits', achats: 'prix', tarifs: 'prix', lieux: 'produits', site: 'site', avis: 'site', blog: 'site', medias: 'site', entreprise: 'entreprise', outils: ['outils', 'fichiers'] };
+  const DROIT_ECRAN = { factures: 'factures', catalogue: 'produits', achats: 'prix', tarifs: 'prix', lieux: 'produits', site: 'site', avis: 'site', blog: 'site', medias: 'site', entreprise: 'entreprise', outils: ['outils', 'fichiers'], equipe: 'equipe' /* réservé au manager (Jean-Luc, 2026-11-27) */ };
   const voitEcran = r => { const d = DROIT_ECRAN[r]; return !d || [].concat(d).some(peut); };
 
   /* ---------- structure ---------- */
@@ -171,7 +171,7 @@
     return `<div class="bo">
       <aside class="side" id="side"><a class="logo" href="#/"><img src="/brand/monogramme.svg" alt=""><span>Magnolia<small>Back-office</small></span></a><a class="go-site" href="/" target="_blank" rel="noopener">🌐 Aller sur le site ↗</a>
       <nav class="tabs${open ? ' crm-open' : ''}"><p class="tabs-lab">Espace équipe</p>${MENU.filter(m => m[0] === '-' || m[0] === 'crm' || voitEcran(m[0])).filter((m, i, l) => m[0] !== '-' || (i > 0 && l[i - 1][0] !== '-' && i < l.length - 1)).map(item).join('')}</nav>
-      <div class="me"><span>${esc(session.nom || session.email)}<small>${peut('admin') ? 'Administrateur' : peut('toutes') ? 'Équipe' : 'Commercial · ses dossiers'}</small></span><button class="lnk" data-logout>Déconnexion</button></div></aside>
+      <div class="me"><span>${esc(session.nom || session.email)}<small>${peut('admin') ? 'Administrateur' : peut('toutes') ? 'Équipe' : 'Commercial · ses dossiers'}</small></span><span class="me-act"><button class="lnk" data-monmdp>🔑 Mot de passe</button><button class="lnk" data-logout>Déconnexion</button></span></div></aside>
       <div class="main"><header class="mtop"><button class="burger" data-burger aria-label="Menu">☰</button><span class="mtitle">${esc((MENU.find(m => m[0] === cur) || [, ''])[1])}</span><a class="go-site sm" href="/" target="_blank" rel="noopener">🌐 Le site ↗</a></header><div class="content">${inner}</div></div></div>`;
   }
   const sansAcces = async () => `<div class="ph"><h1>Accès non autorisé</h1></div><section class="box"><p>Votre compte n’a pas le droit d’ouvrir cet écran.</p><p class="muted sm">Un administrateur peut vous le donner dans <b>Équipe &amp; activité</b>, en cochant la case qui correspond.</p><a class="btn" href="#/">← Tableau de bord</a></section>`;
@@ -217,6 +217,7 @@
   }
   addEventListener('hashchange', render);
   function bindShell() {
+    $('[data-monmdp]')?.addEventListener('click', monMotDePasse);
     $('[data-logout]')?.addEventListener('click', async () => { await api('/api/auth/logout', { method: 'POST' }); session = null; render(); });
     $('[data-burger]')?.addEventListener('click', () => $('#side').classList.toggle('open'));
     $$('#side nav a').forEach(a => a.addEventListener('click', () => $('#side').classList.remove('open')));
@@ -3588,6 +3589,15 @@
     filtrer.maj = x => { const el = box.querySelector(`[data-u="${CSS.escape(x.url)}"]`); if (el) el.outerHTML = vignette(x, tag, coches); };
     return filtrer;
   }
+  /* changer son mot de passe (tout le monde) : Équipe & activité est réservée au manager depuis le 2026-11-27 */
+  function monMotDePasse() {
+    const dlg = document.createElement('div'); dlg.className = 'modal';
+    dlg.innerHTML = `<div class="modal-in mdp-in"><div class="bh"><h2>🔑 Mon mot de passe</h2><button class="x" data-close aria-label="Fermer">×</button></div><form data-mdpf><label>Mot de passe actuel<input type="password" name="current" required autocomplete="current-password"></label><label>Nouveau mot de passe (10 caractères min.)<input type="password" name="password" minlength="10" required autocomplete="new-password"></label><div class="row"><button class="btn">Changer</button><button type="button" class="btn ghost" data-close>Annuler</button></div></form></div>`;
+    document.body.appendChild(dlg);
+    dlg.addEventListener('click', e => { if (e.target.matches('[data-close], .modal')) dlg.remove(); });
+    $('[data-mdpf]', dlg).addEventListener('submit', async e => { e.preventDefault(); try { await api('/api/auth/password', { method: 'POST', body: Object.fromEntries(new FormData(e.target)) }); toast('Mot de passe changé.'); dlg.remove(); } catch (err) { toast(err.message, true); } });
+    $('input', dlg).focus();
+  }
   async function pickMedia() {
     const m = await api(A + '/actions/medias');
     return new Promise(resolve => {
@@ -4632,6 +4642,8 @@
     box.innerHTML = `<h2>⏱ Heures supplémentaires</h2>
       <p class="hs-regle">Du <b>lundi au vendredi</b>, on déclare seulement ce qui est fait <b>avant 9 h</b> ou <b>après 18 h</b> (9 h – 18 h = horaires normaux). Le <b>samedi et le dimanche</b> : toute la journée. ${admin ? 'Vous voyez les heures de toute l’équipe.' : 'Vous voyez seulement les vôtres.'}</p>
       <form class="hs-form" id="hsForm" novalidate>
+        <div class="hs-dire"><button type="button" class="btn hs-dire-btn" data-hsdire>🎤 Dire mes heures</button><span class="muted sm">ex. « J’ai travaillé mardi de 18 h à 20 h sur la création de fiches produits » : l’IA remplit le jour, les heures et coche les cases. Vous vérifiez, puis vous enregistrez.</span>
+          <div class="hs-dire-z" data-hsdirez hidden><textarea data-hsphrase rows="2" placeholder="Ou écrivez la phrase ici"></textarea><button type="button" class="btn ghost sm" data-hsremplir>✨ Remplir les cases</button></div><p class="sm" data-hsdmsg aria-live="polite"></p></div>
         <div class="hs-g">
           ${admin ? `<label>Pour<select name="uid">${pers.map(u => `<option value="${u.id}"${u.id === moi?.id ? ' selected' : ''}>${esc(u.nom || u.email)}${u.id === moi?.id ? ' (moi)' : ''}</option>`).join('')}</select></label>` : ''}
           <label>Jour travaillé<input type="date" name="date" value="${jourIci()}" max="${jourIci()}" required></label>
@@ -4639,13 +4651,17 @@
           <label>À<select name="fin">${hsOpts(we ? '13:00' : '20:00')}</select></label>
         </div>
         <p class="hs-duree" data-hsduree aria-live="polite"></p>
-        <label>Sur quoi avez-vous travaillé ? <small class="muted">(touchez la case : le micro 🎤 apparaît pour dicter)</small><textarea name="quoi" rows="3" required placeholder="ex. Mariage Dupont à Versailles : service et rangement du matériel"></textarea></label>
+        <fieldset class="hs-taches"><legend>Sur quoi avez-vous travaillé ? <small class="muted">(cochez une ou plusieurs cases)</small></legend>
+          ${(r.taches || []).map(g => `<p class="hs-gt">${esc(g.groupe)}</p><div class="hs-cases">${g.taches.map(t => `<label class="hs-case"><input type="checkbox" name="t" value="${esc(t)}"> <span>${esc(t)}</span></label>`).join('')}</div>`).join('')}
+          <div class="hs-cases"><label class="hs-case"><input type="checkbox" data-hsautre> <span>Autre…</span></label></div>
+          <label data-hsautrebloc hidden>La tâche à ajouter <small class="muted">(elle restera dans la liste pour la prochaine fois)</small><input name="autre" maxlength="60" placeholder="ex. Dégustation avec les mariés"></label></fieldset>
+        <label>Précision <small class="muted">(facultatif : client, lieu… ; le micro 🎤 apparaît dans la case)</small><textarea name="precision" rows="2" placeholder="ex. Mariage Dupont à Versailles"></textarea></label>
         <div class="row"><button class="btn">✔ Enregistrer ${admin ? 'les heures' : 'mes heures'}</button></div>
       </form>
       <div class="hs-app"><b>📱 Sur le téléphone</b> <span class="muted sm">Une petite page à son nom, installable sur l’écran d’accueil de l’iPhone : la personne déclare ses heures en 30 secondes et elles arrivent ici à son nom.</span>
         ${admin ? `<div class="row"><button type="button" class="btn sm" data-hssmsall>📨 Envoyer le lien par SMS à toute l’équipe</button></div>
         <table class="hs-t hs-liens"><thead><tr><th>Personne</th><th>Portable</th><th>Lien</th><th></th></tr></thead><tbody>${r.liens.filter(x => !x.desactive).map(x => `<tr><td>${esc(x.nom)}</td><td>${x.portable ? esc(x.portable) : '<span class="muted">à renseigner (Les comptes de l’équipe)</span>'}</td><td>${x.lien ? (x.lienEnvoyeLe ? `envoyé le ${new Date(x.lienEnvoyeLe).toLocaleDateString('fr-FR')}` : 'créé, pas encore envoyé') : '<span class="muted">pas encore créé</span>'}</td><td class="hs-btns"><button type="button" class="btn ghost sm" data-hssms="${x.uid}"${x.portable ? '' : ' disabled'}>📱 Envoyer par SMS</button>${x.lien ? `<button type="button" class="lnk" data-hscopie="${esc(x.lien)}">Copier le lien</button><button type="button" class="lnk" data-hsnouveau="${x.uid}">Nouveau lien</button>` : ''}</td></tr>`).join('')}</tbody></table>
-        <p class="muted sm">« Nouveau lien » coupe l’ancien (téléphone perdu, personne partie). Un compte désactivé ne peut plus rien déclarer.</p>`
+        <p class="muted sm">« Nouveau lien » coupe l’ancien (téléphone perdu, personne partie). Un compte désactivé ne peut plus rien déclarer. Seul le manager peut supprimer une déclaration (cases à cocher plus bas).</p>`
         : `<div class="row">${moi?.portable ? `<button type="button" class="btn sm" data-hssms="${moi.id}">📱 M’envoyer mon lien par SMS</button>` : '<span class="muted sm">Demandez à votre responsable d’ajouter votre portable à votre compte.</span>'}${lienMoi?.lien ? `<a class="btn ghost sm" href="${esc(lienMoi.lien)}" target="_blank" rel="noopener">Ouvrir ma page</a>` : ''}</div>`}
       </div>
       <h3 class="hs-h3">${admin ? 'Les heures déclarées' : 'Mes heures déclarées'}</h3>
@@ -4655,21 +4671,57 @@
         ${hsF.per === 'choix' ? `<label>Du<input type="date" data-hsdu value="${esc(hsF.du)}"></label><label>Au<input type="date" data-hsau value="${esc(hsF.au)}"></label>` : ''}
       </div>
       <div class="hs-totaux">${admin && r.totaux.length > 1 ? r.totaux.map(t => `<span class="hs-tot"><b>${esc(t.nom)}</b> ${hsDuree(t.minutes)} <small>(${t.nb} fois)</small></span>`).join('') : ''}<span class="hs-tot hs-tot-g"><b>Total</b> ${hsDuree(r.minutes)} <small>(${r.liste.length} déclaration${r.liste.length > 1 ? 's' : ''})</small></span></div>
-      ${r.liste.length ? `<div class="hs-scroll"><table class="hs-t"><thead><tr><th>Jour</th>${admin ? '<th>Personne</th>' : ''}<th>Horaire</th><th>Durée</th><th>Sur quoi</th><th></th></tr></thead><tbody>${r.liste.map(x => `<tr><td class="hs-j">${hsDate(x.date)}</td>${admin ? `<td>${esc(x.nom)}</td>` : ''}<td>${x.debut.replace(':', ' h ')} – ${x.fin.replace(':', ' h ')}</td><td><b>${hsDuree(x.minutes)}</b></td><td class="hs-quoi">${esc(x.quoi)}${x.depuis === 'telephone' ? ' <span class="pill hs-tel" title="Déclaré depuis son téléphone">📱</span>' : ''}${x.par && x.par !== x.nom ? `<small class="muted"> · saisi par ${esc(x.par)}</small>` : ''}</td><td><button type="button" class="lnk" data-hssup="${x.id}">Retirer</button></td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Aucune heure supplémentaire sur cette période.</p>'}`;
+      ${admin && r.liste.length ? `<div class="hs-sel"><label class="chk"><input type="checkbox" data-hstout> Tout cocher</label><button type="button" class="btn sm hs-supbtn" data-hssupsel disabled>🗑 Supprimer la sélection</button><span class="muted sm" data-hsnb></span></div>` : ''}
+      ${r.liste.length ? `<div class="hs-scroll"><table class="hs-t"><thead><tr><th>Jour</th>${admin ? '<th>Personne</th>' : ''}<th>Horaire</th><th>Durée</th><th>Sur quoi</th></tr></thead><tbody>${r.liste.map(x => `<tr${admin ? ` data-hsrow="${x.id}"` : ''}><td class="hs-j">${admin ? `<input type="checkbox" class="hs-chk" data-hschk="${x.id}" aria-label="Sélectionner"> ` : ''}${hsDate(x.date)}</td>${admin ? `<td>${esc(x.nom)}</td>` : ''}<td>${x.debut.replace(':', ' h ')} – ${x.fin.replace(':', ' h ')}</td><td><b>${hsDuree(x.minutes)}</b></td><td class="hs-quoi">${esc(x.quoi)}${x.depuis === 'telephone' ? ' <span class="pill hs-tel" title="Déclaré depuis son téléphone">📱</span>' : ''}${x.par && x.par !== x.nom ? `<small class="muted"> · saisi par ${esc(x.par)}</small>` : ''}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Aucune heure supplémentaire sur cette période.</p>'}`;
     const f = $('#hsForm'), maj = () => { const v = hsVerif(f.date.value, f.debut.value, f.fin.value), el = $('[data-hsduree]'); el.className = 'hs-duree' + (v.err ? ' err' : ''); el.textContent = v.err || `Durée : ${hsDuree(v.min)}${v.lendemain ? ' (jusqu’au lendemain)' : ''}`; return v; };
     let touche = false;
     f.date.addEventListener('change', () => { if (!touche) { const w = [0, 6].includes(hsJs(f.date.value)); f.debut.value = w ? '09:00' : '18:00'; f.fin.value = w ? '13:00' : '20:00'; } maj(); });
     [f.debut, f.fin].forEach(x => x.addEventListener('change', () => { touche = true; maj(); })); maj();
+    /* « 🎤 Dire mes heures » : dictée → l'IA remplit, rien n'est enregistré sans « Enregistrer » */
+    const dmsg = (t, bad) => { const el = $('[data-hsdmsg]', f); el.className = 'sm ' + (bad ? 'err' : 'hs-ok'); el.textContent = t; };
+    const remplir = async () => {
+      const t = $('[data-hsphrase]', f).value.trim(); if (t.length < 4) { dmsg('Dites ou écrivez d’abord vos heures.', true); return; }
+      dmsg('✨ Je remplis les cases…');
+      try {
+        const j = await api(A + '/actions/heures-sup/dictee', { method: 'POST', body: { texte: t } });
+        f.date.value = j.date; if (j.debut) { f.debut.value = j.debut; touche = true; } if (j.fin) { f.fin.value = j.fin; touche = true; }
+        $$('input[name=t]', f).forEach(c => { c.checked = j.taches.includes(c.value); c.closest('.hs-case').classList.toggle('on', c.checked); });
+        const ca = $('[data-hsautre]', f); ca.checked = !!j.autre; ca.closest('.hs-case').classList.toggle('on', !!j.autre); $('[data-hsautrebloc]', f).hidden = !j.autre; f.autre.value = j.autre || '';
+        if (j.precision) f.precision.value = j.precision;
+        const v = maj(); dmsg(v.err || '✅ Cases remplies : vérifiez, puis « Enregistrer ».' + (j.debut && j.fin ? '' : ' Choisissez les heures qui manquent.'), !!v.err);
+      } catch (err) { dmsg(err.message, true); }
+    };
+    $('[data-hsremplir]', f).addEventListener('click', remplir);
+    let recH = null;
+    $('[data-hsdire]', f).addEventListener('click', e => {
+      const bt = e.currentTarget; if (recH) { recH.stop(); return; }
+      $('[data-hsdirez]', f).hidden = false;
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SR) { dmsg('Dictée indisponible sur ce navigateur : écrivez la phrase (ou utilisez le micro du clavier), puis « Remplir les cases ».'); $('[data-hsphrase]', f).focus(); return; }
+      recH = new SR(); recH.lang = 'fr-FR'; recH.interimResults = true; recH.continuous = false; let dit = '';
+      recH.onresult = ev => { dit = [...ev.results].map(r => r[0].transcript).join(''); $('[data-hsphrase]', f).value = dit; };
+      recH.onerror = ev => dmsg(ev.error === 'not-allowed' || ev.error === 'service-not-allowed' ? 'Le micro est bloqué : autorisez-le, ou écrivez la phrase.' : 'Je n’ai pas bien entendu : réessayez ou écrivez la phrase.', true);
+      recH.onend = () => { recH = null; bt.classList.remove('on'); bt.textContent = '🎤 Dire mes heures'; if (dit.trim()) remplir(); };
+      try { recH.start(); bt.classList.add('on'); bt.textContent = '■ J’écoute… cliquez pour arrêter'; dmsg(''); } catch { recH = null; }
+    });
+    f.addEventListener('change', e => { const c = e.target.closest('.hs-case input'); if (c) c.closest('.hs-case').classList.toggle('on', c.checked); if (e.target.matches('[data-hsautre]')) { $('[data-hsautrebloc]', f).hidden = !e.target.checked; if (e.target.checked) f.autre.focus(); } });
     f.addEventListener('submit', async e => {
       e.preventDefault(); const v = maj(); if (v.err) { toast(v.err, true); return; }
-      if (f.quoi.value.trim().length < 3) { toast('Indiquez sur quoi vous avez travaillé.', true); f.quoi.focus(); return; }
-      try { const x = await api(A + '/actions/heures-sup', { method: 'POST', body: { uid: f.uid?.value || '', date: f.date.value, debut: f.debut.value, fin: f.fin.value, quoi: f.quoi.value } }); toast(`Enregistré : ${x.nom}, ${hsDate(x.date)}, ${hsDuree(x.minutes)}.`); hsCharger(); } catch (err) { toast(err.message, true); }
+      const taches = $$('input[name=t]:checked', f).map(c => c.value), autre = $('[data-hsautre]', f).checked ? f.autre.value.trim() : '';
+      if ($('[data-hsautre]', f).checked && autre.length < 2) { toast('Écrivez la tâche « Autre ».', true); f.autre.focus(); return; }
+      if (!taches.length && !autre) { toast('Cochez au moins une tâche.', true); return; }
+      try { const x = await api(A + '/actions/heures-sup', { method: 'POST', body: { uid: f.uid?.value || '', date: f.date.value, debut: f.debut.value, fin: f.fin.value, taches, autre, precision: f.precision.value } }); toast(`Enregistré : ${x.nom}, ${hsDate(x.date)}, ${hsDuree(x.minutes)}.`); hsCharger(); } catch (err) { toast(err.message, true); }
     });
     $('[data-hsqui]')?.addEventListener('change', e => { hsF.qui = e.target.value; hsCharger(); });
     $('[data-hsper]').addEventListener('change', e => { hsF.per = e.target.value; if (hsF.per === 'choix' && !hsF.du) { hsF.du = jourIci().slice(0, 8) + '01'; hsF.au = jourIci(); } hsCharger(); });
     $('[data-hsdu]')?.addEventListener('change', e => { hsF.du = e.target.value; hsCharger(); });
     $('[data-hsau]')?.addEventListener('change', e => { hsF.au = e.target.value; hsCharger(); });
-    $$('[data-hssup]').forEach(b => b.addEventListener('click', async () => { if (!confirm('Retirer cette déclaration d’heures supplémentaires ?')) return; try { await api(A + '/actions/heures-sup/' + b.dataset.hssup, { method: 'DELETE' }); toast('Déclaration retirée.'); hsCharger(); } catch (err) { toast(err.message, true); } }));
+    /* suppression : cases à cocher, réservé au manager */
+    const coches = () => $$('[data-hschk]').filter(c => c.checked).map(c => c.dataset.hschk);
+    const majSel = () => { const n = coches().length, b = $('[data-hssupsel]'); if (!b) return; b.disabled = !n; $('[data-hsnb]').textContent = n ? `${n} déclaration${n > 1 ? 's' : ''} cochée${n > 1 ? 's' : ''}` : ''; $$('[data-hsrow]').forEach(tr => tr.classList.toggle('hs-on', !!$('[data-hschk]', tr)?.checked)); };
+    $$('[data-hschk]').forEach(c => c.addEventListener('change', majSel));
+    $('[data-hstout]')?.addEventListener('change', e => { $$('[data-hschk]').forEach(c => { c.checked = e.target.checked; }); majSel(); });
+    $('[data-hssupsel]')?.addEventListener('click', async () => { const ids = coches(); if (!ids.length || !confirm(`Supprimer définitivement ${ids.length > 1 ? 'ces ' + ids.length + ' déclarations' : 'cette déclaration'} d’heures supplémentaires ?`)) return; try { const x = await api(A + '/actions/heures-sup/supprimer', { method: 'POST', body: { ids } }); toast(`${x.supprimees} déclaration${x.supprimees > 1 ? 's' : ''} supprimée${x.supprimees > 1 ? 's' : ''}.`); hsCharger(); } catch (err) { toast(err.message, true); } });
     $$('[data-hssms]').forEach(b => b.addEventListener('click', async () => { b.disabled = true; try { const x = await api(A + '/actions/heures-sup/lien/' + b.dataset.hssms, { method: 'POST', body: { sms: true } }); toast(x.live ? 'Lien envoyé par SMS.' : 'Mode test : le SMS est noté dans « E-mails et SMS envoyés », rien n’est parti.'); hsCharger(); } catch (err) { toast(err.message, true); b.disabled = false; } }));
     $$('[data-hsnouveau]').forEach(b => b.addEventListener('click', async () => { if (!confirm('Créer un nouveau lien ? L’ancien ne marchera plus. Pensez à envoyer le nouveau par SMS.')) return; try { await api(A + '/actions/heures-sup/lien/' + b.dataset.hsnouveau, { method: 'POST', body: { nouveau: true } }); toast('Nouveau lien créé : l’ancien est coupé.'); hsCharger(); } catch (err) { toast(err.message, true); } }));
     $$('[data-hscopie]').forEach(b => b.addEventListener('click', async () => { try { await navigator.clipboard.writeText(b.dataset.hscopie); toast('Lien copié.'); } catch { prompt('Copiez le lien :', b.dataset.hscopie); } }));
