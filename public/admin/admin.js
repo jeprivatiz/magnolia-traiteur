@@ -966,7 +966,7 @@
     const main = dv.find(x => x.statut === 'accepte') || dv.find(x => x.statut === 'envoye') || dv[0];
     const h = d.historique || [], at = st => (h.filter(x => x.statut === st).pop() || {}).at;
     const envoyeLe = main && main.statut !== 'brouillon' ? main.envoyeLe : at('devis_envoye');
-    const relances = [...(main?.relances || []).map(r => ({ at: r.at, how: /sms/i.test(r.modele || '') ? 'SMS' : 'e-mail' })), ...(d.relancesNotees || [])]
+    const relances = [...(main?.relances || []).map(r => ({ at: r.at, how: /sms/i.test(r.modele || '') ? 'SMS' : 'e-mail', envoi: true })), ...(d.relancesNotees || []).map(r => ({ ...r, envoi: !!r.modele }))]
       .filter(r => r.at).sort((x, y) => String(x.at).localeCompare(String(y.at)));
     const last = [d.createdAt, envoyeLe, ...relances.map(r => r.at), ...h.map(x => x.at)].filter(Boolean).map(String).sort().pop();
     const age = (Date.now() - Date.parse(last)) / H1;
@@ -974,7 +974,8 @@
     const montant = main ? tot(main).ttc : d.totalEstimeCents;
     const cat = d.statut === 'refuse' ? 'ko' : ['reserve', 'termine'].includes(d.statut) ? 'ok' : d.statut === 'accord' ? 'acc' : !envoyeLe ? 'draft' : late ? 'late' : 'sent';
     const e0 = (main?.envois || [])[0], envoyePar = e0 ? (e0.ia ? 'l’IA ✨' : e0.par || '') : '';
-    return { d, dv, main, envoyeLe, envoyePar, relances, late, last, montant, cat, at, estime: !main, com: String(d.commercial || main?.commercial?.nom || '').trim() };
+    const nRel = Math.max(0, relances.filter(r => r.envoi && (!d.reactiveeLe || String(r.at) > d.reactiveeLe)).length);
+    return { d, dv, main, envoyeLe, nRel, envoyePar, relances, late, last, montant, cat, at, estime: !main, com: String(d.commercial || main?.commercial?.nom || '').trim() };
   }
   async function suivi() {
     const [dem, devisL, eq, cl, fac, R, prods] = await Promise.all([api(A + '/demandes'), api(A + '/devis'), api(A + '/actions/equipe').catch(() => []), api(A + '/clients?vue=actifs').catch(() => []), api(A + '/factures').catch(() => []), cache.R ? Promise.resolve(cache.R) : api(A + '/site').catch(() => ({})), cache.produits || api(A + '/produits').catch(() => null)]);
@@ -1055,7 +1056,8 @@
     const cnt = k => all.filter(o => inF(o, k)).length;
     const hay = o => [o.d.contact?.nom, o.d.contact?.societe, o.d.contact?.email, o.d.contact?.tel, o.d.ref, o.d.evenement?.type, o.d.evenement?.ville, ...o.dv.map(x => x.numero)].join(' ').toLowerCase();
     const S = SV.s.trim().toLowerCase();
-    const list = all.filter(o => inF(o, SV.f) && (!S || S.split(/\s+/).every(w => hay(o).includes(w))))
+    const motifOk = o => SV.f !== 'ko' || !SV.motif || (o.d.motifRefus || 'Sans raison') === SV.motif;
+    const list = all.filter(o => inF(o, SV.f) && motifOk(o) && (!S || S.split(/\s+/).every(w => hay(o).includes(w))))
       .sort((x, y) => (y.late - x.late) || String(y.last).localeCompare(String(x.last)));
     const owners = commerciaux();
     const arch = SV.f === 'ok' || SV.f === 'ko';
@@ -1064,7 +1066,7 @@
         <div class="qs-cname${SV.o ? ' perso' : ''}">${!SV.o ? 'Vous voyez <b>toutes les opportunités</b>, tous commerciaux confondus' : SV.o === '—' ? 'Vous voyez les opportunités <b>sans commercial</b>' : `Vous voyez les fiches de <b>${esc(SV.o)}</b>`}</div></div>
       <div class="qs-osum"><span><b>${base.length}</b> opportunité${base.length > 1 ? 's' : ''}</span><span><b>${signes.length}</b> signée${signes.length > 1 ? 's' : ''}</span><span><b>${perdus.length}</b> refusée${perdus.length > 1 ? 's' : ''}</span><em>${euros(sum(signes, o => o.montant))} signés</em></div></div>
       <div class="kpis qk">${kpis.map(([v, l]) => `<div><b>${esc(v)}</b><span>${esc(l)}</span></div>`).join('')}</div>
-      <div class="qs-top"><div class="qs-chips">${arch ? `<button type="button" class="qs-chip" data-qf="all">← Opportunités en cours <b>${cnt('all')}</b></button><span class="qs-title">${SV.f === 'ok' ? 'Opportunités réservées' : 'Opportunités refusées (classées)'}</span>`
+      <div class="qs-top"><div class="qs-chips">${arch ? `<button type="button" class="qs-chip" data-qf="all">← Opportunités en cours <b>${cnt('all')}</b></button><span class="qs-title">${SV.f === 'ok' ? 'Opportunités réservées' : 'Opportunités refusées (classées)'}</span>${SV.f === 'ko' ? (() => { const m = new Map(); all.filter(o => inF(o, 'ko')).forEach(o => { const k = o.d.motifRefus || 'Sans raison'; m.set(k, (m.get(k) || 0) + 1); }); return m.size ? `<div class="qs-motifs"><span class="muted sm">Raisons :</span>${[...m].sort((a, b) => b[1] - a[1]).map(([k, n]) => `<button type="button" class="qs-chip${SV.motif === k ? ' on' : ''}" data-qmotif="${esc(k)}">${esc(k)} <b>${n}</b></button>`).join('')}</div>` : ''; })() : ''}`
         : [['all', 'En cours'], ['late', '⚠ À relancer'], ['sent', 'Envoyées'], ['acc', 'Attente d’acompte'], ['draft', 'Devis à envoyer']].map(([k, l]) => `<button type="button" class="qs-chip${SV.f === k ? ' on' : ''}${k === 'late' && cnt('late') ? ' hot' : ''}" data-qf="${k}">${esc(l)} <b>${cnt(k)}</b></button>`).join('')
           + `<span class="qs-sp"></span><button type="button" class="qs-arch ok" data-qf="ok">Voir les opportunités réservées <b>${cnt('ok')}</b></button><button type="button" class="qs-arch ko" data-qf="ko">Voir les opportunités refusées <b>${cnt('ko')}</b></button>`}</div>
         <input class="qs-search" type="search" data-qs placeholder="🔍 Rechercher : nom, société, n° de devis…" aria-label="Rechercher un client" value="${esc(SV.s)}"></div>
@@ -1088,9 +1090,10 @@
     const rel = o.relances[o.relances.length - 1];
     const relB = h => `<button type="button" class="qs-stb" data-qrel="${o.d.id}" title="Choisir un modèle et envoyer une relance">${h}</button>`;
     out.push(relB(o.late && sent ? etape('warn', 'À relancer', 'depuis ' + (o.late >= 48 ? Math.floor(o.late / 24) + ' jours' : o.late + ' h'), '!')
-      : rel ? etape('done relok', '✓ Relance envoyée', d1(rel.at) + ' · ' + rel.how + (o.relances.length > 1 ? ' · ' + o.relances.length + ' relances' : ''), '✓')
+      : o.nRel ? etape('done relok', `✓ Relance ${Math.min(o.nRel, NB_RELANCES)} envoyée`, d1(rel.at) + ' · ' + rel.how + (o.nRel < NB_RELANCES && !decided ? ` · prochaine : relance ${o.nRel + 1}${o.nRel + 1 === NB_RELANCES ? ' (dernière)' : ''}` : ''), '✓')
+      : rel ? etape('done relok', '✓ Relance notée', d1(rel.at) + ' · ' + rel.how, '✓')
       : etape(decided ? 'skip' : 'opt', 'Relance', decided ? 'si besoin' : '+ relancer')));
-    if (st === 'refuse') out.push(etape('lost', 'Refusé', 'classé · ' + d1(o.at('refuse')), '✕'));
+    if (st === 'refuse') out.push(etape('lost', 'Refusé', (o.d.motifRefus ? o.d.motifRefus + ' · ' : 'classé · ') + d1(o.at('refuse')), '✕'));
     else {
       const acc = ['accord', 'reserve', 'termine'].includes(st), sig = o.main?.statut === 'accepte' && o.main.signature;
       out.push(btnEtape(o, 'accord', acc ? etape('done acc', 'Accord client', sig ? 'validé en ligne · ' + d1(o.main.signature.at) : accordPar(o), '✓') : etape('opt', 'Accord client', '+ en attente d’acompte')));
@@ -1135,13 +1138,28 @@
     if (!m) return `<div class="qs-rsv qs-rel"><p>Aucun modèle de relance. Ajoutez-en dans Outils › Modèles.</p><div class="row"><button class="btn ghost" type="button" data-relx>Fermer</button></div></div>`;
     const sms = m.canal === 'sms', dest = sms ? D.tel : D.email;
     return `<form class="qs-rsv qs-rel" data-relform="${o.d.id}">
-      <div class="qs-rsv-h"><b>✉ Relancer ${esc(o.d.contact?.nom || 'le client')}</b><span class="muted sm">${D.relances ? D.relances + ' relance' + (D.relances > 1 ? 's' : '') + ' déjà envoyée' + (D.relances > 1 ? 's' : '') + ' · ' : ''}${D.devis ? 'devis n° ' + esc(D.devis.numero) : 'pas encore de devis envoyé : relance de la demande ' + esc(D.ref)}</span></div>
+      <div class="qs-rsv-h"><b>✉ Relance ${Math.min((o.nRel || 0) + 1, NB_RELANCES)}${(o.nRel || 0) + 1 >= NB_RELANCES ? ' (dernière)' : ''} · ${esc(o.d.contact?.nom || 'le client')}</b><span class="muted sm">${D.relances ? D.relances + ' relance' + (D.relances > 1 ? 's' : '') + ' déjà envoyée' + (D.relances > 1 ? 's' : '') + ' · ' : ''}${D.devis ? 'devis n° ' + esc(D.devis.numero) : 'pas encore de devis envoyé : relance de la demande ' + esc(D.ref)}</span></div>
       <label class="qs-rel-mod">Modèle de relance<select name="modele" data-relmod>${D.modeles.map(x => `<option value="${esc(x.id)}"${x.id === m.id ? ' selected' : ''}>${x.canal === 'sms' ? '💬 ' : '✉ '}${esc(x.nom)}</option>`).join('')}</select></label>
       <p class="sm qs-rel-to">${sms ? '💬 SMS' : '✉ E-mail'} envoyé à <b>${dest ? esc(dest) : `<span class="err">aucun ${sms ? 'portable' : 'e-mail'} sur la fiche</span>`}</b></p>
       ${sms ? '' : `<label>Objet<input name="sujet" value="${esc(m.sujet)}"></label>`}
       <label>Message <small class="muted">(modifiable, ou dictez avec le micro 🎤)</small><textarea name="texte" rows="${sms ? 3 : 9}">${esc(m.texte)}</textarea></label>
       <div class="qs-rel-ia"><input name="consigne" placeholder="Consigne pour l’IA (facultatif) : plus court, proposer un appel…" aria-label="Consigne pour l’IA"><button class="btn ghost" type="button" data-relia>✨ Réécrire avec l’IA</button></div>
+      ${(o.nRel || 0) + 1 >= NB_RELANCES && ['demande', 'devis_envoye', 'relance'].includes(o.d.statut) ? `<p class="sm qs-rel-der">⚠ C’est la dernière relance : une fois envoyée, la fiche passe en <b>Refusé</b> (« Sans réponse après ${NB_RELANCES} relances »). Si le client revient, bouton « ↺ Réactiver la fiche ».</p>` : ''}
       <div class="row"><button class="btn" type="submit"${dest ? '' : ' disabled'}>📨 Envoyer la relance</button><button class="btn ghost" type="button" data-relvoir>👁 ${sms ? 'Voir le SMS' : 'Voir le mail'}</button><button class="btn ghost" type="button" data-relx>Annuler</button></div>
+    </form>`;
+  }
+  /* « Refusé » (Jean-Luc, 2026-11-27) : une raison est toujours demandée avant de classer la fiche ; « Autre… » en crée une,
+     qui reviendra ensuite dans la liste (raisons déjà utilisées sur les fiches). */
+  /* nombre de relances avant de classer la fiche : à la dernière, elle passe en « Refusé » toute seule (même valeur dans server/index.js) */
+  const NB_RELANCES = 3;
+  const MOTIFS_REFUS = ['Sans réponse après ' + NB_RELANCES + ' relances', 'Pas de budget', 'Trop cher', 'Le client ne répond plus', 'Date indisponible', 'A choisi un autre traiteur', 'Événement annulé ou reporté', 'Hors zone de livraison'];
+  const motifsRefus = () => [...new Set([...MOTIFS_REFUS, ...(cache.opps || []).map(x => String(x.d.motifRefus || '').trim()).filter(Boolean)])];
+  function formRefus(o) {
+    return `<form class="qs-rsv qs-ref" data-refform="${o.d.id}"><input type="hidden" name="motif" value="">
+      <div class="qs-rsv-h"><b>✕ Pourquoi ${esc(o.d.contact?.nom || 'le client')} refuse ?</b><span class="muted sm">Choisissez une raison : elle est obligatoire pour classer la fiche.</span></div>
+      <div class="qs-ref-l">${motifsRefus().map(m => `<button type="button" class="qs-ref-b" data-refm="${esc(m)}">${esc(m)}</button>`).join('')}<button type="button" class="qs-ref-b autre" data-refm="">+ Autre raison…</button></div>
+      <label class="qs-ref-autre" hidden>Nouvelle raison<input name="autre" maxlength="80" placeholder="ex. A préféré faire lui-même"></label>
+      <div class="row"><button class="btn danger" type="submit" disabled>✕ Classer en refusé</button><button class="btn ghost" type="button" data-refx>Annuler</button></div>
     </form>`;
   }
   async function ouvrirRelance(id, canal) {
@@ -1151,7 +1169,7 @@
       const D = await api(`${A}/actions/relance-modeles-demande/${id}`);
       if (SV.rel?.id !== id) return;
       const em = D.modeles.filter(m => m.canal !== 'sms'), sm = D.modeles.filter(m => m.canal === 'sms');
-      const def = canal === 'sms' ? sm[0] : em[Math.min(D.relances, em.length - 1)] || D.modeles[0];
+      const def = canal === 'sms' ? sm[0] : em[Math.min(x.nRel || 0, em.length - 1)] || D.modeles[0];
       SV.rel = { id, canal, data: D, mod: def?.id }; suiviDessin();
       const f = $(`[data-relform="${id}"]`); f?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     } catch (err) { SV.rel = null; suiviDessin(); toast(err.message, true); }
@@ -1167,8 +1185,8 @@
         <div class="qs-co"><button type="button" class="qs-own-pick${o.com ? '' : ' none'}" data-qown="${o.d.id}" title="Attribuer ou changer le commercial">👤 ${esc(o.com || 'Non attribué')} <span aria-hidden="true">▾</span></button></div>
         <div class="qs-ev">${e.type ? '<b>' + esc(e.type) + '</b> · ' : ''}${esc([e.date ? dateFr(e.date, { day: 'numeric', month: 'short', year: 'numeric' }) : 'date à définir', e.invites ? e.invites + ' pers.' : '', e.ville || ''].filter(Boolean).join(' · '))}${canalDe(o.main) || canalDe(o.d) ? ' ' + pillSource(canalDe(o.main) || canalDe(o.d)) : ''}</div></div></div>
       <div class="qs-right">${k4Html(o.main ? chiffres(o.main) : chiffres(o.d, { lignes: lignesDemande(o.d), ttc: o.d.totalEstimeCents }), o.main ? '#/devis/' + o.main.id : '')}<div class="qs-ht">${o.main ? 'devis n° ' + esc(o.main.numero) : 'estimation du site'}</div></div>
-      ${frise(o)}${SV.rsv === o.d.id ? formReserver(o) : ''}${SV.rel?.id === o.d.id ? formRelance(o) : ''}
-      <div class="qs-foot"><div class="qs-info">${o.d.notes ? `<div class="qs-note">📝 ${esc(String(o.d.notes).slice(0, 140))}</div>` : ''}</div><div class="qs-acts">${o.late ? '' : icons}${['refuse', 'reserve', 'termine'].includes(o.d.statut) ? `<button class="qs-back" type="button" data-qback="${o.d.id}" title="Remettre dans les opportunités en cours">↺ Remettre en cours</button>` : ''}${o.main && o.main.statut !== 'brouillon' ? `<a class="qs-back" href="/devis/${esc(o.main.token)}" target="_blank" title="Le devis tel que le client le voit">📨 ${o.main.statut === 'accepte' ? 'Devis signé' : 'Devis envoyé'}</a>` : ''}${!o.main && !['refuse', 'termine'].includes(o.d.statut) ? `<button class="qs-back anc-q" type="button" data-qanc="${o.d.id}" title="Créer le devis en reprenant un ancien devis proche">📂 Ancien devis</button>` : ''}${o.d.clientId ? `<a class="qs-back" href="#/clients/${esc(o.d.clientId)}" title="Tout ce qui s’est passé avec ce client">🕘 Historique</a>` : ''}<button class="qs-open" type="button" data-qopen="${o.d.id}">${o.cat === 'draft' ? 'Terminer' : 'Ouvrir'}</button></div></div>
+      ${frise(o)}${SV.rsv === o.d.id ? formReserver(o) : ''}${SV.rel?.id === o.d.id ? formRelance(o) : ''}${SV.refus === o.d.id ? formRefus(o) : ''}
+      <div class="qs-foot"><div class="qs-info">${o.d.notes ? `<div class="qs-note">📝 ${esc(String(o.d.notes).slice(0, 140))}</div>` : ''}</div><div class="qs-acts">${o.late ? '' : icons}${['refuse', 'reserve', 'termine'].includes(o.d.statut) ? `<button class="qs-back" type="button" data-qback="${o.d.id}" title="Remettre dans les opportunités en cours">${o.d.statut === 'refuse' ? '↺ Réactiver la fiche' : '↺ Remettre en cours'}</button>` : ''}${o.main && o.main.statut !== 'brouillon' ? `<a class="qs-back" href="/devis/${esc(o.main.token)}" target="_blank" title="Le devis tel que le client le voit">📨 ${o.main.statut === 'accepte' ? 'Devis signé' : 'Devis envoyé'}</a>` : ''}${!o.main && !['refuse', 'termine'].includes(o.d.statut) ? `<button class="qs-back anc-q" type="button" data-qanc="${o.d.id}" title="Créer le devis en reprenant un ancien devis proche">📂 Ancien devis</button>` : ''}${o.d.clientId ? `<a class="qs-back" href="#/clients/${esc(o.d.clientId)}" title="Tout ce qui s’est passé avec ce client">🕘 Historique</a>` : ''}<button class="qs-open" type="button" data-qopen="${o.d.id}">${o.cat === 'draft' ? 'Terminer' : 'Ouvrir'}</button></div></div>
       ${o.late ? `<div class="qs-alert"><b>⚠ Plus de 24 h sans nouvelles.</b> <span>${o.envoyeLe ? `Rappelez ${esc(first || 'ce client')} ou relancez-le.` : `La demande de ${esc(first || 'ce client')} attend son devis.`}</span><span class="sp"></span>${tel ? `<a class="qs-pill dark" href="tel:${esc(tel)}" data-qappel="${o.d.id}">📞 Appeler</a>` : ''}${o.envoyeLe && c.email ? `<button class="qs-pill" type="button" data-qrel="${o.d.id}" data-canal="mail">✉ Relancer par e-mail</button>` : ''}${o.envoyeLe && tel ? `<button class="qs-pill" type="button" data-qrel="${o.d.id}" data-canal="sms">💬 Relancer par SMS</button>` : ''}${o.envoyeLe ? '' : `<button class="qs-pill dark" type="button" data-qdevis="${o.d.id}">✎ Préparer le devis</button>`}<button class="qs-pill" type="button" data-qfait="${o.d.id}">✓ Relance faite (noter)</button></div>` : ''}
     </article>`;
   }
@@ -1196,15 +1214,24 @@
       if (!e.target.matches('[data-relmod]') || !SV.rel?.data) return;
       SV.rel.mod = e.target.value; suiviDessin();
     });
+    box.addEventListener('input', e => { const f = e.target.closest('[data-refform]'); if (f && e.target.name === 'autre') f.querySelector('[type=submit]').disabled = !e.target.value.trim(); });
     box.addEventListener('submit', async e => {
+      const rf = e.target.closest('[data-refform]');
+      if (rf) {
+        e.preventDefault();
+        const motif = (rf.motif.value || rf.autre.value).trim().replace(/\s+/g, ' ');
+        if (!motif) { toast('Choisissez une raison du refus.', true); return; }
+        SV.refus = null;
+        return majDemande(rf.dataset.refform, d => ({ ...d, statut: 'refuse', motifRefus: motif.charAt(0).toUpperCase() + motif.slice(1) }), 'Classé en refusé · ' + motif);
+      }
       const g = e.target.closest('[data-relform]');
       if (g) {
         e.preventDefault();
         const x = (cache.opps || []).find(y => y.d.id === g.dataset.relform), b = g.querySelector('[type=submit]');
         b.disabled = true; b.textContent = 'Envoi…';
         try {
-          await api(`${A}/actions/relancer-demande/${x.d.id}`, { method: 'POST', body: { modele: g.modele.value, sujet: g.sujet?.value || '', texte: g.texte.value } });
-          SV.rel = null; await majDemande(x.d.id, d => d, '✓ Relance envoyée à ' + (x.d.contact?.nom || 'au client') + '.');
+          var r = await api(`${A}/actions/relancer-demande/${x.d.id}`, { method: 'POST', body: { modele: g.modele.value, sujet: g.sujet?.value || '', texte: g.texte.value } });
+          SV.rel = null; const fin = r?.refuse; await majDemande(x.d.id, d => d, fin ? `✓ Dernière relance envoyée : la fiche passe en Refusé (sans réponse après ${NB_RELANCES} relances).` : '✓ Relance envoyée à ' + (x.d.contact?.nom || 'au client') + '.');
         } catch (err) { toast(err.message, true); b.disabled = false; b.textContent = '📨 Envoyer la relance'; }
         return;
       }
@@ -1253,7 +1280,11 @@
       if (t?.dataset.qdevis) { const x = o(t.dataset.qdevis); if (x?.main) { location.hash = '#/devis/' + x.main.id; return; } const r = await api(`${A}/actions/devis-depuis-demande/${t.dataset.qdevis}`, { method: 'POST' }); location.hash = '#/devis/' + r.id; return; }
       if (t?.dataset.rsvx != null) { SV.rsv = null; return suiviDessin(); }
       if (t?.dataset.rsvsans) { SV.rsv = null; return majDemande(t.dataset.rsvsans, d => ({ ...d, statut: 'reserve' }), 'Étape : ' + STATUTS.reserve); }
+      if (t?.dataset.refx != null) { SV.refus = null; return suiviDessin(); }
+      if (t?.dataset.refm != null) { const f = t.closest('form'); f.querySelectorAll('[data-refm]').forEach(b => b.classList.toggle('on', b === t)); f.motif.value = t.dataset.refm; const au = f.querySelector('.qs-ref-autre'); au.hidden = t.dataset.refm !== ''; if (!au.hidden) au.querySelector('input').focus(); f.querySelector('[type=submit]').disabled = t.dataset.refm === ''; return; }
       if (e.target.closest('.qs-rsv')) return;
+      if (t?.dataset.qstep === 'refuse') { SV.rel = null; SV.rsv = null; SV.refus = SV.refus === t.dataset.q ? null : t.dataset.q; suiviDessin(); $(`[data-refform="${t.dataset.q}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); return; }
+      if (t?.dataset.qmotif != null) { SV.motif = SV.motif === t.dataset.qmotif ? '' : t.dataset.qmotif; return suiviDessin(); }
       if (t?.dataset.qstep === 'reserve' && !['reserve', 'termine'].includes(o(t.dataset.q)?.d.statut)) {
         SV.rsv = SV.rsv === t.dataset.q ? null : t.dataset.q; suiviDessin();
         const f = $(`[data-rsvform="${t.dataset.q}"]`); if (f) { f.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); f.montant.focus(); f.montant.select(); }
@@ -1264,7 +1295,7 @@
         const next = k === cur ? (k === 'reserve' ? 'accord' : x.envoyeLe ? 'devis_envoye' : 'demande') : k;
         return majDemande(x.d.id, d => ({ ...d, statut: next }), 'Étape : ' + STATUTS[next]);
       }
-      if (t?.dataset.qback) { const x = o(t.dataset.qback); return majDemande(x.d.id, d => ({ ...d, statut: x.envoyeLe ? 'devis_envoye' : 'demande' }), 'Remis dans les opportunités en cours.'); }
+      if (t?.dataset.qback) { const x = o(t.dataset.qback); return majDemande(x.d.id, d => ({ ...d, statut: x.envoyeLe ? 'devis_envoye' : 'demande', ...(d.statut === 'refuse' ? { reactiveeLe: new Date().toISOString(), motifRefus: '' } : {}) }), x.d.statut === 'refuse' ? 'Fiche réactivée : elle revient dans les opportunités en cours.' : 'Remis dans les opportunités en cours.'); }
       if (t?.dataset.qown) {
         const x = o(t.dataset.qown), noms = commerciaux();
         const pop = document.createElement('div'); pop.className = 'qs-om';
