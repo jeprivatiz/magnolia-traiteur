@@ -4587,6 +4587,92 @@
       try { await api(A + '/actions/remuneration/bareme', { method: 'PUT', body: { montants } }); toast('Barème enregistré'); await rechargerRem(); const d = $('#remBar'); if (d) d.open = true; } catch (err) { toast(err.message, true); }
     }
   });
+  /* ---------- Heures supplémentaires (Jean-Luc, 2026-11-27 ; server/heures-sup.js) ----------
+     Chacun déclare les siennes ; en semaine seulement avant 8 h ou après 18 h, le week-end toute la journée.
+     L'admin (droit « equipe ») voit tout : filtre par personne et par période, total par personne, liens de la mini-application. */
+  const hsF = { qui: '', per: 'mois', du: '', au: '' };
+  const HS_PER = [['mois', 'Ce mois-ci'], ['moisP', 'Le mois dernier'], ['sem', 'Cette semaine'], ['m3', 'Les 3 derniers mois'], ['an', 'Cette année'], ['tout', 'Tout'], ['choix', 'Dates au choix…']];
+  const hsBornes = () => {
+    const t = jourIci();
+    if (hsF.per === 'choix') return [hsF.du, hsF.au];
+    if (hsF.per === 'sem') { const d = new Date(); const j = (d.getDay() + 6) % 7; d.setDate(d.getDate() - j); return [jourIci(d), t]; }
+    if (hsF.per === 'm3') { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 2); return [jourIci(d), t]; }
+    if (hsF.per === 'an') return [t.slice(0, 4) + '-01-01', t];
+    return (PERIODES[hsF.per] || PERIODES.tout)();
+  };
+  const HS_J = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+  const hsJs = d => new Date(d + 'T12:00:00').getDay();
+  const hsMin = h => { const [a, b] = String(h).split(':'); return +a * 60 + +b; };
+  const hsDuree = m => { const h = Math.floor(m / 60), r = m % 60; return h ? h + ' h' + (r ? ' ' + String(r).padStart(2, '0') : '') : r + ' min'; };
+  const hsDate = d => { const [y, m, j] = d.split('-'); return `${HS_J[hsJs(d)]} ${+j}/${m}/${y}`; };
+  const HS_HEURES = Array.from({ length: 96 }, (_, i) => String(Math.floor(i / 4)).padStart(2, '0') + ':' + String(i % 4 * 15).padStart(2, '0'));
+  const hsOpts = v => HS_HEURES.map(h => `<option value="${h}"${h === v ? ' selected' : ''}>${h.replace(':', ' h ')}</option>`).join('');
+  /* même règle que le serveur, pour prévenir tout de suite */
+  const hsVerif = (d, deb, fin) => {
+    if (!d) return { err: 'Choisissez le jour où vous avez travaillé.' };
+    if (d > jourIci()) return { err: 'Ce jour n’est pas encore passé.' };
+    const a = hsMin(deb), b = hsMin(fin), sem = hsJs(d) >= 1 && hsJs(d) <= 5;
+    if (a === b) return { err: 'L’heure de fin doit être différente de l’heure de début.' };
+    const msg = `Le ${HS_J[hsJs(d)]}, les heures supplémentaires ne peuvent être faites qu’avant 8 h ou après 18 h. Entre 8 h et 18 h, ce sont les horaires normaux.`;
+    if (b > a) return sem && !(b <= 480 || a >= 1080) ? { err: msg } : { min: b - a };
+    if (sem && a < 1080) return { err: msg + ' Une plage qui passe minuit doit commencer à 18 h ou après.' };
+    const j2 = (hsJs(d) + 1) % 7; if (j2 >= 1 && j2 <= 5 && b > 480) return { err: `La plage continue le ${HS_J[j2]} matin après 8 h : arrêtez-la à 08 h 00 au plus tard.` };
+    return { min: 1440 - a + b, lendemain: true };
+  };
+  async function hsCharger() {
+    const box = $('#heures-sup'); if (!box) return;
+    const [du, au] = hsBornes();
+    let r; try { r = await api(A + '/actions/heures-sup?' + new URLSearchParams({ qui: hsF.qui, du: du || '', au: au || '' })); } catch (e) { box.innerHTML = `<h2>⏱ Heures supplémentaires</h2><p class="err">${esc(e.message)}</p>`; return; }
+    const admin = r.admin, moi = (cache.equipeUsers || []).find(u => u.email === session.email);
+    const pers = (cache.equipeUsers || []).filter(u => !u.desactive);
+    const we = [0, 6].includes(hsJs(jourIci()));
+    const lienMoi = r.liens.find(x => x.uid === moi?.id);
+    box.innerHTML = `<h2>⏱ Heures supplémentaires</h2>
+      <p class="hs-regle">Du <b>lundi au vendredi</b>, on déclare seulement ce qui est fait <b>avant 8 h</b> ou <b>après 18 h</b> (8 h – 18 h = horaires normaux). Le <b>samedi et le dimanche</b> : toute la journée. ${admin ? 'Vous voyez les heures de toute l’équipe.' : 'Vous voyez seulement les vôtres.'}</p>
+      <form class="hs-form" id="hsForm" novalidate>
+        <div class="hs-g">
+          ${admin ? `<label>Pour<select name="uid">${pers.map(u => `<option value="${u.id}"${u.id === moi?.id ? ' selected' : ''}>${esc(u.nom || u.email)}${u.id === moi?.id ? ' (moi)' : ''}</option>`).join('')}</select></label>` : ''}
+          <label>Jour travaillé<input type="date" name="date" value="${jourIci()}" max="${jourIci()}" required></label>
+          <label>De<select name="debut">${hsOpts(we ? '09:00' : '18:00')}</select></label>
+          <label>À<select name="fin">${hsOpts(we ? '13:00' : '20:00')}</select></label>
+        </div>
+        <p class="hs-duree" data-hsduree aria-live="polite"></p>
+        <label>Sur quoi avez-vous travaillé ? <small class="muted">(touchez la case : le micro 🎤 apparaît pour dicter)</small><textarea name="quoi" rows="3" required placeholder="ex. Mariage Dupont à Versailles : service et rangement du matériel"></textarea></label>
+        <div class="row"><button class="btn">✔ Enregistrer ${admin ? 'les heures' : 'mes heures'}</button></div>
+      </form>
+      <div class="hs-app"><b>📱 Sur le téléphone</b> <span class="muted sm">Une petite page à son nom, installable sur l’écran d’accueil de l’iPhone : la personne déclare ses heures en 30 secondes et elles arrivent ici à son nom.</span>
+        ${admin ? `<div class="row"><button type="button" class="btn sm" data-hssmsall>📨 Envoyer le lien par SMS à toute l’équipe</button></div>
+        <table class="hs-t hs-liens"><thead><tr><th>Personne</th><th>Portable</th><th>Lien</th><th></th></tr></thead><tbody>${r.liens.filter(x => !x.desactive).map(x => `<tr><td>${esc(x.nom)}</td><td>${x.portable ? esc(x.portable) : '<span class="muted">à renseigner (Les comptes de l’équipe)</span>'}</td><td>${x.lien ? (x.lienEnvoyeLe ? `envoyé le ${new Date(x.lienEnvoyeLe).toLocaleDateString('fr-FR')}` : 'créé, pas encore envoyé') : '<span class="muted">pas encore créé</span>'}</td><td class="hs-btns"><button type="button" class="btn ghost sm" data-hssms="${x.uid}"${x.portable ? '' : ' disabled'}>📱 Envoyer par SMS</button>${x.lien ? `<button type="button" class="lnk" data-hscopie="${esc(x.lien)}">Copier le lien</button><button type="button" class="lnk" data-hsnouveau="${x.uid}">Nouveau lien</button>` : ''}</td></tr>`).join('')}</tbody></table>
+        <p class="muted sm">« Nouveau lien » coupe l’ancien (téléphone perdu, personne partie). Un compte désactivé ne peut plus rien déclarer.</p>`
+        : `<div class="row">${moi?.portable ? `<button type="button" class="btn sm" data-hssms="${moi.id}">📱 M’envoyer mon lien par SMS</button>` : '<span class="muted sm">Demandez à votre responsable d’ajouter votre portable à votre compte.</span>'}${lienMoi?.lien ? `<a class="btn ghost sm" href="${esc(lienMoi.lien)}" target="_blank" rel="noopener">Ouvrir ma page</a>` : ''}</div>`}
+      </div>
+      <h3 class="hs-h3">${admin ? 'Les heures déclarées' : 'Mes heures déclarées'}</h3>
+      <div class="hs-filtres">
+        ${admin ? `<label>Personne<select data-hsqui><option value="">Toute l’équipe</option>${pers.map(u => `<option value="${u.id}"${u.id === hsF.qui ? ' selected' : ''}>${esc(u.nom || u.email)}</option>`).join('')}</select></label>` : ''}
+        <label>Période<select data-hsper>${HS_PER.map(([k, t]) => `<option value="${k}"${k === hsF.per ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
+        ${hsF.per === 'choix' ? `<label>Du<input type="date" data-hsdu value="${esc(hsF.du)}"></label><label>Au<input type="date" data-hsau value="${esc(hsF.au)}"></label>` : ''}
+      </div>
+      <div class="hs-totaux">${admin && r.totaux.length > 1 ? r.totaux.map(t => `<span class="hs-tot"><b>${esc(t.nom)}</b> ${hsDuree(t.minutes)} <small>(${t.nb} fois)</small></span>`).join('') : ''}<span class="hs-tot hs-tot-g"><b>Total</b> ${hsDuree(r.minutes)} <small>(${r.liste.length} déclaration${r.liste.length > 1 ? 's' : ''})</small></span></div>
+      ${r.liste.length ? `<div class="hs-scroll"><table class="hs-t"><thead><tr><th>Jour</th>${admin ? '<th>Personne</th>' : ''}<th>Horaire</th><th>Durée</th><th>Sur quoi</th><th></th></tr></thead><tbody>${r.liste.map(x => `<tr><td class="hs-j">${hsDate(x.date)}</td>${admin ? `<td>${esc(x.nom)}</td>` : ''}<td>${x.debut.replace(':', ' h ')} – ${x.fin.replace(':', ' h ')}</td><td><b>${hsDuree(x.minutes)}</b></td><td class="hs-quoi">${esc(x.quoi)}${x.depuis === 'telephone' ? ' <span class="pill hs-tel" title="Déclaré depuis son téléphone">📱</span>' : ''}${x.par && x.par !== x.nom ? `<small class="muted"> · saisi par ${esc(x.par)}</small>` : ''}</td><td><button type="button" class="lnk" data-hssup="${x.id}">Retirer</button></td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Aucune heure supplémentaire sur cette période.</p>'}`;
+    const f = $('#hsForm'), maj = () => { const v = hsVerif(f.date.value, f.debut.value, f.fin.value), el = $('[data-hsduree]'); el.className = 'hs-duree' + (v.err ? ' err' : ''); el.textContent = v.err || `Durée : ${hsDuree(v.min)}${v.lendemain ? ' (jusqu’au lendemain)' : ''}`; return v; };
+    let touche = false;
+    f.date.addEventListener('change', () => { if (!touche) { const w = [0, 6].includes(hsJs(f.date.value)); f.debut.value = w ? '09:00' : '18:00'; f.fin.value = w ? '13:00' : '20:00'; } maj(); });
+    [f.debut, f.fin].forEach(x => x.addEventListener('change', () => { touche = true; maj(); })); maj();
+    f.addEventListener('submit', async e => {
+      e.preventDefault(); const v = maj(); if (v.err) { toast(v.err, true); return; }
+      if (f.quoi.value.trim().length < 3) { toast('Indiquez sur quoi vous avez travaillé.', true); f.quoi.focus(); return; }
+      try { const x = await api(A + '/actions/heures-sup', { method: 'POST', body: { uid: f.uid?.value || '', date: f.date.value, debut: f.debut.value, fin: f.fin.value, quoi: f.quoi.value } }); toast(`Enregistré : ${x.nom}, ${hsDate(x.date)}, ${hsDuree(x.minutes)}.`); hsCharger(); } catch (err) { toast(err.message, true); }
+    });
+    $('[data-hsqui]')?.addEventListener('change', e => { hsF.qui = e.target.value; hsCharger(); });
+    $('[data-hsper]').addEventListener('change', e => { hsF.per = e.target.value; if (hsF.per === 'choix' && !hsF.du) { hsF.du = jourIci().slice(0, 8) + '01'; hsF.au = jourIci(); } hsCharger(); });
+    $('[data-hsdu]')?.addEventListener('change', e => { hsF.du = e.target.value; hsCharger(); });
+    $('[data-hsau]')?.addEventListener('change', e => { hsF.au = e.target.value; hsCharger(); });
+    $$('[data-hssup]').forEach(b => b.addEventListener('click', async () => { if (!confirm('Retirer cette déclaration d’heures supplémentaires ?')) return; try { await api(A + '/actions/heures-sup/' + b.dataset.hssup, { method: 'DELETE' }); toast('Déclaration retirée.'); hsCharger(); } catch (err) { toast(err.message, true); } }));
+    $$('[data-hssms]').forEach(b => b.addEventListener('click', async () => { b.disabled = true; try { const x = await api(A + '/actions/heures-sup/lien/' + b.dataset.hssms, { method: 'POST', body: { sms: true } }); toast(x.live ? 'Lien envoyé par SMS.' : 'Mode test : le SMS est noté dans « E-mails et SMS envoyés », rien n’est parti.'); hsCharger(); } catch (err) { toast(err.message, true); b.disabled = false; } }));
+    $$('[data-hsnouveau]').forEach(b => b.addEventListener('click', async () => { if (!confirm('Créer un nouveau lien ? L’ancien ne marchera plus. Pensez à envoyer le nouveau par SMS.')) return; try { await api(A + '/actions/heures-sup/lien/' + b.dataset.hsnouveau, { method: 'POST', body: { nouveau: true } }); toast('Nouveau lien créé : l’ancien est coupé.'); hsCharger(); } catch (err) { toast(err.message, true); } }));
+    $$('[data-hscopie]').forEach(b => b.addEventListener('click', async () => { try { await navigator.clipboard.writeText(b.dataset.hscopie); toast('Lien copié.'); } catch { prompt('Copiez le lien :', b.dataset.hscopie); } }));
+    $('[data-hssmsall]')?.addEventListener('click', async e => { if (!confirm('Envoyer à chaque personne de l’équipe son lien personnel par SMS ?')) return; e.target.disabled = true; try { const x = await api(A + '/actions/heures-sup/liens-sms', { method: 'POST', body: {} }); toast(`${x.envoyes.length} SMS ${x.live ? 'envoyé(s)' : 'noté(s) en mode test'}${x.rates.length ? ` · pas envoyé à : ${x.rates.map(y => y.nom + ' (' + y.raison + ')').join(', ')}` : ''}.`, !!x.rates.length); hsCharger(); } catch (err) { toast(err.message, true); e.target.disabled = false; } });
+  }
   async function equipe() {
     const gere = peut('equipe');
     const [users, conf, j, env, R, rem] = await Promise.all([api(A + '/actions/equipe'), api(A + '/actions/droits'), gere ? api(A + '/actions/journal?' + new URLSearchParams(jrnF)) : null, gere ? api(A + '/actions/envois') : null, gere ? api(A + '/site') : null, gere ? api(A + '/actions/remuneration?' + new URLSearchParams({ du: remF.du, au: remF.au })) : null]);
@@ -4628,6 +4714,7 @@
       <section class="box"><h2>Mon compte</h2>${moi ? `<p class="eq-res"><b>Vos droits :</b> ${esc(resumeDroits(moi.droits, DR))}</p>` : ''}
         <form id="pw"><h3>Mon mot de passe</h3><div class="g2"><label>Actuel<input type="password" name="current" required></label><label>Nouveau (10 caractères min.)<input type="password" name="password" minlength="10" required></label></div><button class="btn ghost">Changer</button></form></section>
 </div>
+      <section class="box hs" id="heures-sup"><h2>⏱ Heures supplémentaires</h2><p class="muted">Chargement…</p></section>
       ${gere ? `<section class="box pli${plie('journal') ? ' ferme' : ''}" data-pli="journal"><h2><button type="button" class="pli-btn" data-plibtn aria-expanded="${!plie('journal')}"><span class="pli-fl" aria-hidden="true">▼</span>Journal d’activité <span class="pill ${j.intact ? 'd-accepte' : 'd-refuse'}">${j.intact ? 'intact' : 'ALTÉRÉ'}</span><small class="pli-nb">${j.total} action${j.total > 1 ? 's' : ''}</small></button></h2><div class="pli-corps"><p class="muted sm">Chaque action est enregistrée et chaînée : une modification du journal se verrait. Les filtres ne font que trier l’affichage, ils ne changent rien au journal.</p>${journalFiltres(j)}<div id="jrnRes">${journalRes(j)}</div></div></section>` : ''}
       ${gere ? `<section class="box pli${plie('remun') ? ' ferme' : ''}" data-pli="remun"><h2><button type="button" class="pli-btn" data-plibtn aria-expanded="${!plie('remun')}"><span class="pli-fl" aria-hidden="true">▼</span>💶 Rémunération par action</button></h2><div class="pli-corps"><p class="muted sm">Chaque action d’un membre de l’équipe (créer une fiche, envoyer un devis…) lui rapporte le montant fixé dans le barème ci-dessous. Choisissez la période, puis touchez une personne pour voir le détail.</p><div id="remBloc">${remBloc(rem)}</div></div></section>` : ''}
       ${gere ? `<section class="box" id="alertes"><h2>Alertes de l’équipe</h2><p class="muted sm">Le carnet des personnes à prévenir. Elles reçoivent le récapitulatif des dossiers sans action depuis 24 h, les avis et les devis signés. Pour les <b>nouvelles demandes de devis</b>, c’est le cadre « Qui prévenir selon la demande » juste en dessous qui décide.</p><div id="alp"></div><div class="row"><button type="button" class="btn ghost sm" data-addal>+ Ajouter une personne à prévenir</button><button type="button" class="btn sm" data-saveal>Enregistrer les alertes</button></div></section>
@@ -4741,6 +4828,7 @@
   const lireAl = () => { $$('#alp .alp').forEach(row => { const x = alertePers[+row.dataset.i]; row.querySelectorAll('[data-k]').forEach(inp => { x[inp.dataset.k] = inp.value.trim(); }); }); return alertePers; };
   equipe.after = () => {
     $('#pw').addEventListener('submit', async e => { e.preventDefault(); try { await api('/api/auth/password', { method: 'POST', body: Object.fromEntries(new FormData(e.target)) }); toast('Mot de passe changé.'); e.target.reset(); } catch (err) { toast(err.message, true); } });
+    hsCharger();
     if (!peut('equipe')) return;
     const DR = cache.droitsConf.droits;
     drawAl();

@@ -33,6 +33,7 @@ const DR = require('./droits');
 const REM = require('./remuneration');
 const SRC = require('./sources');
 const HIST = require('./historique');
+const HSUP = require('./heures-sup');
 const TAR = require('./tarifs');
 const BLOG = require('./blog');
 const BLOGV = require('./blog-pages');
@@ -1077,6 +1078,7 @@ async function createApp(opts = {}) {
   /* ---------- historique commercial de l'ancien CRM (Teamleader) : affaires depuis 2017 (server/historique.js) ---------- */
   const historique = HIST.creerHistorique({ store, sources: { liste: () => SOURCES.liste(), ajouter: n => SOURCES.ajouter(n) }, log });
   historique.routes(A, { sameSite, manager: peut('fichiers'), wrap, audit });
+  HSUP.routes(app, A, { sameSite, json, wrap, audit, store, brevo, SITE, peutEquipe: peut('equipe'), log });
   /* affaires visibles : toutes, ou « seulement ses opportunités » = les siennes et celles sans commercial */
   async function affairesVisibles(req) {
     const vis = await visibles(req);
