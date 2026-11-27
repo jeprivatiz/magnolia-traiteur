@@ -2785,7 +2785,57 @@ async function createApp(opts = {}) {
     const site = [];
     const walk = (dir, base) => { try { for (const e of fs.readdirSync(dir, { withFileTypes: true })) { const p = path.join(dir, e.name); if (e.isDirectory()) walk(p, base + '/' + e.name); else if (/\.(webp|jpe?g|png|mp4)$/i.test(e.name)) site.push({ url: base + '/' + e.name, type: /mp4$/i.test(e.name) ? 'video/mp4' : 'image' }); } } catch { /* */ } };
     walk(path.join(PUBLIC, 'site'), '/site');
-    res.json({ envoyes: envoyes.sort((a, b) => b.at.localeCompare(a.at)), site });
+    const M = await mediasReg(), cache = new Set(M.caches), noms = M.noms;
+    const avecNom = x => ({ ...x, nom: noms[x.url] || '' });
+    res.json({ envoyes: envoyes.filter(x => !cache.has(x.url)).sort((a, b) => b.at.localeCompare(a.at)).map(avecNom), site: site.filter(x => !cache.has(x.url)).map(avecNom) });
+  }));
+  /* Médiathèque (Jean-Luc, 2026-11-27) : nommer une image (recherche + texte alternatif pour Google) et supprimer des images */
+  const mediasReg = async () => { const d = await store.get('site/medias') || {}; return { noms: d.noms || {}, caches: d.caches || [] }; };
+  const mediaOk = u => typeof u === 'string' && /^\/(media|site)\/[^?#<>"]+$/.test(u) && !u.includes('..');
+  A.put('/actions/media-nom', sameSite, json, peut('site'), wrap(async (req, res) => {
+    const url = req.body?.url, nom = String(req.body?.nom || '').replace(/\s+/g, ' ').trim().slice(0, 140);
+    if (!mediaOk(url)) return res.status(400).json({ error: 'Image inconnue.' });
+    const M = await mediasReg(); if (nom) M.noms[url] = nom; else delete M.noms[url];
+    await store.set('site/medias', M); cat.invalidate(); audit(req.ctx, 'image nommée', url + (nom ? ' → ' + nom : ' (nom retiré)'));
+    res.json({ ok: true, nom });
+  }));
+  /* où une image est encore utilisée : fiches, rubriques, lieux, pages, reportages, réglages du site, et le code du site */
+  const usagesMedias = async urls => {
+    const [rub, prod, lieux, pages, blog, reg] = await Promise.all([store.list('rubriques'), store.list('produits'), store.list('lieux'), store.list('pages'), store.list('blog'), store.get('site/reglages')]);
+    const sources = [
+      ...prod.map(d => ['Fiche « ' + (d.data?.titre || d.id) + ' »', d.data]),
+      ...rub.map(d => ['Rubrique « ' + (d.data?.titre || d.data?.nom || d.id) + ' »', d.data]),
+      ...lieux.map(d => ['Lieu « ' + (d.data?.nom || d.data?.titre || d.id) + ' »', d.data]),
+      ...pages.map(d => ['Page ' + (d.data?.url || d.id), d.data]),
+      ...blog.map(d => ['Reportage « ' + (d.data?.titre || d.id) + ' »', d.data]),
+      ['Photos & textes du site (bandeaux, accueil…)', reg],
+    ].map(([lib, o]) => [lib, JSON.stringify(o || '')]);
+    for (const f of ['server/views.js', 'server/cartes.js', 'public/css/site.css', 'public/js/site.js']) { try { sources.push(['Mise en page du site', fs.readFileSync(path.join(ROOT, f), 'utf8')]); } catch { /* */ } }
+    const out = {};
+    for (const u of urls) {
+      const re = new RegExp(u.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![\\w.-])');
+      out[u] = [...new Set(sources.filter(([, t]) => re.test(t)).map(([lib]) => lib))];
+    }
+    return out;
+  };
+  A.post('/actions/medias/usages', sameSite, json, peut('site'), wrap(async (req, res) => {
+    const urls = (Array.isArray(req.body?.urls) ? req.body.urls : []).filter(mediaOk).slice(0, 500);
+    res.json({ usages: await usagesMedias(urls) });
+  }));
+  A.post('/actions/medias/supprimer', sameSite, json, peut('site'), wrap(async (req, res) => {
+    const urls = [...new Set((Array.isArray(req.body?.urls) ? req.body.urls : []).filter(mediaOk))].slice(0, 500);
+    if (!urls.length) return res.status(400).json({ error: 'Aucune image choisie.' });
+    const M = await mediasReg(); let n = 0;
+    for (const u of urls) {
+      if (u.startsWith('/media/')) {
+        const nom = path.basename(decodeURIComponent(u.slice(7)));
+        try { fs.unlinkSync(path.join(uploadDir, nom)); } catch { /* déjà absent */ }
+        await store.delete('_assets/' + nom.replace(/\./g, '_'));
+      } else if (!M.caches.includes(u)) M.caches.push(u); /* photos reprises du brouillon : retirées de la médiathèque */
+      delete M.noms[u]; n++;
+    }
+    await store.set('site/medias', M); cat.invalidate(); audit(req.ctx, 'images supprimées de la médiathèque', n + ' : ' + urls.slice(0, 5).join(', ') + (urls.length > 5 ? '…' : ''));
+    res.json({ ok: true, n });
   }));
   A.post('/actions/reimporter', sameSite, peut('admin'), wrap(async (req, res) => {
     const r = await seed(store, { force: true, log }); await importerAvisAncienSite(store, { log }); await initSousRubriques(store, { log });
