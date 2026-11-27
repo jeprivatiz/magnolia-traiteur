@@ -167,3 +167,13 @@ test('prépa : bon de récupération = lignes « À récupérer » seulement', (
   const sms = P.modeleMessage(n, 'recuperateurs', 'sms').texte;
   assert.match(sms, /récupération/); assert.match(sms, /10 h/); assert.match(sms, /Tables/);
 });
+
+test('reprise du matériel : jour affiché quand ce n’est pas le jour de l’événement', () => {
+  const P = require('../server/prepa');
+  const meme = P.horairesVus({ evenement: { date: '2026-12-12' }, horaires: { reprise: '23 h 30' }, recuperation: { date: '2026-12-12' } });
+  assert.equal(meme.reprise, '23 h 30');
+  const lend = P.horairesVus({ evenement: { date: '2026-12-12' }, horaires: { reprise: '9 h 30' }, recuperation: { date: '2026-12-13' } });
+  assert.match(lend.reprise, /dim\.? 13 déc\.? · 9 h 30/);
+  const b = P.nettoyer({ horaires: { reprise: '10 h' }, recuperation: { date: '2026-12-13', heure: '' } }, {});
+  assert.equal(b.recuperation.heure, '10 h');
+});

@@ -177,9 +177,9 @@ function nettoyer(b = {}, avant = {}, bySlug = new Map()) {
     client: { nom: nomPropre(s(c.nom, 120)), societe: s(c.societe, 120), tel: s(c.tel, 40), email: s(c.email, 160) },
     evenement: { type: s(e.type, 60), date: /^\d{4}-\d\d-\d\d$/.test(e.date || '') ? e.date : '', invites: Math.max(0, Math.min(100000, parseInt(e.invites, 10) || 0)) || '', lieu: s(e.lieu, 160), adresse: s(e.adresse, 200), cp: s(e.cp, 5).replace(/\D/g, ''), ville: s(e.ville, 80) },
     acces: txt(b.acces, 800), contactSurPlace: s(b.contactSurPlace, 160), allergies: txt(b.allergies, 800),
-    horaires: Object.fromEntries(HORAIRES.map(([k]) => [k, s(h[k], 60)])),
+    horaires: Object.fromEntries(HORAIRES.map(([k]) => [k, s(k === 'reprise' ? h.reprise || b.recuperation?.heure : h[k], 60)])),
     regisseurs: personnes(b.regisseurs), livreurs: personnes(b.livreurs), personnel: personnes(b.personnel),
-    recuperation: { date: /^\d{4}-\d\d-\d\d$/.test(b.recuperation?.date || '') ? b.recuperation.date : '', heure: s(b.recuperation?.heure, 30), lieu: s(b.recuperation?.lieu, 300) }, recuperateurs: personnes(b.recuperateurs),
+    recuperation: { date: /^\d{4}-\d\d-\d\d$/.test(b.recuperation?.date || '') ? b.recuperation.date : '', heure: s(h.reprise || b.recuperation?.heure, 30), lieu: s(b.recuperation?.lieu, 300) }, recuperateurs: personnes(b.recuperateurs),
     personnelDevis: (Array.isArray(b.personnelDevis) ? b.personnelDevis : avant.personnelDevis || []).slice(0, 20).map(x => s(x, 200)).filter(Boolean),
     lignes, remarques: txt(b.remarques, 3000),
     allergenesProduits: allergenesDe(lignes, bySlug).length ? allergenesDe(lignes, bySlug) : [...new Set(lignes.flatMap(l => l.allergenes || []))].sort((x, y) => x.localeCompare(y, 'fr')),
@@ -189,6 +189,15 @@ function nettoyer(b = {}, avant = {}, bySlug = new Map()) {
 }
 
 const dateLongue = d => { if (!d) return ''; const x = new Date(String(d).length === 10 ? d + 'T12:00:00Z' : d); return isNaN(x) ? '' : x.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Paris' }); };
+/* reprise du matériel : jour + heure (Jean-Luc, 2026-11-27 : la reprise peut avoir lieu le lendemain) ; même information que le bon de récupération */
+const jourReprise = d => { const x = new Date(d + 'T12:00:00Z'); return isNaN(x) ? '' : x.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Paris' }); };
+function horairesVus(b) {
+  const h = { ...(b.horaires || {}) }, r = b.recuperation || {}, ev = b.evenement?.date || '';
+  const heure = h.reprise || r.heure || '';
+  const autreJour = r.date && r.date !== ev;
+  h.reprise = autreJour ? [jourReprise(r.date), heure].filter(Boolean).join(' · ') : heure;
+  return h;
+}
 const dateCourte = d => { if (!d) return ''; const x = new Date(String(d).length === 10 ? d + 'T12:00:00Z' : d); return isNaN(x) ? '' : x.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Paris' }); };
 const nl = t => esc(t).replace(/\n/g, '<br>');
 const lieuTexte = b => [b.evenement.lieu, b.evenement.adresse, [b.evenement.cp, b.evenement.ville].filter(Boolean).join(' ')].filter(Boolean).join(', ');
@@ -214,7 +223,7 @@ function documentHtml(b, { R = {}, retour = '', maintenant = new Date(), par = '
   const rows = recup ? lignesDoc.map(l => `<tr><td class="no">${++n}</td><td class="nm"><div class="nmt"><span class="cb cbp" role="checkbox" aria-checked="false" tabindex="0" aria-label="${recup ? 'Récupéré' : 'Préparé'} : ${esc(l.designation)}"></span><b>${esc(l.designation)}</b></div>${l.detail ? `<small>${nl(l.detail)}</small>` : ''}${itemsDoc(l)}</td><td class="q">${esc(qteTexte(l)) || '—'}</td><td class="q prep">${esc(l.qtePrepa).split(' · ').join('<br>')}</td><td class="nt">${nl(l.note)}</td></tr>`).join('') : lignesDoc.map(l => l.type === 'titre'
     ? `<tr class="ti"><td colspan="5">${esc(l.designation)}</td></tr>`
     : `<tr><td class="no">${++n}</td><td class="nm"><div class="nmt"><span class="cb cbp" role="checkbox" aria-checked="false" tabindex="0" aria-label="${recup ? 'Récupéré' : 'Préparé'} : ${esc(l.designation)}"></span><b>${esc(l.designation)}</b></div>${l.detail ? `<small>${nl(l.detail)}</small>` : ''}${itemsDoc(l)}${(l.allergenes || []).length ? `<small class="al">⚠ ${esc(l.allergenes.join(', '))}</small>` : ''}</td><td class="q">${esc(qteTexte(l)) || '—'}</td><td class="q prep">${esc(l.qtePrepa).split(' · ').join('<br>')}</td><td class="nt">${nl(l.note)}</td></tr>`).join('');
-  const hor = HORAIRES.filter(([k]) => b.horaires[k] && (!recup || ['fin', 'reprise'].includes(k)));
+  const HV = horairesVus(b), hor = HORAIRES.filter(([k]) => HV[k] && (!recup || ['fin', 'reprise'].includes(k)));
   const roles = recup ? [ROLE_RECUP] : ROLES;
   const RI = recupInfos(b);
   return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex, nofollow">
@@ -310,7 +319,7 @@ footer { margin-top: 3mm; display: flex; justify-content: space-between; font-si
 <div class="bl"><h3>Événement</h3><p class="date">${b.evenement.date ? esc(dateLongue(b.evenement.date)) : v('')}</p><p class="l"><i>Type</i> ${v(b.evenement.type)}</p><p class="l"><i>Invités</i> ${b.evenement.invites ? `<b>${esc(b.evenement.invites)} personnes</b>` : v('')}</p><p class="l"><i>Lieu / livraison</i> <span>${v(lieuTexte(b))}</span></p>${b.acces ? `<p class="l"><i>Accès</i> <span>${nl(b.acces)}</span></p>` : ''}</div>
 </div>
 ${!recup && (b.allergies || b.allergenesProduits.length) ? `<div class="alerte">${b.allergies ? `<p><b>⚠ Allergies / régimes signalés :</b> ${nl(b.allergies)}</p>` : ''}${b.allergenesProduits.length ? `<p><b>Allergènes présents dans la commande :</b> ${esc(b.allergenesProduits.join(', '))}</p>` : ''}</div>` : ''}
-${recup ? `<div class="hor" style="grid-template-columns:1fr 1fr 2fr"><div><small>Jour de la récupération</small><b>${esc(RI.quand)}</b></div><div><small>Heure</small><b>${RI.heure ? esc(RI.heure) : '<span class="pt"></span>'}</b></div><div class="lr"><small>Lieu de la récupération</small><b>${esc(RI.lieu)}</b></div></div>` : hor.length ? `<div class="hor">${hor.map(([k, lab]) => `<div><small>${esc(lab)}</small><b>${esc(b.horaires[k])}</b></div>`).join('')}</div>` : ''}
+${recup ? `<div class="hor" style="grid-template-columns:1fr 1fr 2fr"><div><small>Jour de la récupération</small><b>${esc(RI.quand)}</b></div><div><small>Heure</small><b>${RI.heure ? esc(RI.heure) : '<span class="pt"></span>'}</b></div><div class="lr"><small>Lieu de la récupération</small><b>${esc(RI.lieu)}</b></div></div>` : hor.length ? `<div class="hor">${hor.map(([k, lab]) => `<div><small>${esc(lab)}</small><b>${esc(HV[k])}</b></div>`).join('')}</div>` : ''}
 <div class="equipe${recup ? ' eq2' : ''}">${roles.map(([k, lab]) => equipe(k, lab)).join('')}</div>
 <h2>${recup ? 'À RÉCUPÉRER' : 'À PRÉPARER'} <span>${prod.length} produit${prod.length > 1 ? 's' : ''}${b.evenement.invites ? ' · ' + esc(b.evenement.invites) + ' invités' : ''}</span></h2>
 <table><thead><tr><th class="no">N°</th><th>☐ Produit et choix</th><th class="q">Quantité du devis</th><th class="q">${recup ? 'Quantité livrée' : 'Quantité à préparer'}</th><th class="nt">${recup ? 'Remarque' : 'Remarque pour la préparation'}</th></tr></thead><tbody>${rows || `<tr><td colspan="5">${recup ? 'Rien à récupérer : cochez « À récupérer » sur les lignes du bon de préparation.' : 'Aucun produit.'}</td></tr>`}</tbody></table>
@@ -338,7 +347,7 @@ function emailHtml(b, { message = '', lien = '', R = {} } = {}) {
   const rows = b.lignes.map(l => l.type === 'titre' ? `<tr><td colspan="3" style="${td};background:#f6f1e5;font-weight:600;text-transform:uppercase;font-size:12px;color:#5b4a2e">${esc(l.designation)}</td></tr>`
     : `<tr><td style="${td}"><b>${esc(l.designation)}</b>${l.detail ? `<br><span style="color:#666;font-size:12px">${nl(l.detail)}</span>` : ''}${itemsTexte(l).length ? `<br><span style="font-size:13px">${itemsTexte(l).map(esc).join('<br>')}</span>` : ''}${l.note ? `<br><span style="color:#8a5a1f;font-size:12px">${nl(l.note)}</span>` : ''}</td><td style="${td};white-space:nowrap">${esc(qteTexte(l)) || '—'}</td><td style="${td};white-space:nowrap">${esc(l.qtePrepa) || ''}</td></tr>`).join('');
   const eq = ROLES.map(([k, lab]) => b[k].length ? `<b>${esc(lab)} :</b> ${esc(b[k].map(p => p.nom + (p.tel ? ' (' + p.tel + ')' : '')).join(', '))}<br>` : '').join('');
-  const hor = HORAIRES.filter(([k]) => b.horaires[k]).map(([k, lab]) => `${esc(lab)} : <b>${esc(b.horaires[k])}</b>`).join(' · ');
+  const HV = horairesVus(b), hor = HORAIRES.filter(([k]) => HV[k]).map(([k, lab]) => `${esc(lab)} : <b>${esc(HV[k])}</b>`).join(' · ');
   return `<div style="font-family:Arial,Helvetica,sans-serif;color:#1d2a24;max-width:680px">
 ${message ? `<p>${nl(message)}</p>` : ''}
 ${lien ? `<p><a href="${esc(lien)}" style="display:inline-block;background:#1d3b2f;color:#fff;padding:12px 20px;border-radius:999px;text-decoration:none;font-weight:600">Ouvrir le bon de préparation (A4, à imprimer)</a></p>` : ''}
@@ -358,10 +367,10 @@ const smsTexte = (b, lien) => `Magnolia : bon de préparation ${b.client.nom || 
 /* Messages à l'équipe (Jean-Luc, 2026-11-27) : un SMS ou un e-mail par groupe (régisseurs, livraison, personnel), rédigé par l'IA sur consigne */
 const NOM_ROLE = { regisseurs: 'régisseurs', livreurs: 'livreurs', personnel: 'personnel sur l’événement', recuperateurs: 'livreurs de la récupération' };
 /* récupération : jour, heure, lieu (par défaut celui de l'événement) et la liste de ce qu'il faut reprendre */
-const recupInfos = b => { const r = b.recuperation || {}; return { quand: r.date ? dateCourte(r.date) : (b.evenement?.date ? dateCourte(b.evenement.date) : 'date à confirmer'), heure: r.heure || b.horaires?.reprise || '', lieu: r.lieu || lieuTexte(b) || 'à confirmer' }; };
+const recupInfos = b => { const r = b.recuperation || {}; return { quand: r.date ? dateCourte(r.date) : (b.evenement?.date ? dateCourte(b.evenement.date) : 'date à confirmer'), heure: b.horaires?.reprise || r.heure || '', lieu: r.lieu || lieuTexte(b) || 'à confirmer' }; };
 const aRecuperer = b => (b.lignes || []).filter(l => l.type !== 'titre' && l.recup).map(l => { const it = itemsTexte(l); return it.length ? it.join(', ') : `${l.qtePrepa || l.qteDevis ? (l.qtePrepa || (String(l.qteDevis).replace('.', ',') + ' ' + nomUnite(l.qteDevis, l.unite)).trim()) + ' · ' : ''}${l.designation}`; });
 function infosRole(b, role) {
-  const h = b.horaires || {}, e = b.evenement || {};
+  const h = horairesVus(b), e = b.evenement || {};
   const reg = (b.regisseurs || []).map(p => p.nom + (p.tel ? ' ' + p.tel : '')).join(', ');
   const L = [
     `Événement : ${e.type || 'événement'} de ${b.client.nom || 'notre client'}${b.client.societe ? ' (' + b.client.societe + ')' : ''}, ${e.date ? dateLongue(e.date) : 'date à confirmer'}${e.invites ? ', ' + e.invites + ' invités' : ''}`,
@@ -400,4 +409,4 @@ ${consigne ? 'Consigne de la personne qui envoie (prioritaire) : ' + consigne + 
 Réponds uniquement en JSON : {${sms ? '' : '"sujet": "...", '}"texte": "..."}`;
 }
 
-module.exports = { ROLE_RECUP, ROLES_MSG, aRecuperer, completerLignes, itemsNappe, qteAuto, choixProduit, choixProduits, NOM_ROLE, modeleMessage, promptMessage, infosRole, LISTES, listesPrepa, compoDe, listeDe, itemsTexte, ROLES, HORAIRES, bonDepuis, lignesDepuisDevis, nettoyer, documentHtml, emailHtml, messageDefaut, smsTexte, titreBon, dateCourte, allergenesDe };
+module.exports = { horairesVus, ROLE_RECUP, ROLES_MSG, aRecuperer, completerLignes, itemsNappe, qteAuto, choixProduit, choixProduits, NOM_ROLE, modeleMessage, promptMessage, infosRole, LISTES, listesPrepa, compoDe, listeDe, itemsTexte, ROLES, HORAIRES, bonDepuis, lignesDepuisDevis, nettoyer, documentHtml, emailHtml, messageDefaut, smsTexte, titreBon, dateCourte, allergenesDe };
