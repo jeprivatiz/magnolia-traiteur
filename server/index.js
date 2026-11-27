@@ -776,7 +776,7 @@ async function createApp(opts = {}) {
     if (!/^[\w-]{16,40}$/.test(req.params.token)) return next();
     const b = (await store.list('prepas')).map(x => x.data).find(x => x?.token === req.params.token);
     if (!b) return next();
-    res.set('Cache-Control', 'no-store').set('X-Robots-Tag', 'noindex, nofollow').type('html').send(require('./prepa').documentHtml(b, { R: (await cat.get()).reglages || {}, par: b.majPar || '' }));
+    res.set('Cache-Control', 'no-store').set('X-Robots-Tag', 'noindex, nofollow').type('html').send(require('./prepa').documentHtml(b, { R: (await cat.get()).reglages || {}, par: b.majPar || '', recup: req.query.recup === '1' }));
   }));
   app.get('/devis/:token', wrap(async (req, res, next) => {
     const d = await devisParToken(req.params.token);
@@ -3087,8 +3087,8 @@ Réponds uniquement en JSON : {${sms ? '' : '"sujet": "...", '}"texte": "..."}`;
     const avant = await store.get('prepas/' + req.params.id);
     const neuf = PREP.bonDepuis(x);
     /* ?reprendre=1 : on repart des lignes du devis (le reste du bon est gardé) */
-    const bon = avant ? (req.query.reprendre ? { ...avant, lignes: neuf.lignes, personnelDevis: neuf.personnelDevis, allergenesProduits: neuf.allergenesProduits } : { ...avant, lignes: PREP.completerLignes(avant.lignes) }) : neuf;
-    res.set('Cache-Control', 'no-store').json({ bon, existe: !!avant, devis: { numero: x.devis.numero, statut: x.devis.statut, facture: x.facture?.numero || '' }, personnes: await personnesPrepa(), roles: PREP.ROLES, horaires: PREP.HORAIRES, listes: PREP.listesPrepa(x.produits), choix: PREP.choixProduits(bon.lignes, x.bySlug), iaActive: ia.actif, message: PREP.messageDefaut(bon, req.ctx.name || '') });
+    const bon = avant ? (req.query.reprendre ? { ...avant, lignes: neuf.lignes, personnelDevis: neuf.personnelDevis, allergenesProduits: neuf.allergenesProduits } : { ...avant, lignes: PREP.completerLignes(avant.lignes, x.bySlug) }) : neuf;
+    res.set('Cache-Control', 'no-store').json({ bon, existe: !!avant, devis: { numero: x.devis.numero, statut: x.devis.statut, facture: x.facture?.numero || '' }, personnes: await personnesPrepa(), roles: PREP.ROLES, roleRecup: PREP.ROLE_RECUP, horaires: PREP.HORAIRES, listes: PREP.listesPrepa(x.produits), choix: PREP.choixProduits(bon.lignes, x.bySlug), iaActive: ia.actif, message: PREP.messageDefaut(bon, req.ctx.name || '') });
   }));
   A.put('/prepa/:id', sameSite, json, wrap(async (req, res) => {
     const x = await contextePrepa(req.params.id);
@@ -3102,11 +3102,11 @@ Réponds uniquement en JSON : {${sms ? '' : '"sujet": "...", '}"texte": "..."}`;
   A.get('/prepa/:id/document', wrap(async (req, res) => {
     const x = await contextePrepa(req.params.id);
     if (!x) return res.status(404).send('Devis introuvable.');
-    const bon = (await store.get('prepas/' + req.params.id)) || PREP.bonDepuis(x);
-    res.set('Cache-Control', 'no-store').set('X-Robots-Tag', 'noindex').type('html').send(PREP.documentHtml(bon, { R: x.R, retour: '/admin#/prepa/' + encodeURIComponent(req.params.id), par: bon.majPar || req.ctx.name || '' }));
+    const b0 = (await store.get('prepas/' + req.params.id)) || PREP.bonDepuis(x), bon = { ...b0, lignes: PREP.completerLignes(b0.lignes, x.bySlug) };
+    res.set('Cache-Control', 'no-store').set('X-Robots-Tag', 'noindex').type('html').send(PREP.documentHtml(bon, { R: x.R, retour: '/admin#/prepa/' + encodeURIComponent(req.params.id), par: bon.majPar || req.ctx.name || '', recup: req.query.recup === '1' }));
   }));
   /* message à un groupe de l'équipe (régisseurs, livraison, personnel) : modèle, rédaction par l'IA, envoi SMS ou e-mail */
-  const ROLE_OK = r => PREP.ROLES.some(([k]) => k === r);
+  const ROLE_OK = r => PREP.ROLES_MSG.some(([k]) => k === r);
   A.post('/prepa/:id/ia', sameSite, json, wrap(async (req, res) => {
     const bon = await store.get('prepas/' + req.params.id);
     if (!bon) return res.status(400).json({ error: 'Enregistrez d’abord le bon de préparation.' });

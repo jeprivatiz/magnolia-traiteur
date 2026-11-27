@@ -382,7 +382,8 @@
     return ['', ''];
   }
   const PC_PER = [['jour', 'Aujourd’hui'], ['demain', 'Demain'], ['semaine', 'Cette semaine'], ['semaine2', 'Semaine prochaine'], ['2semaines', 'Cette semaine et la suivante'], ['mois', 'Ce mois-ci'], ['mois2', 'Mois prochain']];
-  const PC_ICO = { regisseurs: '🎩', livreurs: '🚚', personnel: '🤵' };
+  const PC_ICO = { regisseurs: '🎩', livreurs: '🚚', personnel: '🤵', recuperateurs: '♻' };
+  const pcRoles = () => [...(PC.x?.roles || []), ...(PC.x?.roleRecup ? [PC.x.roleRecup] : [])];
   async function prepa(id) {
     if (id) return prepaEdit(id);
     const L = await api(A + '/prepa'); PC.liste = L;
@@ -465,7 +466,7 @@
         <div class="pc-pr"><input data-lf="designation" value="${esc(l.designation)}" placeholder="Produit" aria-label="Produit">${l.detail || !l.produit ? `<textarea data-lf="detail" rows="${Math.min(4, Math.max(1, String(l.detail || '').split('\n').length))}" placeholder="Choix, composition (facultatif)" aria-label="Choix">${esc(l.detail || '')}</textarea>` : ''}${(l.allergenes || []).length ? `<small class="pc-al">⚠ ${esc(l.allergenes.join(', '))}</small>` : ''}</div>
         <div class="pc-q"><small>Quantité du devis</small>${l.produit ? `<b>${pcQte(l)}</b>` : `<input data-lf="qteDevis" inputmode="decimal" value="${esc(l.qteDevis ?? '')}" placeholder="—" aria-label="Quantité">`}</div>
         <label class="pc-q pc-qp"><small>Quantité à préparer</small><textarea data-lf="qtePrepa" rows="${String(l.qtePrepa || '').length > 14 ? 2 : 1}" placeholder="à venir">${esc(l.qtePrepa || '')}</textarea></label>
-        <label class="pc-nt"><small>Remarque pour la préparation</small><input data-lf="note" value="${esc(l.note || '')}" placeholder="ex. sans piment, à part…"></label>
+        <div class="pc-nt"><label><small>Remarque pour la préparation</small><input data-lf="note" value="${esc(l.note || '')}" placeholder="ex. sans piment, à part…"></label><label class="pc-recup${l.recup ? ' on' : ''}" title="Coché : la ligne sort sur le bon de récupération"><input type="checkbox" data-lr${l.recup ? ' checked' : ''}> ♻ À récupérer</label></div>
         <button type="button" class="pc-x" data-pclrm="${i}" title="Retirer cette ligne" aria-label="Retirer">🗑</button>${pcItemsHtml(l, i)}</div>`).join('') || '<p class="muted">Aucune ligne : ajoutez un produit ci-dessous, ou reprenez les lignes du devis.</p>';
   }
   async function prepaEdit(id) {
@@ -475,12 +476,18 @@
     /* horaires en listes déroulantes (Jean-Luc, 2026-11-27 : « ça ira plus vite ») : de 5 h à 2 h du matin, par quart d'heure ; une valeur tapée avant reste proposée */
     const PC_HEURES = Array.from({ length: 22 * 4 }, (_, i) => { const m = 5 * 60 + i * 15, hh = Math.floor(m / 60) % 24, mm = m % 60; return `${hh} h${mm ? ' ' + String(mm).padStart(2, '0') : ''}`; });
     const pcHeure = (k, lab, v) => { v = String(v ?? ''); return `<label>${lab}<select data-f="${k}"><option value="">— Choisir —</option>${v && !PC_HEURES.includes(v) ? `<option selected>${esc(v)}</option>` : ''}${PC_HEURES.map(o => `<option${o === v ? ' selected' : ''}>${o}</option>`).join('')}</select></label>`; };
+    const pcRole = (k, lab) => `<div class="pc-role" data-role="${k}"><h3>${PC_ICO[k] || ''} ${esc(lab)}</h3><div class="pc-chips" data-chips="${k}">${pcChips(b, k)}</div>
+          <div class="pc-rech"><input type="search" data-pcrech="${k}" placeholder="🔍 Rechercher : équipe, prestataires…" aria-label="Rechercher une personne : ${esc(lab)}" autocomplete="off"><div class="pc-sugg" data-sugg="${k}" hidden></div></div>
+          <div class="pc-libre"><input data-pclibre="${k}" placeholder="ou tapez un nom" aria-label="Nom"><input data-pctel="${k}" type="tel" placeholder="Portable" aria-label="Portable"><button type="button" class="btn ghost sm" data-pcajout="${k}">Ajouter</button></div>
+          <div class="pc-rbtn"><button type="button" class="btn sm pc-sms" data-pcmsg="${k}:sms">💬 SMS au groupe</button><button type="button" class="btn sm ghost" data-pcmsg="${k}:email">✉ E-mail au groupe</button></div>
+          <button type="button" class="pc-hbtn" data-pchist="${k}">🕘 Historique des envois <b>${env.filter(v => v.groupe === k).length}</b></button></div>`;
     const inp = (k, lab, v, at = '') => `<label>${lab}<input data-f="${k}" value="${esc(v ?? '')}"${at}></label>`;
     const env = (b.envois || []).slice().reverse();
     const nonSigne = x.devis.statut !== 'accepte' && !x.devis.facture;
     return page(`📋 Prépa de commande <small class="pc-sub">${esc(c.nom || 'Client')}${e.date ? ' · ' + esc(dateFr(e.date, { day: 'numeric', month: 'long', year: 'numeric' })) : ''}</small>`,
-      `<a class="btn ghost" href="#/prepa">← Tous les événements</a><button type="button" class="btn ghost" data-pcdoc>🖨 Aperçu A4 · Imprimer</button><button type="button" class="btn ghost" data-pcenv>✉ Envoyer</button><button type="button" class="btn vt-or" data-pcsave>💾 Enregistrer</button>`, `
+      `<a class="btn ghost" href="#/prepa">← Tous les événements</a><button type="button" class="btn ghost" data-pcdoc>🖨 Aperçu A4 · Imprimer</button><button type="button" class="btn ghost" data-pcdoc="recup">♻ Bon de récupération</button><button type="button" class="btn ghost" data-pcenv>✉ Envoyer</button><button type="button" class="btn vt-or" data-pcsave>💾 Enregistrer</button>`, `
       <p class="muted pc-intro">${x.existe ? `Bon enregistré${b.updatedAt ? ' le ' + esc(dateH(b.updatedAt)) : ''}${b.majPar ? ' par ' + esc(b.majPar) : ''}.` : '<b>Nouveau bon</b>, pré-rempli avec le devis et la fiche du client : vérifiez, complétez puis enregistrez.'} Devis <a href="#/devis/${esc(id)}">${esc(x.devis.numero)}</a>${x.devis.facture ? ` · facture ${esc(x.devis.facture)}` : ''}.${nonSigne ? ' <span class="pc-ns">Attention : ce devis n’est pas encore signé.</span>' : ''}</p>
+      <div class="pc-plis" data-pcplis><span class="muted sm">Cadres :</span><button type="button" class="btn ghost sm" data-v="1">▸ Tout replier</button><button type="button" class="btn ghost sm" data-v="0">▾ Tout déplier</button><span class="muted sm">· cliquez sur le titre d’un cadre pour l’ouvrir ou le fermer</span></div>
       <form id="pcF" autocomplete="off">
       <div class="cols pc-cols">
       <section class="box pc-box"><h2>👤 Client</h2>
@@ -501,11 +508,7 @@
       <section class="box pc-box"><h2>🕒 Horaires</h2><div class="pc-hor">${x.horaires.map(([k, lab]) => pcHeure('horaires.' + k, lab, h[k])).join('')}</div></section>
       <section class="box pc-box"><h2>👥 Équipe sur l’événement <button type="button" class="pc-hbtn pc-hall" data-pchist="">🕘 Historique de tous les envois <b>${env.length}</b></button></h2>
         <p class="muted sm">Choisissez dans la liste (équipe Magnolia et prestataires des Contacts) ou tapez un nom. ${b.personnelDevis.length ? `<b>Prévu au devis :</b> ${esc(b.personnelDevis.join(' · '))}` : ''}</p>
-        <div class="pc-roles">${x.roles.map(([k, lab]) => `<div class="pc-role" data-role="${k}"><h3>${PC_ICO[k] || ''} ${esc(lab)}</h3><div class="pc-chips" data-chips="${k}">${pcChips(b, k)}</div>
-          <div class="pc-rech"><input type="search" data-pcrech="${k}" placeholder="🔍 Rechercher : équipe, prestataires…" aria-label="Rechercher une personne : ${esc(lab)}" autocomplete="off"><div class="pc-sugg" data-sugg="${k}" hidden></div></div>
-          <div class="pc-libre"><input data-pclibre="${k}" placeholder="ou tapez un nom" aria-label="Nom"><input data-pctel="${k}" type="tel" placeholder="Portable" aria-label="Portable"><button type="button" class="btn ghost sm" data-pcajout="${k}">Ajouter</button></div>
-          <div class="pc-rbtn"><button type="button" class="btn sm pc-sms" data-pcmsg="${k}:sms">💬 SMS au groupe</button><button type="button" class="btn sm ghost" data-pcmsg="${k}:email">✉ E-mail au groupe</button></div>
-          <button type="button" class="pc-hbtn" data-pchist="${k}">🕘 Historique des envois <b>${env.filter(v => v.groupe === k).length}</b></button></div>`).join('')}</div>
+        <div class="pc-roles">${x.roles.map(([k, lab]) => pcRole(k, lab)).join('')}</div>
       </section>
       <section class="box pc-box"><h2>📋 À préparer <small class="muted pc-nb" data-pcnb></small></h2>
         <p class="muted sm">Toutes les lignes du devis (sans les prix, la livraison et le personnel). La colonne <b>Quantité à préparer</b> est prête pour les quantités détaillées de la cuisine.</p>
@@ -513,8 +516,15 @@
         <div class="row pc-addl"><button type="button" class="btn ghost sm" data-pcadd="produit">➕ Ajouter un produit</button><button type="button" class="btn ghost sm" data-pcadd="titre">➕ Ajouter un intertitre</button><button type="button" class="btn ghost sm" data-pcadd="materiel">➕ Matériel traiteur</button><button type="button" class="btn ghost sm" data-pcadd="softs">➕ Pack softs</button><button type="button" class="btn ghost sm" data-pcadd="nappes">➕ Nappes</button><button type="button" class="btn ghost sm" data-pcrep>↻ Reprendre les lignes du devis</button></div>
       </section>
       <section class="box pc-box"><h2>📝 Remarque pour la préparation</h2><textarea data-f="remarques" rows="3" placeholder="Tout ce que la préparation doit savoir : présentation, vaisselle, ordre de sortie…">${esc(b.remarques)}</textarea></section>
-      ${env.length ? `<section class="box pc-box"><h2>✉ Envois</h2><ul class="pc-env">${env.map(v => `<li><b>${esc(dateH(v.at))}</b> · ${v.groupe ? `<b>${esc((x.roles.find(r => r[0] === v.groupe) || [, v.groupe])[1])}</b> : ` : 'bon envoyé à '}${esc(v.a)} <span class="muted">(${esc((v.canaux || []).map(k => k === 'sms' ? 'SMS' : 'e-mail').join(' + '))}${v.par ? ', par ' + esc(v.par) : ''})</span></li>`).join('')}</ul></section>` : ''}
-      <div class="row pc-bas"><button type="button" class="btn vt-or" data-pcsave>💾 Enregistrer</button><button type="button" class="btn ghost" data-pcdoc>🖨 Aperçu A4 · Imprimer</button><button type="button" class="btn ghost" data-pcenv>✉ Envoyer à la cuisine</button></div>
+      <section class="box pc-box pc-recupbox"><h2>♻ Bon de récupération <small class="muted pc-nb" data-pcnbr2></small></h2>
+        <p class="muted sm">Ce que le livreur doit reprendre après l’événement : les lignes cochées <b>♻ À récupérer</b> dans « À préparer ». Indiquez le jour, l’heure, le lieu et qui récupère.</p>
+        <div class="pc-rhor">${inp('recuperation.date', 'Jour de la récupération', (b.recuperation || {}).date || e.date, ' type="date"')}${pcHeure('recuperation.heure', 'Heure de la récupération', (b.recuperation || {}).heure || h.reprise || '')}${inp('recuperation.lieu', 'Lieu de la récupération', (b.recuperation || {}).lieu, ` placeholder="${esc([e.lieu, e.adresse, [e.cp, e.ville].filter(Boolean).join(' ')].filter(Boolean).join(', ') || 'Adresse de l’événement')}"`)}</div>
+        <div class="pc-rl" data-pcrl></div>
+        <div class="pc-roles pc-roles1">${x.roleRecup ? pcRole(x.roleRecup[0], x.roleRecup[1] + ' · qui récupère') : ''}</div>
+        <div class="row"><button type="button" class="btn vt-or" data-pcdoc="recup">♻ Voir et imprimer le bon de récupération</button></div>
+      </section>
+      ${env.length ? `<section class="box pc-box"><h2>✉ Envois</h2><ul class="pc-env">${env.map(v => `<li><b>${esc(dateH(v.at))}</b> · ${v.groupe ? `<b>${esc((pcRoles().find(r => r[0] === v.groupe) || [, v.groupe])[1])}</b> : ` : 'bon envoyé à '}${esc(v.a)} <span class="muted">(${esc((v.canaux || []).map(k => k === 'sms' ? 'SMS' : 'e-mail').join(' + '))}${v.par ? ', par ' + esc(v.par) : ''})</span></li>`).join('')}</ul></section>` : ''}
+      <div class="row pc-bas"><button type="button" class="btn vt-or" data-pcsave>💾 Enregistrer</button><button type="button" class="btn ghost" data-pcdoc>🖨 Aperçu A4 · Imprimer</button><button type="button" class="btn ghost" data-pcdoc="recup">♻ Bon de récupération <b data-pcnbr>${b.lignes.filter(l => l.type !== 'titre' && l.recup).length}</b></button><button type="button" class="btn ghost" data-pcenv>✉ Envoyer à la cuisine</button></div>
       </form>`);
   }
   /* lit l'écran dans PC.x.bon */
@@ -522,8 +532,8 @@
   const pcQteAuto = l => { const it = (l.items || []).filter(x => x.nom && +x.n > 0); if (!it.length) return ''; const g = new Map(); for (const x of it) { const k = x.groupe || ({ softs: 'softs', materiel: 'articles', nappes: 'nappes' })[l.liste] || 'pièces'; g.set(k, (g.get(k) || 0) + (+x.n)); } return [...g].map(([k, n]) => `${n} ${String(k).toLowerCase()}`).join(' · '); };
   function pcLire() {
     const b = PC.x.bon, f = $('#pcF'); if (!f) return b;
-    $$('[data-f]', f).forEach(i => { const [a, k] = i.dataset.f.split('.'); if (k) b[a][k] = i.value; else b[a] = i.value; });
-    $$('[data-pclignes] .pc-l', f).forEach(r => { const l = b.lignes[+r.dataset.i]; if (!l) return; $$('[data-lf]', r).forEach(i => { l[i.dataset.lf] = i.value; }); $$('.pc-itr', r).forEach(x => { const it = (l.items || [])[+x.dataset.j]; if (it) $$('[data-it]', x).forEach(i => { it[i.dataset.it] = i.dataset.it === 'n' ? (i.value === '' ? '' : +i.value) : i.value; }); });
+    $$('[data-f]', f).forEach(i => { const [a, k] = i.dataset.f.split('.'); if (k) (b[a] = b[a] || {})[k] = i.value; else b[a] = i.value; });
+    $$('[data-pclignes] .pc-l', f).forEach(r => { const l = b.lignes[+r.dataset.i]; if (!l) return; $$('[data-lf]', r).forEach(i => { l[i.dataset.lf] = i.value; }); const rc = $('[data-lr]', r); if (rc) { l.recup = rc.checked; rc.closest('.pc-recup').classList.toggle('on', rc.checked); } $$('.pc-itr', r).forEach(x => { const it = (l.items || [])[+x.dataset.j]; if (it) $$('[data-it]', x).forEach(i => { it[i.dataset.it] = i.dataset.it === 'n' ? (i.value === '' ? '' : +i.value) : i.value; }); });
       const q = pcQteAuto(l), qi = $('[data-lf="qtePrepa"]', r);
       if (q && (l.qteAuto || !l.qtePrepa)) { l.qtePrepa = q; l.qteAuto = true; if (qi && qi.value !== q) qi.value = q; } });
     return b;
@@ -537,13 +547,35 @@
   }
   prepaEdit.after = id => {
     const f = $('#pcF'), b = () => PC.x.bon;
+    /* liste « à récupérer » du cadre Bon de récupération */
+    const majRecup = () => {
+      const L = b().lignes.filter(l => l.type !== 'titre' && l.recup), z = $('[data-pcrl]');
+      const n2 = $('[data-pcnbr2]'); if (n2) n2.textContent = L.length ? `${L.length} à récupérer` : '';
+      const nr = $('[data-pcnbr]'); if (nr) nr.textContent = L.length;
+      if (z) z.innerHTML = L.length ? `<ul>${L.map(l => `<li><b>${esc(l.qtePrepa || pcQte(l))}</b> ${esc(l.designation)}${(l.items || []).filter(i => i.nom).length ? `<small>${esc(l.items.filter(i => i.nom).map(i => (i.n !== '' && i.n != null ? i.n + ' × ' : '') + [i.nom, i.couleur, i.type].filter(Boolean).join(' · ')).join(', '))}</small>` : ''}</li>`).join('')}</ul>` : '<p class="muted sm">Rien à récupérer pour le moment : cochez « ♻ À récupérer » sur les lignes concernées (tables, nappes, matériel…).</p>';
+    };
+    majRecup();
+    /* cadres repliables (Jean-Luc, 2026-11-27 : « trop de choses à aller chercher ») ; l'état est gardé sur cet ordinateur */
+    const PLIS = 'mg_prepa_plis'; let plis = {}; try { plis = JSON.parse(localStorage.getItem(PLIS) || '{}'); } catch (e) {}
+    const cadres = $$('#pcF .pc-box');
+    cadres.forEach(s => {
+      const h2 = $('h2', s), cle = (h2.firstChild?.textContent || '').replace(/[^\p{L} ]/gu, '').trim();
+      s.dataset.pli = cle; h2.classList.add('pc-plih'); h2.setAttribute('role', 'button'); h2.tabIndex = 0;
+      h2.insertAdjacentHTML('beforeend', '<span class="pc-chev" aria-hidden="true">▾</span>');
+      s.classList.toggle('plie', !!plis[cle]); h2.setAttribute('aria-expanded', String(!plis[cle]));
+      const bas = () => { s.classList.toggle('plie'); plis[cle] = s.classList.contains('plie'); h2.setAttribute('aria-expanded', String(!plis[cle])); try { localStorage.setItem(PLIS, JSON.stringify(plis)); } catch (e) {} };
+      h2.addEventListener('click', e => { if (e.target.closest('button, a, input, select')) return; bas(); });
+      h2.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target === h2) { e.preventDefault(); bas(); } });
+    });
+    const tout = ferme => { cadres.forEach(s => { s.classList.toggle('plie', ferme); plis[s.dataset.pli] = ferme; $('h2', s).setAttribute('aria-expanded', String(!ferme)); }); try { localStorage.setItem(PLIS, JSON.stringify(plis)); } catch (e) {} };
+    $('[data-pcplis]')?.addEventListener('click', e => { const v = e.target.closest('[data-pcplis] button'); if (v) tout(v.dataset.v === '1'); });
     const nb = () => { const n = b().lignes.filter(l => l.type !== 'titre').length; $('[data-pcnb]').textContent = `${n} produit${n > 1 ? 's' : ''}`; };
-    const redessiner = () => { $('[data-pclignes]').innerHTML = pcLignesHtml(b()); nb(); pcLire(); };
+    const redessiner = () => { $('[data-pclignes]').innerHTML = pcLignesHtml(b()); nb(); pcLire(); majRecup(); };
     nb();
     f.addEventListener('input', () => { PC.sale = true; });
     f.addEventListener('submit', e => e.preventDefault());
     /* une personne n'est que dans un seul groupe (Jean-Luc, 2026-11-27 : un livreur n'apparaît jamais dans les régisseurs) */
-    const autreGroupe = (k, nom) => (PC.x.roles || []).find(([r]) => r !== k && (b()[r] || []).some(x => x.nom.toLowerCase() === String(nom).toLowerCase()));
+    const autreGroupe = (k, nom) => k === 'recuperateurs' ? null : (PC.x.roles || []).find(([r]) => r !== k && (b()[r] || []).some(x => x.nom.toLowerCase() === String(nom).toLowerCase()));
     const ajouter = (k, p) => { if (!p.nom) return; const ag = autreGroupe(k, p.nom); if (ag) { toast(`${p.nom} est déjà dans « ${ag[1]} ». Retirez-le(la) d’abord de ce groupe.`, true); return; } const l = b()[k] = b()[k] || []; if (l.some(x => x.nom.toLowerCase() === p.nom.toLowerCase())) { toast(`${p.nom} est déjà dans la liste.`); return; } l.push(p); $(`[data-chips="${k}"]`).innerHTML = pcChips(b(), k); PC.sale = true; };
     /* une quantité tapée à la main n'est plus remplacée ; vidée, elle se remplit de nouveau d'après les choix */
     f.addEventListener('input', e => {
@@ -552,6 +584,7 @@
       if (e.target.closest('.pc-itr')) pcLire();
     });
     f.addEventListener('change', e => {
+      if (e.target.matches('[data-lr]')) { pcLire(); PC.sale = true; majRecup(); }
       if (e.target.closest('.pc-itr')) pcLire();
       const sg = e.target.closest('[data-itaddg]');
       if (sg && sg.value !== '') { pcLire(); const l = b().lignes[+sg.dataset.itaddg]; l.items = l.items || []; if (!l.items.some(x => x.groupe === sg.dataset.g && x.nom === sg.value)) l.items.push({ groupe: sg.dataset.g, nom: sg.value, n: Number(l.qteDevis) || '' }); if (!l.liste) l.liste = 'compo'; redessiner(); PC.sale = true; return; }
@@ -562,7 +595,7 @@
     /* recherche d'une personne (équipe + prestataires) : suggestions sous la case, un clic l'ajoute au groupe */
     const sugg = (k, q) => {
       const box = $(`[data-sugg="${k}"]`), n = String(q || '').trim().toLowerCase();
-      const deja = new Set((PC.x.roles || []).flatMap(([r]) => (b()[r] || []).map(p => p.nom.toLowerCase())));
+      const deja = new Set((k === 'recuperateurs' ? [[k]] : PC.x.roles || []).flatMap(([r]) => (b()[r] || []).map(p => p.nom.toLowerCase())));
       const L = PC.x.personnes.map((p, i) => ({ p, i })).filter(({ p }) => !deja.has(p.nom.toLowerCase()) && (!n || [p.nom, p.groupe, ...(p.metiers || [])].join(' ').toLowerCase().includes(n))).slice(0, 12);
       box.innerHTML = L.length ? L.map(({ p, i }) => `<button type="button" data-pcpick="${k}:${i}"><b>${esc(p.nom)}</b><small>${esc([(p.metiers || []).join(', ') || p.groupe, p.tel].filter(Boolean).join(' · '))}</small></button>`).join('') : `<p class="muted sm">Personne trouvée${n ? ` : tapez le nom dans « ou tapez un nom » ci-dessous` : ''}.</p>`;
       box.hidden = false;
@@ -602,7 +635,8 @@
     $$('[data-pcsave]').forEach(x => x.addEventListener('click', async () => { x.disabled = true; try { await pcSauver(); render(); } catch (err) { toast(err.message, true); } finally { x.disabled = false; } }));
     $$('[data-pcdoc]').forEach(x => x.addEventListener('click', async () => {
       const w = window.open('', '_blank');
-      try { await pcSauver(true); const u = `${A}/prepa/${encodeURIComponent(id)}/document?t=${Date.now()}`; if (w) w.location = u; else location.href = u; toast('Bon enregistré : aperçu A4 ouvert dans un nouvel onglet.'); }
+      const rec = x.dataset.pcdoc === 'recup';
+      try { await pcSauver(true); const u = `${A}/prepa/${encodeURIComponent(id)}/document?t=${Date.now()}${rec ? '&recup=1' : ''}`; if (w) w.location = u; else location.href = u; toast(rec ? 'Bon enregistré : bon de récupération ouvert dans un nouvel onglet.' : 'Bon enregistré : aperçu A4 ouvert dans un nouvel onglet.'); }
       catch (err) { w?.close(); toast(err.message, true); }
     }));
     $$('[data-pcenv]').forEach(x => x.addEventListener('click', async () => { try { await pcSauver(true); pcEnvoyer(id); } catch (err) { toast(err.message, true); } }));
@@ -610,7 +644,7 @@
   /* fenêtre « Message au groupe » (Jean-Luc, 2026-11-27) : SMS ou e-mail à tous les régisseurs / livreurs / personnel, rédigé par l'IA sur consigne */
   /* historique des SMS et e-mails envoyés (Jean-Luc, 2026-11-27) : par groupe, ou toute l'équipe ; onglets SMS / E-mails */
   function pcHistorique(role) {
-    const x = PC.x, labR = k => (x.roles.find(r => r[0] === k) || [, k])[1];
+    const x = PC.x, labR = k => (pcRoles().find(r => r[0] === k) || [, k])[1];
     const tous = (x.bon.envois || []).filter(v => role ? v.groupe === role : true).slice().reverse();
     const de = c => tous.filter(v => (v.canaux || ['email']).includes(c));
     let onglet = de('sms').length || !de('email').length ? 'sms' : 'email';
@@ -630,7 +664,7 @@
     document.addEventListener('keydown', function esc_(e) { if (e.key === 'Escape') { m.remove(); document.removeEventListener('keydown', esc_); } });
   }
   function pcMessage(id, role, canal0) {
-    const x = PC.x, bon = x.bon, lab = (x.roles.find(r => r[0] === role) || [, role])[1];
+    const x = PC.x, bon = x.bon, lab = (pcRoles().find(r => r[0] === role) || [, role])[1];
     const dest = (bon[role] || []).map(p => { const q = x.personnes.find(y => y.nom === p.nom); return { nom: p.nom, tel: p.tel || q?.tel || '', email: p.email || q?.email || '', on: true }; });
     let canal = canal0;
     const m = document.createElement('div'); m.className = 'modal df-modal'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-modal', 'true');
