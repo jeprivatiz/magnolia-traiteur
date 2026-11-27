@@ -7,21 +7,23 @@
  * dès que l'équipe agit, le compteur repart. Rien au-delà de 30 jours (dossier abandonné).
  */
 const H24 = 24 * 36e5, J30 = 30 * 864e5;
+/* devis envoyé : on relance toutes les 48 h (Jean-Luc, 2026-11-27) ; demande sans devis : 24 h */
+const H48 = 48 * 36e5;
 
 function derniereAction(d) {
   return [d.envoyeLe, d.updatedAt, ...(d.envois || []).map(e => e && e.at), ...(d.relances || []).map(r => r && r.at), ...(d.historique || []).map(h => h && h.at), d.createdAt]
     .filter(Boolean).map(String).sort().pop() || '';
 }
-function enRetard(d, ouvert, now) {
+function enRetard(d, ouvert, now, delai = H24) {
   if (!ouvert) return false;
   const t = Date.parse(derniereAction(d));
-  if (isNaN(t) || now - t < H24 || now - t > J30) return false;
+  if (isNaN(t) || now - t < delai || now - t > J30) return false;
   return !(d.alerte24hAt && Date.parse(d.alerte24hAt) >= t);
 }
 
 async function verifierRetards(store, now = Date.now()) {
   const [dv, dem] = await Promise.all([store.list('devis'), store.list('demandes')]);
-  const devis = dv.map(x => x.data).filter(d => enRetard(d, d.statut === 'envoye', now));
+  const devis = dv.map(x => x.data).filter(d => enRetard(d, d.statut === 'envoye', now, H48));
   const demandes = dem.map(x => x.data).filter(d => enRetard(d, d.statut === 'demande', now));
   return { devis, demandes };
 }
@@ -35,13 +37,13 @@ async function preparerAlerte(store, { site, euros, esc }, now = Date.now()) {
   for (const d of demandes) await store.set('demandes/' + d.id, { ...d, alerte24hAt: at });
   const li = [
     ...demandes.map(d => `<li>Demande <a href="${site}/admin#/demandes/${d.id}">${esc(d.ref)}</a> · ${esc(d.contact?.nom)} · ${esc(d.evenement?.type || d.sujet || '')} : pas encore traitée</li>`),
-    ...devis.map(d => `<li>Devis <a href="${site}/admin#/devis/${d.id}">${esc(d.numero)}</a> · ${esc(d.clientNom || '')}${euros ? '' : ''} : envoyé, sans nouvelle depuis 24 h</li>`),
+    ...devis.map(d => `<li>Devis <a href="${site}/admin#/devis/${d.id}">${esc(d.numero)}</a> · ${esc(d.clientNom || '')}${euros ? '' : ''} : envoyé, sans nouvelle depuis 48 h : à relancer</li>`),
   ];
   const n = devis.length + demandes.length;
   return {
-    sujet: `Magnolia : ${n} dossier${n > 1 ? 's' : ''} sans action depuis 24 h`,
+    sujet: `Magnolia : ${n} dossier${n > 1 ? 's' : ''} à traiter ou à relancer`,
     html: `<p>Bonjour,</p><p>Ces dossiers attendent une action de l’équipe :</p><ul>${li.join('')}</ul><p>Pensez à relancer le client ou à changer l’étape dans le Suivi client.</p>`,
-    sms: `Magnolia : ${n} dossier${n > 1 ? 's' : ''} sans action depuis 24 h. Voir le back-office.`,
+    sms: `Magnolia : ${n} dossier${n > 1 ? 's' : ''} à traiter ou à relancer. Voir le back-office.`,
     devis: devis.length, demandes: demandes.length,
   };
 }

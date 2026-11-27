@@ -1296,7 +1296,7 @@
       .filter(r => r.at).sort((x, y) => String(x.at).localeCompare(String(y.at)));
     const last = [d.createdAt, envoyeLe, ...relances.map(r => r.at), ...h.map(x => x.at)].filter(Boolean).map(String).sort().pop();
     const age = (Date.now() - Date.parse(last)) / H1;
-    const late = OUVERT.includes(d.statut) && age >= 24 && age < 720 ? Math.floor(age) : 0;
+    const late = OUVERT.includes(d.statut) && age >= (envoyeLe ? DELAI_RELANCE_H : 24) && age < 720 ? Math.floor(age) : 0;
     const montant = main ? tot(main).ttc : d.totalEstimeCents;
     const cat = d.statut === 'refuse' ? 'ko' : ['reserve', 'termine'].includes(d.statut) ? 'ok' : d.statut === 'accord' ? 'acc' : !envoyeLe ? 'draft' : late ? 'late' : 'sent';
     const e0 = (main?.envois || [])[0], envoyePar = e0 ? (e0.ia ? 'l’IA ✨' : e0.par || '') : '';
@@ -1376,7 +1376,7 @@
     const sum = (l, f) => l.reduce((a, o) => a + (f(o) || 0), 0);
     const signes = base.filter(o => ['acc', 'ok'].includes(o.cat)), perdus = base.filter(o => o.cat === 'ko');
     const kpis = [[base.filter(o => !['ok', 'ko'].includes(o.cat)).length, 'opportunités en cours'], [base.filter(o => ['sent', 'late'].includes(o.cat)).length, 'en attente de réponse'],
-      [base.filter(o => o.late).length, 'sans nouvelles depuis 24 h'], [euros(sum(signes, o => o.montant)), 'chiffre d’affaires signé (TTC)'],
+      [base.filter(o => o.late).length, 'à relancer ou à traiter'], [euros(sum(signes, o => o.montant)), 'chiffre d’affaires signé (TTC)'],
       [signes.length + perdus.length ? Math.round(signes.length / (signes.length + perdus.length) * 100) + ' %' : '—', 'opportunités gagnées']];
     const inF = (o, k) => !mine(o) || !inP(o) ? false : k === 'all' ? !['ok', 'ko'].includes(o.cat) : k === 'sent' ? ['sent', 'late'].includes(o.cat) : o.cat === k;
     const cnt = k => all.filter(o => inF(o, k)).length;
@@ -1416,9 +1416,9 @@
     const rel = o.relances[o.relances.length - 1];
     const relB = h => `<button type="button" class="qs-stb" data-qrel="${o.d.id}" title="Choisir un modèle et envoyer une relance">${h}</button>`;
     out.push(relB(o.late && sent ? etape('warn', 'À relancer', 'depuis ' + (o.late >= 48 ? Math.floor(o.late / 24) + ' jours' : o.late + ' h'), '!')
-      : o.nRel ? etape('done relok', `✓ Relance ${Math.min(o.nRel, NB_RELANCES)} envoyée`, d1(rel.at) + ' · ' + rel.how + (o.nRel < NB_RELANCES && !decided ? ` · prochaine : relance ${o.nRel + 1}${o.nRel + 1 === NB_RELANCES ? ' (dernière)' : ''}` : ''), '✓')
+      : o.nRel ? etape('done relok', `✓ Relance ${Math.min(o.nRel, NB_RELANCES)} envoyée`, d1(rel.at) + ' · ' + rel.how + (o.nRel < NB_RELANCES && !decided ? ` · relance ${o.nRel + 1}${o.nRel + 1 === NB_RELANCES ? ' (dernière)' : ''} le ${d1(Date.parse(rel.at) + DELAI_RELANCE_H * H1)}` : ''), '✓')
       : rel ? etape('done relok', '✓ Relance notée', d1(rel.at) + ' · ' + rel.how, '✓')
-      : etape(decided ? 'skip' : 'opt', 'Relance', decided ? 'si besoin' : '+ relancer')));
+      : etape(decided ? 'skip' : 'opt', 'Relance', decided ? 'si besoin' : sent ? 'relance 1 le ' + d1(Date.parse(o.envoyeLe) + DELAI_RELANCE_H * H1) : '+ relancer')));
     if (st === 'refuse') out.push(etape('lost', 'Refusé', (o.d.motifRefus ? o.d.motifRefus + ' · ' : 'classé · ') + d1(o.at('refuse')), '✕'));
     else {
       const acc = ['accord', 'reserve', 'termine'].includes(st), sig = o.main?.statut === 'accepte' && o.main.signature;
@@ -1477,7 +1477,7 @@
   /* « Refusé » (Jean-Luc, 2026-11-27) : une raison est toujours demandée avant de classer la fiche ; « Autre… » en crée une,
      qui reviendra ensuite dans la liste (raisons déjà utilisées sur les fiches). */
   /* nombre de relances avant de classer la fiche : à la dernière, elle passe en « Refusé » toute seule (même valeur dans server/index.js) */
-  const NB_RELANCES = 3;
+  const NB_RELANCES = 3, DELAI_RELANCE_H = 48; /* relance 1 = 48 h après le devis, puis 48 h entre chaque relance (Jean-Luc, 2026-11-27) */
   const MOTIFS_REFUS = ['Sans réponse après ' + NB_RELANCES + ' relances', 'Pas de budget', 'Trop cher', 'Le client ne répond plus', 'Date indisponible', 'A choisi un autre traiteur', 'Événement annulé ou reporté', 'Hors zone de livraison'];
   const motifsRefus = () => [...new Set([...MOTIFS_REFUS, ...(cache.opps || []).map(x => String(x.d.motifRefus || '').trim()).filter(Boolean)])];
   function formRefus(o) {
@@ -1513,7 +1513,7 @@
       <div class="qs-right">${k4Html(o.main ? chiffres(o.main) : chiffres(o.d, { lignes: lignesDemande(o.d), ttc: o.d.totalEstimeCents }), o.main ? '#/devis/' + o.main.id : '')}<div class="qs-ht">${o.main ? 'devis n° ' + esc(o.main.numero) : 'estimation du site'}</div></div>
       ${frise(o)}${SV.rsv === o.d.id ? formReserver(o) : ''}${SV.rel?.id === o.d.id ? formRelance(o) : ''}${SV.refus === o.d.id ? formRefus(o) : ''}
       <div class="qs-foot"><div class="qs-info">${o.d.notes ? `<div class="qs-note">📝 ${esc(String(o.d.notes).slice(0, 140))}</div>` : ''}</div><div class="qs-acts">${o.late ? '' : icons}${['refuse', 'reserve', 'termine'].includes(o.d.statut) ? `<button class="qs-back" type="button" data-qback="${o.d.id}" title="Remettre dans les opportunités en cours">${o.d.statut === 'refuse' ? '↺ Réactiver la fiche' : '↺ Remettre en cours'}</button>` : ''}${o.main && o.main.statut !== 'brouillon' ? `<a class="qs-back" href="/devis/${esc(o.main.token)}" target="_blank" title="Le devis tel que le client le voit">📨 ${o.main.statut === 'accepte' ? 'Devis signé' : 'Devis envoyé'}</a>` : ''}${!o.main && !['refuse', 'termine'].includes(o.d.statut) ? `<button class="qs-back anc-q" type="button" data-qanc="${o.d.id}" title="Créer le devis en reprenant un ancien devis proche">📂 Ancien devis</button>` : ''}${o.d.clientId ? `<a class="qs-back" href="#/clients/${esc(o.d.clientId)}" title="Tout ce qui s’est passé avec ce client">🕘 Historique</a>` : ''}<button class="qs-open" type="button" data-qopen="${o.d.id}">${o.cat === 'draft' ? 'Terminer' : 'Ouvrir'}</button></div></div>
-      ${o.late ? `<div class="qs-alert"><b>⚠ Plus de 24 h sans nouvelles.</b> <span>${o.envoyeLe ? `Rappelez ${esc(first || 'ce client')} ou relancez-le.` : `La demande de ${esc(first || 'ce client')} attend son devis.`}</span><span class="sp"></span>${tel ? `<a class="qs-pill dark" href="tel:${esc(tel)}" data-qappel="${o.d.id}">📞 Appeler</a>` : ''}${o.envoyeLe && c.email ? `<button class="qs-pill" type="button" data-qrel="${o.d.id}" data-canal="mail">✉ Relancer par e-mail</button>` : ''}${o.envoyeLe && tel ? `<button class="qs-pill" type="button" data-qrel="${o.d.id}" data-canal="sms">💬 Relancer par SMS</button>` : ''}${o.envoyeLe ? '' : `<button class="qs-pill dark" type="button" data-qdevis="${o.d.id}">✎ Préparer le devis</button>`}<button class="qs-pill" type="button" data-qfait="${o.d.id}">✓ Relance faite (noter)</button></div>` : ''}
+      ${o.late ? `<div class="qs-alert"><b>⚠ Plus de ${o.envoyeLe ? DELAI_RELANCE_H : 24} h sans nouvelles.</b> <span>${o.envoyeLe ? `Rappelez ${esc(first || 'ce client')} ou relancez-le.` : `La demande de ${esc(first || 'ce client')} attend son devis.`}</span><span class="sp"></span>${tel ? `<a class="qs-pill dark" href="tel:${esc(tel)}" data-qappel="${o.d.id}">📞 Appeler</a>` : ''}${o.envoyeLe && c.email ? `<button class="qs-pill" type="button" data-qrel="${o.d.id}" data-canal="mail">✉ Relancer par e-mail</button>` : ''}${o.envoyeLe && tel ? `<button class="qs-pill" type="button" data-qrel="${o.d.id}" data-canal="sms">💬 Relancer par SMS</button>` : ''}${o.envoyeLe ? '' : `<button class="qs-pill dark" type="button" data-qdevis="${o.d.id}">✎ Préparer le devis</button>`}<button class="qs-pill" type="button" data-qfait="${o.d.id}">✓ Relance faite (noter)</button></div>` : ''}
     </article>`;
   }
   async function majDemande(id, f, msg) {

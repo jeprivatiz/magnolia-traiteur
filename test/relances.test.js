@@ -6,9 +6,10 @@ const { enRetard, preparerAlerte } = require('../server/relances');
 const H = 36e5, now = Date.parse('2026-12-01T10:00:00Z');
 const iso = t => new Date(t).toISOString();
 
-test('un devis envoyé sans action depuis 24 h est signalé une seule fois', async () => {
-  const d = { id: 'v1', numero: 'D-2026-0001', statut: 'envoye', envoyeLe: iso(now - 30 * H) };
+test('un devis envoyé sans action depuis 48 h est signalé une seule fois', async () => {
+  const d = { id: 'v1', numero: 'D-2026-0001', statut: 'envoye', envoyeLe: iso(now - 50 * H) };
   assert.equal(enRetard(d, true, now), true);
+  assert.equal(enRetard({ ...d, envoyeLe: iso(now - 30 * H) }, true, now, 48 * H), false);
   assert.equal(enRetard({ ...d, envoyeLe: iso(now - 5 * H) }, true, now), false);
   assert.equal(enRetard({ ...d, relances: [{ at: iso(now - 2 * H) }] }, true, now), false);
   assert.equal(enRetard({ ...d, envoyeLe: iso(now - 40 * 24 * H) }, true, now), false);
