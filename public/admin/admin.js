@@ -4851,14 +4851,16 @@
     draw();
     return { draw, enCours: () => photos.some(x => x.envoi) };
   }
+  /* interrupteur « En ligne / Hors ligne » d'un reportage (Jean-Luc, 2026-11-27 : bien visible, dans la liste et sur l'article) */
+  const interEnLigne = (a, attr) => { const on = a.statut === 'publie'; return `<button type="button" class="bl-inter${on ? ' on' : ''}" ${attr} aria-pressed="${on}" title="${on ? 'Cliquez pour retirer ce reportage du site' : 'Cliquez pour mettre ce reportage en ligne'}"><span class="bl-sw"><i></i></span><span class="bl-inter-t"><b>${on ? 'En ligne' : 'Hors ligne'}</b><small>${on ? 'Visible sur le site · cliquez pour le retirer' : 'Pas visible sur le site · cliquez pour le mettre en ligne'}</small></span></button>`; };
   async function blog(id) {
     if (id === 'nouveau') return blogNouveau();
     if (id) return blogArticle(id);
     const r = await api(A + '/blog'); BL.l = r;
     const e = r.rappel, g = r.reglages;
-    const carte = a => { const p = a.photos?.[0]; return `<a class="bl-c" href="#/blog/${esc(a.id)}"><span class="bl-img">${p ? `<img src="${esc(p.src)}" alt="" loading="lazy">` : '<span class="muted sm">Pas de photo</span>'}</span>
+    const carte = a => { const p = a.photos?.[0]; return `<div class="bl-cw${a.statut === 'publie' ? ' on' : ''}"><a class="bl-c" href="#/blog/${esc(a.id)}"><span class="bl-img">${p ? `<img src="${esc(p.src)}" alt="" loading="lazy">` : '<span class="muted sm">Pas de photo</span>'}</span>
       <span class="bl-t"><span class="row">${a.statut === 'publie' ? '<span class="pill d-accepte">✓ Publié</span>' : '<span class="pill d-envoye">Brouillon à relire</span>'}<small class="muted">${esc(BLOG_CAT[a.categorie] || '')}${a.invites ? ' · ' + a.invites + ' invités' : ''}</small></span>
-      <b>${esc(a.titre || 'Sans titre')}</b><small class="muted">${a.statut === 'publie' ? 'Publié le ' + dateFr(a.publieLe) : 'Créé le ' + dateFr(a.createdAt)}${a.creePar ? ' · ' + esc(a.creePar) : ''}</small></span></a>`; };
+      <b>${esc(a.titre || 'Sans titre')}</b><small class="muted">${a.statut === 'publie' ? 'Publié le ' + dateFr(a.publieLe) : 'Créé le ' + dateFr(a.createdAt)}${a.creePar ? ' · ' + esc(a.creePar) : ''}</small></span></a>${interEnLigne(a, 'data-blbasc="' + esc(a.id) + '"')}</div>`; };
     const tel = g.tel || g.alertesSms, mail = g.email || g.alertesEmails;
     return page('📝 Blog · nos reportages', `<a class="btn" href="#/blog/nouveau">✨ Nouveau reportage avec l’IA</a><a class="btn ghost" href="/blog" target="_blank" rel="noopener">Voir le blog ↗</a>`, `
       ${e.aFaire && e.actif ? `<section class="box hl bl-rappel"><div><b>⏰ C’est le moment de préparer le prochain reportage.</b><p class="muted sm">${e.dernierePublication ? 'Dernier reportage publié le ' + dateFr(e.dernierePublication) + '.' : 'Aucun reportage publié pour l’instant.'} Quelques lignes + vos photos : l’IA s’occupe du reste.</p></div><a class="btn" href="#/blog/nouveau">✨ Écrire le reportage</a></section>` : ''}
@@ -4878,6 +4880,14 @@
   blog.after = id => {
     if (id === 'nouveau') return blogNouveau.after();
     if (id) return blogArticle.after(id);
+    $$('[data-blbasc]').forEach(b => b.addEventListener('click', async () => {
+      const a = (BL.l?.articles || []).find(x => x.id === b.dataset.blbasc); if (!a) return;
+      const st = a.statut === 'publie' ? 'brouillon' : 'publie';
+      if (st === 'brouillon' && !confirm('Retirer « ' + (a.titre || 'ce reportage') + ' » du site ?\n\nIl ne s’affichera plus (ni sur l’accueil, ni sur la page du blog). Vous pourrez le remettre en ligne quand vous voulez.')) return;
+      b.disabled = true;
+      try { await api(`${A}/blog/${a.id}`, { method: 'PUT', body: { ...a, statut: st } }); BL.l = null; toast(st === 'publie' ? '🎉 Reportage en ligne : il s’affiche sur le site et sur l’accueil.' : 'Reportage retiré du site : il n’est plus visible.'); render(); }
+      catch (err) { b.disabled = false; toast(err.message, true); }
+    }));
     const f = $('#blRap');
     f?.addEventListener('submit', async e => {
       e.preventDefault();
@@ -4952,6 +4962,7 @@
     const pub = a.statut === 'publie';
     const ch = a.chiffres || [];
     return page(`${esc(a.titre || 'Reportage')} ${pub ? '<span class="pill d-accepte">✓ Publié</span>' : '<span class="pill d-envoye">Brouillon</span>'}`, `<a class="btn ghost" href="#/blog">← Tous les reportages</a><button type="button" class="btn ghost" data-blvoir>👁 Voir le blog</button>`, `
+      <section class="box bl-enligne${pub ? ' on' : ''}"><div><h2>Sur le site</h2><p class="muted sm">${pub ? 'Ce reportage est visible sur la page du blog et sur l’accueil.' : 'Ce reportage n’est pas visible par les clients. Relisez-le, puis mettez-le en ligne.'}</p></div>${interEnLigne(a, 'data-blinter')}</section>
       <section class="box hl bl-ia"><h2>✨ Demander une modification à l’IA</h2>
         <p class="muted sm">Ex. : « plus court », « parle davantage du bar à spritz », « ton plus chaleureux », « ajoute que le montage a pris une journée ». L’IA réécrit le reportage ; vous relisez avant de publier.</p>
         <div class="bl-ia-row"><textarea data-blcons rows="2" placeholder="Votre demande à l’IA… (tapez ou dictez avec 🎤)"></textarea><div class="bl-ia-btns"><button type="button" class="btn ghost" data-blmic>🎤 Dicter</button><button type="button" class="btn" data-blre>✨ Réécrire</button></div></div><p class="muted sm" data-blmicmsg></p>
@@ -4978,7 +4989,7 @@
         <div class="chips" data-blprods></div><div class="bl-pr-add"><input type="search" data-blpq placeholder="Ajouter une prestation : tapez son nom…"><div class="bl-pr-res" data-blpres></div></div></section>
       <section class="box"><h2>Google</h2><div class="g2"><label>Titre dans Google<input name="seoTitre" value="${esc(a.seoTitre || '')}" maxlength="70"></label><label>Mots-clés <small class="muted">(séparés par une virgule)</small><input name="tags" value="${esc((a.tags || []).join(', '))}"></label></div>
         <label>Description dans Google<textarea name="seoDescription" rows="2" maxlength="170">${esc(a.seoDescription || '')}</textarea></label></section>
-      <div class="actions sticky"><button class="btn">Enregistrer</button>${pub ? '<button type="button" class="btn ghost" data-blpub="brouillon">Retirer du site</button>' : '<button type="button" class="btn db-or" data-blpub="publie">✓ Publier sur le site</button>'}<button type="button" class="btn ghost" data-blvoir>👁 Voir le blog</button><button type="button" class="btn ghost bl-del" data-bldel>🗑 Supprimer</button><span class="muted" id="dirty"></span></div>
+      <div class="actions sticky"><button class="btn">Enregistrer</button>${pub ? '<button type="button" class="btn ghost" data-blpub="brouillon">⏸ Retirer du site</button>' : '<button type="button" class="btn db-or" data-blpub="publie">✓ Publier sur le site</button>'}<button type="button" class="btn ghost" data-blvoir>👁 Voir le blog</button><button type="button" class="btn ghost bl-del" data-bldel>🗑 Supprimer</button><span class="muted" id="dirty"></span></div>
       </form>`);
   }
   blogArticle.after = id => {
@@ -5028,11 +5039,11 @@
     const enregistrer = async statut => { const r = await api(`${A}/blog/${id}`, { method: 'PUT', body: donnees(statut) }); BL.a = r.article; BL.l = null; $('#dirty').textContent = ''; return r.article; };
     f.addEventListener('submit', async ev => { ev.preventDefault(); try { await enregistrer(); toast('Reportage enregistré.'); } catch (err) { toast(err.message, true); } });
     $$('[data-blvoir]').forEach(b => b.addEventListener('click', async () => { const w = window.open('', '_blank'); try { const a = await enregistrer(); if (w) w.location = '/blog/' + a.slug + '?apercu'; } catch (err) { w?.close(); toast(err.message, true); } }));
-    $('[data-blpub]')?.addEventListener('click', async ev => {
-      const st = ev.currentTarget.dataset.blpub;
+    $$('[data-blpub], [data-blinter]').forEach(b => b.addEventListener('click', async ev => {
+      const st = ev.currentTarget.dataset.blpub || (BL.a.statut === 'publie' ? 'brouillon' : 'publie');
       if (st === 'brouillon' && !confirm('Retirer ce reportage du site ?\n\nIl redevient un brouillon : vous pourrez le republier.')) return;
       try { await enregistrer(st); toast(st === 'publie' ? '🎉 Reportage publié : il est en ligne sur le site et sur l’accueil.' : 'Reportage retiré du site.'); render(); } catch (err) { toast(err.message, true); }
-    });
+    }));
     $('[data-bldel]').addEventListener('click', async () => {
       if (!confirm('Supprimer définitivement ce reportage ?\n\nLes photos restent dans la médiathèque.')) return;
       try { await api(`${A}/blog/${id}`, { method: 'DELETE' }); BL.l = null; toast('Reportage supprimé.'); location.hash = '#/blog'; } catch (err) { toast(err.message, true); }
