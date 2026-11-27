@@ -132,7 +132,7 @@
   }, true);
   /* droits détaillés du compte connecté (Équipe & activité) ; « Administrateur » a tout */
   const peut = k => !!session?.droits?.[k];
-  const DROIT_ECRAN = { factures: 'factures', catalogue: 'produits', achats: 'prix', tarifs: 'prix', lieux: 'produits', site: 'site', avis: 'site', medias: 'site', entreprise: 'entreprise', outils: ['outils', 'fichiers'] };
+  const DROIT_ECRAN = { factures: 'factures', catalogue: 'produits', achats: 'prix', tarifs: 'prix', lieux: 'produits', site: 'site', avis: 'site', blog: 'site', medias: 'site', entreprise: 'entreprise', outils: ['outils', 'fichiers'] };
   const voitEcran = r => { const d = DROIT_ECRAN[r]; return !d || [].concat(d).some(peut); };
 
   /* ---------- structure ---------- */
@@ -154,6 +154,7 @@
     ['lieux', 'Lieux'],
     ['site', 'Photos & textes du site'],
     ['avis', 'Avis clients'],
+    ['blog', 'Blog · reportages'],
     ['medias', 'Médiathèque'],
     ['-'],
     ['entreprise', 'Mon entreprise'],
@@ -166,7 +167,7 @@
     const nb = cache.nouvelles ? String(cache.nouvelles) : '';
     const item = m => m[0] !== '-' && m[0] !== 'crm' && !voitEcran(m[0]) ? '' : m[0] === '-' ? '<hr>'
       : m[0] === 'crm' ? `<button type="button" class="chip crm-btn" data-tab="crm" data-crm aria-expanded="${open}" title="Demandes de devis, Suivi client, Devis, Factures, Clients, Statistiques, Validation tarifs">CRM<span>${nb}</span></button>`
-      : `<a href="#/${m[0]}" data-tab="${m[0]}" class="chip${CRM.includes(m[0]) ? ' crm-sub' : ''}${cur === m[0] ? ' on' : ''}"${cur === m[0] ? ' aria-current="page"' : ''}>${m[1]}${m[0] === 'demandes' ? `<span>${nb}</span>` : ''}</a>`;
+      : `<a href="#/${m[0]}" data-tab="${m[0]}" class="chip${CRM.includes(m[0]) ? ' crm-sub' : ''}${cur === m[0] ? ' on' : ''}"${cur === m[0] ? ' aria-current="page"' : ''}>${m[1]}${m[0] === 'demandes' ? `<span>${nb}</span>` : m[0] === 'blog' && cache.blogDu ? '<span title="Reportage à préparer">1</span>' : ''}</a>`;
     return `<div class="bo">
       <aside class="side" id="side"><a class="logo" href="#/"><img src="/brand/monogramme.svg" alt=""><span>Magnolia<small>Back-office</small></span></a><a class="go-site" href="/" target="_blank" rel="noopener">🌐 Aller sur le site ↗</a>
       <nav class="tabs${open ? ' crm-open' : ''}"><p class="tabs-lab">Espace équipe</p>${MENU.filter(m => m[0] === '-' || m[0] === 'crm' || voitEcran(m[0])).filter((m, i, l) => m[0] !== '-' || (i > 0 && l[i - 1][0] !== '-' && i < l.length - 1)).map(item).join('')}</nav>
@@ -197,12 +198,13 @@
     }
     if (!session) return login();
     const [route, id, sub] = location.hash.replace(/^#\/?/, '').split('?')[0].split('/');
-    const views = { '': dashboard, statistiques, tarifs, demandes, suivi, devis, factures, agenda, clients, catalogue, produit, achats, lieux, lieu, site, avis, medias, entreprise, equipe, outils };
+    const views = { '': dashboard, statistiques, tarifs, demandes, suivi, devis, factures, agenda, clients, catalogue, produit, achats, lieux, lieu, site, avis, blog, medias, entreprise, equipe, outils };
     let fn = route === 'catalogue' && id ? produit : route === 'lieux' && id ? lieu : views[route] || dashboard;
     if (!voitEcran(route)) fn = sansAcces;
     if (!peut('toutes') && typeof SV !== 'undefined') { SV.o = ''; mem.set('mg_commercial', ''); } /* « seulement ses opportunités » : pas de filtre sur un autre commercial */
     if (CRM.includes(route)) mem.set('mg_crm_last', route);
     if (!cache.sources) await chargerSources();
+    if (cache.blogDu == null && peut('site')) { cache.blogDu = false; api(A + '/blog/etat').then(e => { cache.blogDu = !!(e.actif && e.aFaire); if (cache.blogDu) render(); }).catch(() => {}); }
     if (!cache.nouvelles && cache.nouvelles !== 0) api(A + '/demandes').then(l => { cache.nouvelles = l.filter(d => aTraiter(d, cache.devisL || [])).length; $$('#side .chip[data-tab=demandes] span, #side .crm-btn span').forEach(x => { x.textContent = cache.nouvelles || ''; }); }).catch(() => {});
     app.innerHTML = shell('<p class="muted">Chargement…</p>', route === 'produit' || route === 'achats' ? 'catalogue' : route);
     bindShell();
@@ -279,7 +281,7 @@
   const eurosRond = c => c == null ? '—' : Math.round(c / 100).toLocaleString('fr-FR').replace(/\s/g, ' ') + ' €';
   async function dashboard() {
     if (SV.o == null) { const m = mem.get('mg_commercial'); SV.o = m != null ? m : ''; }
-    const s = await api(A + '/stats' + (SV.o ? '?com=' + encodeURIComponent(SV.o) : ''));
+    const [s, blogE] = await Promise.all([api(A + '/stats' + (SV.o ? '?com=' + encodeURIComponent(SV.o) : '')), peut('site') ? api(A + '/blog/etat').catch(() => null) : null]);
     cache.nouvelles = s.nouvellesTous;
     const noms = s.commerciaux || [];
     if (SV.o && SV.o !== '—' && !noms.includes(SV.o)) noms.push(SV.o);
@@ -319,6 +321,7 @@
         </div>
         <div class="db-who"><span class="db-who-lab">Tableau de bord de</span><div class="db-who-rail">${rail}</div></div>
       </section>
+      ${blogE?.actif && blogE.aFaire ? `<a class="db-blog" href="#/blog/nouveau"><span>📝</span><span><b>Blog : c’est le moment de préparer le prochain reportage.</b><small>Quelques lignes + vos photos, l’IA rédige et met en page tout le reportage.</small></span><span class="btn sm">✨ Écrire</span></a>` : ''}
       <div class="db-kpis">
         <a class="db-k db-ca" href="#/devis"><span class="db-k-i">${ico('euro')}</span><span class="db-k-l">Signé ce mois-ci</span><b>${eurosRond(s.caSigneMoisCents)}</b><small>${eurosRond(s.caSigneAnneeCents)} depuis janvier</small><span class="db-bars">${barres}</span></a>
         ${kpi('#/demandes', 'inbox', s.nouvelles, s.nouvelles > 1 ? 'nouvelles demandes' : 'nouvelle demande', s.nouvelles ? 'à traiter maintenant' : 'rien en attente', s.nouvelles ? 'hot' : '')}
@@ -4001,6 +4004,283 @@
   avis.after = () => {
     $$('.av').forEach(b => $('[data-save]', b).addEventListener('click', async () => { await api(`${A}/avis/${b.dataset.id}`, { method: 'PUT', body: { ...(cache.avis.find(x => x.id === b.dataset.id) || {}), texte: $('[data-t]', b).value, auteur: $('[data-a]', b).value, statut: $('[data-s]', b).value } }); toast('Avis enregistré.'); render(); }));
     $('[data-newa]').addEventListener('click', async () => { await api(A + '/avis', { method: 'POST', body: { texte: 'Nouvel avis…', auteur: '', statut: 'masque', ordre: -1, note: 5 } }); render(); });
+  };
+
+  /* ---------- Blog « Nos événements en reportage » (Jean-Luc, 2026-11-27) ----------
+     #/blog : liste + rappel ; #/blog/nouveau : quelques lignes + photos → l'IA rédige ; #/blog/:id : relire, corriger, publier */
+  const BLOG_CAT = { entreprise: 'Entreprise', particulier: 'Particulier' };
+  const BL = {};
+  /* photo réduite pour que l'IA la voie (JPEG 1000 px, ~100 Ko) */
+  async function miniatureIa(src) {
+    const im = new Image(); im.decoding = 'async'; im.src = src;
+    await im.decode();
+    const k = Math.min(1, 1000 / Math.max(im.naturalWidth, im.naturalHeight));
+    const cv = document.createElement('canvas'); cv.width = Math.round(im.naturalWidth * k); cv.height = Math.round(im.naturalHeight * k);
+    cv.getContext('2d').drawImage(im, 0, 0, cv.width, cv.height);
+    return cv.toDataURL('image/jpeg', 0.72).split(',')[1];
+  }
+  async function miniaturesIa(photos) { const out = []; for (const p of photos.slice(0, 20)) { try { out.push(await miniatureIa(p.src)); } catch { out.push(null); } } return out; }
+  const dateLongue = d => d ? new Date(d).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' }).replace(':00', ' h').replace(/(\d+):(\d+)/, '$1 h $2') : '—';
+  /* galerie de photos du reportage : ajout (clic, glisser, médiathèque), ordre, légende, suppression */
+  function galerieBlog(box, photos, { onChange = () => {}, legendes = true } = {}) {
+    const draw = () => {
+      box.innerHTML = photos.map((ph, i) => ph.envoi
+        ? `<figure class="ph-envoi"><div class="ph-img"><img src="${esc(ph.src)}" alt=""><span class="ph-sablier">Envoi…</span></div></figure>`
+        : `<figure class="ph${i === 0 ? ' main' : ''}" draggable="true" data-i="${i}"><div class="ph-img"><img src="${esc(ph.src)}" alt="">${i === 0 ? '<span class="ph-badge">★ Grande photo du haut</span>' : ''}</div>
+          <div class="ph-act">${i ? '<button type="button" data-main title="Mettre en grande photo du haut">★ En haut</button>' : ''}<button type="button" class="ph-del" data-rm>🗑 Retirer</button></div>${legendes ? `<input value="${esc(ph.legende || '')}" placeholder="Légende (facultatif)" data-leg>` : ''}</figure>`).join('')
+        + `<label class="gal-ajout" data-drop><input type="file" accept="image/*,.heic,.heif" multiple hidden data-multi><span class="ga-plus">+</span><b>Ajouter des photos</b><span>Cliquez ou glissez vos photos ici</span><span class="ga-tel">Sur iPhone : Photothèque ou appareil photo</span></label>
+          <button type="button" class="gal-ajout gal-media" data-pickp><span class="ga-plus">▦</span><b>Médiathèque</b><span>Reprendre une photo déjà envoyée</span></button>`;
+    };
+    const envoyer = async files => {
+      const imgs = [...files].filter(f => /^image\//.test(f.type) || /\.(hei[cf]|jpe?g|png|webp)$/i.test(f.name || ''));
+      if (!imgs.length) return toast('Choisissez des photos (JPG, PNG, WebP…).', true);
+      const lots = imgs.map(f => { const x = { src: URL.createObjectURL(f), envoi: true, legende: '' }; photos.push(x); return [f, x]; });
+      draw();
+      const refus = [];
+      for (const [f, x] of lots) {
+        try { const url = await uploadFile(f); URL.revokeObjectURL(x.src); x.src = url; delete x.envoi; }
+        catch (err) { photos.splice(photos.indexOf(x), 1); refus.push(`« ${f.name} » : ${err.message}`); }
+        draw();
+      }
+      onChange();
+      if (refus.length) toast((refus.length > 1 ? refus.length + ' photos non ajoutées. ' : 'Photo non ajoutée. ') + refus[0], true);
+      else toast(lots.length > 1 ? `${lots.length} photos ajoutées.` : 'Photo ajoutée.');
+    };
+    let dragI = null;
+    box.addEventListener('change', e => { if (e.target.matches('[data-multi]')) { envoyer(e.target.files); e.target.value = ''; } });
+    box.addEventListener('input', e => { if (e.target.matches('[data-leg]')) { photos[+e.target.closest('[data-i]').dataset.i].legende = e.target.value; onChange(true); } });
+    box.addEventListener('click', async e => {
+      if (e.target.closest('[data-pickp]')) { const u = await pickMedia(); if (u && !/\.mp4$/i.test(u)) { photos.push({ src: u, legende: '' }); draw(); onChange(); } return; }
+      const f = e.target.closest('[data-i]'); if (!f) return; const i = +f.dataset.i;
+      if (e.target.closest('[data-rm]')) { photos.splice(i, 1); draw(); onChange(); }
+      if (e.target.closest('[data-main]')) { photos.unshift(...photos.splice(i, 1)); draw(); onChange(); }
+    });
+    box.addEventListener('dragstart', e => { const f = e.target.closest?.('[data-i]'); dragI = f ? +f.dataset.i : null; });
+    box.addEventListener('dragend', () => { dragI = null; box.classList.remove('survol'); });
+    box.addEventListener('dragover', e => { e.preventDefault(); if (dragI == null) box.classList.add('survol'); });
+    box.addEventListener('dragleave', e => { if (!box.contains(e.relatedTarget)) box.classList.remove('survol'); });
+    box.addEventListener('drop', e => {
+      e.preventDefault(); box.classList.remove('survol');
+      if (dragI == null) { if (e.dataTransfer?.files?.length) envoyer(e.dataTransfer.files); return; }
+      const t = e.target.closest('[data-i]'); const de = dragI; dragI = null;
+      if (t == null || +t.dataset.i === de) return;
+      const [m] = photos.splice(de, 1); photos.splice(+t.dataset.i, 0, m); draw(); onChange();
+    });
+    draw();
+    return { draw, enCours: () => photos.some(x => x.envoi) };
+  }
+  /* dictée (iPhone, Chrome) : le texte dicté s'ajoute à la case */
+  function boutonDictee(btn, ta) {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { btn.hidden = true; return; }
+    let rec = null;
+    btn.addEventListener('click', () => {
+      if (rec) { rec.stop(); return; }
+      rec = new SR(); rec.lang = 'fr-FR'; rec.continuous = true; rec.interimResults = false;
+      const lib = btn.textContent; btn.textContent = '⏹ Arrêter la dictée'; btn.classList.add('on');
+      rec.onresult = e => { for (let i = e.resultIndex; i < e.results.length; i++) if (e.results[i].isFinal) { ta.value = (ta.value ? ta.value.replace(/\s*$/, ' ') : '') + e.results[i][0].transcript.trim(); ta.dispatchEvent(new Event('input', { bubbles: true })); } };
+      rec.onend = () => { rec = null; btn.textContent = lib; btn.classList.remove('on'); };
+      rec.onerror = () => { toast('Dictée impossible : autorisez le micro, ou tapez le texte.', true); };
+      rec.start();
+    });
+  }
+  async function blog(id) {
+    if (id === 'nouveau') return blogNouveau();
+    if (id) return blogArticle(id);
+    const r = await api(A + '/blog'); BL.l = r;
+    const e = r.rappel, g = r.reglages;
+    const carte = a => { const p = a.photos?.[0]; return `<a class="bl-c" href="#/blog/${esc(a.id)}"><span class="bl-img">${p ? `<img src="${esc(p.src)}" alt="" loading="lazy">` : '<span class="muted sm">Pas de photo</span>'}</span>
+      <span class="bl-t"><span class="row">${a.statut === 'publie' ? '<span class="pill d-accepte">✓ Publié</span>' : '<span class="pill d-envoye">Brouillon à relire</span>'}<small class="muted">${esc(BLOG_CAT[a.categorie] || '')}${a.invites ? ' · ' + a.invites + ' invités' : ''}</small></span>
+      <b>${esc(a.titre || 'Sans titre')}</b><small class="muted">${a.statut === 'publie' ? 'Publié le ' + dateFr(a.publieLe) : 'Créé le ' + dateFr(a.createdAt)}${a.creePar ? ' · ' + esc(a.creePar) : ''}</small></span></a>`; };
+    const tel = g.tel || g.alertesSms, mail = g.email || g.alertesEmails;
+    return page('📝 Blog · nos reportages', `<a class="btn" href="#/blog/nouveau">✨ Nouveau reportage avec l’IA</a><a class="btn ghost" href="/blog" target="_blank" rel="noopener">Voir le blog ↗</a>`, `
+      ${e.aFaire && e.actif ? `<section class="box hl bl-rappel"><div><b>⏰ C’est le moment de préparer le prochain reportage.</b><p class="muted sm">${e.dernierePublication ? 'Dernier reportage publié le ' + dateFr(e.dernierePublication) + '.' : 'Aucun reportage publié pour l’instant.'} Quelques lignes + vos photos : l’IA s’occupe du reste.</p></div><a class="btn" href="#/blog/nouveau">✨ Écrire le reportage</a></section>` : ''}
+      <p class="muted">Après chaque événement, racontez-le en quelques lignes et ajoutez vos photos : l’IA rédige et met en page tout le reportage. Vous le relisez, vous le corrigez si besoin, puis vous cliquez sur « Publier ». Les reportages publiés s’affichent sur l’accueil (après « Comment commander ») et sur la page <a href="/blog" target="_blank">Le blog</a>.</p>
+      ${r.articles.length ? `<div class="bl-l">${r.articles.map(carte).join('')}</div>` : `<section class="box bl-vide"><p><b>Aucun reportage pour l’instant.</b></p><p class="muted">Commencez par le premier : l’événement italien dans le hangar, par exemple.</p><a class="btn" href="#/blog/nouveau">✨ Écrire mon premier reportage</a></section>`}
+      <section class="box"><h2>⏰ Rappel automatique</h2>
+        <p class="muted sm">Un SMS et un e-mail vous rappellent de préparer le reportage suivant, ${esc(String(e.jours))} jours après la dernière publication (ou le dernier rappel). ${e.actif ? `Prochain rappel : <b>${e.aFaire ? 'aujourd’hui, dès ' + e.heure + ' h' : esc(dateLongue(e.prochain) .replace(/\d+ h( \d+)?$/, e.heure + ' h'))}</b>.` : '<b>Rappel arrêté.</b>'}</p>
+        <form id="blRap" class="bl-rap">
+          <label class="ck"><input type="checkbox" name="actif"${g.actif ? ' checked' : ''}> Envoyer le rappel</label>
+          <div class="g3"><label>Tous les<select name="jours">${[1, 2, 3, 4, 5, 6, 7, 10, 14].map(n => `<option value="${n}"${+g.jours === n ? ' selected' : ''}>${n} jour${n > 1 ? 's' : ''}</option>`).join('')}</select></label>
+          <label>À partir de<select name="heure">${[7, 8, 9, 10, 11, 12, 14, 16, 18].map(n => `<option value="${n}"${+g.heure === n ? ' selected' : ''}>${n} h</option>`).join('')}</select></label><span></span></div>
+          <div class="g2"><label>Portable(s) pour le SMS <small class="muted">séparés par une virgule</small><input name="tel" value="${esc(g.tel)}" placeholder="${esc(g.alertesSms ? 'Vide = ' + g.alertesSms + ' (alertes de l’équipe)' : '06 12 34 56 78')}"></label>
+          <label>E-mail(s) <small class="muted">séparés par une virgule</small><input name="email" value="${esc(g.email)}" placeholder="${esc(g.alertesEmails ? 'Vide = ' + g.alertesEmails : 'infos@magnoliatraiteur.fr')}"></label></div>
+          ${!tel && !mail ? '<p class="gal-err">Aucun numéro ni e-mail : indiquez au moins un portable pour recevoir le rappel.</p>' : ''}
+          <div class="row"><button class="btn">Enregistrer</button><button type="button" class="btn ghost" data-blessai>📨 M’envoyer un essai</button></div></form></section>`);
+  }
+  blog.after = id => {
+    if (id === 'nouveau') return blogNouveau.after();
+    if (id) return blogArticle.after(id);
+    const f = $('#blRap');
+    f?.addEventListener('submit', async e => {
+      e.preventDefault();
+      try { await api(A + '/blog/reglages', { method: 'PUT', body: { actif: f.actif.checked, jours: f.jours.value, heure: f.heure.value, tel: f.tel.value, email: f.email.value } }); toast('Rappel enregistré.'); render(); } catch (err) { toast(err.message, true); }
+    });
+    $('[data-blessai]')?.addEventListener('click', async () => {
+      try { await api(A + '/blog/reglages', { method: 'PUT', body: { actif: f.actif.checked, jours: f.jours.value, heure: f.heure.value, tel: f.tel.value, email: f.email.value } }); const r = await api(A + '/blog/rappel-essai', { method: 'POST' }); toast(`Essai envoyé : ${r.sms} SMS, ${r.emails} e-mail${r.emails > 1 ? 's' : ''}.`); } catch (err) { toast(err.message, true); }
+    });
+  };
+
+  /* écran « Nouveau reportage » : le brouillon (texte + photos) est gardé sur l'appareil tant que l'IA n'a pas écrit */
+  const BL_MEM = 'mg_blog_nouveau';
+  async function blogNouveau() {
+    const r = BL.l || await api(A + '/blog'); BL.l = r;
+    let d = {}; try { d = JSON.parse(mem.get(BL_MEM) || '{}') || {}; } catch { d = {}; }
+    BL.n = { photos: Array.isArray(d.photos) ? d.photos.filter(p => p && p.src && !/^blob:/.test(p.src)) : [], video: d.video || '' };
+    return page('✨ Nouveau reportage', '<a class="btn ghost" href="#/blog">← Tous les reportages</a>', `${r.ia ? '' : '<p class="gal-err">L’IA n’est pas branchée (clé ANTHROPIC_API_KEY manquante dans Railway).</p>'}
+      <form id="blN" class="bl-n">
+      <section class="box"><h2><span class="df-n">1</span>Racontez l’événement</h2>
+        <p class="muted sm">Quelques lignes suffisent, comme vous le raconteriez à un client : pour qui, où, combien d’invités, ce qui a été servi, l’ambiance, ce qui a plu, une phrase du client si vous l’avez. L’IA n’invente rien : ce que vous n’écrivez pas, elle ne le dit pas.</p>
+        <textarea name="notes" rows="9" placeholder="Ex. : Soirée pour une entreprise italienne (Milan) dans un hangar à Massy, 400 personnes. Buffet italien : antipasti, charcuterie, lasagnes, tiramisu. Bar à spritz à l’arrivée. 14 serveurs et maîtres d’hôtel. Le client nous a dit : « Nos collègues italiens se sont crus à la maison. »">${esc(d.notes || '')}</textarea>
+        <div class="row"><button type="button" class="btn ghost sm" data-dictee>🎤 Dicter</button><small class="muted" data-blnb></small></div>
+        <details class="bl-plus"${d.categorie || d.dateEvenement || d.lieu || d.invites ? ' open' : ''}><summary>Préciser (facultatif) : clientèle, date, lieu, invités</summary>
+        <div class="g3"><label>Clientèle<select name="categorie"><option value="">L’IA choisit</option>${Object.entries(BLOG_CAT).map(([k, v]) => `<option value="${k}"${d.categorie === k ? ' selected' : ''}>${v}</option>`).join('')}</select></label>
+        <label>Type d’événement<select name="typeEvenement"><option value="">L’IA choisit</option>${(r.types || []).map(t => `<option${d.typeEvenement === t ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></label>
+        <label>Date de l’événement<input type="date" name="dateEvenement" value="${esc(d.dateEvenement || '')}"></label>
+        <label>Lieu <small class="muted">(ville ou type de lieu)</small><input name="lieu" value="${esc(d.lieu || '')}" placeholder="ex. Massy (91), un hangar"></label>
+        <label>Nombre d’invités<input name="invites" inputmode="numeric" value="${esc(d.invites || '')}" placeholder="ex. 400"></label></div></details>
+      </section>
+      <section class="box"><div class="bh"><h2><span class="df-n">2</span>Ajoutez vos photos</h2><span class="gal-nb" data-blphn></span></div>
+        <p class="muted sm">Mettez toutes les belles photos de l’événement (jusqu’à 40). L’IA les regarde, choisit la plus belle pour le haut de la page, les range et écrit les légendes. Vous pourrez tout changer ensuite.</p>
+        <div class="photos gal-bo" id="blPh"></div>
+        <h3 class="sub">Vidéo <small class="muted">facultatif</small></h3><div class="row"><span data-blvid class="muted sm">${d.video ? esc(nomFichier(d.video)) : 'Aucune vidéo'}</span><button type="button" class="btn ghost sm" data-blvidp>🎬 Choisir dans la médiathèque</button>${d.video ? '<button type="button" class="btn ghost sm" data-blvidx>✕ Retirer</button>' : ''}</div>
+      </section>
+      <div class="actions sticky bl-go"><button class="btn db-or" data-blgo>✨ Écrire le reportage avec l’IA</button><span class="muted sm" data-blet>L’IA rédige et met en page en 1 minute environ. Rien n’est publié sans votre accord.</span></div>
+      </form>`);
+  }
+  blogNouveau.after = () => {
+    const f = $('#blN'), n = BL.n;
+    const garder = () => { const o = Object.fromEntries(new FormData(f)); mem.set(BL_MEM, JSON.stringify({ ...o, photos: n.photos.filter(p => !p.envoi), video: n.video })); $('[data-blphn]').textContent = n.photos.length ? `(${n.photos.length} photo${n.photos.length > 1 ? 's' : ''})` : ''; $('[data-blnb]').textContent = f.notes.value.trim() ? f.notes.value.trim().split(/\s+/).length + ' mots' : ''; };
+    const gal = galerieBlog($('#blPh'), n.photos, { onChange: garder, legendes: false });
+    f.addEventListener('input', garder); f.addEventListener('change', garder); garder();
+    boutonDictee($('[data-dictee]', f), f.notes);
+    $('[data-blvidp]').addEventListener('click', async () => { const u = await pickMedia(); if (!u) return; if (!/\.mp4$/i.test(u)) return toast('Choisissez une vidéo (fichier .mp4).', true); n.video = u; garder(); render(); });
+    $('[data-blvidx]')?.addEventListener('click', () => { n.video = ''; garder(); render(); });
+    f.addEventListener('submit', async e => {
+      e.preventDefault();
+      if (f.notes.value.trim().length < 15) { toast('Écrivez quelques lignes sur l’événement.', true); f.notes.focus(); return; }
+      if (gal.enCours()) return toast('Attendez la fin de l’envoi des photos.', true);
+      if (!n.photos.length && !confirm('Aucune photo : un reportage sans photo est beaucoup moins beau.\n\nContinuer quand même ?')) return;
+      const btn = $('[data-blgo]'), et = $('[data-blet]');
+      btn.disabled = true; btn.textContent = '✨ L’IA regarde vos photos…';
+      const t0 = Date.now(), tic = setInterval(() => { const s = Math.round((Date.now() - t0) / 1000); et.textContent = s < 20 ? 'L’IA regarde vos photos et lit vos notes…' : s < 50 ? 'Elle rédige le reportage…' : 'Elle met en page et écrit les légendes… encore quelques secondes.'; btn.textContent = `✨ Rédaction en cours (${s} s)`; }, 1000);
+      try {
+        const o = Object.fromEntries(new FormData(f));
+        const images = (await miniaturesIa(n.photos)).map(x => x || '');
+        const r = await api(A + '/ia/blog', { method: 'POST', body: { ...o, photos: n.photos.filter(p => !p.envoi), video: n.video, images } });
+        mem.set(BL_MEM, ''); BL.l = null;
+        toast('✨ Reportage rédigé : relisez-le, corrigez si besoin, puis publiez.');
+        location.hash = '#/blog/' + r.id;
+      } catch (err) { toast(err.message, true); btn.disabled = false; btn.textContent = '✨ Écrire le reportage avec l’IA'; et.textContent = 'Réessayez : votre texte et vos photos sont gardés.'; }
+      finally { clearInterval(tic); }
+    });
+  };
+
+  /* relecture d'un reportage : tout se corrige à la main, ou en demandant à l'IA */
+  async function blogArticle(id) {
+    const [a, l] = await Promise.all([api(A + '/blog/' + id), cache.produits ? Promise.resolve(cache.produits) : api(A + '/produits')]);
+    cache.produits = l; BL.a = a;
+    BL.e = { photos: (a.photos || []).map(p => ({ ...p })), sections: (a.sections || []).map(s => ({ ...s })), produits: [...(a.produits || [])], video: a.video || '' };
+    const types = (BL.l?.types) || (await api(A + '/blog')).types;
+    const pub = a.statut === 'publie';
+    const ch = a.chiffres || [];
+    return page(`${esc(a.titre || 'Reportage')} ${pub ? '<span class="pill d-accepte">✓ Publié</span>' : '<span class="pill d-envoye">Brouillon</span>'}`, `<a class="btn ghost" href="#/blog">← Tous les reportages</a><button type="button" class="btn ghost" data-blvoir>👁 Voir la page</button>`, `
+      <section class="box hl bl-ia"><h2>✨ Demander une modification à l’IA</h2>
+        <p class="muted sm">Ex. : « plus court », « parle davantage du bar à spritz », « ton plus chaleureux », « ajoute que le montage a pris une journée ». L’IA réécrit le reportage ; vous relisez avant de publier.</p>
+        <div class="bl-ia-row"><textarea data-blcons rows="2" placeholder="Votre demande à l’IA…"></textarea><button type="button" class="btn" data-blre>✨ Réécrire</button></div>
+        <details><summary class="sm">Vos notes de départ</summary><textarea data-blnotes rows="5">${esc(a.notes || '')}</textarea><p class="muted sm">L’IA s’appuie sur ces notes : complétez-les si une information manque (elle n’invente rien).</p></details></section>
+      <form id="blA">
+      <section class="box"><h2>Titre et présentation</h2>
+        <label>Titre du reportage<input name="titre" value="${esc(a.titre || '')}" maxlength="160" required></label>
+        <label>Introduction <small class="muted">(en grand, sous la photo)</small><textarea name="chapo" rows="3">${esc(a.chapo || '')}</textarea></label>
+        <div class="g3"><label>Clientèle<select name="categorie">${Object.entries(BLOG_CAT).map(([k, v]) => `<option value="${k}"${a.categorie === k ? ' selected' : ''}>${v}</option>`).join('')}</select></label>
+        <label>Type d’événement<select name="typeEvenement"><option value="">—</option>${[...new Set([...(types || []), a.typeEvenement].filter(Boolean))].map(t => `<option${a.typeEvenement === t ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></label>
+        <label>Date de l’événement<input type="date" name="dateEvenement" value="${esc(a.dateEvenement || '')}"></label>
+        <label>Lieu<input name="lieu" value="${esc(a.lieu || '')}"></label><label>Nombre d’invités<input name="invites" inputmode="numeric" value="${esc(a.invites || '')}"></label></div></section>
+      <section class="box"><h2>Chiffres clés <small class="muted">(bandeau sous la photo, 4 maximum)</small></h2>
+        <div class="bl-chiffres">${[0, 1, 2, 3].map(i => `<div><input data-chv="${i}" value="${esc(ch[i]?.valeur || '')}" placeholder="${['400', '14', '3', '2 400'][i]}" maxlength="14"><input data-chl="${i}" value="${esc(ch[i]?.libelle || '')}" placeholder="${['invités', 'serveurs', 'buffets', 'pièces cocktail'][i]}" maxlength="40"></div>`).join('')}</div></section>
+      <section class="box"><div class="bh"><h2>Le texte</h2><button type="button" class="btn ghost sm" data-secadd>+ Ajouter une partie</button></div><div id="blSec"></div></section>
+      <section class="box"><div class="bh"><h2>Photos <span class="gal-nb" data-blphn></span></h2></div>
+        <p class="muted sm">La première photo (cadre doré) est la grande photo du haut. Les 5 suivantes forment la mosaïque, la 7e s’affiche en grand plus bas, les autres dans « Toutes les photos ». Glissez-les pour changer l’ordre.</p>
+        <div class="photos gal-bo" id="blPh"></div>
+        <h3 class="sub">Vidéo <small class="muted">facultatif</small></h3><div class="row"><span data-blvid class="muted sm">${a.video ? esc(nomFichier(a.video)) : 'Aucune vidéo'}</span><button type="button" class="btn ghost sm" data-blvidp>🎬 Choisir dans la médiathèque</button><button type="button" class="btn ghost sm" data-blvidx${a.video ? '' : ' hidden'}>✕ Retirer</button></div></section>
+      <section class="box"><h2>Avis du client <small class="muted">(facultatif)</small></h2>
+        <p class="muted sm">Seulement une phrase vraiment dite ou écrite par le client.</p>
+        <label>Phrase du client<textarea name="citTexte" rows="2">${esc(a.citation?.texte || '')}</textarea></label><label>Qui l’a dite<input name="citAuteur" value="${esc(a.citation?.auteur || '')}" placeholder="ex. Responsable événementiel de l’entreprise"></label></section>
+      <section class="box"><h2>Prestations du catalogue liées</h2><p class="muted sm">Affichées dans le reportage avec un lien vers leur fiche (« Toutes disponibles pour votre propre réception »).</p>
+        <div class="chips" data-blprods></div><div class="bl-pr-add"><input type="search" data-blpq placeholder="Ajouter une prestation : tapez son nom…"><div class="bl-pr-res" data-blpres></div></div></section>
+      <section class="box"><h2>Google</h2><div class="g2"><label>Titre dans Google<input name="seoTitre" value="${esc(a.seoTitre || '')}" maxlength="70"></label><label>Mots-clés <small class="muted">(séparés par une virgule)</small><input name="tags" value="${esc((a.tags || []).join(', '))}"></label></div>
+        <label>Description dans Google<textarea name="seoDescription" rows="2" maxlength="170">${esc(a.seoDescription || '')}</textarea></label></section>
+      <div class="actions sticky"><button class="btn">Enregistrer</button>${pub ? '<button type="button" class="btn ghost" data-blpub="brouillon">Retirer du site</button>' : '<button type="button" class="btn db-or" data-blpub="publie">✓ Publier sur le site</button>'}<button type="button" class="btn ghost" data-blvoir>👁 Voir la page</button><button type="button" class="btn ghost bl-del" data-bldel>🗑 Supprimer</button><span class="muted" id="dirty"></span></div>
+      </form>`);
+  }
+  blogArticle.after = id => {
+    const f = $('#blA'), e = BL.e;
+    const dirty = () => { $('#dirty').textContent = 'Modifications non enregistrées'; };
+    const nbPh = () => { $('[data-blphn]').textContent = `(${e.photos.length} photo${e.photos.length > 1 ? 's' : ''})`; };
+    galerieBlog($('#blPh'), e.photos, { onChange: () => { dirty(); nbPh(); } }); nbPh();
+    const drawSec = () => {
+      $('#blSec').innerHTML = e.sections.map((s, i) => `<div class="bl-sec" data-si="${i}"><div class="row"><input data-st value="${esc(s.titre || '')}" placeholder="Intertitre${i === 0 ? ' (facultatif pour la 1re partie)' : ''}"><button type="button" class="btn ghost sm" data-sup title="Monter"${i ? '' : ' disabled'}>↑</button><button type="button" class="btn ghost sm" data-sdn title="Descendre"${i < e.sections.length - 1 ? '' : ' disabled'}>↓</button><button type="button" class="btn ghost sm bl-del" data-srm>🗑</button></div><textarea data-sx rows="${Math.min(14, Math.max(4, Math.ceil((s.texte || '').length / 90)))}">${esc(s.texte || '')}</textarea></div>`).join('') || '<p class="muted">Aucun texte : demandez à l’IA de le rédiger, ou ajoutez une partie.</p>';
+    };
+    drawSec();
+    $('#blSec').addEventListener('input', ev => { const b = ev.target.closest('[data-si]'); if (!b) return; const s = e.sections[+b.dataset.si]; if (ev.target.matches('[data-st]')) s.titre = ev.target.value; if (ev.target.matches('[data-sx]')) s.texte = ev.target.value; });
+    $('#blSec').addEventListener('click', ev => {
+      const b = ev.target.closest('[data-si]'); if (!b) return; const i = +b.dataset.si;
+      if (ev.target.closest('[data-srm]')) { if (!confirm('Supprimer cette partie du texte ?')) return; e.sections.splice(i, 1); }
+      else if (ev.target.closest('[data-sup]') && i) e.sections.splice(i - 1, 0, ...e.sections.splice(i, 1));
+      else if (ev.target.closest('[data-sdn]')) e.sections.splice(i + 1, 0, ...e.sections.splice(i, 1));
+      else return;
+      drawSec(); dirty();
+    });
+    $('[data-secadd]').addEventListener('click', () => { e.sections.push({ titre: '', texte: '' }); drawSec(); dirty(); $$('#blSec [data-st]').pop()?.focus(); });
+    /* prestations liées */
+    const prods = cache.produits || [];
+    const drawPr = () => { $('[data-blprods]').innerHTML = e.produits.map((s, i) => { const p = prods.find(x => x.slug === s || x.id === s); return `<span class="chip on">${esc(p ? titreTexte(p.titre) : s)} <button type="button" class="lnk" data-prx="${i}" aria-label="Retirer">✕</button></span>`; }).join('') || '<span class="muted sm">Aucune prestation liée.</span>'; };
+    drawPr();
+    $('[data-blprods]').addEventListener('click', ev => { const b = ev.target.closest('[data-prx]'); if (!b) return; e.produits.splice(+b.dataset.prx, 1); drawPr(); dirty(); });
+    const nrm = t => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    $('[data-blpq]').addEventListener('input', ev => {
+      const q = nrm(ev.target.value).trim(); const box = $('[data-blpres]');
+      if (q.length < 2) { box.innerHTML = ''; return; }
+      const mots = q.split(/\s+/);
+      box.innerHTML = prods.filter(p => p.statut !== 'masque' && mots.every(w => nrm(p.titre).includes(w))).slice(0, 8).map(p => `<button type="button" class="pf-opt" data-pradd="${esc(p.slug)}">${esc(titreTexte(p.titre))}</button>`).join('') || '<p class="muted sm">Aucune prestation trouvée.</p>';
+    });
+    $('[data-blpres]').addEventListener('click', ev => { const b = ev.target.closest('[data-pradd]'); if (!b) return; if (!e.produits.includes(b.dataset.pradd)) e.produits.push(b.dataset.pradd); drawPr(); dirty(); $('[data-blpres]').innerHTML = ''; $('[data-blpq]').value = ''; });
+    /* vidéo */
+    $('[data-blvidp]').addEventListener('click', async () => { const u = await pickMedia(); if (!u) return; if (!/\.mp4$/i.test(u)) return toast('Choisissez une vidéo (fichier .mp4).', true); e.video = u; $('[data-blvid]').textContent = nomFichier(u); $('[data-blvidx]').hidden = false; dirty(); });
+    $('[data-blvidx]').addEventListener('click', () => { e.video = ''; $('[data-blvid]').textContent = 'Aucune vidéo'; $('[data-blvidx]').hidden = true; dirty(); });
+    f.addEventListener('input', dirty);
+    const donnees = statut => {
+      const o = Object.fromEntries(new FormData(f));
+      return { ...BL.a, titre: o.titre, chapo: o.chapo, categorie: o.categorie, typeEvenement: o.typeEvenement, dateEvenement: o.dateEvenement, lieu: o.lieu, invites: o.invites,
+        chiffres: [0, 1, 2, 3].map(i => ({ valeur: $(`[data-chv="${i}"]`).value, libelle: $(`[data-chl="${i}"]`).value })),
+        sections: e.sections, photos: e.photos.filter(p => !p.envoi), video: e.video, produits: e.produits,
+        citation: o.citTexte.trim() ? { texte: o.citTexte, auteur: o.citAuteur } : null,
+        tags: o.tags.split(','), seoTitre: o.seoTitre, seoDescription: o.seoDescription, notes: $('[data-blnotes]').value, statut: statut || BL.a.statut };
+    };
+    const enregistrer = async statut => { const r = await api(`${A}/blog/${id}`, { method: 'PUT', body: donnees(statut) }); BL.a = r.article; BL.l = null; $('#dirty').textContent = ''; return r.article; };
+    f.addEventListener('submit', async ev => { ev.preventDefault(); try { await enregistrer(); toast('Reportage enregistré.'); } catch (err) { toast(err.message, true); } });
+    $$('[data-blvoir]').forEach(b => b.addEventListener('click', async () => { const w = window.open('', '_blank'); try { const a = await enregistrer(); if (w) w.location = '/blog/' + a.slug + '?apercu'; } catch (err) { w?.close(); toast(err.message, true); } }));
+    $('[data-blpub]')?.addEventListener('click', async ev => {
+      const st = ev.currentTarget.dataset.blpub;
+      if (st === 'brouillon' && !confirm('Retirer ce reportage du site ?\n\nIl redevient un brouillon : vous pourrez le republier.')) return;
+      try { await enregistrer(st); toast(st === 'publie' ? '🎉 Reportage publié : il est en ligne sur le site et sur l’accueil.' : 'Reportage retiré du site.'); render(); } catch (err) { toast(err.message, true); }
+    });
+    $('[data-bldel]').addEventListener('click', async () => {
+      if (!confirm('Supprimer définitivement ce reportage ?\n\nLes photos restent dans la médiathèque.')) return;
+      try { await api(`${A}/blog/${id}`, { method: 'DELETE' }); BL.l = null; toast('Reportage supprimé.'); location.hash = '#/blog'; } catch (err) { toast(err.message, true); }
+    });
+    $('[data-blre]').addEventListener('click', async ev => {
+      const cons = $('[data-blcons]').value.trim();
+      if (!cons) { toast('Écrivez ce que l’IA doit changer.', true); $('[data-blcons]').focus(); return; }
+      const btn = ev.currentTarget; btn.disabled = true; const lib = btn.textContent; btn.textContent = '✨ L’IA réécrit…';
+      try {
+        await enregistrer();
+        const images = (await miniaturesIa(e.photos)).map(x => x || '');
+        await api(A + '/ia/blog', { method: 'POST', body: { id, consigne: cons, notes: $('[data-blnotes]').value, images } });
+        toast('✨ Reportage réécrit : relisez-le avant de publier.'); render();
+      } catch (err) { toast(err.message, true); btn.disabled = false; btn.textContent = lib; }
+    });
   };
 
   /* ---------- médiathèque ---------- */

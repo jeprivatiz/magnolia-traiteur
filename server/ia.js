@@ -11,8 +11,9 @@ const LIVR = require('../public/js/livraison-paliers');
 /* client Anthropic : clé ANTHROPIC_API_KEY (variable Railway). opts.ask permet aux tests de simuler l'IA. */
 function createIa({ env = process.env, ask, log = console } = {}) {
   const actif = !!(ask || env.ANTHROPIC_API_KEY);
-  async function demander(prompt, { effort = 'low', maxTokens = 4000 } = {}) {
-    if (ask) return String(await ask(prompt));
+  /* images : photos jointes (JPEG en base64, réduites par le navigateur) pour que l'IA les voie */
+  async function demander(prompt, { effort = 'low', maxTokens = 4000, images = [] } = {}) {
+    if (ask) return String(await ask(prompt, { images }));
     if (!env.ANTHROPIC_API_KEY) throw Object.assign(new Error('Clé IA non configurée.'), { code: 'not_granted' });
     const Anthropic = require('@anthropic-ai/sdk');
     const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
@@ -21,7 +22,7 @@ function createIa({ env = process.env, ask, log = console } = {}) {
         model: env.AI_MODEL || 'claude-opus-5-5',
         max_tokens: maxTokens,
         output_config: { effort },
-        messages: [{ role: 'user', content: String(prompt).slice(0, 150000) }],
+        messages: [{ role: 'user', content: images.length ? [...images.map(data => ({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data } })), { type: 'text', text: String(prompt).slice(0, 150000) }] : String(prompt).slice(0, 150000) }],
       });
       if (r.stop_reason === 'refusal') throw Object.assign(new Error('refus'), { code: 'refused' });
       return r.content.filter(b => b.type === 'text').map(b => b.text).join('');

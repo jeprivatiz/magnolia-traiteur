@@ -802,3 +802,28 @@ document.querySelector('.lsearch')?.addEventListener('submit', e => {
   montre(false);
   if (zone.classList.contains('rubm-ouvert')) requestAnimationFrame(() => haut(blocs.find(x => x.classList.contains('rubm-on'))));
 })();
+
+/* Blog : boutons Tous / Entreprises / Particuliers du bloc de l'accueil, et photos agrandies d'un clic (Jean-Luc, 2026-11-27) */
+(() => {
+  const bloc = document.querySelector('[data-rep]');
+  if (bloc) bloc.addEventListener('click', e => {
+    const b = e.target.closest('[data-rep-f]'); if (!b) return;
+    const f = b.dataset.repF, cartes = [...bloc.querySelectorAll('.rep-c')];
+    const voulues = cartes.filter(x => !f || x.dataset.cat === f).slice(0, 3);
+    if (!voulues.length) return; /* rien dans cette catégorie : le lien mène à la page du blog */
+    e.preventDefault();
+    bloc.querySelectorAll('[data-rep-f]').forEach(x => x.classList.toggle('on', x === b));
+    cartes.forEach(x => { x.hidden = !voulues.includes(x); x.classList.toggle('grande', x === voulues[0]); });
+    const l = bloc.querySelector('.rep-l'); l.className = 'rep-l n' + voulues.length;
+  });
+  document.addEventListener('click', e => {
+    const a = e.target.closest('a[data-zoom]'); if (!a || e.metaKey || e.ctrlKey) return;
+    e.preventDefault();
+    const lay = document.createElement('div'); lay.className = 'zoom-lay'; lay.setAttribute('role', 'dialog'); lay.setAttribute('aria-label', 'Photo agrandie');
+    const img = document.createElement('img'); img.src = a.getAttribute('href'); img.alt = a.querySelector('img')?.alt || '';
+    lay.append(img); document.body.append(lay); document.body.classList.add('noscroll');
+    const fermer = () => { lay.remove(); document.body.classList.remove('noscroll'); removeEventListener('keydown', esc); };
+    const esc = ev => { if (ev.key === 'Escape') fermer(); };
+    lay.addEventListener('click', fermer); addEventListener('keydown', esc);
+  });
+})();
