@@ -200,6 +200,14 @@ async function createApp(opts = {}) {
     }
     await store.set('_migr/sansHotGulab', { at: new Date().toISOString() });
   }
+  /* une seule fois (Jean-Luc, 2026-11-27) : 2 € pour toutes les actions du barème de rémunération ; un montant déjà saisi (autre que 0) est gardé */
+  if (!(await store.get('_migr/bareme2e'))) {
+    const bar = (await store.get('_remuneration/bareme')) || {};
+    const m = { ...(bar.montants || {}) };
+    for (const a of REM.ACTIONS) if (!(+m[a.k] > 0)) m[a.k] = 200;
+    await store.set('_remuneration/bareme', { ...bar, montants: m, majLe: new Date().toISOString(), majPar: bar.majPar || 'Jean-Luc (2 € partout)' });
+    await store.set('_migr/bareme2e', { at: new Date().toISOString() });
+  }
   /* une seule fois (demande de Jean-Luc, 2026-11-25) : la fiche « La cave de Magnolia » (Vins rouges, blancs et rosés, « Sur devis ») est retirée du catalogue,
      et c'est la page Boissons qui prend ce nom, avec le sous-titre « Du vin au soft, en passant par les alcools. » (l'adresse /boissons ne change pas). */
   if (!(await store.get('_migr/caveMagnolia'))) {

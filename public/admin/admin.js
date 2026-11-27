@@ -4556,6 +4556,7 @@
     return `<details class="rem-bar" id="remBar"${nbPayees ? '' : ' open'}><summary>📋 Barème : montant gagné pour chaque action <small class="muted">(${nbPayees ? nbPayees + ' action' + (nbPayees > 1 ? 's' : '') + ' rémunérée' + (nbPayees > 1 ? 's' : '') : 'tout est à 0 € pour l’instant'})</small></summary>
       ${r.modifiable ? '<p class="muted sm">Tapez le montant en euros pour chaque action (laissez 0 si elle ne rapporte rien), puis « Enregistrer le barème ». Les gains se recalculent aussitôt, aussi pour les jours passés.</p>' : '<p class="muted sm">Seul un administrateur peut changer ces montants.</p>'}
       ${groupes.map(g => `<h4 class="rem-g">${esc(g)}</h4><div class="rem-lignes">${r.actions.filter(a => a.groupe === g).map(a => `<label class="rem-l"><span>${esc(a.nom)}${a.unique ? ' <small class="muted">(une fois par fiche et par jour)</small>' : ''}</span><span class="rem-eur"><input type="text" inputmode="decimal" data-remk="${a.k}" value="${a.cents ? (a.cents / 100).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0'}"${r.modifiable ? '' : ' disabled'}> €</span></label>`).join('')}</div>`).join('')}
+      ${r.modifiable ? `<div class="rem-tout"><label>Même montant pour toutes les actions<span class="rem-eur"><input type="text" inputmode="decimal" data-remtout value="2,00"> €</span></label><button type="button" class="btn ghost sm" data-remtoutbtn>Mettre ce montant partout</button><small class="muted">puis « Enregistrer le barème »</small></div>` : ''}
       ${r.modifiable ? `<div class="row"><button type="button" class="btn" data-savebar>Enregistrer le barème</button>${r.majLe ? `<span class="muted sm">Dernière modification : ${esc(dateH(r.majLe))}${r.majPar ? ' par ' + esc(r.majPar) : ''}</span>` : ''}</div>` : ''}</details>`;
   };
   const remRes = r => {
@@ -4582,6 +4583,7 @@
   document.addEventListener('click', async e => {
     const b = e.target.closest?.('[data-rper]'); if (b) { [remF.du, remF.au] = PERIODES[b.dataset.rper](); rechargerRem(); return; }
     const t = e.target.closest?.('[data-remqui]'); if (t) { remF.qui = remF.qui === t.dataset.remqui ? '' : t.dataset.remqui; if (remDer) $('#remRes').innerHTML = remRes(remDer); return; }
+    if (e.target.closest?.('[data-remtoutbtn]')) { const v = $('[data-remtout]').value; document.querySelectorAll('[data-remk]').forEach(i => { i.value = v; }); toast('Montant mis partout : pensez à « Enregistrer le barème ».'); return; }
     if (e.target.closest?.('[data-savebar]')) {
       const montants = Object.fromEntries([...document.querySelectorAll('[data-remk]')].map(i => [i.dataset.remk, i.value]));
       try { await api(A + '/actions/remuneration/bareme', { method: 'PUT', body: { montants } }); toast('Barème enregistré'); await rechargerRem(); const d = $('#remBar'); if (d) d.open = true; } catch (err) { toast(err.message, true); }

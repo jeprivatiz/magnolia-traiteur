@@ -2323,3 +2323,5 @@ tr.rem-det > td { padding: 4px 0 12px 14px; }
   .hs-t td { display: block; border: 0; padding: 2px 0; min-width: 0; }
   .hs-filtres label { min-width: 0; flex: 1 1 140px; }
 }
+.rem-tout { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 12px; margin-top: 14px; padding: 10px 12px; background: var(--carte, #fff); border: 1px dashed #c9a227; border-radius: 10px; }
+.rem-tout label { display: flex; flex-direction: column; gap: 4px; font-size: .85rem; font-weight: 600; }
