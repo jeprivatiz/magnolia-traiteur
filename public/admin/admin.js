@@ -4542,9 +4542,55 @@
     const b = e.target.closest?.('[data-jper]'); if (b) { [jrnF.du, jrnF.au] = PERIODES[b.dataset.jper](); rechargerJournal(); return; }
     const t = e.target.closest?.('[data-jqui]'); if (t) { jrnF.qui = jrnF.qui === t.dataset.jqui ? '' : t.dataset.jqui; rechargerJournal(); }
   });
+  /* Rémunération par action (Jean-Luc, 2026-11-27) : barème € par action + gains de chacun sur la période */
+  const remF = { du: '', au: '', qui: '' };
+  { const [a, b] = PERIODES.mois(); remF.du = a; remF.au = b; }
+  const remFiltres = () => {
+    const actif = Object.keys(PERIODES).find(k => { const [a, b] = PERIODES[k](); return a === remF.du && b === remF.au; });
+    return `<div class="jrn-f" id="remF"><label>Du<input type="date" data-rdu value="${esc(remF.du)}"></label><label>Au<input type="date" data-rau value="${esc(remF.au)}"></label>
+      <div class="jrn-per">${Object.keys(PERIODES).map(k => `<button type="button" class="chip-mod${k === actif ? ' on' : ''}" data-rper="${k}">${PER_NOMS[k]}</button>`).join('')}</div></div>`;
+  };
+  const remBareme = r => {
+    const groupes = [...new Set(r.actions.map(a => a.groupe))];
+    const nbPayees = r.actions.filter(a => a.cents > 0).length;
+    return `<details class="rem-bar" id="remBar"${nbPayees ? '' : ' open'}><summary>📋 Barème : montant gagné pour chaque action <small class="muted">(${nbPayees ? nbPayees + ' action' + (nbPayees > 1 ? 's' : '') + ' rémunérée' + (nbPayees > 1 ? 's' : '') : 'tout est à 0 € pour l’instant'})</small></summary>
+      ${r.modifiable ? '<p class="muted sm">Tapez le montant en euros pour chaque action (laissez 0 si elle ne rapporte rien), puis « Enregistrer le barème ». Les gains se recalculent aussitôt, aussi pour les jours passés.</p>' : '<p class="muted sm">Seul un administrateur peut changer ces montants.</p>'}
+      ${groupes.map(g => `<h4 class="rem-g">${esc(g)}</h4><div class="rem-lignes">${r.actions.filter(a => a.groupe === g).map(a => `<label class="rem-l"><span>${esc(a.nom)}${a.unique ? ' <small class="muted">(une fois par fiche et par jour)</small>' : ''}</span><span class="rem-eur"><input type="text" inputmode="decimal" data-remk="${a.k}" value="${a.cents ? (a.cents / 100).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0'}"${r.modifiable ? '' : ' disabled'}> €</span></label>`).join('')}</div>`).join('')}
+      ${r.modifiable ? `<div class="row"><button type="button" class="btn" data-savebar>Enregistrer le barème</button>${r.majLe ? `<span class="muted sm">Dernière modification : ${esc(dateH(r.majLe))}${r.majPar ? ' par ' + esc(r.majPar) : ''}</span>` : ''}</div>` : ''}</details>`;
+  };
+  const remRes = r => {
+    const periode = !r.du && !r.au ? 'depuis le début' : r.du === r.au ? 'le ' + dateFr(r.du, { weekday: 'long', day: 'numeric', month: 'long' }) : (r.du ? 'du ' + dateFr(r.du) : 'jusqu’') + (r.au ? (r.du ? ' au ' : 'au ') + dateFr(r.au) : ' à aujourd’hui');
+    const nom = k => (r.actions.find(a => a.k === k) || {}).nom || k;
+    const lst = r.personnes, tot = lst.reduce((s, p) => s + p.totalCents, 0);
+    const detail = p => `<tr class="rem-det"><td colspan="3"><table class="jrn-tab rem-dtab"><thead><tr><th>Action</th><th>Nombre</th><th>Montant</th><th>Total</th></tr></thead><tbody>${p.detail.map(d => `<tr><td>${esc(nom(d.k))}<details class="rem-ex"><summary>voir</summary><ul>${d.exemples.map(x => `<li><time>${esc(dateH(x.at))}</time> ${esc(x.resume)}</li>`).join('')}${d.nb > d.exemples.length ? `<li class="muted">… et ${d.nb - d.exemples.length} autre(s)</li>` : ''}</ul></details></td><td>${d.nb}</td><td>${euros(d.cents)}</td><td class="jrn-h">${euros(d.totalCents)}</td></tr>`).join('')}</tbody></table></td></tr>`;
+    return `<div class="jrn-temps"><h3>💶 Gains de chacun <small class="muted">${esc(periode)}</small></h3>
+      ${lst.length ? `<table class="jrn-tab"><thead><tr><th>Personne</th><th>Actions</th><th>Gains</th></tr></thead><tbody>${lst.map(p => `<tr data-remqui="${esc(p.cle)}"${p.cle === remF.qui ? ' class="on"' : ''}><td><b>${esc(p.who || 'Sans nom')}</b> <small class="muted">${p.cle === remF.qui ? '▲ masquer le détail' : '▼ voir le détail'}</small></td><td>${p.nb}</td><td class="jrn-h">${euros(p.totalCents)}</td></tr>${p.cle === remF.qui ? detail(p) : ''}`).join('')}</tbody>${lst.length > 1 ? `<tfoot><tr><td>Total</td><td>${lst.reduce((s, p) => s + p.nb, 0)}</td><td class="jrn-h">${euros(tot)}</td></tr></tfoot>` : ''}</table>` : '<p class="muted sm">Aucune action de l’équipe sur cette période.</p>'}
+      <p class="muted sm">Calculé d’après le Journal d’activité : chaque action d’un membre de l’équipe est multipliée par son montant du barème. Les actions faites automatiquement (IA, site) ne comptent pas. Un devis signé est compté au commercial du devis, le jour de la signature.</p></div>`;
+  };
+  const remBloc = r => `${remFiltres()}<div id="remRes">${remRes(r)}</div>${remBareme(r)}`;
+  let remDer = null;
+  const rechargerRem = async () => {
+    try { remDer = await api(A + '/actions/remuneration?' + new URLSearchParams({ du: remF.du, au: remF.au })); const b = $('#remBloc'); if (b) b.innerHTML = remBloc(remDer); } catch (err) { toast(err.message, true); }
+  };
+  document.addEventListener('change', e => {
+    if (!e.target.closest?.('#remF')) return;
+    if (e.target.matches('[data-rdu]')) { remF.du = e.target.value; if (remF.du && (!remF.au || remF.au < remF.du)) remF.au = remF.du; }
+    else if (e.target.matches('[data-rau]')) { remF.au = e.target.value; if (remF.au && remF.du > remF.au) remF.du = remF.au; }
+    else return;
+    rechargerRem();
+  });
+  document.addEventListener('click', async e => {
+    const b = e.target.closest?.('[data-rper]'); if (b) { [remF.du, remF.au] = PERIODES[b.dataset.rper](); rechargerRem(); return; }
+    const t = e.target.closest?.('[data-remqui]'); if (t) { remF.qui = remF.qui === t.dataset.remqui ? '' : t.dataset.remqui; if (remDer) $('#remRes').innerHTML = remRes(remDer); return; }
+    if (e.target.closest?.('[data-savebar]')) {
+      const montants = Object.fromEntries([...document.querySelectorAll('[data-remk]')].map(i => [i.dataset.remk, i.value]));
+      try { await api(A + '/actions/remuneration/bareme', { method: 'PUT', body: { montants } }); toast('Barème enregistré'); await rechargerRem(); const d = $('#remBar'); if (d) d.open = true; } catch (err) { toast(err.message, true); }
+    }
+  });
   async function equipe() {
     const gere = peut('equipe');
-    const [users, conf, j, env, R] = await Promise.all([api(A + '/actions/equipe'), api(A + '/actions/droits'), gere ? api(A + '/actions/journal?' + new URLSearchParams(jrnF)) : null, gere ? api(A + '/actions/envois') : null, gere ? api(A + '/site') : null]);
+    const [users, conf, j, env, R, rem] = await Promise.all([api(A + '/actions/equipe'), api(A + '/actions/droits'), gere ? api(A + '/actions/journal?' + new URLSearchParams(jrnF)) : null, gere ? api(A + '/actions/envois') : null, gere ? api(A + '/site') : null, gere ? api(A + '/actions/remuneration?' + new URLSearchParams({ du: remF.du, au: remF.au })) : null]);
+    remDer = rem;
     cache.droitsConf = conf; cache.equipeUsers = users;
     const DR = conf.droits;
     const moi = users.find(u => u.email === session.email);
@@ -4583,6 +4629,7 @@
         <form id="pw"><h3>Mon mot de passe</h3><div class="g2"><label>Actuel<input type="password" name="current" required></label><label>Nouveau (10 caractères min.)<input type="password" name="password" minlength="10" required></label></div><button class="btn ghost">Changer</button></form></section>
 </div>
       ${gere ? `<section class="box pli${plie('journal') ? ' ferme' : ''}" data-pli="journal"><h2><button type="button" class="pli-btn" data-plibtn aria-expanded="${!plie('journal')}"><span class="pli-fl" aria-hidden="true">▼</span>Journal d’activité <span class="pill ${j.intact ? 'd-accepte' : 'd-refuse'}">${j.intact ? 'intact' : 'ALTÉRÉ'}</span><small class="pli-nb">${j.total} action${j.total > 1 ? 's' : ''}</small></button></h2><div class="pli-corps"><p class="muted sm">Chaque action est enregistrée et chaînée : une modification du journal se verrait. Les filtres ne font que trier l’affichage, ils ne changent rien au journal.</p>${journalFiltres(j)}<div id="jrnRes">${journalRes(j)}</div></div></section>` : ''}
+      ${gere ? `<section class="box pli${plie('remun') ? ' ferme' : ''}" data-pli="remun"><h2><button type="button" class="pli-btn" data-plibtn aria-expanded="${!plie('remun')}"><span class="pli-fl" aria-hidden="true">▼</span>💶 Rémunération par action</button></h2><div class="pli-corps"><p class="muted sm">Chaque action d’un membre de l’équipe (créer une fiche, envoyer un devis…) lui rapporte le montant fixé dans le barème ci-dessous. Choisissez la période, puis touchez une personne pour voir le détail.</p><div id="remBloc">${remBloc(rem)}</div></div></section>` : ''}
       ${gere ? `<section class="box" id="alertes"><h2>Alertes de l’équipe</h2><p class="muted sm">Le carnet des personnes à prévenir. Elles reçoivent le récapitulatif des dossiers sans action depuis 24 h, les avis et les devis signés. Pour les <b>nouvelles demandes de devis</b>, c’est le cadre « Qui prévenir selon la demande » juste en dessous qui décide.</p><div id="alp"></div><div class="row"><button type="button" class="btn ghost sm" data-addal>+ Ajouter une personne à prévenir</button><button type="button" class="btn sm" data-saveal>Enregistrer les alertes</button></div></section>
       <section class="box ra" id="regles-alertes"><h2>🔀 Qui prévenir selon la demande</h2><p class="muted sm">À chaque nouvelle demande de devis, les règles sont lues dans l’ordre (1, 2, 3…). <b>Chaque règle qui correspond prévient ses personnes, et elles s’additionnent.</b> Cochez « S’arrêter là » pour ne pas lire les suivantes. Si aucune règle ne correspond, c’est la règle par défaut. Montants en euros TTC.</p>
         <div id="alr"></div>
