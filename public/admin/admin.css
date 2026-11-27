@@ -2648,6 +2648,8 @@ tr.rem-det > td { padding: 4px 0 12px 14px; }
 .pc-effb { background: #a23b2a; color: #fff; border-color: #a23b2a; }
 .pc-effb:hover { background: #872f21; }
 .pc-eff1 { margin-left: 6px; padding-inline: 10px; }
+.pc-selbar[hidden] { display: none; }
+.pc-effb:disabled { opacity: .45; cursor: not-allowed; }
 
 /* 🔍 recherche tapée d'un produit dans les lignes du devis */
 .dv-pq { position: relative; flex: 2 1 360px; min-width: 240px; }
