@@ -184,7 +184,7 @@ const titreBon = b => `Bon de préparation · ${b.client.nom || 'client'}${b.eve
 function itemsDoc(l) {
   const it = (l.items || []).filter(x => x.nom); if (!it.length) return '';
   const g = new Map(); for (const x of it) { const k = x.groupe || (LISTES[l.liste] && l.liste !== 'compo' ? LISTES[l.liste] : ''); if (!g.has(k)) g.set(k, []); g.get(k).push(x); }
-  return `<div class="it">${[...g].map(([k, l2]) => `<div>${k ? `<em>${esc(k)}${l2.length > 1 && l2.every(x => x.n !== '') ? ` · ${l2.reduce((t, x) => t + (+x.n || 0), 0)} au total` : ''}</em>` : ''}<ul>${l2.map(x => `<li><b>${x.n !== '' && x.n != null ? esc(x.n) : '…'}</b> ${esc(nomItem(x))}</li>`).join('')}</ul></div>`).join('')}</div>`;
+  return `<div class="it">${[...g].map(([k, l2]) => `<div>${k ? `<em>${esc(k)}${l2.length > 1 && l2.every(x => x.n !== '') ? ` · ${l2.reduce((t, x) => t + (+x.n || 0), 0)} au total` : ''}</em>` : ''}<ul>${l2.map(x => `<li><span class="cb" role="checkbox" aria-checked="false" tabindex="0" aria-label="Préparé"></span><b>${x.n !== '' && x.n != null ? esc(x.n) : '…'}</b> ${esc(nomItem(x))}</li>`).join('')}</ul></div>`).join('')}</div>`;
 }
 
 /* le bon en A4 (aperçu, impression, PDF, lien envoyé à la cuisine) — sans aucun prix */
@@ -197,7 +197,7 @@ function documentHtml(b, { R = {}, retour = '', maintenant = new Date(), par = '
   let n = 0;
   const rows = b.lignes.map(l => l.type === 'titre'
     ? `<tr class="ti"><td colspan="5">${esc(l.designation)}</td></tr>`
-    : `<tr><td class="no">${++n}</td><td class="nm"><b>${esc(l.designation)}</b>${l.detail ? `<small>${nl(l.detail)}</small>` : ''}${itemsDoc(l)}${(l.allergenes || []).length ? `<small class="al">⚠ ${esc(l.allergenes.join(', '))}</small>` : ''}</td><td class="q">${esc(qteTexte(l)) || '—'}</td><td class="q prep">${esc(l.qtePrepa)}</td><td class="nt">${nl(l.note)}<span class="ok"></span></td></tr>`).join('');
+    : `<tr><td class="no">${++n}</td><td class="nm"><b>${esc(l.designation)}</b>${l.detail ? `<small>${nl(l.detail)}</small>` : ''}${itemsDoc(l)}${(l.allergenes || []).length ? `<small class="al">⚠ ${esc(l.allergenes.join(', '))}</small>` : ''}</td><td class="q">${esc(qteTexte(l)) || '—'}</td><td class="q prep">${esc(l.qtePrepa).split(' · ').join('<br>')}</td><td class="nt">${nl(l.note)}<span class="ok cb" role="checkbox" aria-checked="false" tabindex="0" aria-label="Produit prêt"></span></td></tr>`).join('');
   const hor = HORAIRES.filter(([k]) => b.horaires[k]);
   return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex, nofollow">
 <title>${esc(titreBon(b))}</title>
@@ -255,9 +255,15 @@ tr.ti td { background: #f6f1e5; font-weight: 600; color: #5b4a2e; text-transform
 .it { display: flex; flex-wrap: wrap; gap: 1mm 6mm; margin-top: 1mm; }
 .it em { display: block; font-style: normal; font-size: 7.4pt; text-transform: uppercase; letter-spacing: .05em; color: #b08a4f; }
 .it ul { margin: .4mm 0 0; padding: 0; list-style: none; font-size: 8.8pt; }
-.it li b { display: inline-block; min-width: 7mm; color: #1d3b2f; }
+.it li { display: flex; align-items: center; gap: 1.6mm; margin: .3mm 0; }
+.it li b { display: inline-block; min-width: 6mm; color: #1d3b2f; }
+/* une case par produit et par choix, cochée par la personne qui prépare (Jean-Luc, 2026-11-27) ; à l'écran elle se coche d'un clic */
+.cb { flex: none; display: inline-block; width: 3.6mm; height: 3.6mm; border: .3mm solid #1d3b2f; border-radius: .8mm; background: #fff; cursor: pointer; position: relative; }
+.cb.on::after { content: '✓'; position: absolute; inset: 0; display: grid; place-items: center; font-size: 3.4mm; line-height: 1; font-weight: 700; color: #1d3b2f; }
+.ok.on::after { font-size: 4.2mm; }
+.cb:focus-visible { outline: .5mm solid #b08a4f; outline-offset: .3mm; }
 th.q, td.q { width: 26mm; } td.q { font-weight: 600; }
-td.prep { background: #fffdf6; }
+td.prep { background: #fffdf6; overflow-wrap: anywhere; hyphens: auto; }
 th.nt, td.nt { width: 52mm; } td.nt { position: relative; padding-right: 9mm; font-size: 8.6pt; }
 .ok { position: absolute; right: 1.8mm; top: 1.6mm; width: 4.6mm; height: 4.6mm; border: .35mm solid #1d3b2f; border-radius: 1mm; }
 .rq { margin-top: 3.4mm; border: .3mm solid #d9cfbb; border-radius: 2mm; padding: 2.2mm 3mm; break-inside: avoid; }
@@ -287,7 +293,18 @@ ${hor.length ? `<div class="hor">${hor.map(([k, lab]) => `<div><small>${esc(lab)
 ${b.remarques ? `<div class="rq"><h3>Remarque pour la préparation</h3><p>${nl(b.remarques)}</p></div>` : ''}
 <div class="sig"><div><b>Préparé par</b>Nom, date et heure</div><div><b>Vérifié au départ par</b>Nom, date et heure</div></div>
 <footer><span>Document interne · ${esc(nomM)} · ne pas remettre au client</span><span>${esc(b.client.nom)}${b.evenement.date ? ' · ' + esc(dateCourte(b.evenement.date)) : ''}</span></footer>
-</section></body></html>`;
+</section>
+<script>
+(() => {
+  const K = 'mg_prep_coche_' + location.pathname, cases = [...document.querySelectorAll('.cb')];
+  let fait = []; try { fait = JSON.parse(localStorage.getItem(K) || '[]'); } catch (e) {}
+  const pose = (c, on) => { c.classList.toggle('on', on); c.setAttribute('aria-checked', on ? 'true' : 'false'); };
+  cases.forEach((c, i) => pose(c, fait.includes(i)));
+  const garder = () => { try { localStorage.setItem(K, JSON.stringify(cases.map((c, i) => c.classList.contains('on') ? i : -1).filter(i => i >= 0))); } catch (e) {} };
+  const bascule = c => { pose(c, !c.classList.contains('on')); garder(); };
+  cases.forEach(c => { c.addEventListener('click', () => bascule(c)); c.addEventListener('keydown', e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); bascule(c); } }); });
+})();
+</script></body></html>`;
 }
 
 /* e-mail : message + résumé lisible dans toutes les messageries (styles en ligne) + lien vers le bon A4 */
