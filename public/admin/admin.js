@@ -2243,7 +2243,7 @@
       ${lock || d.statut === 'accepte' ? '' : '<section class="box anc-box" id="ancProches" hidden></section>'}
       ${lock ? '' : `<section class="box ia-modif"><h2>✨ Demander à l’IA de modifier ce devis</h2><p class="muted sm">Écrivez ou dictez ce qu’il faut changer, par exemple : « Supprime le DJ et mets une contorsionniste à la place », « passe à 80 invités », « ajoute 2 serveurs pendant 5 h ». L’IA vous montre les changements avant de les appliquer. Vous pouvez toujours modifier les lignes vous-même.</p>
         <textarea id="iam-t" rows="2" placeholder="Ex. : supprime le DJ et mets une contorsionniste à la place"></textarea><div class="row"><button type="button" class="btn aq-btn" data-iam>✨ Proposer la modification</button><button type="button" class="btn ghost sm" data-iam-mic>🎤 Dicter</button><span id="iam-msg" class="muted sm"></span></div><div id="iam-res"></div></section>`}
-      <section class="box"><div class="bh"><h2>Lignes du devis</h2><div class="row"><select data-addprod class="wide"><option value="">+ Ajouter une prestation du catalogue…</option>${cat.filter(p => p.statut !== 'masque').sort((a, b) => a.titre.localeCompare(b.titre)).map(p => `<option value="${esc(p.slug)}">${esc(titreTexte(p.titre))} · ${p.prixCents == null ? 'sur devis' : euros(p.prixCents)}</option>`).join('')}${lieuxD.length ? `<optgroup label="Lieux à privatiser (3 photos sur le devis)">${lieuxD.sort((a, b) => a.nom.localeCompare(b.nom)).map(l => `<option value="lieu-${esc(l.slug)}">📍 ${esc(l.nom)}${l.capacite ? ' · ' + l.capacite + ' pers.' : ''}${l.statut === 'masque' ? ' (masqué)' : ''}</option>`).join('')}</optgroup>` : ''}</select><button type="button" class="btn ghost sm" data-addline>+ Ligne libre</button><button type="button" class="btn ghost sm" data-addtitle>+ Titre</button></div></div>
+      <section class="box"><div class="bh"><h2>Lignes du devis</h2><div class="row"><div class="dv-pq"><input type="search" data-dvpq placeholder="🔍 Tapez un produit (ex. agneau)" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" aria-label="Chercher un produit du catalogue"><ul class="dv-pq-r" data-dvpqr role="listbox" hidden></ul></div><select data-addprod class="wide"><option value="">+ Ajouter une prestation du catalogue…</option>${cat.filter(p => p.statut !== 'masque').sort((a, b) => a.titre.localeCompare(b.titre)).map(p => `<option value="${esc(p.slug)}">${esc(titreTexte(p.titre))} · ${p.prixCents == null ? 'sur devis' : euros(p.prixCents)}</option>`).join('')}${lieuxD.length ? `<optgroup label="Lieux à privatiser (3 photos sur le devis)">${lieuxD.sort((a, b) => a.nom.localeCompare(b.nom)).map(l => `<option value="lieu-${esc(l.slug)}">📍 ${esc(l.nom)}${l.capacite ? ' · ' + l.capacite + ' pers.' : ''}${l.statut === 'masque' ? ' (masqué)' : ''}</option>`).join('')}</optgroup>` : ''}</select><button type="button" class="btn ghost sm" data-addline>+ Ligne libre</button><button type="button" class="btn ghost sm" data-addtitle>+ Titre</button></div></div>
         <div class="table"><table class="lines"><thead><tr><th></th><th>Désignation</th><th class="n">Qté</th><th>Unité</th><th class="n">PU TTC</th><th class="n" title="Réduction sur cette ligne, en % — le client voit le prix barré et le prix remisé">Remise</th><th class="n" title="Prix d’achat HT à l’unité — interne, jamais montré au client">Achat HT 🔒</th><th>TVA</th><th class="n">Total TTC</th><th></th></tr></thead><tbody id="lines"></tbody></table></div>
         <div class="totbox"><div class="g2"><label>Remise sur le total du devis<span class="remg"><input name="remise" value="${d.remisePct ? String(d.remisePct).replace('.', ',') : fromCents(d.remiseCents || 0)}" inputmode="decimal" placeholder="0"><select name="remiseMode" aria-label="Remise en euros ou en pourcentage"><option value="eur">€ TTC</option><option value="pct"${d.remisePct ? ' selected' : ''}>%</option></select></span><small class="muted">Pour une remise sur un seul produit : colonne « Remise » de la ligne. La remise sur le total ne s’applique ni à la livraison ni au personnel. La marge 💰 ci-dessous se met à jour pendant que vous tapez. 🔒 Le client voit la remise, jamais la marge.</small></label></div><dl id="totaux"></dl></div><div class="mg-box" id="marge"></div>${lock ? '' : '<div class="anc-comp" id="ancComp" hidden></div>'}</section>
       <section class="box"><label>Conditions particulières<textarea name="conditions" rows="2">${esc(d.conditions || '')}</textarea></label></section>
@@ -2407,13 +2407,49 @@
       draw(); dirty();
       msg.textContent = `≈ ${km} km aller-retour × ${euros(pu)} = ${euros(km * pu)} TTC${ex ? ' (ligne mise à jour)' : ' (ligne ajoutée)'}.`;
     });
-    $('[data-addprod]').addEventListener('change', e => {
-      const lv = (cache.lieuxDevis || []).find(x => 'lieu-' + x.slug === e.target.value);
-      if (lv) { const pr = /(\d[\d\s]*)/.exec(String(lv.prixTexte || '').replace(/\u202f/g, ' ')); lignes.push({ designation: 'Privatisation · ' + lv.nom, detail: [lv.ville, lv.capacite ? 'jusqu’à ' + lv.capacite + ' personnes' : ''].filter(Boolean).join(' · '), qte: 1, unite: 'forfait', puCents: pr ? +pr[1].replace(/\s/g, '') * 100 : 0, coutCents: null, tva: 20, produit: 'lieu-' + lv.slug }); e.target.value = ''; draw(); dirty(); toast('Lieu ajouté : ses 3 photos apparaîtront sur le devis du client.'); return; }
-      const p = cache.produits.find(x => x.slug === e.target.value); if (!p) return;
+    /* ajoute la prestation (ou le lieu « lieu-<slug> ») choisie dans la liste OU dans la recherche tapée */
+    const ajouterPrestation = v => {
+      const lv = (cache.lieuxDevis || []).find(x => 'lieu-' + x.slug === v);
+      if (lv) { const pr = /(\d[\d\s]*)/.exec(String(lv.prixTexte || '').replace(/\u202f/g, ' ')); lignes.push({ designation: 'Privatisation · ' + lv.nom, detail: [lv.ville, lv.capacite ? 'jusqu’à ' + lv.capacite + ' personnes' : ''].filter(Boolean).join(' · '), qte: 1, unite: 'forfait', puCents: pr ? +pr[1].replace(/\s/g, '') * 100 : 0, coutCents: null, tva: 20, produit: 'lieu-' + lv.slug }); draw(); dirty(); toast('Lieu ajouté : ses 3 photos apparaîtront sur le devis du client.'); return true; }
+      const p = cache.produits.find(x => x.slug === v); if (!p) return false;
       lignes.push({ designation: avecPortion(p.titre), detail: '', qte: p.min || 1, unite: p.unite || 'unité', puCents: p.prixCents || 0, coutCents: p.coutCents ?? null, tva: p.tva ?? 10, produit: p.slug, ...(p.rubrique === 'personnel' || (p.autresRubriques || []).includes('personnel') ? { personnel: true } : {}) });
-      e.target.value = ''; draw(); dirty();
-    });
+      draw(); dirty(); return true;
+    };
+    $('[data-addprod]').addEventListener('change', e => { ajouterPrestation(e.target.value); e.target.value = ''; });
+    /* 🔍 recherche tapée : filtre à chaque lettre, sans accents ni majuscules, n'importe où dans le nom */
+    const pq = $('[data-dvpq]'), pqr = $('[data-dvpqr]');
+    if (pq && pqr) {
+      const sansAc = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[’']/g, ' ');
+      const base = [...$('[data-addprod]').options].filter(o => o.value).map(o => ({ v: o.value, t: o.textContent, k: sansAc(o.textContent.replace(/ · [^·]*$/, '')) }));
+      let sel = -1, res = [];
+      const fermer = () => { pqr.hidden = true; pqr.innerHTML = ''; sel = -1; res = []; };
+      const montrer = () => {
+        const mots = sansAc(pq.value).trim().split(/\s+/).filter(Boolean);
+        if (!mots.length) return fermer();
+        res = base.filter(o => mots.every(m => o.k.includes(m)));
+        const q = mots[0];
+        res.sort((a, b) => (a.k.startsWith(q) ? 0 : 1) - (b.k.startsWith(q) ? 0 : 1) || a.k.localeCompare(b.k));
+        sel = res.length ? 0 : -1;
+        pqr.innerHTML = res.length ? res.slice(0, 60).map((o, i) => `<li role="option" data-v="${esc(o.v)}"${i === sel ? ' class="on"' : ''}>${esc(o.t)}</li>`).join('') + (res.length > 60 ? `<li class="muted" data-none>… ${res.length - 60} autres : tapez la suite du nom</li>` : '') : '<li class="muted" data-none>Aucun produit ne contient « ' + esc(pq.value.trim()) + ' »</li>';
+        pqr.hidden = false;
+      };
+      const choisir = v => { if (ajouterPrestation(v)) { pq.value = ''; fermer(); toast('Ligne ajoutée au devis.'); } };
+      pq.addEventListener('input', montrer);
+      pq.addEventListener('focus', () => { if (pq.value.trim()) montrer(); });
+      pq.addEventListener('keydown', e => {
+        if (e.key === 'Escape') { fermer(); return; }
+        if (e.key === 'Enter') { e.preventDefault(); if (res[sel]) choisir(res[sel].v); return; }
+        if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && res.length) {
+          e.preventDefault(); sel = (sel + (e.key === 'ArrowDown' ? 1 : -1) + Math.min(res.length, 60)) % Math.min(res.length, 60);
+          pqr.querySelectorAll('li[data-v]').forEach((li, i) => li.classList.toggle('on', i === sel));
+          pqr.querySelector('li.on')?.scrollIntoView({ block: 'nearest' });
+        }
+      });
+      /* pointerdown + preventDefault : le clavier de l'iPhone ne se ferme pas avant le choix */
+      pqr.addEventListener('pointerdown', e => e.preventDefault());
+      pqr.addEventListener('click', e => { const li = e.target.closest('li[data-v]'); if (li) choisir(li.dataset.v); });
+      pq.addEventListener('blur', () => setTimeout(fermer, 150));
+    }
     form.addEventListener('input', e => { if (!e.target.closest('#lines, .ia-modif')) dirty(); });
     /* ---------- 📂 Partir d'un ancien devis ---------- */
     const nbL = () => lignes.filter(l => l.type !== 'titre').length;
