@@ -2380,3 +2380,6 @@ tr.rem-det > td { padding: 4px 0 12px 14px; }
 .hs-fait { background: #e5f2e8; color: #1f5130; border-radius: 8px; padding: 10px 12px; margin: 0 0 12px; }
 @media (prefers-color-scheme: dark) { .hs-fait { background: #1f3527; color: #cfe8d6; } }
 @media (max-width: 700px) { .hs-rt thead { display: table-header-group; } .hs-rt tr { display: table-row; padding: 0; } .hs-rt td { display: table-cell; padding: 6px 8px; } }
+
+.hs-envoi { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 12px; margin-top: 10px; }
+.hs-envoi label { font-weight: 500; flex: 1 1 260px; max-width: 420px; }
