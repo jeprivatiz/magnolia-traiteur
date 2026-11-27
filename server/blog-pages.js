@@ -19,14 +19,14 @@ function carte(a, { grande = false } = {}) {
   const p = a.photos?.[0];
   return `<a class="rep-c${grande ? ' grande' : ''}" href="${href(a)}" data-cat="${esc(a.categorie)}">${photo(p?.src, p?.legende || a.titre)}<span class="badge">${esc(CATEGORIES[a.categorie] || '')}</span><span class="x"><small>${esc(surTitre(a))}</small><b>${esc(a.titre)}</b></span></a>`;
 }
-const ongletsCat = (actif, lien) => `<div class="rep-onglets" role="group" aria-label="Filtrer les reportages">${[['', 'Tous'], ['entreprises', 'Entreprises'], ['particuliers', 'Particuliers']].map(([k, t]) => `<a href="/blog${k ? '?type=' + k : ''}"${lien ? '' : ` data-rep-f="${k.replace(/s$/, '')}"`} class="${actif === k ? 'on' : ''}"${actif === k ? ' aria-current="true"' : ''}>${t}</a>`).join('')}</div>`;
+const ongletsCat = (actif, lien) => `<div class="rep-onglets" role="group" aria-label="Filtrer les reportages">${[['', 'Tous'], ['entreprises', 'Entreprises'], ['particuliers', 'Particuliers'], ['maison', 'La maison Magnolia']].map(([k, t]) => `<a href="/blog${k ? '?type=' + k : ''}"${lien ? '' : ` data-rep-f="${k.replace(/s$/, '')}"`} class="${actif === k ? 'on' : ''}"${actif === k ? ' aria-current="true"' : ''}>${t}</a>`).join('')}</div>`;
 
 /* bloc de l'accueil, juste après « Comment commander » (Jean-Luc, 2026-11-27) : seulement s'il y a des reportages publiés */
 function encart(c) {
   const l = c.blog || [];
   if (!l.length) return '';
   /* les 3 derniers, plus les 3 derniers de chaque catégorie pour les boutons Entreprises / Particuliers */
-  const choisis = [...l.slice(0, 3), ...l.filter(a => a.categorie === 'entreprise').slice(0, 3), ...l.filter(a => a.categorie === 'particulier').slice(0, 3)].filter((a, i, t) => t.indexOf(a) === i);
+  const choisis = [...l.slice(0, 3), ...l.filter(a => a.categorie === 'entreprise').slice(0, 3), ...l.filter(a => a.categorie === 'particulier').slice(0, 3), ...l.filter(a => a.categorie === 'maison').slice(0, 3)].filter((a, i, t) => t.indexOf(a) === i);
   return `<section class="rep-sec" data-rep><div class="wrap">
  <div class="rep-tete"><div class="t"><p class="eyebrow">Le blog Magnolia</p><h2>Nos événements en reportage</h2>
  <p class="int">Pour certaines prestations, nous racontons l’événement en photos : soirées d’entreprise, séminaires, mariages, anniversaires… Pour vous inspirer et voir concrètement comment nous travaillons.</p></div>
@@ -38,14 +38,14 @@ function encart(c) {
 
 function liste(c, { type = '' } = {}) {
   const V = views();
-  const cat = type === 'entreprises' ? 'entreprise' : type === 'particuliers' ? 'particulier' : '';
+  const cat = type === 'entreprises' ? 'entreprise' : type === 'particuliers' ? 'particulier' : type === 'maison' ? 'maison' : '';
   const l = (c.blog || []).filter(a => !cat || a.categorie === cat);
   const titre = 'Nos événements en reportage';
   const chapo = 'Pour certaines prestations, nous racontons l’événement en photos : soirées d’entreprise, séminaires, mariages, anniversaires… Pour vous inspirer et voir concrètement comment nous travaillons.';
   const body = `<section class="wrap page-h rep-page-h"><nav class="crumbs" aria-label="Fil d’Ariane"><a href="/">Accueil</a> / <span>Le blog</span></nav><p class="eyebrow">Le blog Magnolia</p><h1>${titre}</h1><p class="lead">${chapo}</p>${ongletsCat(cat ? type : '', true)}</section>
   <section class="wrap rep-liste">${l.length ? `<div class="rep-l tous n${Math.min(3, l.length)}">${l.map((a, i) => carte(a, { grande: i === 0 })).join('')}</div>` : `<p class="rep-vide">${cat ? 'Pas encore de reportage dans cette catégorie : ' : ''}nos prochains reportages arrivent très bientôt.</p>`}</section>
   <section class="cta wrap"><h2>Votre événement sera le prochain ?</h2><div class="row"><a class="btn btn-vert" href="/boutique">Composer mon événement</a><a class="lnk" href="tel:${esc((c.reglages.telephone || '').replace(/\s/g, ''))}">ou appelez le ${esc(c.reglages.telephone || '')}</a></div></section>`;
-  return V.layout(c, { title: cat ? `${titre} : ${cat === 'entreprise' ? 'entreprises' : 'particuliers'}` : titre, description: chapo, body, path: '/blog' + (type && cat ? '?type=' + type : ''), image: l[0]?.photos?.[0]?.src || '' });
+  return V.layout(c, { title: cat ? `${titre} : ${cat === 'entreprise' ? 'entreprises' : cat === 'particulier' ? 'particuliers' : 'la maison Magnolia'}` : titre, description: chapo, body, path: '/blog' + (type && cat ? '?type=' + type : ''), image: l[0]?.photos?.[0]?.src || '' });
 }
 
 /* mosaïque de 1 à 5 photos, mise en page selon leur nombre */
@@ -89,11 +89,11 @@ function article(c, a) {
  ${reste.length ? `<section class="ba-galerie wrap"><h2>Toutes les photos</h2><div class="g">${reste.map(p => `<a href="${esc(p.src)}" data-zoom>${photo(p.src, p.legende)}</a>`).join('')}</div></section>` : ''}
  <div class="ba-corps fin">
   ${a.tags?.length ? `<div class="ba-tags">${a.tags.map(t => `<span>${esc(t)}</span>`).join('')}</div>` : ''}
-  <div class="ba-cta"><p class="eyebrow light">Votre événement</p><h2>Vous préparez ${a.categorie === 'particulier' ? 'une fête' : 'un événement'} comme celui-ci ?</h2>
+  <div class="ba-cta"><p class="eyebrow light">Votre événement</p><h2>${a.categorie === 'maison' ? 'Et si votre prochain événement était signé Magnolia ?' : `Vous préparez ${a.categorie === 'particulier' ? 'une fête' : 'un événement'} comme celui-ci ?`}</h2>
    <p>Dites-nous le nombre d’invités, la date et le lieu : nous vous envoyons votre devis rapidement.</p>
    <div class="btns"><a class="btn btn-or" href="/boutique">Composer mon événement</a><a class="btn btn-ghost-light" href="tel:${esc((R.telephone || '').replace(/\s/g, ''))}">${esc(R.telephone || '')}</a></div></div>
  </div>
- ${autres.length ? `<section class="ba-autres"><div class="wrap"><p class="eyebrow">Nos reportages</p><h2>D’autres événements à découvrir</h2><div class="rep-l n${autres.length}">${autres.map(x => carte(x)).join('')}</div><p class="ba-tous"><a class="lnk" href="/blog">Tous nos reportages →</a></p></div></section>` : ''}
+ ${autres.length ? `<section class="ba-autres"><div class="wrap"><p class="eyebrow">Nos reportages</p><h2>D’autres reportages à découvrir</h2><div class="rep-l n${autres.length}">${autres.map(x => carte(x)).join('')}</div><p class="ba-tous"><a class="lnk" href="/blog">Tous nos reportages →</a></p></div></section>` : ''}
 </article>`;
   const site = (process.env.SITE_URL || 'https://www.magnoliatraiteur.fr').replace(/\/$/, '');
   const schema = { '@context': 'https://schema.org', '@type': 'BlogPosting', headline: a.titre, description: a.seoDescription || a.chapo, image: ph.slice(0, 3).map(p => site + p.src), datePublished: a.publieLe || undefined, dateModified: a.updatedAt || a.publieLe || undefined, author: { '@type': 'Organization', name: R.nom || 'Magnolia Traiteur' }, publisher: { '@type': 'Organization', name: R.nom || 'Magnolia Traiteur', logo: { '@type': 'ImageObject', url: site + '/apple-icon.png' } }, mainEntityOfPage: site + href(a), keywords: (a.tags || []).join(', ') || undefined };

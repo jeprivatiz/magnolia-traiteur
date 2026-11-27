@@ -4096,7 +4096,7 @@
 
   /* ---------- Blog « Nos événements en reportage » (Jean-Luc, 2026-11-27) ----------
      #/blog : liste + rappel ; #/blog/nouveau : quelques lignes + photos → l'IA rédige ; #/blog/:id : relire, corriger, publier */
-  const BLOG_CAT = { entreprise: 'Entreprise', particulier: 'Particulier' };
+  const BLOG_CAT = { entreprise: 'Entreprise', particulier: 'Particulier', maison: 'La maison Magnolia' }; /* « La maison Magnolia » : achats, fournisseurs, nouveaux produits, nouveau département… */
   const BL = {};
   /* photo réduite pour que l'IA la voie (JPEG 1000 px, ~100 Ko) */
   async function miniatureIa(src) {
@@ -4202,13 +4202,13 @@
     BL.n = { photos: Array.isArray(d.photos) ? d.photos.filter(p => p && p.src && !/^blob:/.test(p.src)) : [], video: d.video || '' };
     return page('✨ Nouveau reportage', '<a class="btn ghost" href="#/blog">← Tous les reportages</a>', `${r.ia ? '' : '<p class="gal-err">L’IA n’est pas branchée (clé ANTHROPIC_API_KEY manquante dans Railway).</p>'}
       <form id="blN" class="bl-n">
-      <section class="box"><h2><span class="df-n">1</span>Racontez l’événement</h2>
-        <p class="muted sm">Quelques lignes suffisent, comme vous le raconteriez à un client : pour qui, où, combien d’invités, ce qui a été servi, l’ambiance, ce qui a plu, une phrase du client si vous l’avez. L’IA n’invente rien : ce que vous n’écrivez pas, elle ne le dit pas.</p>
+      <section class="box"><h2><span class="df-n">1</span>Racontez l’événement ou l’histoire</h2>
+        <p class="muted sm">Quelques lignes suffisent, comme vous le raconteriez à un client : pour qui, où, combien d’invités, ce qui a été servi, l’ambiance, ce qui a plu, une phrase du client si vous l’avez. Pour « La maison Magnolia », racontez simplement l’histoire : un achat, un nouveau fournisseur, un nouveau produit, un nouveau département… L’IA n’invente rien : ce que vous n’écrivez pas, elle ne le dit pas.</p>
         <textarea name="notes" rows="9" placeholder="Ex. : Soirée pour une entreprise italienne (Milan) dans un hangar à Massy, 400 personnes. Buffet italien : antipasti, charcuterie, lasagnes, tiramisu. Bar à spritz à l’arrivée. 14 serveurs et maîtres d’hôtel. Le client nous a dit : « Nos collègues italiens se sont crus à la maison. »">${esc(d.notes || '')}</textarea>
         <div class="row"><button type="button" class="btn ghost sm" data-dictee>🎤 Dicter</button><small class="muted" data-blnb></small><span class="muted sm" data-blmicmsg></span></div>
-        <details class="bl-plus"${d.categorie || d.dateEvenement || d.lieu || d.invites ? ' open' : ''}><summary>Préciser (facultatif) : clientèle, date, lieu, invités</summary>
-        <div class="g3"><label>Clientèle<select name="categorie"><option value="">L’IA choisit</option>${Object.entries(BLOG_CAT).map(([k, v]) => `<option value="${k}"${d.categorie === k ? ' selected' : ''}>${v}</option>`).join('')}</select></label>
-        <label>Type d’événement<select name="typeEvenement"><option value="">L’IA choisit</option>${(r.types || []).map(t => `<option${d.typeEvenement === t ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></label>
+        <details class="bl-plus"${d.categorie || d.dateEvenement || d.lieu || d.invites ? ' open' : ''}><summary>Préciser (facultatif) : rubrique, date, lieu, invités</summary>
+        <div class="g3"><label>Rubrique<select name="categorie"><option value="">L’IA choisit</option>${Object.entries(BLOG_CAT).map(([k, v]) => `<option value="${k}"${d.categorie === k ? ' selected' : ''}>${v}</option>`).join('')}</select></label>
+        <label>Type d’événement ou d’histoire<select name="typeEvenement"><option value="">L’IA choisit</option>${(r.types || []).map(t => `<option${d.typeEvenement === t ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></label>
         <label>Date de l’événement<input type="date" name="dateEvenement" value="${esc(d.dateEvenement || '')}"></label>
         <label>Lieu <small class="muted">(ville ou type de lieu)</small><input name="lieu" value="${esc(d.lieu || '')}" placeholder="ex. Massy (91), un hangar"></label>
         <label>Nombre d’invités<input name="invites" inputmode="numeric" value="${esc(d.invites || '')}" placeholder="ex. 400"></label></div></details>
@@ -4266,8 +4266,8 @@
       <section class="box"><h2>Titre et présentation</h2>
         <label>Titre du reportage<input name="titre" value="${esc(a.titre || '')}" maxlength="160" required></label>
         <label>Introduction <small class="muted">(en grand, sous la photo)</small><textarea name="chapo" rows="3">${esc(a.chapo || '')}</textarea></label>
-        <div class="g3"><label>Clientèle<select name="categorie">${Object.entries(BLOG_CAT).map(([k, v]) => `<option value="${k}"${a.categorie === k ? ' selected' : ''}>${v}</option>`).join('')}</select></label>
-        <label>Type d’événement<select name="typeEvenement"><option value="">—</option>${[...new Set([...(types || []), a.typeEvenement].filter(Boolean))].map(t => `<option${a.typeEvenement === t ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></label>
+        <div class="g3"><label>Rubrique<select name="categorie">${Object.entries(BLOG_CAT).map(([k, v]) => `<option value="${k}"${a.categorie === k ? ' selected' : ''}>${v}</option>`).join('')}</select></label>
+        <label>Type d’événement ou d’histoire<select name="typeEvenement"><option value="">—</option>${[...new Set([...(types || []), a.typeEvenement].filter(Boolean))].map(t => `<option${a.typeEvenement === t ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></label>
         <label>Date de l’événement<input type="date" name="dateEvenement" value="${esc(a.dateEvenement || '')}"></label>
         <label>Lieu<input name="lieu" value="${esc(a.lieu || '')}"></label><label>Nombre d’invités<input name="invites" inputmode="numeric" value="${esc(a.invites || '')}"></label></div></section>
       <section class="box"><h2>Chiffres clés <small class="muted">(bandeau sous la photo, 4 maximum)</small></h2>

@@ -88,6 +88,16 @@ test('l’IA rédige le reportage, il reste caché jusqu’à « Publier », pui
     assert.ok(accueil.indexOf('etapes-sec') < accueil.indexOf('rep-sec'), 'bloc juste après « Comment commander »');
     assert.match(await (await fetch(base + '/blog')).text(), /Un titre plus court/);
     assert.doesNotMatch(await (await fetch(base + '/blog?type=particuliers')).text(), /Un titre plus court/);
+    /* 4e onglet « La maison Magnolia » (Jean-Luc, 2026-11-27) */
+    assert.match(accueil, /data-rep-f="maison"[^>]*>La maison Magnolia</);
+    const maisonVide = await (await fetch(base + '/blog?type=maison')).text();
+    assert.match(maisonVide, /Pas encore de reportage dans cette catégorie/);
+    const m = await call('/api/admin/blog', { method: 'POST', body: { titre: 'Notre nouveau four à pizza', categorie: 'maison', typeEvenement: 'Nouvel équipement', sections: [{ texte: 'Il est arrivé.' }], photos: [{ src: '/media/four.jpg' }] } });
+    assert.equal((await call('/api/admin/blog/' + m.j.id, { method: 'PUT', body: { ...m.j.article, statut: 'publie' } })).status, 200);
+    const maison = await (await fetch(base + '/blog?type=maison')).text();
+    assert.match(maison, /Notre nouveau four à pizza/);
+    assert.doesNotMatch(maison, /Un titre plus court/);
+    assert.match(await (await fetch(base + '/blog/notre-nouveau-four-a-pizza')).text(), /signé Magnolia/);
     assert.match(await (await fetch(base + '/sitemap.xml')).text(), new RegExp('/blog/' + a.slug));
     /* publier sans photo : refusé */
     const vide = await call('/api/admin/blog', { method: 'POST', body: { titre: 'Sans photo', sections: [{ texte: 'x' }] } });

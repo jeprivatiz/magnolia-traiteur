@@ -8,8 +8,9 @@
  */
 const { slugify } = require('./util');
 
-const CATEGORIES = { entreprise: 'Entreprise', particulier: 'Particulier' };
-const TYPES = ['Soirée d’entreprise', 'Séminaire', 'Convention', 'Lancement de produit', 'Inauguration', 'Fête de fin d’année', 'Cocktail d’entreprise', 'Déjeuner d’affaires', 'Mariage', 'Anniversaire', 'Baptême', 'Communion', 'Fête de famille', 'Fiançailles', 'Bar-mitsva', 'Départ en retraite', 'Autre événement'];
+const CATEGORIES = { entreprise: 'Entreprise', particulier: 'Particulier', maison: 'La maison Magnolia' }; /* « La maison Magnolia » : les histoires de la maison (Jean-Luc, 2026-11-27) */
+const TYPES = ['Soirée d’entreprise', 'Séminaire', 'Convention', 'Lancement de produit', 'Inauguration', 'Fête de fin d’année', 'Cocktail d’entreprise', 'Déjeuner d’affaires', 'Mariage', 'Anniversaire', 'Baptême', 'Communion', 'Fête de famille', 'Fiançailles', 'Bar-mitsva', 'Départ en retraite', 'Autre événement',
+  'Nouveau produit', 'Nouveau fournisseur', 'Nouveau département', 'Nouvel équipement', 'Coulisses de la maison', 'Vie de la maison'];
 const MAX_PHOTOS = 40;
 const RAPPEL_DEFAUT = { actif: true, jours: 3, heure: 9 };
 const INTERDIT = /himalaya|palais de l|fournisseur|sur devis|non contractuel/i;
@@ -60,20 +61,21 @@ const REGLES = `Règles strictes :
 - N'invente RIEN de factuel : aucun chiffre (invités, serveurs, pièces, mètres carrés, heures), aucun nom de client, d'entreprise, de lieu ou de ville, aucun plat, aucune anecdote, aucun avis ou citation de client qui ne figure pas dans les notes. Si une info manque, n'en parle pas. Tu peux en revanche décrire avec soin ce qui se voit sur les photos (décor, ambiance, présentation des plats) sans l'exagérer.
 - Si les notes ne nomment pas le client, reste discret (« une entreprise italienne », « les mariés »). Si elles le nomment, tu peux le citer.
 - Pas de prix, pas de « sur devis », pas de superlatif trompeur (« le meilleur », « n°1 »), pas de « gratuit ».
-- Ne cite JAMAIS de fournisseur, de restaurant partenaire ni d'autre traiteur : tout est préparé et servi par Magnolia Traiteur.
+- Ne cite JAMAIS de restaurant partenaire ni d'autre traiteur : tout est préparé et servi par Magnolia Traiteur. Pour un reportage d'événement, ne cite aucun fournisseur. Pour une histoire de « La maison Magnolia », un producteur ou fournisseur de matières premières peut être nommé SEULEMENT si les notes le nomment.
 - N'écris pas « à Paris et en Île-de-France ».`;
 
 function promptArticle({ notes, categorie, typeEvenement, dateEvenement, lieu, invites, photos = [], catalogue, consigne = '', actuel = null, aujourdhui }) {
   const infos = [categorie ? `Clientèle : ${CATEGORIES[categorie] || categorie}` : '', typeEvenement ? `Type d'événement : ${typeEvenement}` : '', dateEvenement ? `Date : ${dateEvenement}` : '', lieu ? `Lieu : ${lieu}` : '', invites ? `Nombre d'invités : ${invites}` : ''].filter(Boolean).join('\n');
   return `Tu es le rédacteur du blog de Magnolia Traiteur (traiteur événementiel à Villebon-sur-Yvette, Essonne, qui livre 7 j/7 dans toute l'Île-de-France). Le blog s'appelle « Nos événements en reportage » : après chaque prestation, un reportage photo raconte l'événement, pour donner envie aux futurs clients (entreprises et particuliers) et montrer concrètement le savoir-faire de la maison. Aujourd'hui : ${aujourdhui}.
 ${actuel ? `Tu RÉÉCRIS le reportage existant ci-dessous en suivant la demande de l'équipe : « ${String(consigne).slice(0, 1500)} ». Garde tout ce qui n'est pas visé par la demande.` : `Rédige le reportage complet à partir des notes de l'équipe${photos.length ? ' et des photos jointes (numérotées dans l’ordre, de 1 à ' + photos.length + ')' : ''}.`}
+Si les notes ne racontent pas un événement client mais la vie de la maison (un achat, un nouveau fournisseur ou producteur, un nouveau produit, un nouvel équipement, la création d'un département ou d'une spécialité, les coulisses de la cuisine, l'équipe…), c'est une histoire de « La maison Magnolia » : categorie "maison", typeEvenement parmi "Nouveau produit", "Nouveau fournisseur", "Nouveau département", "Nouvel équipement", "Coulisses de la maison", "Vie de la maison" ; raconte-la comme un récit des coulisses, à la première personne du pluriel (« nous »), sincère et vivant, en montrant ce que cela change pour les clients ; invites null.
 Le texte doit être riche et à la hauteur de l'événement, mais rester agréable à lire : 3 à 5 parties de 1 à 3 paragraphes (350 à 700 mots en tout).
 ${REGLES}
 
 Réponds UNIQUEMENT avec un objet JSON, sans texte autour :
 {"titre":"titre accrocheur du reportage (70 caractères max), qui dit l'événement et ce qui le rend unique",
 "chapo":"2 phrases d'introduction (300 caractères max)",
-"categorie":"entreprise" ou "particulier",
+"categorie":"entreprise" (événement d'une entreprise), "particulier" (fête d'un particulier) ou "maison" (histoire de la maison Magnolia, sans client),
 "typeEvenement":"une valeur de ${JSON.stringify(TYPES)}",
 "lieu":"ville, département ou type de lieu SEULEMENT s'il est donné, sinon \\"\\"",
 "invites":nombre d'invités donné dans les notes, sinon null,
