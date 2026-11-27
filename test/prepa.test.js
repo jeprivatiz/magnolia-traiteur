@@ -111,3 +111,11 @@ test('bon de préparation : choix du client d’un buffet avec le nombre de chaq
   const html = P.documentHtml({ ...P.nettoyer({ lignes: L, client: {}, evenement: {}, horaires: {} }), personnelDevis: [] });
   assert.match(html, /Plats · 40 au total/);
 });
+
+test('bon de préparation : nappes avec taille, couleur, extensible ou non', () => {
+  const P = require('../server/prepa');
+  assert.equal(P.listeDe('nappe-rectangulaire', 'Nappe rectangulaire 170 × 250 cm'), 'nappes');
+  assert.deepEqual(P.listesPrepa([{ titre: 'Nappage — 170 × 250 cm' }]).nappes, ['170 × 250 cm']);
+  const b = P.nettoyer({ lignes: [{ type: 'produit', designation: 'Nappage', liste: 'nappes', items: [{ nom: '170 × 250 cm', couleur: 'Noire', type: 'Extensible', n: '12' }] }], client: {}, evenement: {}, horaires: {} });
+  assert.match(P.documentHtml({ ...b, personnelDevis: [] }), /<b>12<\/b> 170 × 250 cm · nappe noire · extensible/);
+});

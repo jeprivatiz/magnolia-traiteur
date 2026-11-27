@@ -365,6 +365,23 @@
      infos client, horaires de livraison, régisseurs, livreurs, personnel, et « À préparer » (lignes du devis, sans prix).
      Colonne « Quantité à préparer » prévue pour les quantités détaillées que Jean-Luc donnera plus tard. Serveur : server/prepa.js, routes /api/admin/prepa/*. */
   const PC = { q: '', vue: 'avenir', tous: false, x: null, sale: false };
+  /* période (Jean-Luc, 2026-11-27) : « Du … au … » sur la date de l'événement, avec raccourcis ; mémorisée sur cet appareil */
+  try { const m = JSON.parse(mem.get('mg_prepa_per') || 'null'); if (m) Object.assign(PC, { du: m.du || '', au: m.au || '', per: m.per || '' }); } catch { /* */ }
+  const pcIso = d => d.toLocaleDateString('sv-SE');
+  function pcPeriode(k) {
+    const j = new Date(); j.setHours(12, 0, 0, 0);
+    const lundi = d => { const x = new Date(d); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; };
+    const plus = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+    if (k === 'jour') return [pcIso(j), pcIso(j)];
+    if (k === 'demain') return [pcIso(plus(j, 1)), pcIso(plus(j, 1))];
+    if (k === 'semaine') { const l = lundi(j); return [pcIso(l), pcIso(plus(l, 6))]; }
+    if (k === 'semaine2') { const l = plus(lundi(j), 7); return [pcIso(l), pcIso(plus(l, 6))]; }
+    if (k === '2semaines') { const l = lundi(j); return [pcIso(l), pcIso(plus(l, 13))]; }
+    if (k === 'mois') return [pcIso(new Date(j.getFullYear(), j.getMonth(), 1, 12)), pcIso(new Date(j.getFullYear(), j.getMonth() + 1, 0, 12))];
+    if (k === 'mois2') return [pcIso(new Date(j.getFullYear(), j.getMonth() + 1, 1, 12)), pcIso(new Date(j.getFullYear(), j.getMonth() + 2, 0, 12))];
+    return ['', ''];
+  }
+  const PC_PER = [['jour', 'Aujourd’hui'], ['demain', 'Demain'], ['semaine', 'Cette semaine'], ['semaine2', 'Semaine prochaine'], ['2semaines', 'Cette semaine et la suivante'], ['mois', 'Ce mois-ci'], ['mois2', 'Mois prochain']];
   const PC_ICO = { regisseurs: '🎩', livreurs: '🚚', personnel: '🤵' };
   async function prepa(id) {
     if (id) return prepaEdit(id);
@@ -374,18 +391,21 @@
       <section class="box pc-box"><div class="pc-lbar"><input type="search" data-pcq placeholder="🔍 Rechercher un client, un n° de devis, une ville…" aria-label="Rechercher" value="${esc(PC.q)}">
         <div class="pc-seg" role="group" aria-label="Période">${[['avenir', 'À venir'], ['passes', 'Passés'], ['tout', 'Tous']].map(([k, l]) => `<button type="button" data-pcvue="${k}" class="${PC.vue === k ? 'on' : ''}" aria-pressed="${PC.vue === k}">${l}</button>`).join('')}</div>
         <label class="pc-ck"><input type="checkbox" data-pctous${PC.tous ? ' checked' : ''}> Montrer aussi les devis pas encore signés</label></div>
+        <div class="pc-per"><span class="pc-perl">📅 Événements</span><label>du <input type="date" data-pcdu value="${esc(PC.du || '')}"></label><label>au <input type="date" data-pcau value="${esc(PC.au || '')}"></label><button type="button" class="btn ghost sm" data-pceff${PC.du || PC.au ? '' : ' hidden'}>✕ Effacer les dates</button>
+          <div class="pc-perr">${PC_PER.map(([k, l]) => `<button type="button" class="pc-pchip${PC.per === k ? ' on' : ''}" data-pcper="${k}">${l}</button>`).join('')}</div></div>
         <div data-pcliste></div></section>`);
   }
   function prepaLignes() {
     const L = PC.liste, auj = L.aujourdhui, q = PC.q.trim().toLowerCase();
     let l = L.devis.filter(d => PC.tous || d.confirme || d.bon);
-    if (!q) l = l.filter(d => PC.vue === 'tout' || (PC.vue === 'avenir' ? !d.date || d.date >= auj : d.date && d.date < auj));
+    if (PC.du || PC.au) l = l.filter(d => d.date && (!PC.du || d.date >= PC.du) && (!PC.au || d.date <= PC.au));
+    else if (!q) l = l.filter(d => PC.vue === 'tout' || (PC.vue === 'avenir' ? !d.date || d.date >= auj : d.date && d.date < auj));
     else l = l.filter(d => [d.client, d.numero, d.ville, d.lieu, d.type, d.facture].join(' ').toLowerCase().includes(q));
     if (PC.vue === 'passes' && !q) l = [...l].reverse();
     const etat = d => d.bon ? (d.bon.envoyeLe ? `<span class="pill d-accepte">✉ Envoyé${d.bon.envoyeA ? ' à ' + esc(d.bon.envoyeA) : ''} · ${dateFr(d.bon.envoyeLe, { day: 'numeric', month: 'short' })}</span>` : `<span class="pill d-envoye">💾 Bon enregistré · ${dateFr(d.bon.maj, { day: 'numeric', month: 'short' })}</span>`) : '<span class="pill d-brouillon">À préparer</span>';
     const dv = d => `${esc(d.numero)}${d.statut === 'accepte' ? ' <span class="pc-ok" title="Devis signé">✓ signé</span>' : d.reserve ? ' <span class="pc-ok">✓ réservé</span>' : ` <span class="pc-ns">${esc(DSTAT[d.statut] || d.statut)}</span>`}${d.facture ? `<small class="vt-sub">Facture ${esc(d.facture)}</small>` : ''}`;
     return l.length ? `<div class="table pc-lt"><table><thead><tr><th>Date</th><th>Client</th><th>Événement</th><th>Devis</th><th>Bon de préparation</th><th></th></tr></thead><tbody>${l.map(d => `<tr data-href="#/prepa/${esc(d.devisId)}"><td class="nw"><b>${d.date ? esc(dateFr(d.date, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })) : '<span class="muted">Date à fixer</span>'}</b></td><td><b>${esc(d.client || '—')}</b></td><td>${esc(d.type || '')}${d.invites ? ` · ${esc(d.invites)} pers.` : ''}<small class="vt-sub">${esc([d.lieu, d.ville].filter(Boolean).join(' · '))}</small></td><td class="nw">${dv(d)}</td><td>${etat(d)}</td><td class="n"><a class="btn sm ${d.bon ? 'ghost' : 'vt-or'}" href="#/prepa/${esc(d.devisId)}">${d.bon ? 'Ouvrir ›' : '📋 Préparer ›'}</a></td></tr>`).join('')}</tbody></table></div>`
-      : `<div class="vide"><p>${q ? 'Aucun événement ne correspond à cette recherche.' : PC.vue === 'avenir' ? 'Aucun événement signé à venir.' : 'Aucun événement.'}</p><p class="muted sm">${PC.tous ? '' : 'Seuls les devis signés, réservés ou facturés sont proposés : cochez « Montrer aussi les devis pas encore signés » pour voir les autres.'}</p></div>`;
+      : `<div class="vide"><p>${PC.du || PC.au ? `Aucun événement ${PC.du && PC.au ? `du ${esc(dateFr(PC.du, { day: 'numeric', month: 'long' }))} au ${esc(dateFr(PC.au, { day: 'numeric', month: 'long', year: 'numeric' }))}` : PC.du ? 'à partir du ' + esc(dateFr(PC.du, { day: 'numeric', month: 'long', year: 'numeric' })) : 'jusqu’au ' + esc(dateFr(PC.au, { day: 'numeric', month: 'long', year: 'numeric' }))}${q ? ' pour cette recherche' : ''}.` : q ? 'Aucun événement ne correspond à cette recherche.' : PC.vue === 'avenir' ? 'Aucun événement signé à venir.' : 'Aucun événement.'}</p><p class="muted sm">${PC.tous ? '' : 'Seuls les devis signés, réservés ou facturés sont proposés : cochez « Montrer aussi les devis pas encore signés » pour voir les autres.'}</p></div>`;
   }
   prepa.after = id => {
     if (id) return prepaEdit.after(id);
@@ -394,6 +414,13 @@
     $('[data-pcq]').addEventListener('input', e => { PC.q = e.target.value; maj(); });
     $$('[data-pcvue]').forEach(b => b.addEventListener('click', () => { PC.vue = b.dataset.pcvue; $$('[data-pcvue]').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', x === b); }); maj(); }));
     $('[data-pctous]').addEventListener('change', e => { PC.tous = e.target.checked; maj(); });
+    const garder = () => { mem.set('mg_prepa_per', JSON.stringify({ du: PC.du || '', au: PC.au || '', per: PC.per || '' })); $('[data-pcdu]').value = PC.du || ''; $('[data-pcau]').value = PC.au || ''; $('[data-pceff]').hidden = !(PC.du || PC.au); $$('[data-pcper]').forEach(b => b.classList.toggle('on', b.dataset.pcper === PC.per)); $('.pc-seg')?.classList.toggle('pc-off', !!(PC.du || PC.au)); maj(); };
+    $$('[data-pcper]').forEach(b => b.addEventListener('click', () => { if (PC.per === b.dataset.pcper) { PC.per = ''; PC.du = PC.au = ''; } else { PC.per = b.dataset.pcper; [PC.du, PC.au] = pcPeriode(PC.per); } garder(); }));
+    $('[data-pcdu]').addEventListener('change', e => { PC.du = e.target.value; PC.per = ''; if (PC.au && PC.du > PC.au) PC.au = PC.du; garder(); });
+    $('[data-pcau]').addEventListener('change', e => { PC.au = e.target.value; PC.per = ''; if (PC.du && PC.au < PC.du) PC.du = PC.au; garder(); });
+    $('[data-pceff]').addEventListener('click', () => { PC.du = PC.au = PC.per = ''; garder(); });
+    $('.pc-seg').classList.toggle('pc-off', !!(PC.du || PC.au));
+    $$('[data-pcvue]').forEach(b => b.addEventListener('click', () => { if (PC.du || PC.au) { PC.du = PC.au = PC.per = ''; garder(); } }));
   };
 
   const pcOpts = P => { const g = {}; P.forEach((p, i) => (g[p.groupe] = g[p.groupe] || []).push(`<option value="${i}">${esc(p.nom)}${(p.metiers || []).length ? ' · ' + esc(p.metiers.join(', ')) : ''}</option>`)); return Object.entries(g).map(([k, v]) => `<optgroup label="${esc(k)}">${v.join('')}</optgroup>`).join(''); };
@@ -401,11 +428,17 @@
   const PC_PLUR = /^(personne|pièce|portion|plateau|coffret|bouteille|heure|table|chaise|unité|corbeille|gâteau|cocktail|litre)$/;
   const pcQte = l => l.qteDevis === '' || l.qteDevis == null ? '—' : `${String(l.qteDevis).replace('.', ',')} ${esc(+l.qteDevis > 1 && PC_PLUR.test(l.unite || '') ? (l.unite === 'gâteau' || l.unite === 'plateau' ? l.unite + 'x' : l.unite + 's') : l.unite || '')}`;
   /* détail d'une ligne (Jean-Luc, 2026-11-27) : choix du client (entrées, plats, desserts) avec leur nombre, softs ou matériel en liste déroulante + nombre */
-  const PC_LIB = { compo: 'Choix du client · nombre de chaque', softs: 'Softs · nombre de chaque', materiel: 'Matériel · nombre de chaque' };
+  const PC_LIB = { compo: 'Choix du client · nombre de chaque', softs: 'Softs · nombre de chaque', materiel: 'Matériel · nombre de chaque', nappes: 'Nappes · taille, couleur, extensible ou non, nombre' };
+  const pcSel = (k, v, L, lab) => `<select data-it="${k}" aria-label="${lab}">${v && !L.includes(v) ? `<option selected>${esc(v)}</option>` : ''}${v ? '' : `<option value="">${lab}…</option>`}${L.map(o => `<option${o === v ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
   function pcItemsHtml(l, i) {
     const it = l.items || []; if (!l.liste && !it.length) return '';
     const L = (PC.x?.listes || {})[l.liste] || [];
     const tot = {}; for (const x of it) if (x.groupe) tot[x.groupe] = (tot[x.groupe] || 0) + (+x.n || 0);
+    if (l.liste === 'nappes') {
+      const LX = PC.x?.listes || {};
+      const rowsN = it.map((x, j) => `<div class="pc-itr pc-itn" data-j="${j}">${x.libre ? `<input data-it="nom" value="${esc(x.nom)}" placeholder="Taille, ex. 240 × 300 cm" aria-label="Taille">` : pcSel('nom', x.nom, L, 'Taille')}${pcSel('couleur', x.couleur || '', LX.nappesCouleurs || [], 'Couleur')}${pcSel('type', x.type || '', LX.nappesTypes || [], 'Extensible ?')}<input data-it="n" type="number" min="0" inputmode="numeric" value="${esc(x.n ?? '')}" placeholder="Nb" aria-label="Nombre"><button type="button" class="pc-itx" data-itrm="${i}:${j}" aria-label="Retirer">×</button></div>`).join('');
+      return `<div class="pc-it"><small class="pc-ith">${PC_LIB.nappes}</small>${rowsN}<div class="pc-itadd"><button type="button" class="btn ghost sm" data-itnappe="${i}">➕ Ajouter des nappes</button><button type="button" class="btn ghost sm" data-itlibre="${i}">✏ Autre taille (à taper)</button></div></div>`;
+    }
     const rows = it.map((x, j) => `<div class="pc-itr" data-j="${j}">${x.groupe && x.groupe !== it[j - 1]?.groupe ? `<span class="pc-itg">${esc(x.groupe)}</span>` : ''}${L.length && (!x.nom || L.includes(x.nom)) && !x.libre ? `<select data-it="nom" aria-label="Choix">${x.nom ? '' : '<option value="">— Choisir —</option>'}${L.map(o => `<option${o === x.nom ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select>` : `<input data-it="nom" value="${esc(x.nom)}" placeholder="${l.liste === 'materiel' ? 'ex. Plateaux inox' : l.liste === 'softs' ? 'ex. Orangina 33 cl' : 'ex. Colombo de poulet'}" aria-label="Nom">`}<input data-it="n" type="number" min="0" inputmode="numeric" value="${esc(x.n ?? '')}" placeholder="Nb" aria-label="Nombre"><button type="button" class="pc-itx" data-itrm="${i}:${j}" aria-label="Retirer">×</button></div>`).join('');
     const sous = Object.keys(tot).length > 1 || Object.values(tot).some(v => v) ? `<small class="pc-ittot">${Object.entries(tot).map(([g, n]) => `${esc(g)} : <b>${n}</b>`).join(' · ')}</small>` : '';
     return `<div class="pc-it"><small class="pc-ith">${esc(PC_LIB[l.liste] || PC_LIB.compo)}</small>${rows}${sous}<div class="pc-itadd">${L.length ? `<select data-itadd="${i}" aria-label="Ajouter"><option value="">➕ Ajouter ${l.liste === 'softs' ? 'un soft' : 'du matériel'}…</option>${L.map(o => `<option>${esc(o)}</option>`).join('')}</select>` : ''}<button type="button" class="btn ghost sm" data-itlibre="${i}">✏ ${L.length ? 'Autre (à taper)' : 'Ajouter un choix'}</button></div></div>`;
@@ -415,11 +448,11 @@
     return b.lignes.map((l, i) => l.type === 'titre'
       ? `<div class="pc-l pc-ti" data-i="${i}"><input data-lf="designation" value="${esc(l.designation)}" aria-label="Intertitre" placeholder="Intertitre (ex. Entrées)"><button type="button" class="pc-x" data-pclrm="${i}" title="Retirer cette ligne" aria-label="Retirer">🗑</button></div>`
       : `<div class="pc-l" data-i="${i}"><span class="pc-no">${++n}</span>
-        <div class="pc-pr"><input data-lf="designation" value="${esc(l.designation)}" placeholder="Produit" aria-label="Produit">${l.detail || !l.produit ? `<textarea data-lf="detail" rows="${Math.min(4, Math.max(1, String(l.detail || '').split('\n').length))}" placeholder="Choix, composition (facultatif)" aria-label="Choix">${esc(l.detail || '')}</textarea>` : ''}${(l.allergenes || []).length ? `<small class="pc-al">⚠ ${esc(l.allergenes.join(', '))}</small>` : ''}${pcItemsHtml(l, i)}</div>
+        <div class="pc-pr"><input data-lf="designation" value="${esc(l.designation)}" placeholder="Produit" aria-label="Produit">${l.detail || !l.produit ? `<textarea data-lf="detail" rows="${Math.min(4, Math.max(1, String(l.detail || '').split('\n').length))}" placeholder="Choix, composition (facultatif)" aria-label="Choix">${esc(l.detail || '')}</textarea>` : ''}${(l.allergenes || []).length ? `<small class="pc-al">⚠ ${esc(l.allergenes.join(', '))}</small>` : ''}</div>
         <div class="pc-q"><small>Quantité du devis</small>${l.produit ? `<b>${pcQte(l)}</b>` : `<input data-lf="qteDevis" inputmode="decimal" value="${esc(l.qteDevis ?? '')}" placeholder="—" aria-label="Quantité">`}</div>
         <label class="pc-q pc-qp"><small>Quantité à préparer</small><input data-lf="qtePrepa" value="${esc(l.qtePrepa || '')}" placeholder="à venir"></label>
-        <label class="pc-nt"><small>Remarque cuisine</small><input data-lf="note" value="${esc(l.note || '')}" placeholder="ex. sans piment, à part…"></label>
-        <button type="button" class="pc-x" data-pclrm="${i}" title="Retirer cette ligne" aria-label="Retirer">🗑</button></div>`).join('') || '<p class="muted">Aucune ligne : ajoutez un produit ci-dessous, ou reprenez les lignes du devis.</p>';
+        <label class="pc-nt"><small>Remarque pour la préparation</small><input data-lf="note" value="${esc(l.note || '')}" placeholder="ex. sans piment, à part…"></label>
+        <button type="button" class="pc-x" data-pclrm="${i}" title="Retirer cette ligne" aria-label="Retirer">🗑</button>${pcItemsHtml(l, i)}</div>`).join('') || '<p class="muted">Aucune ligne : ajoutez un produit ci-dessous, ou reprenez les lignes du devis.</p>';
   }
   async function prepaEdit(id) {
     const x = await api(A + '/prepa/' + encodeURIComponent(id) + (PC.reprendre ? '?reprendre=1' : ''));
@@ -459,9 +492,9 @@
       <section class="box pc-box"><h2>📋 À préparer <small class="muted pc-nb" data-pcnb></small></h2>
         <p class="muted sm">Toutes les lignes du devis (sans les prix, la livraison et le personnel). La colonne <b>Quantité à préparer</b> est prête pour les quantités détaillées de la cuisine.</p>
         <div class="pc-lignes" data-pclignes>${pcLignesHtml(b)}</div>
-        <div class="row pc-addl"><button type="button" class="btn ghost sm" data-pcadd="produit">➕ Ajouter un produit</button><button type="button" class="btn ghost sm" data-pcadd="titre">➕ Ajouter un intertitre</button><button type="button" class="btn ghost sm" data-pcadd="materiel">➕ Matériel traiteur</button><button type="button" class="btn ghost sm" data-pcadd="softs">➕ Pack softs</button><button type="button" class="btn ghost sm" data-pcrep>↻ Reprendre les lignes du devis</button></div>
+        <div class="row pc-addl"><button type="button" class="btn ghost sm" data-pcadd="produit">➕ Ajouter un produit</button><button type="button" class="btn ghost sm" data-pcadd="titre">➕ Ajouter un intertitre</button><button type="button" class="btn ghost sm" data-pcadd="materiel">➕ Matériel traiteur</button><button type="button" class="btn ghost sm" data-pcadd="softs">➕ Pack softs</button><button type="button" class="btn ghost sm" data-pcadd="nappes">➕ Nappes</button><button type="button" class="btn ghost sm" data-pcrep>↻ Reprendre les lignes du devis</button></div>
       </section>
-      <section class="box pc-box"><h2>📝 Remarques pour la cuisine</h2><textarea data-f="remarques" rows="3" placeholder="Tout ce que la cuisine doit savoir : présentation, vaisselle, ordre de sortie…">${esc(b.remarques)}</textarea></section>
+      <section class="box pc-box"><h2>📝 Remarque pour la préparation</h2><textarea data-f="remarques" rows="3" placeholder="Tout ce que la préparation doit savoir : présentation, vaisselle, ordre de sortie…">${esc(b.remarques)}</textarea></section>
       ${env.length ? `<section class="box pc-box"><h2>✉ Envois</h2><ul class="pc-env">${env.map(v => `<li><b>${esc(dateH(v.at))}</b> · ${v.groupe ? `<b>${esc((x.roles.find(r => r[0] === v.groupe) || [, v.groupe])[1])}</b> : ` : 'bon envoyé à '}${esc(v.a)} <span class="muted">(${esc((v.canaux || []).map(k => k === 'sms' ? 'SMS' : 'e-mail').join(' + '))}${v.par ? ', par ' + esc(v.par) : ''})</span></li>`).join('')}</ul></section>` : ''}
       <div class="row pc-bas"><button type="button" class="btn vt-or" data-pcsave>💾 Enregistrer</button><button type="button" class="btn ghost" data-pcdoc>🖨 Aperçu A4 · Imprimer</button><button type="button" class="btn ghost" data-pcenv>✉ Envoyer à la cuisine</button></div>
       </form>`);
@@ -515,6 +548,8 @@
       if (pk) { const [k, i] = pk.dataset.pcpick.split(':'); const p = PC.x.personnes[+i]; ajouter(k, { nom: p.nom, tel: p.tel || '', email: p.email || '' }); const r = $(`[data-pcrech="${k}"]`); r.value = ''; $(`[data-sugg="${k}"]`).hidden = true; toast(`${p.nom} ajouté(e).`); return; }
       const ir = e.target.closest('[data-itrm]');
       if (ir) { pcLire(); const [i, j] = ir.dataset.itrm.split(':'); b().lignes[+i].items.splice(+j, 1); redessiner(); PC.sale = true; return; }
+      const inp = e.target.closest('[data-itnappe]');
+      if (inp) { pcLire(); const l = b().lignes[+inp.dataset.itnappe]; (l.items = l.items || []).push({ nom: (PC.x.listes.nappes || [])[0] || '', couleur: 'Blanche', type: 'Non extensible', n: '' }); redessiner(); PC.sale = true; $(`[data-pclignes] .pc-l[data-i="${inp.dataset.itnappe}"] .pc-itr:last-of-type [data-it="n"]`)?.focus(); return; }
       const il = e.target.closest('[data-itlibre]');
       if (il) { pcLire(); const l = b().lignes[+il.dataset.itlibre]; (l.items = l.items || []).push({ nom: '', n: '', libre: true }); if (!l.liste) l.liste = 'compo'; redessiner(); PC.sale = true; $(`[data-pclignes] .pc-l[data-i="${il.dataset.itlibre}"] .pc-itr:last-of-type [data-it="nom"]`)?.focus(); return; }
       const mg = e.target.closest('[data-pcmsg]');
@@ -524,7 +559,7 @@
       const lr = e.target.closest('[data-pclrm]');
       if (lr) { pcLire(); b().lignes.splice(+lr.dataset.pclrm, 1); redessiner(); PC.sale = true; return; }
       const ad = e.target.closest('[data-pcadd]');
-      if (ad) { pcLire(); const k = ad.dataset.pcadd; b().lignes.push(k === 'titre' ? { type: 'titre', designation: '' } : { type: 'produit', produit: '', designation: k === 'materiel' ? 'Matériel traiteur' : k === 'softs' ? 'Pack softs' : '', detail: '', qteDevis: '', unite: '', qtePrepa: '', note: '', liste: k === 'produit' ? '' : k, items: [] }); redessiner(); PC.sale = true; const r = $$('[data-pclignes] .pc-l').pop(); r?.querySelector('input')?.focus(); return; }
+      if (ad) { pcLire(); const k = ad.dataset.pcadd; b().lignes.push(k === 'titre' ? { type: 'titre', designation: '' } : { type: 'produit', produit: '', designation: k === 'materiel' ? 'Matériel traiteur' : k === 'softs' ? 'Pack softs' : k === 'nappes' ? 'Nappage' : '', detail: '', qteDevis: '', unite: '', qtePrepa: '', note: '', liste: k === 'produit' ? '' : k, items: [] }); redessiner(); PC.sale = true; const r = $$('[data-pclignes] .pc-l').pop(); r?.querySelector('input')?.focus(); return; }
     });
     $('[data-pcrep]').addEventListener('click', async () => {
       if (!confirm('Reprendre toutes les lignes du devis ?\n\nLes lignes « À préparer » actuelles (quantités à préparer et remarques comprises) seront remplacées. Le reste du bon ne change pas.')) return;

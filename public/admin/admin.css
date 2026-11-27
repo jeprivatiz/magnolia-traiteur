@@ -2565,3 +2565,22 @@ tr.rem-det > td { padding: 4px 0 12px 14px; }
 .pc-itadd { display: flex; flex-wrap: wrap; gap: 6px; }
 .pc-itadd select { flex: 1 1 200px; min-height: 38px; padding: 6px 9px; font-size: 15px; }
 .pc-mod [hidden], .pc-sugg[hidden] { display: none !important; }
+/* Prépa de commande : période du … au … (2026-11-27) */
+.pc-per { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: -2px 0 14px; padding: 10px 12px; border-radius: 10px; background: color-mix(in srgb, var(--doux) 55%, var(--carte)); border: 1px solid var(--ligne); }
+.pc-per label { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-size: .9rem; color: var(--texte); }
+.pc-per input[type=date] { width: auto; min-height: 40px; padding: 6px 10px; }
+.pc-perl { font-weight: 600; color: var(--vert); }
+.pc-per [hidden] { display: none !important; }
+.pc-perr { flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: 6px; }
+.pc-pchip { font: inherit; font-size: .86rem; font-weight: 600; border: 1.5px solid var(--or); background: var(--carte); color: var(--vert); border-radius: 999px; padding: 6px 12px; cursor: pointer; }
+.pc-pchip.on { background: var(--vert); border-color: var(--vert); color: #fff; }
+.pc-seg.pc-off { opacity: .45; }
+.pc-itn { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1.2fr) 70px 32px; }
+@media (max-width: 760px) { .pc-itn { grid-template-columns: 1fr 1fr; } .pc-itn input[data-it=n] { grid-column: 1; } }
+.pc-l > .pc-it { grid-column: 2 / -2; max-width: 760px; }
+@media (max-width: 760px) {
+  .pc-l > .pc-it { grid-column: 1 / -1; }
+  .pc-itn { grid-template-columns: 1fr 1fr 70px 32px; }
+  .pc-itn [data-it=nom] { grid-column: 1 / -1; }
+  .pc-itn [data-it=couleur] { grid-column: 1 / 2; } .pc-itn [data-it=type] { grid-column: 2 / 3; } .pc-itn input[data-it=n] { grid-column: 3; }
+}
