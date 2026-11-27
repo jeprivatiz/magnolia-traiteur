@@ -6,7 +6,7 @@ Branchement : `VIDEOS_ACCUEIL` dans `server/views.js`, lecture dans `public/js/s
 
 | Vignette | Fichier | Source (Pexels) | Auteur |
 |---|---|---|---|
-| Cocktails & buffet français | cocktail | PHOTO https://www.pexels.com/photo/31970812/ (Appetizing Buffet Table with Savory Snacks : buffet nappé, rehausseur, mini pièces salées), animée en zoom lent aller-retour 10 s (aucune vidéo libre de ce genre trouvée) | Newman Photographs |
+| Cocktails & buffet français | cocktail | https://www.pexels.com/video/37141417/ (Elegant Buffet with Colorful Drinks and Appetizers : verres puis petits fours sur rehausseurs devant des baies vitrées), choisie par Jean-Luc le 27/11/2026 parmi 4 propositions ; remplace la photo 31970812 animée | Kerim Eveyik |
 | Boissons | boissons | https://www.pexels.com/video/7219888/ (Pouring a Cocktail Drink on a Crystal Glass) | ArtHouse Studio |
 | Traiteur végétarien et vegan | vegetarien | https://www.pexels.com/video/4959964/ (Person Making Salad) | ArtHouse Studio |
 | Animations salées | barbecue | https://www.pexels.com/video/32546598/ (Sizzling Meat on Barbecue Grill with Flames), 25/11/2026 ; remplace les steaks hachés sur plaque (« trop plats, mauvaise qualité ») | Pexels |
