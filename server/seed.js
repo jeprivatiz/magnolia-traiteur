@@ -905,6 +905,23 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('site/reglages', { ...(await store.get('site/reglages')), libanaisSansVideo1: true });
   }
 
+  /* Buffet chinois, « Nos buffets » (Jean-Luc, 2026-11-27) : les 3 formules montraient toutes la même vidéo (chinois-boucle).
+     Chacune reçoit sa vraie vidéo libre (Pexels, sources dans data/credits-videos-monde.md), choisie d'après son contenu :
+     entrées + plat = plat servi au buffet de chafing dishes ; 13 pièces salées = bouchées vapeur dressées en paniers bambou ;
+     entrées + plat + dessert = grande table de plats chinois (canard, riz, brioches, nouilles). Une fois ; une vidéo choisie
+     à la main dans le back-office n'est pas touchée. */
+  const RCv = await store.get('site/reglages');
+  if (RCv && !RCv.chinoisVideos1) {
+    const VC = { 'buffet-chinois-entrees-plat': 'buffet-chafing-plats', 'buffet-chinois-assortiment-13-pieces-salees': 'bouchees-vapeur', 'buffet-chinois-entrees-plat-dessert': 'table-repas-complet' };
+    for (const [id, n] of Object.entries(VC)) {
+      const x = await store.get('produits/' + id);
+      if (!x || (x.video?.src && x.video.src !== '/site/v/chinois-boucle.mp4')) continue;
+      const { sansVideo, ...reste } = x;
+      await store.set('produits/' + id, { ...reste, video: { src: `/site/v/chinois/${n}.mp4`, poster: `/site/v/chinois/${n}.jpg` } });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), chinoisVideos1: true });
+  }
+
   /* plateaux de sushis : compositions, prix et photos du site actuel magnoliatraiteur.fr/plateaux-de-sushis (Jean-Luc, 2026-11-22).
      Une fois. Le plateau 80 pièces n'existe plus et le « Plateau de 75 sushis » des coffrets faisait doublon : masqués, leur adresse renvoie au grand plateau. */
   const RSu = await store.get('site/reglages');

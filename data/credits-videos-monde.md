@@ -18,3 +18,13 @@ Montage `public/site/v/monde/chefs.mp4` (18 s, en boucle, sans son), plans dans 
   - 5737830 : cuisinière au tablier marron
   - 7488998 : chef asiatique bras croisés
   - 30660319 : chef indien (logo de la veste effacé)
+
+## Buffet chinois, « Nos buffets » (2026-11-27)
+
+Une vidéo différente par formule (Pexels, licence Pexels, 800×600 en boucle avec fondu, sans son) dans `public/site/v/chinois/` :
+
+| Formule | Fichier | Ce qu'on voit | Source |
+|---|---|---|---|
+| Entrées + plat | buffet-chafing-plats | Assiette garnie d'un plat et de son accompagnement devant une rangée de chafing dishes | https://www.pexels.com/video/28099100/ (LayG Traveller) |
+| Assortiment 13 pièces salées | bouchees-vapeur | Bouchées vapeur dressées à la baguette dans des paniers en bambou | https://www.pexels.com/video/8094284/ (Mikhail Nilov) |
+| Entrées + plat + dessert | table-repas-complet | Grande table de plats chinois : canard laqué, riz, brioches grillées, brochettes, nouilles | https://www.pexels.com/video/6645760/ (RDNE Stock project) |
