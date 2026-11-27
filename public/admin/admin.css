@@ -2692,3 +2692,8 @@ tr.rem-det > td { padding: 4px 0 12px 14px; }
 .pc-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 @media (max-width: 1100px) { .pc-hor { grid-template-columns: repeat(3, minmax(0, 1fr)); } .pc-hrep { grid-column: span 2; } }
 @media (max-width: 700px) { .pc-hor { grid-template-columns: repeat(2, minmax(0, 1fr)); } .pc-hrep { grid-column: 1 / -1; } }
+
+/* Packs d'organisation : liste compacte + un pack ouvert à la fois */
+.pc-kitlt tr[data-href] { cursor: pointer; }
+.pc-kitlt td.n { text-align: right; }
+.pc-kith { margin: 14px 0 8px; }
