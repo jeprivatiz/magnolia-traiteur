@@ -1141,7 +1141,7 @@
       ${sms ? '' : `<label>Objet<input name="sujet" value="${esc(m.sujet)}"></label>`}
       <label>Message <small class="muted">(modifiable, ou dictez avec le micro 🎤)</small><textarea name="texte" rows="${sms ? 3 : 9}">${esc(m.texte)}</textarea></label>
       <div class="qs-rel-ia"><input name="consigne" placeholder="Consigne pour l’IA (facultatif) : plus court, proposer un appel…" aria-label="Consigne pour l’IA"><button class="btn ghost" type="button" data-relia>✨ Réécrire avec l’IA</button></div>
-      <div class="row"><button class="btn" type="submit"${dest ? '' : ' disabled'}>📨 Envoyer la relance</button><button class="btn ghost" type="button" data-relx>Annuler</button></div>
+      <div class="row"><button class="btn" type="submit"${dest ? '' : ' disabled'}>📨 Envoyer la relance</button><button class="btn ghost" type="button" data-relvoir>👁 ${sms ? 'Voir le SMS' : 'Voir le mail'}</button><button class="btn ghost" type="button" data-relx>Annuler</button></div>
     </form>`;
   }
   async function ouvrirRelance(id, canal) {
@@ -1227,6 +1227,19 @@
       if (t?.dataset.qfait) { e.stopPropagation(); return majDemande(t.dataset.qfait, d => ({ ...d, statut: d.statut === 'devis_envoye' ? 'relance' : d.statut, relancesNotees: [...(d.relancesNotees || []), { at: new Date().toISOString(), how: 'noté', par: session.nom }] }), 'Relance notée.'); }
       if (t?.dataset.qrel) { e.stopPropagation(); return ouvrirRelance(t.dataset.qrel, t.dataset.canal); }
       if (t?.dataset.relx != null) { SV.rel = null; return suiviDessin(); }
+      if (t?.dataset.relvoir != null) {
+        const f = t.closest('form'), D = SV.rel.data, m = D.modeles.find(y => y.id === f.modele.value), sms = m.canal === 'sms';
+        const corps = esc(f.texte.value).replace(/\n/g, '<br>');
+        const md = document.createElement('div'); md.className = 'modal';
+        md.innerHTML = `<div class="modal-in apm"><div class="bh"><h2>${sms ? 'Le SMS tel que le client le recevra' : 'Le mail tel que le client le recevra'}</h2><button class="x" data-close aria-label="Fermer">×</button></div>
+          <p class="sm"><b>De :</b> Magnolia Traiteur${sms ? '' : ' &lt;' + esc(cache.R?.email || 'infos@magnoliatraiteur.fr') + '&gt;'}<br><b>À :</b> ${esc(sms ? D.tel : D.email) || '—'}${sms ? '' : `<br><b>Objet :</b> ${esc(f.sujet.value)}`}</p>
+          ${sms ? `<div class="apm-sms"><div>${corps}</div></div>` : '<iframe class="apm-f" sandbox title="Aperçu du mail"></iframe>'}
+          <div class="row"><button class="btn" type="button" data-envoyer>📨 Envoyer la relance</button><button class="btn ghost" type="button" data-close>Fermer</button></div></div>`;
+        document.body.append(md);
+        if (!sms) md.querySelector('iframe').srcdoc = `<meta charset="utf-8"><body style="font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.5;color:#222;padding:8px 14px">${corps}</body>`;
+        md.addEventListener('click', ev => { if (ev.target === md || ev.target.closest('[data-close]')) md.remove(); else if (ev.target.closest('[data-envoyer]')) { md.remove(); f.requestSubmit(); } });
+        return;
+      }
       if (t?.dataset.relia != null) {
         const f = t.closest('form'), x = o(f.dataset.relform), m = SV.rel.data.modeles.find(y => y.id === f.modele.value);
         t.disabled = true; const lab = t.textContent; t.textContent = '✨ L’IA écrit…';

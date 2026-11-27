@@ -1960,7 +1960,15 @@ async function createApp(opts = {}) {
     return { ...auto, envoye: true, devisId: id, numero: d.numero, ttcCents, raisons: [] };
   }
 
-  const varsRelance = (d, cl) => ({ prenom: (cl?.nom || d.clientNom || '').split(' ')[0], nom: cl?.nom || d.clientNom || '', numero: d.numero, evenement: String(d.evenement?.type || 'événement').toLowerCase(), date: dateFr(d.evenement?.date), lien: `${SITE}/devis/${d.token}`, montant: euros(totaux(d).ttcCents) });
+  /* nom du client pour « Bonjour {prenom} » : jamais un nom fabriqué à partir de l'adresse e-mail (« Tarabernard75 ») */
+  const cleNom = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const remplirR = (t, v) => remplir(t, v).replace(/Bonjour ,/g, 'Bonjour,');
+  function nomRelance(email, ...noms) {
+    const loc = cleNom(String(email || '').split('@')[0]);
+    const ok = n => { const k = cleNom(n); return k.length > 1 && !/\d/.test(n) && !(loc && !/\s/.test(n) && k === loc); };
+    return noms.map(n => String(n || '').trim()).find(ok) || '';
+  }
+  const varsRelance = (d, cl, autres = []) => { const nom = nomRelance(cl?.email, ...autres, cl?.nom, d.clientNom); return { prenom: nom.split(' ')[0], nom, numero: d.numero, evenement: String(d.evenement?.type || 'événement').toLowerCase(), date: dateFr(d.evenement?.date), lien: `${SITE}/devis/${d.token}`, montant: euros(totaux(d).ttcCents) }; };
   /* cadre « Relancer » du Suivi client : les modèles de relance déjà remplis pour ce devis (nom du client, lien, date…) */
   A.get('/actions/relance-modeles/:id', wrap(async (req, res) => {
     const d = await store.get('devis/' + req.params.id);
@@ -1968,7 +1976,7 @@ async function createApp(opts = {}) {
     const cl = await store.get('clients/' + d.clientId), vars = varsRelance(d, cl);
     const mods = (await store.list('modeles')).map(x => x.data).filter(m => m && m.id !== 'merci');
     const ordre = m => ({ 'relance-j3': 1, 'relance-j7': 2, 'relance-derniere': 3, 'sms-relance': 9 }[m.id] || (m.canal === 'sms' ? 8 : 5));
-    res.json({ email: cl?.email || '', tel: cl?.tel || '', relances: (d.relances || []).length, modeles: mods.sort((a, b) => ordre(a) - ordre(b)).map(m => ({ id: m.id, nom: m.nom, canal: m.canal, sujet: remplir(m.sujet || '', vars), texte: remplir(m.texte || '', vars) })) });
+    res.json({ email: cl?.email || '', tel: cl?.tel || '', relances: (d.relances || []).length, modeles: mods.sort((a, b) => ordre(a) - ordre(b)).map(m => ({ id: m.id, nom: m.nom, canal: m.canal, sujet: remplirR(m.sujet || '', vars), texte: remplirR(m.texte || '', vars) })) });
   }));
   /* ✨ l'IA réécrit la relance (consigne facultative : « plus court », « proposer un appel »…) */
   A.post('/ia/relance', sameSite, json, wrap(async (req, res) => {
@@ -1999,7 +2007,7 @@ Réponds uniquement en JSON : {${sms ? '' : '"sujet": "...", '}"texte": "..."}`;
     const cl = await store.get('clients/' + d.clientId);
     const vars = varsRelance(d, cl);
     /* texte relu / modifié dans le cadre « Relancer » du Suivi client : il remplace celui du modèle */
-    const texte = remplir(s(req.body?.texte, 5000) || m.texte, vars), sujet = remplir(s(req.body?.sujet, 200) || m.sujet, vars);
+    const texte = remplirR(s(req.body?.texte, 5000) || m.texte, vars), sujet = remplirR(s(req.body?.sujet, 200) || m.sujet, vars);
     if (m.canal === 'sms') { if (!cl?.tel) return res.status(400).json({ error: 'Pas de portable sur la fiche du client.' }); await brevo.sendSms({ to: cl.tel, content: texte }); }
     else { if (!cl?.email) return res.status(400).json({ error: 'Pas d’e-mail sur la fiche du client.' }); await brevo.sendEmail({ to: cl.email, name: cl.nom, subject: sujet, html: esc(texte).replace(/\n/g, '<br>'), text: texte }); }
     const now = new Date().toISOString();
@@ -2021,7 +2029,8 @@ Réponds uniquement en JSON : {${sms ? '' : '"sujet": "...", '}"texte": "..."}`;
     const l = (await store.list('devis')).map(x => x.data).filter(x => x && x.demandeId === dem.id).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
     const devis = l.find(x => x.statut === 'accepte') || l.find(x => x.statut === 'envoye') || null;
     const cl = await store.get('clients/' + (devis?.clientId || dem.clientId)) || { nom: dem.contact?.nom, email: dem.contact?.email, tel: dem.contact?.tel };
-    const vars = devis ? varsRelance(devis, cl) : { prenom: (cl.nom || '').split(' ')[0], nom: cl.nom || '', numero: dem.ref || '', evenement: String(dem.evenement?.type || 'événement').toLowerCase(), date: dateFr(dem.evenement?.date), lien: SITE, montant: dem.totalEstimeCents ? euros(dem.totalEstimeCents) : '' };
+    const nom = nomRelance(cl.email || dem.contact?.email, dem.contact?.nom, cl.nom);
+    const vars = devis ? varsRelance(devis, cl, [dem.contact?.nom]) : { prenom: nom.split(' ')[0], nom, numero: dem.ref || '', evenement: String(dem.evenement?.type || 'événement').toLowerCase(), date: dateFr(dem.evenement?.date), lien: SITE, montant: dem.totalEstimeCents ? euros(dem.totalEstimeCents) : '' };
     return { dem, devis, cl, vars };
   }
   const MODELES_SANS_DEVIS = [
@@ -2035,7 +2044,7 @@ Réponds uniquement en JSON : {${sms ? '' : '"sujet": "...", '}"texte": "..."}`;
     const mods = c.devis ? (await store.list('modeles')).map(x => x.data).filter(m => m && m.id !== 'merci').sort((a, b) => ordre(a) - ordre(b)) : MODELES_SANS_DEVIS;
     const nb = (c.devis?.relances || []).length + (c.dem.relancesNotees || []).filter(r => r.modele).length;
     res.json({ email: c.cl.email || '', tel: c.cl.tel || '', relances: nb, devis: c.devis ? { id: c.devis.id, numero: c.devis.numero } : null, ref: c.dem.ref || '',
-      modeles: mods.map(m => ({ id: m.id, nom: m.nom, canal: m.canal, sujet: remplir(m.sujet || '', c.vars), texte: remplir(m.texte || '', c.vars) })) });
+      modeles: mods.map(m => ({ id: m.id, nom: m.nom, canal: m.canal, sujet: remplirR(m.sujet || '', c.vars), texte: remplirR(m.texte || '', c.vars) })) });
   }));
   A.post('/actions/relancer-demande/:id', sameSite, json, wrap(async (req, res) => {
     const c = await cibleRelance(req.params.id);
@@ -2043,7 +2052,7 @@ Réponds uniquement en JSON : {${sms ? '' : '"sujet": "...", '}"texte": "..."}`;
     const id = s(req.body?.modele, 60);
     const m = c.devis ? await store.get('modeles/' + id) : MODELES_SANS_DEVIS.find(x => x.id === id);
     if (!m) return res.status(404).json({ error: 'Modèle introuvable.' });
-    const texte = remplir(s(req.body?.texte, 5000) || m.texte, c.vars), sujet = remplir(s(req.body?.sujet, 200) || m.sujet, c.vars);
+    const texte = remplirR(s(req.body?.texte, 5000) || m.texte, c.vars), sujet = remplirR(s(req.body?.sujet, 200) || m.sujet, c.vars);
     if (m.canal === 'sms') { if (!c.cl.tel) return res.status(400).json({ error: 'Pas de portable sur la fiche du client.' }); await brevo.sendSms({ to: c.cl.tel, content: texte }); }
     else { if (!c.cl.email) return res.status(400).json({ error: 'Pas d’e-mail sur la fiche du client.' }); await brevo.sendEmail({ to: c.cl.email, name: c.cl.nom, subject: sujet, html: esc(texte).replace(/\n/g, '<br>'), text: texte }); }
     const now = new Date().toISOString(), trace = { at: now, modele: m.nom, canal: m.canal, sujet: m.canal === 'sms' ? '' : sujet, texte: texte.slice(0, 3000), par: req.ctx.name };
