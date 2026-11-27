@@ -1,5 +1,5 @@
 'use strict';
-/* Heures supplémentaires (Jean-Luc, 2026-11-27) : en semaine avant 8 h / après 18 h seulement, week-end libre ; mini-application par lien personnel. */
+/* Heures supplémentaires (Jean-Luc, 2026-11-27) : en semaine avant 9 h / après 18 h seulement, week-end libre ; mini-application par lien personnel. */
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -12,14 +12,15 @@ const v = (date, debut, fin) => HS.verifier({ date, debut, fin }, AUJ);
 
 test('règles des horaires', () => {
   assert.equal(v('2026-11-26', '18:00', '21:30').minutes, 210, 'jeudi soir');
-  assert.equal(v('2026-11-26', '06:00', '08:00').minutes, 120, 'jeudi matin');
-  assert.match(v('2026-11-26', '10:00', '12:00').erreur, /avant 8 h ou après 18 h/);
-  assert.match(v('2026-11-26', '07:00', '09:00').erreur, /Arrêtez la plage à 08:00/);
+  assert.equal(v('2026-11-26', '06:00', '09:00').minutes, 180, 'jeudi matin');
+  assert.equal(v('2026-11-26', '08:00', '09:00').minutes, 60, '8 h – 9 h accepté en semaine (journée à 9 h)');
+  assert.match(v('2026-11-26', '10:00', '12:00').erreur, /avant 9 h ou après 18 h/);
+  assert.match(v('2026-11-26', '07:00', '10:00').erreur, /Arrêtez la plage à 09:00/);
   assert.match(v('2026-11-26', '17:00', '19:00').erreur, /Commencez la plage à 18:00/);
   assert.equal(v('2026-11-21', '10:00', '16:00').minutes, 360, 'samedi : toute la journée');
   assert.equal(v('2026-11-22', '08:00', '20:00').minutes, 720, 'dimanche');
   assert.equal(v('2026-11-26', '22:00', '01:00').minutes, 180, 'passe minuit');
-  assert.match(v('2026-11-26', '23:00', '09:00').erreur, /vendredi matin après 8 h/);
+  assert.match(v('2026-11-26', '23:00', '09:30').erreur, /vendredi matin après 9 h/);
   assert.equal(v('2026-11-27', '23:00', '10:00').minutes, 660, 'vendredi soir → samedi matin');
   assert.match(v('2026-11-28', '10:00', '12:00').erreur, /pas encore passé/);
   assert.match(v('', '10:00', '12:00').erreur, /jour/);
@@ -42,7 +43,7 @@ test('back-office, mini-application et lien par SMS', async () => {
     await romain('/api/auth/login', { method: 'POST', body: { email: 'romain@x.test', password: 'romain-essai-123' } });
 
     const refus = await romain('/api/admin/actions/heures-sup', { method: 'POST', body: { date: '2026-11-25', debut: '09:00', fin: '11:00', quoi: 'Préparation' } });
-    assert.equal(refus.status, 400); assert.match(refus.j.error, /avant 8 h ou après 18 h/);
+    assert.equal(refus.status, 400); assert.match(refus.j.error, /avant 9 h ou après 18 h/);
     assert.equal((await romain('/api/admin/actions/heures-sup', { method: 'POST', body: { date: '2026-11-25', debut: '18:00', fin: '21:00', quoi: 'Mariage Dupont' } })).status, 200);
     const chev = await romain('/api/admin/actions/heures-sup', { method: 'POST', body: { date: '2026-11-25', debut: '20:00', fin: '22:00', quoi: 'Rangement' } });
     assert.match(chev.j.error, /chevauche/);
@@ -68,7 +69,7 @@ test('back-office, mini-application et lien par SMS', async () => {
     assert.equal((await anonyme('/heures/' + t + '/manifest.webmanifest')).j.start_url, '/heures/' + t);
     const mob = await anonyme('/api/heures/' + t, { method: 'POST', body: { date: '2026-11-21', debut: '09:00', fin: '12:00', quoi: 'Buffet samedi' } });
     assert.equal(mob.status, 200, mob.t); assert.equal(mob.j.nom, 'Romain GOUJON');
-    assert.match((await anonyme('/api/heures/' + t, { method: 'POST', body: { date: '2026-11-24', debut: '12:00', fin: '14:00', quoi: 'x y z' } })).j.error, /avant 8 h/);
+    assert.match((await anonyme('/api/heures/' + t, { method: 'POST', body: { date: '2026-11-24', debut: '12:00', fin: '14:00', quoi: 'x y z' } })).j.error, /avant 9 h/);
     const ma = (await anonyme('/api/heures/' + t)).j; assert.equal(ma.liste.length, 2); assert.ok(!('uid' in ma.liste[0]));
     const vue2 = (await chef('/api/admin/actions/heures-sup?qui=' + uidR)).j.liste;
     assert.equal(vue2.find(x => x.date === '2026-11-21').depuis, 'telephone', 'arrive à son nom dans le back-office');

@@ -1,12 +1,12 @@
 'use strict';
 /*
- * Heures supplémentaires de l'équipe (Jean-Luc, 2026-11-27) — Back-office › Équipe & activité.
+ * Heures supplémentaires de l'équipe (Jean-Luc, 2026-11-27 ; journée normale 9 h – 18 h, corrigé le même jour) — Back-office › Équipe & activité.
  * Chacun déclare ses heures sup : jour, heure de début et de fin, sur quoi il a travaillé.
- * Règles : du lundi au vendredi, seulement AVANT 8 h ou APRÈS 18 h (la journée 8 h – 18 h = horaires normaux) ;
+ * Règles : du lundi au vendredi, seulement AVANT 9 h ou APRÈS 18 h (la journée 9 h – 18 h = horaires normaux) ;
  * samedi et dimanche : toute la journée. Une plage qui finit avant son début passe minuit (ex. 22:00 → 01:00).
  * Chacun voit les siennes ; la personne qui gère l'équipe (droit « equipe ») voit tout, filtre et totalise.
  */
-const MATIN = 8 * 60, SOIR = 18 * 60, JOUR = 24 * 60;
+const MATIN = 9 * 60, SOIR = 18 * 60, JOUR = 24 * 60;
 const JOURS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
 
 const minutesDe = h => { const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(String(h || '')); return m ? +m[1] * 60 + +m[2] : null; };
@@ -17,7 +17,7 @@ const lendemain = d => new Date(Date.parse(d + 'T12:00:00Z') + 864e5).toISOStrin
 const semaine = d => { const j = jourSem(d); return j >= 1 && j <= 5; };
 const duree = m => { const h = Math.floor(m / 60), r = m % 60; return h ? h + ' h' + (r ? ' ' + String(r).padStart(2, '0') : '') : r + ' min'; };
 
-/* plage [a, b[ en minutes sur un jour donné : en semaine, aucune minute entre 8 h et 18 h */
+/* plage [a, b[ en minutes sur un jour donné : en semaine, aucune minute entre 9 h et 18 h */
 const horsJournee = (d, a, b) => !semaine(d) || b <= MATIN || a >= SOIR;
 
 /* vérifie une déclaration ; rend { erreur } ou { date, debut, fin, minutes } */
@@ -28,15 +28,15 @@ function verifier({ date, debut, fin } = {}, aujourdhui = new Date().toISOString
   if (a == null || b0 == null) return { erreur: 'Choisissez l’heure de début et l’heure de fin.' };
   if (a === b0) return { erreur: 'L’heure de fin doit être différente de l’heure de début.' };
   const nom = JOURS[jourSem(date)];
-  const refus = `Le ${nom}, les heures supplémentaires ne peuvent être faites qu’avant 8 h ou après 18 h. Entre 8 h et 18 h, ce sont les horaires normaux de travail.`;
+  const refus = `Le ${nom}, les heures supplémentaires ne peuvent être faites qu’avant 9 h ou après 18 h. Entre 9 h et 18 h, ce sont les horaires normaux de travail.`;
   if (b0 > a) {
-    if (!horsJournee(date, a, b0)) return { erreur: refus + (semaine(date) && a < MATIN && b0 > MATIN ? ' Arrêtez la plage à 08:00, ou déclarez deux plages.' : semaine(date) && a < SOIR && b0 > SOIR ? ' Commencez la plage à 18:00.' : '') };
+    if (!horsJournee(date, a, b0)) return { erreur: refus + (semaine(date) && a < MATIN && b0 > MATIN ? ' Arrêtez la plage à 09:00, ou déclarez deux plages.' : semaine(date) && a < SOIR && b0 > SOIR ? ' Commencez la plage à 18:00.' : '') };
     return { date, debut: hhmm(a), fin: hhmm(b0), minutes: b0 - a };
   }
   /* passe minuit : [a, 24 h[ ce jour-là puis [0, b0[ le lendemain */
   if (!horsJournee(date, a, JOUR)) return { erreur: refus + ' Commencez la plage à 18:00 ou après.' };
   const d2 = lendemain(date);
-  if (!horsJournee(d2, 0, b0)) return { erreur: `La plage continue le ${JOURS[jourSem(d2)]} matin après 8 h : arrêtez-la à 08:00 au plus tard.` };
+  if (!horsJournee(d2, 0, b0)) return { erreur: `La plage continue le ${JOURS[jourSem(d2)]} matin après 9 h : arrêtez-la à 09:00 au plus tard.` };
   return { date, debut: hhmm(a), fin: hhmm(b0), minutes: JOUR - a + b0 };
 }
 
@@ -221,7 +221,7 @@ ul{list-style:none;margin:0;padding:0}li{border-top:1px solid #e7ebe8;padding:10
   return tete + `<header><small>Magnolia Traiteur</small><h1>Bonjour ${esc(nom)}, vos heures supplémentaires</h1></header>
 <main>
 <form class="carte" id="f" novalidate><h2>Déclarer des heures</h2>
-<p class="regle">Du lundi au vendredi : seulement <b>avant 8 h</b> ou <b>après 18 h</b>. Le samedi et le dimanche : toute la journée.</p>
+<p class="regle">Du lundi au vendredi : seulement <b>avant 9 h</b> ou <b>après 18 h</b>. Le samedi et le dimanche : toute la journée.</p>
 <label for="date">Jour travaillé</label><input type="date" id="date" name="date" required>
 <div class="deux"><div><label for="debut">De</label><select id="debut" name="debut">${opts.join('')}</select></div><div><label for="fin">À</label><select id="fin" name="fin">${opts.join('')}</select></div></div>
 <div class="duree" id="duree" aria-live="polite"></div>
@@ -248,7 +248,7 @@ function verif(){var d=$('#date').value,a=min($('#debut').value),b=min($('#fin')
  if(!d){el.textContent='';return ''}
  var sem=jsem(d)>=1&&jsem(d)<=5,m=b>a?b-a:1440-a+b;
  if(a===b)err='L’heure de fin doit être différente de l’heure de début.';
- else if(sem&&b>a&&!(b<=480||a>=1080))err='Le '+JOURS[jsem(d)]+', les heures supplémentaires ne peuvent être faites qu’avant 8 h ou après 18 h.';
+ else if(sem&&b>a&&!(b<=540||a>=1080))err='Le '+JOURS[jsem(d)]+', les heures supplémentaires ne peuvent être faites qu’avant 9 h ou après 18 h.';
  else if(sem&&b<a&&a<1080)err='Le '+JOURS[jsem(d)]+', une plage qui passe minuit doit commencer à 18 h ou après.';
  el.className=err?'err':'duree';el.textContent=err||('Durée : '+duree(m)+(b<a?' (jusqu’au lendemain)':''));return err}
 $('#date').addEventListener('change',defaut);['#debut','#fin'].forEach(function(s){$(s).addEventListener('change',function(){$(s).dataset.touche='1';verif()})});defaut();
