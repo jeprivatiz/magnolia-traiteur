@@ -364,7 +364,7 @@
      Bon de préparation pour la cuisine / le service préparation, à partir d'un devis signé (ou d'une facture) :
      infos client, horaires de livraison, régisseurs, livreurs, personnel, et « À préparer » (lignes du devis, sans prix).
      Colonne « Quantité à préparer » prévue pour les quantités détaillées que Jean-Luc donnera plus tard. Serveur : server/prepa.js, routes /api/admin/prepa/*. */
-  const PC = { q: '', vue: 'avenir', tous: false, x: null, sale: false };
+  const PC = { sel: new Set(), q: '', vue: 'avenir', tous: false, x: null, sale: false };
   /* période (Jean-Luc, 2026-11-27) : « Du … au … » sur la date de l'événement, avec raccourcis ; mémorisée sur cet appareil */
   try { const m = JSON.parse(mem.get('mg_prepa_per') || 'null'); if (m) Object.assign(PC, { du: m.du || '', au: m.au || '', per: m.per || '' }); } catch { /* */ }
   const pcIso = d => d.toLocaleDateString('sv-SE');
@@ -396,6 +396,7 @@
         <label class="pc-ck"><input type="checkbox" data-pctous${PC.tous ? ' checked' : ''}> Montrer aussi les devis pas encore signés</label></div>
         <div class="pc-per"><span class="pc-perl">📅 Événements</span><label>du <input type="date" data-pcdu value="${esc(PC.du || '')}"></label><label>au <input type="date" data-pcau value="${esc(PC.au || '')}"></label><button type="button" class="btn ghost sm" data-pceff${PC.du || PC.au ? '' : ' hidden'}>✕ Effacer les dates</button>
           <div class="pc-perr">${PC_PER.map(([k, l]) => `<button type="button" class="pc-pchip${PC.per === k ? ' on' : ''}" data-pcper="${k}">${l}</button>`).join('')}</div></div>
+        <div class="pc-selbar" data-pcsel hidden><b data-pcseln></b><button type="button" class="btn sm pc-effb" data-pceffsel>🗑 Effacer les bons cochés</button><button type="button" class="btn ghost sm" data-pcdesel>Tout décocher</button><span class="muted sm">Le devis et la facture ne sont pas touchés : le bon repart du devis à la prochaine ouverture.</span></div>
         <div data-pcliste></div></section>`);
   }
   /* page « Packs d'organisation » : kits internes modifiables (nom, à récupérer, mots qui les font proposer, composants et quantités) */
@@ -432,13 +433,27 @@
     if (PC.vue === 'passes' && !q) l = [...l].reverse();
     const etat = d => d.bon ? (d.bon.envoyeLe ? `<span class="pill d-accepte">✉ Envoyé${d.bon.envoyeA ? ' à ' + esc(d.bon.envoyeA) : ''} · ${dateFr(d.bon.envoyeLe, { day: 'numeric', month: 'short' })}</span>` : `<span class="pill d-envoye">💾 Bon enregistré · ${dateFr(d.bon.maj, { day: 'numeric', month: 'short' })}</span>`) : '<span class="pill d-brouillon">À préparer</span>';
     const dv = d => `${esc(d.numero)}${d.statut === 'accepte' ? ' <span class="pc-ok" title="Devis signé">✓ signé</span>' : d.reserve ? ' <span class="pc-ok">✓ réservé</span>' : ` <span class="pc-ns">${esc(DSTAT[d.statut] || d.statut)}</span>`}${d.facture ? `<small class="vt-sub">Facture ${esc(d.facture)}</small>` : ''}`;
-    return l.length ? `<div class="table pc-lt"><table><thead><tr><th>Date</th><th>Client</th><th>Événement</th><th>Devis</th><th>Bon de préparation</th><th></th></tr></thead><tbody>${l.map(d => `<tr data-href="#/prepa/${esc(d.devisId)}"><td class="nw"><b>${d.date ? esc(dateFr(d.date, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })) : '<span class="muted">Date à fixer</span>'}</b></td><td><b>${esc(d.client || '—')}</b></td><td>${esc(d.type || '')}${d.invites ? ` · ${esc(d.invites)} pers.` : ''}<small class="vt-sub">${esc([d.lieu, d.ville].filter(Boolean).join(' · '))}</small></td><td class="nw">${dv(d)}</td><td>${etat(d)}</td><td class="n"><a class="btn sm ${d.bon ? 'ghost' : 'vt-or'}" href="#/prepa/${esc(d.devisId)}">${d.bon ? 'Ouvrir ›' : '📋 Préparer ›'}</a></td></tr>`).join('')}</tbody></table></div>`
+    return l.length ? `<div class="table pc-lt"><table><thead><tr><th class="pc-cbc"><input type="checkbox" class="pc-cbl" data-pctout aria-label="Cocher tous les bons enregistrés" title="Cocher tous les bons enregistrés"></th><th>Date</th><th>Client</th><th>Événement</th><th>Devis</th><th>Bon de préparation</th><th></th></tr></thead><tbody>${l.map(d => `<tr data-href="#/prepa/${esc(d.devisId)}"><td class="pc-cbc">${d.bon ? `<input type="checkbox" class="pc-cbl" data-pcsl="${esc(d.devisId)}"${PC.sel.has(d.devisId) ? ' checked' : ''} aria-label="Cocher le bon de ${esc(d.client || '')}">` : ''}</td><td class="nw"><b>${d.date ? esc(dateFr(d.date, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })) : '<span class="muted">Date à fixer</span>'}</b></td><td><b>${esc(d.client || '—')}</b></td><td>${esc(d.type || '')}${d.invites ? ` · ${esc(d.invites)} pers.` : ''}<small class="vt-sub">${esc([d.lieu, d.ville].filter(Boolean).join(' · '))}</small></td><td class="nw">${dv(d)}</td><td>${etat(d)}</td><td class="n"><a class="btn sm ${d.bon ? 'ghost' : 'vt-or'}" href="#/prepa/${esc(d.devisId)}">${d.bon ? 'Ouvrir ›' : '📋 Préparer ›'}</a>${d.bon ? `<button type="button" class="btn ghost sm pc-eff1" data-pceff1="${esc(d.devisId)}" title="Effacer ce bon pour le refaire" aria-label="Effacer ce bon">🗑</button>` : ''}</td></tr>`).join('')}</tbody></table></div>`
       : `<div class="vide"><p>${PC.du || PC.au ? `Aucun événement ${PC.du && PC.au ? `du ${esc(dateFr(PC.du, { day: 'numeric', month: 'long' }))} au ${esc(dateFr(PC.au, { day: 'numeric', month: 'long', year: 'numeric' }))}` : PC.du ? 'à partir du ' + esc(dateFr(PC.du, { day: 'numeric', month: 'long', year: 'numeric' })) : 'jusqu’au ' + esc(dateFr(PC.au, { day: 'numeric', month: 'long', year: 'numeric' }))}${q ? ' pour cette recherche' : ''}.` : q ? 'Aucun événement ne correspond à cette recherche.' : PC.vue === 'avenir' ? 'Aucun événement signé à venir.' : 'Aucun événement.'}</p><p class="muted sm">${PC.tous ? '' : 'Seuls les devis signés, réservés ou facturés sont proposés : cochez « Montrer aussi les devis pas encore signés » pour voir les autres.'}</p></div>`;
   }
   prepa.after = id => {
     if (id === 'packs') return prepaPacks.after();
     if (id) return prepaEdit.after(id);
-    const maj = () => { $('[data-pcliste]').innerHTML = prepaLignes(); $$('[data-pcliste] tr[data-href]').forEach(tr => tr.addEventListener('click', e => { if (!e.target.closest('a,button')) location.hash = tr.dataset.href; })); };
+    const selMaj = () => { const ok = new Set(PC.liste.devis.filter(d => d.bon).map(d => d.devisId)); [...PC.sel].forEach(i => { if (!ok.has(i)) PC.sel.delete(i); }); const n = PC.sel.size, bar = $('[data-pcsel]'); bar.hidden = !n; $('[data-pcseln]').textContent = n + (n > 1 ? ' bons cochés' : ' bon coché'); $('[data-pceffsel]').textContent = n > 1 ? `🗑 Effacer les ${n} bons` : '🗑 Effacer ce bon'; const vis = $$('[data-pcsl]'), t = $('[data-pctout]'); if (t) { t.checked = vis.length > 0 && vis.every(c => c.checked); t.indeterminate = !t.checked && vis.some(c => c.checked); } };
+    const effacer = async ids => {
+      const noms = ids.map(i => PC.liste.devis.find(d => d.devisId === i)).filter(Boolean).map(d => `${d.client || '—'} (${d.numero})`);
+      if (!ids.length || !confirm(`Effacer ${ids.length > 1 ? 'ces ' + ids.length + ' bons de préparation' : 'ce bon de préparation'} ?\n\n${noms.join('\n')}\n\nLe devis et la facture ne sont pas touchés : le bon repartira du devis quand vous le rouvrirez.`)) return;
+      let ok = 0; for (const i of ids) { try { await api(`${A}/prepa/${encodeURIComponent(i)}`, { method: 'DELETE' }); ok++; PC.sel.delete(i); } catch (err) { toast(err.message, true); } }
+      PC.liste = await api(A + '/prepa'); maj(); toast(ok > 1 ? `${ok} bons effacés.` : ok ? 'Bon effacé.' : 'Rien n’a été effacé.');
+    };
+    const maj = () => { $('[data-pcliste]').innerHTML = prepaLignes(); $$('[data-pcliste] tr[data-href]').forEach(tr => tr.addEventListener('click', e => { if (!e.target.closest('a,button,input,.pc-cbc')) location.hash = tr.dataset.href; })); selMaj(); };
+    $('[data-pcliste]').addEventListener('change', e => {
+      const c = e.target.closest('[data-pcsl]'); if (c) { c.checked ? PC.sel.add(c.dataset.pcsl) : PC.sel.delete(c.dataset.pcsl); selMaj(); return; }
+      const t = e.target.closest('[data-pctout]'); if (t) { $$('[data-pcsl]').forEach(x => { x.checked = t.checked; t.checked ? PC.sel.add(x.dataset.pcsl) : PC.sel.delete(x.dataset.pcsl); }); selMaj(); }
+    });
+    $('[data-pcliste]').addEventListener('click', e => { const b = e.target.closest('[data-pceff1]'); if (b) { e.preventDefault(); effacer([b.dataset.pceff1]); } });
+    $('[data-pceffsel]').addEventListener('click', () => effacer([...PC.sel]));
+    $('[data-pcdesel]').addEventListener('click', () => { PC.sel.clear(); $$('[data-pcsl]').forEach(x => { x.checked = false; }); selMaj(); });
     maj();
     $('[data-pcq]').addEventListener('input', e => { PC.q = e.target.value; maj(); });
     $$('[data-pcvue]').forEach(b => b.addEventListener('click', () => { PC.vue = b.dataset.pcvue; $$('[data-pcvue]').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', x === b); }); maj(); }));
