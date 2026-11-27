@@ -210,6 +210,15 @@ async function createApp(opts = {}) {
   }
   /* une seule fois (demande de Jean-Luc, 2026-11-25) : la fiche « La cave de Magnolia » (Vins rouges, blancs et rosés, « Sur devis ») est retirée du catalogue,
      et c'est la page Boissons qui prend ce nom, avec le sous-titre « Du vin au soft, en passant par les alcools. » (l'adresse /boissons ne change pas). */
+  /* relances toutes les 48 h (Jean-Luc, 2026-11-27) : noms « Relance 1 / 2 / 3 · dernière » à la place de J+3 / J+7 (si le nom n'a pas été changé) */
+  if (!(await store.get('_migr/relances48h'))) {
+    const anciens = { 'relance-j3': 'Relance devis (J+3)', 'relance-j7': 'Relance devis (J+7, disponibilité)', 'relance-derniere': 'Dernière relance (avant de libérer la date)' };
+    for (const m of require('./seed').MODELES_DEFAUT.filter(x => anciens[x.id])) {
+      const cur = await store.get('modeles/' + m.id);
+      if (cur && cur.nom === anciens[m.id]) await store.set('modeles/' + m.id, { ...cur, nom: m.nom });
+    }
+    await store.set('_migr/relances48h', { at: new Date().toISOString() });
+  }
   /* 3e modèle de relance « Dernière relance » ajouté une fois aux bases existantes (Jean-Luc, 2026-11-27) */
   if (!(await store.get('_migr/relanceDerniere'))) {
     const m = require('./seed').MODELES_DEFAUT.find(x => x.id === 'relance-derniere');
