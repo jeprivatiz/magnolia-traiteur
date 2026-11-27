@@ -2590,3 +2590,13 @@ tr.rem-det > td { padding: 4px 0 12px 14px; }
 .pc-itgb .pc-itr { max-width: 760px; }
 .pc-itaddg { max-width: 320px; border-style: dashed !important; }
 .pc-qp textarea { font-weight: 600; resize: vertical; min-height: 0; line-height: 1.35; }
+.pc-hbtn { margin-top: 8px; background: none; border: 1px dashed var(--ligne, #d9cdb5); border-radius: 999px; padding: 6px 12px; font: inherit; font-size: .85rem; color: var(--vert, #1f3b2f); cursor: pointer; }
+.pc-hbtn:hover { background: #f4efe4; }
+.pc-hbtn b { display: inline-block; min-width: 20px; margin-left: 4px; padding: 0 6px; border-radius: 999px; background: #efe6d2; font-size: .8rem; }
+.pc-hall { float: right; margin-top: 0; font-weight: 400; }
+.pc-hist { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 10px; max-height: 60vh; overflow: auto; }
+.pc-hit { border: 1px solid #e6dcc7; border-radius: 12px; padding: 10px 12px; background: #fbf8f1; display: grid; gap: 4px; }
+.pc-hg { color: #9a7a3c; font-weight: 600; }
+.pc-htx { white-space: pre-wrap; background: #fff; border-radius: 8px; padding: 8px 10px; font-size: .92rem; border: 1px solid #efe6d2; }
+.pc-seg button[aria-pressed="true"] { background: var(--vert, #1f3b2f); color: #fff; }
+@media (max-width: 760px) { .pc-hall { float: none; display: block; margin-top: 8px; } }

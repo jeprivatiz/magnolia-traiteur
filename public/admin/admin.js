@@ -499,12 +499,13 @@
       </section>
       </div>
       <section class="box pc-box"><h2>🕒 Horaires</h2><div class="pc-hor">${x.horaires.map(([k, lab]) => pcHeure('horaires.' + k, lab, h[k])).join('')}</div></section>
-      <section class="box pc-box"><h2>👥 Équipe sur l’événement</h2>
+      <section class="box pc-box"><h2>👥 Équipe sur l’événement <button type="button" class="pc-hbtn pc-hall" data-pchist="">🕘 Historique de tous les envois <b>${env.length}</b></button></h2>
         <p class="muted sm">Choisissez dans la liste (équipe Magnolia et prestataires des Contacts) ou tapez un nom. ${b.personnelDevis.length ? `<b>Prévu au devis :</b> ${esc(b.personnelDevis.join(' · '))}` : ''}</p>
         <div class="pc-roles">${x.roles.map(([k, lab]) => `<div class="pc-role" data-role="${k}"><h3>${PC_ICO[k] || ''} ${esc(lab)}</h3><div class="pc-chips" data-chips="${k}">${pcChips(b, k)}</div>
           <div class="pc-rech"><input type="search" data-pcrech="${k}" placeholder="🔍 Rechercher : équipe, prestataires…" aria-label="Rechercher une personne : ${esc(lab)}" autocomplete="off"><div class="pc-sugg" data-sugg="${k}" hidden></div></div>
           <div class="pc-libre"><input data-pclibre="${k}" placeholder="ou tapez un nom" aria-label="Nom"><input data-pctel="${k}" type="tel" placeholder="Portable" aria-label="Portable"><button type="button" class="btn ghost sm" data-pcajout="${k}">Ajouter</button></div>
-          <div class="pc-rbtn"><button type="button" class="btn sm pc-sms" data-pcmsg="${k}:sms">💬 SMS au groupe</button><button type="button" class="btn sm ghost" data-pcmsg="${k}:email">✉ E-mail au groupe</button></div></div>`).join('')}</div>
+          <div class="pc-rbtn"><button type="button" class="btn sm pc-sms" data-pcmsg="${k}:sms">💬 SMS au groupe</button><button type="button" class="btn sm ghost" data-pcmsg="${k}:email">✉ E-mail au groupe</button></div>
+          <button type="button" class="pc-hbtn" data-pchist="${k}">🕘 Historique des envois <b>${env.filter(v => v.groupe === k).length}</b></button></div>`).join('')}</div>
       </section>
       <section class="box pc-box"><h2>📋 À préparer <small class="muted pc-nb" data-pcnb></small></h2>
         <p class="muted sm">Toutes les lignes du devis (sans les prix, la livraison et le personnel). La colonne <b>Quantité à préparer</b> est prête pour les quantités détaillées de la cuisine.</p>
@@ -584,6 +585,7 @@
       if (inp) { pcLire(); const l = b().lignes[+inp.dataset.itnappe]; (l.items = l.items || []).push({ nom: (PC.x.listes.nappes || [])[0] || '', couleur: 'Blanche', type: 'Non extensible', n: '' }); redessiner(); PC.sale = true; $(`[data-pclignes] .pc-l[data-i="${inp.dataset.itnappe}"] .pc-itr:last-of-type [data-it="n"]`)?.focus(); return; }
       const il = e.target.closest('[data-itlibre]');
       if (il) { pcLire(); const l = b().lignes[+il.dataset.itlibre]; (l.items = l.items || []).push({ nom: '', n: '', libre: true }); if (!l.liste) l.liste = 'compo'; redessiner(); PC.sale = true; $(`[data-pclignes] .pc-l[data-i="${il.dataset.itlibre}"] .pc-itr:last-of-type [data-it="nom"]`)?.focus(); return; }
+      const hi = e.target.closest('[data-pchist]'); if (hi) { pcHistorique(hi.dataset.pchist); return; }
       const mg = e.target.closest('[data-pcmsg]');
       if (mg) { const [k, c] = mg.dataset.pcmsg.split(':'); if (!(b()[k] || []).length) { toast('Ajoutez d’abord des personnes dans ce groupe.', true); return; } try { await pcSauver(true); pcMessage(id, k, c); } catch (err) { toast(err.message, true); } return; }
       const rm = e.target.closest('[data-pcrm]');
@@ -606,6 +608,27 @@
     $$('[data-pcenv]').forEach(x => x.addEventListener('click', async () => { try { await pcSauver(true); pcEnvoyer(id); } catch (err) { toast(err.message, true); } }));
   };
   /* fenêtre « Message au groupe » (Jean-Luc, 2026-11-27) : SMS ou e-mail à tous les régisseurs / livreurs / personnel, rédigé par l'IA sur consigne */
+  /* historique des SMS et e-mails envoyés (Jean-Luc, 2026-11-27) : par groupe, ou toute l'équipe ; onglets SMS / E-mails */
+  function pcHistorique(role) {
+    const x = PC.x, labR = k => (x.roles.find(r => r[0] === k) || [, k])[1];
+    const tous = (x.bon.envois || []).filter(v => role ? v.groupe === role : true).slice().reverse();
+    const de = c => tous.filter(v => (v.canaux || ['email']).includes(c));
+    let onglet = de('sms').length || !de('email').length ? 'sms' : 'email';
+    const m = document.createElement('div'); m.className = 'modal df-modal'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-modal', 'true');
+    const item = v => `<li class="pc-hit"><div class="pc-hhd"><b>${esc(dateH(v.at))}</b>${role ? '' : ` · <span class="pc-hg">${v.groupe ? esc(labR(v.groupe)) : 'Bon de préparation'}</span>`}${v.par ? ` <span class="muted">· par ${esc(v.par)}</span>` : ''}</div>
+      <div class="sm"><span class="muted">À :</span> ${esc(v.a || '—')}${v.sans ? ` <span class="muted">(pas envoyé à ${esc(v.sans)} : ${onglet === 'sms' ? 'pas de portable' : 'pas d’e-mail'})</span>` : ''}</div>
+      ${onglet === 'email' && v.sujet ? `<div class="sm"><span class="muted">Objet :</span> ${esc(v.sujet)}</div>` : ''}
+      ${v.texte ? `<div class="pc-htx">${esc(v.texte)}</div>` : '<div class="muted sm">Texte non gardé (envoi fait avant l’historique).</div>'}</li>`;
+    const dessiner = () => {
+      const L = de(onglet);
+      m.innerHTML = `<div class="modal-in pc-mod"><div class="bh"><h2>🕘 Historique${role ? ' · ' + esc(labR(role)) : ' · toute l’équipe'}</h2><button type="button" class="x" data-x aria-label="Fermer">×</button></div>
+        <div class="pc-modc"><div class="pc-seg" role="tablist"><button type="button" data-ong="sms" aria-pressed="${onglet === 'sms'}">💬 SMS <b>${de('sms').length}</b></button><button type="button" data-ong="email" aria-pressed="${onglet === 'email'}">✉ E-mails <b>${de('email').length}</b></button></div>
+        ${L.length ? `<ul class="pc-hist">${L.map(item).join('')}</ul>` : `<p class="muted">Aucun ${onglet === 'sms' ? 'SMS' : 'e-mail'} envoyé${role ? ' à ce groupe' : ''} pour le moment.</p>`}</div></div>`;
+    };
+    dessiner(); document.body.appendChild(m);
+    m.addEventListener('click', e => { if (e.target === m || e.target.closest('[data-x]')) { m.remove(); return; } const o = e.target.closest('[data-ong]'); if (o) { onglet = o.dataset.ong; dessiner(); } });
+    document.addEventListener('keydown', function esc_(e) { if (e.key === 'Escape') { m.remove(); document.removeEventListener('keydown', esc_); } });
+  }
   function pcMessage(id, role, canal0) {
     const x = PC.x, bon = x.bon, lab = (x.roles.find(r => r[0] === role) || [, role])[1];
     const dest = (bon[role] || []).map(p => { const q = x.personnes.find(y => y.nom === p.nom); return { nom: p.nom, tel: p.tel || q?.tel || '', email: p.email || q?.email || '', on: true }; });
