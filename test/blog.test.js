@@ -98,6 +98,14 @@ test('l’IA rédige le reportage, il reste caché jusqu’à « Publier », pui
     assert.match(maison, /Notre nouveau four à pizza/);
     assert.doesNotMatch(maison, /Un titre plus court/);
     assert.match(await (await fetch(base + '/blog/notre-nouveau-four-a-pizza')).text(), /signé Magnolia/);
+    /* « Hors ligne » : le reportage disparaît du site (page, accueil, liste), puis revient */
+    const enLigne = (await call('/api/admin/blog/' + m.j.id)).j;
+    assert.equal((await call('/api/admin/blog/' + m.j.id, { method: 'PUT', body: { ...enLigne, statut: 'brouillon' } })).status, 200);
+    assert.equal((await fetch(base + '/blog/notre-nouveau-four-a-pizza')).status, 404);
+    assert.doesNotMatch(await (await fetch(base + '/blog')).text(), /Notre nouveau four/);
+    assert.doesNotMatch(await (await fetch(base + '/')).text(), /Notre nouveau four/);
+    assert.equal((await call('/api/admin/blog/' + m.j.id, { method: 'PUT', body: { ...enLigne, statut: 'publie' } })).status, 200);
+    assert.equal((await fetch(base + '/blog/notre-nouveau-four-a-pizza')).status, 200);
     assert.match(await (await fetch(base + '/sitemap.xml')).text(), new RegExp('/blog/' + a.slug));
     /* publier sans photo : refusé */
     const vide = await call('/api/admin/blog', { method: 'POST', body: { titre: 'Sans photo', sections: [{ texte: 'x' }] } });
