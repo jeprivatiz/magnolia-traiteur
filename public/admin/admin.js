@@ -4482,6 +4482,8 @@
     const moi = users.find(u => u.email === session.email);
     if (gere) {
       const al = R.alertes || {};
+      reglesAl = (Array.isArray(al.regles) ? al.regles : []).map(x => JSON.parse(JSON.stringify(x)));
+      defautAl = { mode: 'tous', qui: [], tels: '', emails: '', canal: 'les2', ...(al.defaut || {}) };
       alertePers = Array.isArray(al.personnes) ? al.personnes.map(x => ({ ...x }))
         : (() => { const m = String(al.emails || '').split(/[,;\s]+/).filter(Boolean), t = String(al.sms || '').split(/[,;]+/).map(x => x.trim()).filter(Boolean); return Array.from({ length: Math.max(m.length, t.length) }, (_, i) => ({ nom: '', tel: t[i] || '', email: m[i] || '' })); })();
     }
@@ -4513,7 +4515,15 @@
         <form id="pw"><h3>Mon mot de passe</h3><div class="g2"><label>Actuel<input type="password" name="current" required></label><label>Nouveau (10 caractères min.)<input type="password" name="password" minlength="10" required></label></div><button class="btn ghost">Changer</button></form></section>
 </div>
       ${gere ? `<section class="box pli${plie('journal') ? ' ferme' : ''}" data-pli="journal"><h2><button type="button" class="pli-btn" data-plibtn aria-expanded="${!plie('journal')}"><span class="pli-fl" aria-hidden="true">▼</span>Journal d’activité <span class="pill ${j.intact ? 'd-accepte' : 'd-refuse'}">${j.intact ? 'intact' : 'ALTÉRÉ'}</span><small class="pli-nb">${j.total} action${j.total > 1 ? 's' : ''}</small></button></h2><div class="pli-corps"><p class="muted sm">Chaque action est enregistrée et chaînée : une modification du journal se verrait. Les filtres ne font que trier l’affichage, ils ne changent rien au journal.</p>${journalFiltres(j)}<div id="jrnRes">${journalRes(j)}</div></div></section>` : ''}
-      ${gere ? `<section class="box"><h2>Alertes de l’équipe</h2><p class="muted sm">Ces personnes sont prévenues à chaque nouvelle demande (e-mail et SMS) et reçoivent le récapitulatif des dossiers sans action depuis 24 h.</p><div id="alp"></div><div class="row"><button type="button" class="btn ghost sm" data-addal>+ Ajouter une personne à prévenir</button><button type="button" class="btn sm" data-saveal>Enregistrer les alertes</button></div></section>
+      ${gere ? `<section class="box" id="alertes"><h2>Alertes de l’équipe</h2><p class="muted sm">Le carnet des personnes à prévenir. Elles reçoivent le récapitulatif des dossiers sans action depuis 24 h, les avis et les devis signés. Pour les <b>nouvelles demandes de devis</b>, c’est le cadre « Qui prévenir selon la demande » juste en dessous qui décide.</p><div id="alp"></div><div class="row"><button type="button" class="btn ghost sm" data-addal>+ Ajouter une personne à prévenir</button><button type="button" class="btn sm" data-saveal>Enregistrer les alertes</button></div></section>
+      <section class="box ra" id="regles-alertes"><h2>🔀 Qui prévenir selon la demande</h2><p class="muted sm">À chaque nouvelle demande de devis, les règles sont lues dans l’ordre (1, 2, 3…). <b>Chaque règle qui correspond prévient ses personnes, et elles s’additionnent.</b> Cochez « S’arrêter là » pour ne pas lire les suivantes. Si aucune règle ne correspond, c’est la règle par défaut. Montants en euros TTC.</p>
+        <div id="alr"></div>
+        <div class="ra-ajout"><span class="muted sm">Ajouter une règle :</span><button type="button" class="chip-mod" data-addr="gros">💶 Gros budget (5 000 € et plus)</button><button type="button" class="chip-mod" data-addr="urgent">⏰ Urgente (moins de 7 jours)</button><button type="button" class="chip-mod" data-addr="incomplet">⚠ Demande incomplète</button><button type="button" class="chip-mod" data-addr="">+ Règle vide</button></div>
+        <div id="ald"></div>
+        <div class="row"><button type="button" class="btn" data-saveal2>Enregistrer les règles</button><span class="muted sm">Les SMS de l’équipe finissent par le lien de la demande sur le site (back-office).</span></div></section>
+      <section class="box ra-sim" id="simuler-alerte"><h2>🧪 Simuler une demande</h2><p class="muted sm">Tapez une demande imaginaire pour voir qui serait prévenu, avec les règles affichées au-dessus (même pas encore enregistrées). Rien n’est envoyé.</p>
+        <div class="ra-simf"><label>Montant estimé TTC<span class="ra-pair"><input data-sim="montant" inputmode="decimal" value="6 000"><span>€</span></span></label><label>Nombre de personnes<input data-sim="invites" inputmode="numeric" value="80"></label><label>Date de l’événement<input type="date" data-sim="date" value="${new Date(Date.now() + 4 * 864e5).toISOString().slice(0, 10)}"></label><label>Situation<select data-sim="situation"><option value="incomplete">Demande incomplète : devis à faire à la main</option><option value="auto">Demande complète : devis envoyé tout seul par l’IA</option><option value="question">Simple question (formulaire Contact)</option></select></label></div>
+        <div class="row"><button type="button" class="btn" data-simuler>🧪 Voir qui serait prévenu</button></div><div id="alsim" aria-live="polite"></div></section>
       <section class="box pli${plie('envois') ? ' ferme' : ''}" data-pli="envois"><h2><button type="button" class="pli-btn" data-plibtn aria-expanded="${!plie('envois')}"><span class="pli-fl" aria-hidden="true">▼</span>E-mails et SMS envoyés ${env.live ? '' : '<span class="pill d-envoye">mode test : Brevo non branché</span>'}<small class="pli-nb">${env.envois.length} envoi${env.envois.length > 1 ? 's' : ''}</small></button></h2><div class="pli-corps"><div class="row"><input type="tel" data-testtel placeholder="Portable pour un SMS d’essai (sinon : ceux des alertes)" style="max-width:320px"><button class="btn ghost sm" data-test>Envoyer un essai</button></div><ul class="journal">${env.envois.map(e => `<li><time>${dateH(e.at)}</time> ${e.kind === 'sms' ? 'SMS' : 'E-mail'} → <b>${esc(e.kind === 'sms' ? e.payload.recipient : e.payload.to?.[0]?.email)}</b> <small>${esc(e.kind === 'sms' ? e.payload.content : e.payload.subject)}</small>${e.result?.error ? ` <span class="pill d-refuse">refusé : ${esc(e.result.error)}</span>` : e.live && e.result && e.result !== 'test' ? ' <span class="pill d-accepte">accepté par Brevo</span>' : ''}</li>`).join('') || '<li class="muted">Aucun envoi.</li>'}</ul></div></section>` : ''}`);
   }
   const essaiEnvoi = async () => { try {
@@ -4527,6 +4537,91 @@
     }
     render(); } catch (e) { toast(e.message, true); } };
   let alertePers = [];
+  /* ---------- Qui prévenir selon la demande (server/routage-alertes.js) ---------- */
+  let reglesAl = [], defautAl = { mode: 'tous', qui: [], tels: '', emails: '', canal: 'les2' };
+  const MODELES_REGLE = {
+    gros: { nom: 'Gros budget', montant: { op: 'min', val: 5000 } },
+    urgent: { nom: 'Demande urgente', delai: { op: 'moins', jours: 7 } },
+    incomplet: { nom: 'Demande incomplète', situation: 'incomplete' },
+    '': { nom: '' },
+  };
+  const nouvelleRegle = k => ({ id: 'r' + Date.now().toString(36), actif: true, montant: { op: '', val: null }, invites: { op: '', val: null }, delai: { op: '', jours: null }, situation: '', qui: [], tels: '', emails: '', canal: 'les2', stop: false, ...JSON.parse(JSON.stringify(MODELES_REGLE[k] || {})) });
+  /* membres : carnet des alertes + comptes de l'équipe */
+  const membresAl = () => { const m = new Map(); for (const p of alertePers) if (p.nom) m.set(p.nom.toLowerCase(), { nom: p.nom, tel: p.tel, email: p.email }); for (const u of cache.equipeUsers || []) if (u.nom && !u.desactive) { const k = u.nom.toLowerCase(), x = m.get(k); if (x) { x.tel ||= u.portable; x.email ||= u.email; } else m.set(k, { nom: u.nom, tel: u.portable, email: u.email }); } return [...m.values()].sort((a, b) => a.nom.localeCompare(b.nom, 'fr')); };
+  const choixQui = (sel, attr) => { const M = membresAl(), autres = (sel || []).filter(n => !M.some(x => x.nom === n)); return `<div class="ra-qui">${[...M, ...autres.map(nom => ({ nom, absent: true }))].map(x => `<label class="ra-pers${(sel || []).includes(x.nom) ? ' on' : ''}"><input type="checkbox" ${attr} value="${esc(x.nom)}"${(sel || []).includes(x.nom) ? ' checked' : ''}><span><b>${esc(x.nom)}</b><small>${x.absent ? 'n’est plus dans la liste' : [x.tel ? '📱 ' + esc(x.tel) : '📱 pas de portable', x.email ? '✉ ' + esc(x.email) : '✉ pas d’e-mail'].join(' · ')}</small></span></label>`).join('') || '<p class="muted sm">Ajoutez d’abord des personnes dans « Alertes de l’équipe » ou des comptes d’équipe.</p>'}</div>`; };
+  const optsSel = (L, v) => L.map(([k, t]) => `<option value="${k}"${String(v ?? '') === k ? ' selected' : ''}>${t}</option>`).join('');
+  const CANAL_OPTS = [['les2', 'E-mail et SMS'], ['email', 'E-mail seulement'], ['sms', 'SMS seulement']];
+  const fmtN = v => v == null || v === '' ? '' : Number(v).toLocaleString('fr-FR');
+  const resumeRegle = r => {
+    const c = [];
+    if (r.montant?.op && r.montant.val != null) c.push(`le montant est ${r.montant.op === 'min' ? 'd’au moins' : 'de moins de'} ${fmtN(r.montant.val)} € TTC`);
+    if (r.invites?.op && r.invites.val != null) c.push(`${r.invites.op === 'min' ? 'il y a au moins' : 'il y a moins de'} ${fmtN(r.invites.val)} personnes`);
+    if (r.delai?.op && r.delai.jours != null) c.push(`l’événement a lieu dans ${r.delai.op === 'moins' ? 'moins' : 'plus'} de ${r.delai.jours} jours`);
+    if (r.situation === 'incomplete') c.push('la demande est incomplète (devis à faire à la main)');
+    if (r.situation === 'auto') c.push('le devis est parti tout seul');
+    const qui = [...(r.qui || []), ...String(r.tels || '').split(/[,;]+/).map(x => x.trim()).filter(Boolean), ...String(r.emails || '').split(/[,;]+/).map(x => x.trim()).filter(Boolean)];
+    return `${c.length ? 'Si ' + c.join(' <b>et</b> ') : 'Pour <b>toutes</b> les demandes'}, prévenir ${qui.length ? '<b>' + esc(qui.join(', ')) + '</b>' : '<span class="ra-err">personne (choisissez au moins une personne)</span>'} par ${({ email: 'e-mail seulement', sms: 'SMS seulement' })[r.canal] || 'e-mail et SMS'}${r.stop ? ', puis s’arrêter là' : ''}.`;
+  };
+  const drawRegles = () => {
+    const box = $('#alr'); if (!box) return;
+    box.innerHTML = reglesAl.map((r, i) => `<div class="ra-regle${r.actif === false ? ' off' : ''}" data-r="${i}">
+      <div class="ra-tete"><span class="ra-num">${i + 1}</span><input class="ra-nom" data-f="nom" value="${esc(r.nom || '')}" placeholder="Nom de la règle (ex. Gros budget)"><label class="chk"><input type="checkbox" data-f="actif"${r.actif !== false ? ' checked' : ''}> Active</label>
+        <span class="ra-ord"><button type="button" class="btn ghost sm" data-mv="-1" title="Monter (plus prioritaire)"${i ? '' : ' disabled'}>↑</button><button type="button" class="btn ghost sm" data-mv="1" title="Descendre"${i < reglesAl.length - 1 ? '' : ' disabled'}>↓</button><button type="button" class="lnk" data-delr>Supprimer</button></span></div>
+      <h4>Si la demande…</h4>
+      <div class="ra-conds">
+        <label>Montant estimé TTC<span class="ra-pair"><select data-f="montant.op">${optsSel([['', 'Peu importe'], ['min', 'au moins'], ['max', 'moins de']], r.montant?.op)}</select>${r.montant?.op ? `<input data-f="montant.val" inputmode="decimal" value="${esc(fmtN(r.montant.val))}" placeholder="5 000"><span>€</span>` : ''}</span></label>
+        <label>Nombre de personnes<span class="ra-pair"><select data-f="invites.op">${optsSel([['', 'Peu importe'], ['min', 'au moins'], ['max', 'moins de']], r.invites?.op)}</select>${r.invites?.op ? `<input data-f="invites.val" inputmode="numeric" value="${esc(fmtN(r.invites.val))}" placeholder="100"><span>pers.</span>` : ''}</span></label>
+        <label>Date de l’événement : dans…<span class="ra-pair"><select data-f="delai.op">${optsSel([['', 'Peu importe'], ['moins', 'moins de (urgent)'], ['plus', 'plus de']], r.delai?.op)}</select>${r.delai?.op ? `<input data-f="delai.jours" inputmode="numeric" value="${esc(r.delai.jours ?? '')}" placeholder="7"><span>jours</span>` : ''}</span></label>
+        <label>Situation<select data-f="situation">${optsSel([['', 'Peu importe'], ['incomplete', 'Demande incomplète : devis pas parti tout seul'], ['auto', 'Devis envoyé tout seul par l’IA']], r.situation)}</select></label>
+      </div>
+      <h4>Alors prévenir…</h4>
+      ${choixQui(r.qui, 'data-qui')}
+      <div class="ra-conds"><label>Autre(s) portable(s) <small class="muted">séparés par une virgule</small><input type="tel" data-f="tels" value="${esc(r.tels || '')}" placeholder="06 12 34 56 78"></label><label>Autre(s) e-mail(s)<input data-f="emails" value="${esc(r.emails || '')}" placeholder="prenom@magnoliatraiteur.fr"></label><label>Par<select data-f="canal">${optsSel(CANAL_OPTS, r.canal || 'les2')}</select></label></div>
+      <label class="chk ra-stop"><input type="checkbox" data-f="stop"${r.stop ? ' checked' : ''}> S’arrêter là : si cette règle correspond, ne pas lire les règles suivantes</label>
+      <p class="ra-resume">${resumeRegle(r)}</p></div>`).join('') || '<p class="ra-vide">Aucune règle pour l’instant : toute la liste « Alertes de l’équipe » est prévenue à chaque demande. Ajoutez une règle avec les boutons ci-dessous.</p>';
+    const d = defautAl;
+    $('#ald').innerHTML = `<div class="ra-regle ra-def"><div class="ra-tete"><span class="ra-num">★</span><b>Règle par défaut</b><small class="muted">quand aucune règle ne correspond</small></div>
+      <div class="ra-conds"><label>Prévenir<select data-d="mode">${optsSel([['tous', 'toute la liste « Alertes de l’équipe »'], ['choix', 'seulement les personnes choisies']], d.mode)}</select></label><label>Par<select data-d="canal">${optsSel(CANAL_OPTS, d.canal || 'les2')}</select></label></div>
+      ${d.mode === 'choix' ? `${choixQui(d.qui, 'data-dqui')}<div class="ra-conds"><label>Autre(s) portable(s)<input type="tel" data-d="tels" value="${esc(d.tels || '')}" placeholder="06 12 34 56 78"></label><label>Autre(s) e-mail(s)<input data-d="emails" value="${esc(d.emails || '')}"></label></div>` : ''}</div>`;
+  };
+  const nombreFr = v => { const n = parseFloat(String(v ?? '').replace(/\s| | /g, '').replace(',', '.')); return Number.isFinite(n) ? n : null; };
+  const lireRegles = () => {
+    $$('#alr .ra-regle').forEach(el => {
+      const r = reglesAl[+el.dataset.r]; if (!r) return;
+      el.querySelectorAll('[data-f]').forEach(inp => {
+        const [a, b] = inp.dataset.f.split('.');
+        const v = inp.type === 'checkbox' ? inp.checked : /val|jours/.test(b || '') ? nombreFr(inp.value) : inp.value.trim();
+        if (b) { r[a] = { ...(r[a] || {}), [b]: v }; } else r[a] = v;
+      });
+      r.qui = [...el.querySelectorAll('[data-qui]:checked')].map(x => x.value);
+    });
+    const D = $('#ald'); if (D) { D.querySelectorAll('[data-d]').forEach(inp => { defautAl[inp.dataset.d] = inp.value.trim(); }); if (D.querySelector('[data-dqui]')) defautAl.qui = [...D.querySelectorAll('[data-dqui]:checked')].map(x => x.value); }
+    return reglesAl;
+  };
+  const corpsAlertes = () => { const L = lireAl().filter(x => x.nom || x.tel || x.email); lireRegles(); return { personnes: L, emails: L.map(x => x.email).filter(Boolean).join(', '), sms: L.map(x => x.tel).filter(Boolean).join(', '), regles: reglesAl, defaut: defautAl }; };
+  const enregistrerAlertes = async () => {
+    const corps = corpsAlertes();
+    const vides = corps.regles.map((r, i) => r.actif !== false && !(r.qui.length || r.tels || r.emails) ? i + 1 : 0).filter(Boolean);
+    if (vides.length) return toast(`Règle ${vides.join(', ')} : choisissez au moins une personne à prévenir (ou décochez « Active »).`, true);
+    try { await api(A + '/site', { method: 'PUT', body: { alertes: corps } }); const R = await api(A + '/site'); if (cache.R) cache.R.alertes = R.alertes; reglesAl = R.alertes?.regles || []; defautAl = { ...defautAl, ...(R.alertes?.defaut || {}) }; drawRegles(); toast('Alertes et règles enregistrées.'); }
+    catch (err) { toast(err.message, true); }
+  };
+  const simulerAlerte = async () => {
+    const out = $('#alsim'); const corps = corpsAlertes();
+    const t = Object.fromEntries($$('[data-sim]').map(x => [x.dataset.sim, x.value]));
+    if (t.situation === 'question') { t.question = true; t.situation = ''; }
+    out.innerHTML = '<p class="muted">Calcul…</p>';
+    try {
+      const r = await api(A + '/actions/alertes-simuler', { method: 'POST', body: { ...corps, test: t } });
+      const p = r.profil;
+      const lig = r.detail.map(d => `<li class="ra-d ra-${d.statut}"><b>${d.statut === 'ok' ? '✓' : d.statut === 'non' ? '✗' : '–'} Règle ${d.n} · ${esc(d.nom)}</b> ${d.statut === 'inactive' ? '<small>désactivée</small>' : d.statut === 'sautee' ? '<small>pas lue (une règle au-dessus dit « S’arrêter là »)</small>' : `<small>${d.conditions.length ? d.conditions.map(c => (c.ok ? '✓ ' : '✗ ') + esc(c.txt)).join(' · ') : 'aucune condition : toutes les demandes'}</small>`}</li>`).join('');
+      const can = c => c === 'email' ? '✉ E-mail' : '📱 SMS';
+      out.innerHTML = `<div class="ra-res"><p class="ra-prof">Demande imaginaire : <b>${(p.montantCents / 100).toLocaleString('fr-FR')} € TTC</b> · <b>${p.invites ?? '?'} pers.</b> · ${p.jours == null ? 'sans date' : p.jours < 0 ? 'date passée' : `dans <b>${p.jours} jour${p.jours > 1 ? 's' : ''}</b>`}${p.question ? ' · simple question' : p.situation === 'auto' ? ' · devis parti tout seul' : ' · incomplète'}</p>
+        ${lig ? `<ul class="ra-dl">${lig}</ul>` : ''}${r.parDefaut ? '<p class="ra-def-p">Aucune règle ne correspond : <b>règle par défaut</b>.</p>' : ''}
+        <h4>Seraient prévenus (${r.destinataires.length})</h4>
+        <ul class="ra-dest">${r.destinataires.map(x => `<li><span class="eq-av">${esc(initiales(x.nom || '?'))}</span><span><b>${esc(x.nom)}</b><small>${x.canaux.map(c => `<span class="pill d-accepte">${can(c)}${c === 'sms' ? ' ' + esc(x.tel) : ' ' + esc(x.email)}</span>`).join(' ')}${x.manque.length ? ` <span class="pill d-refuse">⚠ pas de ${x.manque.join(' ni d’')} renseigné</span>` : ''}</small><small class="muted">au titre de : ${esc(x.regles.join(', '))}</small></span></li>`).join('') || '<li class="muted">Personne : ajoutez des personnes à une règle ou à la règle par défaut.</li>'}</ul></div>`;
+    } catch (e) { out.innerHTML = `<p class="ra-err">${esc(e.message)}</p>`; }
+  };
   const drawAl = () => { $('#alp').innerHTML = alertePers.map((x, i) => `<div class="g3 alp" data-i="${i}"><label>Nom<input data-k="nom" value="${esc(x.nom || '')}" placeholder="Prénom Nom"></label><label>Portable (SMS)<input type="tel" data-k="tel" value="${esc(x.tel || '')}" placeholder="06 12 34 56 78"></label><label>E-mail<input type="email" data-k="email" value="${esc(x.email || '')}"></label><button type="button" class="lnk" data-delal="${i}">Retirer</button></div>`).join('') || '<p class="muted sm">Personne n’est prévenu pour l’instant.</p>'; };
   const lireAl = () => { $$('#alp .alp').forEach(row => { const x = alertePers[+row.dataset.i]; row.querySelectorAll('[data-k]').forEach(inp => { x[inp.dataset.k] = inp.value.trim(); }); }); return alertePers; };
   equipe.after = () => {
@@ -4536,11 +4631,21 @@
     drawAl();
     $('[data-addal]')?.addEventListener('click', () => { lireAl(); alertePers.push({ nom: '', tel: '', email: '' }); drawAl(); $$('#alp [data-k="nom"]').pop()?.focus(); });
     $('#alp')?.addEventListener('click', e => { const b = e.target.closest('[data-delal]'); if (!b) return; lireAl(); alertePers.splice(+b.dataset.delal, 1); drawAl(); });
-    $('[data-saveal]')?.addEventListener('click', async () => {
-      const L = lireAl().filter(x => x.nom || x.tel || x.email);
-      try { await api(A + '/site', { method: 'PUT', body: { alertes: { personnes: L, emails: L.map(x => x.email).filter(Boolean).join(', '), sms: L.map(x => x.tel).filter(Boolean).join(', ') } } }); if (cache.R) cache.R.alertes = { personnes: L, emails: L.map(x => x.email).filter(Boolean).join(', '), sms: L.map(x => x.tel).filter(Boolean).join(', ') }; toast('Alertes enregistrées.'); }
-      catch (err) { toast(err.message, true); }
+    $('[data-saveal]')?.addEventListener('click', enregistrerAlertes);
+    $('[data-saveal2]')?.addEventListener('click', enregistrerAlertes);
+    drawRegles();
+    /* un nom changé dans le carnet : les cases des règles suivent */
+    $('#alp')?.addEventListener('change', () => { lireAl(); lireRegles(); drawRegles(); });
+    $$('[data-addr]').forEach(b => b.addEventListener('click', () => { lireRegles(); reglesAl.push(nouvelleRegle(b.dataset.addr)); drawRegles(); $$('#alr .ra-nom').pop()?.focus(); }));
+    const regBox = $('#regles-alertes');
+    regBox?.addEventListener('change', e => { if (e.target.matches('select, input[type=checkbox]')) { lireRegles(); drawRegles(); } });
+    regBox?.addEventListener('input', e => { const el = e.target.closest('.ra-regle[data-r]'); if (!el) return; lireRegles(); const r = reglesAl[+el.dataset.r]; const p = el.querySelector('.ra-resume'); if (r && p) p.innerHTML = resumeRegle(r); });
+    regBox?.addEventListener('click', e => {
+      const el = e.target.closest('.ra-regle[data-r]'); if (!el) return; const i = +el.dataset.r;
+      if (e.target.closest('[data-delr]')) { lireRegles(); reglesAl.splice(i, 1); drawRegles(); }
+      const mv = e.target.closest('[data-mv]'); if (mv) { lireRegles(); const j = i + +mv.dataset.mv; if (j < 0 || j >= reglesAl.length) return; [reglesAl[i], reglesAl[j]] = [reglesAl[j], reglesAl[i]]; drawRegles(); }
     });
+    $('[data-simuler]')?.addEventListener('click', simulerAlerte);
     $('[data-test]')?.addEventListener('click', essaiEnvoi);
     /* « + Ajouter une personne » */
     const box = $('#eqNouveau'), cases = $('[data-casesnu]');
