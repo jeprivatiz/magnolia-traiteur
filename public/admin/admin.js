@@ -384,8 +384,8 @@
   const PC_PER = [['jour', 'Aujourd’hui'], ['demain', 'Demain'], ['semaine', 'Cette semaine'], ['semaine2', 'Semaine prochaine'], ['2semaines', 'Cette semaine et la suivante'], ['mois', 'Ce mois-ci'], ['mois2', 'Mois prochain']];
   const PC_ICO = { regisseurs: '🎩', livreurs: '🚚', personnel: '🤵', recuperateurs: '♻' };
   const pcRoles = () => [...(PC.x?.roles || []), ...(PC.x?.roleRecup ? [PC.x.roleRecup] : [])];
-  async function prepa(id) {
-    if (id === 'packs') return prepaPacks();
+  async function prepa(id, sub) {
+    if (id === 'packs') return prepaPacks(sub);
     if (id) return prepaEdit(id);
     const L = await api(A + '/prepa'); PC.liste = L;
     return page('📋 Prépa de commande', '', `
@@ -399,30 +399,41 @@
         <div class="pc-selbar" data-pcsel hidden><b data-pcseln></b><button type="button" class="btn sm pc-effb" data-pceffsel>🗑 Effacer</button><button type="button" class="btn ghost sm" data-pcdesel>Tout décocher</button><span class="muted sm">Le bon est effacé et la ligne quitte la liste. Le devis et la facture ne sont jamais touchés ; « Afficher les événements retirés » permet de les remettre.</span></div>
         <div data-pcliste></div></section>`);
   }
-  /* page « Packs d'organisation » : kits internes modifiables (nom, à récupérer, mots qui les font proposer, composants et quantités) */
-  async function prepaPacks() {
+  /* page « Packs d'organisation » (Jean-Luc, 2026-11-27) : liste compacte (un pack par ligne : Ouvrir / Supprimer) ; un pack s'ouvre seul pour modifier ses composants */
+  async function prepaPacks(kid) {
     const r = await api(A + '/prepa-kits'); PC.kits = r.kits;
-    const carte = (k, i) => `<section class="box pc-box pc-kitbox" data-ki="${i}"><h2>🧰 <input data-kf="nom" value="${esc(k.nom)}" aria-label="Nom du pack" placeholder="Nom du pack"></h2>
+    if (kid) {
+      const i = PC.kits.findIndex(k => k.id === kid), k = PC.kits[i];
+      if (!k) return page('🧰 Pack introuvable', `<a class="btn ghost" href="#/prepa/packs">← Tous les packs</a>`, '<p class="muted">Ce pack n’existe plus.</p>');
+      return page('🧰 ' + esc(k.nom), `<a class="btn ghost" href="#/prepa/packs">← Tous les packs</a>`, `<section class="box pc-box pc-kitbox" data-ki="${i}"><h2>🧰 <input data-kf="nom" value="${esc(k.nom)}" aria-label="Nom du pack" placeholder="Nom du pack"></h2>
       <div class="pc-kitopts"><label class="pc-recup${k.recup ? ' on' : ''}"><input type="checkbox" data-kf="recup"${k.recup ? ' checked' : ''}> ♻ À récupérer après l’événement</label>
       <label class="pc-kitmots">Proposé quand la commande contient <small class="muted">(mots séparés par des virgules)</small><input data-kf="mots" value="${esc((k.mots || []).join(', '))}" placeholder="ex. saumon, foie gras"></label></div>
+      <p class="pc-kith"><b>Composants</b> <small class="muted">· ${(k.composants || []).length} élément${(k.composants || []).length > 1 ? 's' : ''} · une quantité vide = à compléter</small></p>
       <div class="pc-kitc2">${(k.composants || []).map((x, j) => `<div class="pc-itr" data-j="${j}"><input data-kc="nom" value="${esc(x.nom)}" aria-label="Composant" placeholder="Composant"><input data-kc="n" type="number" min="0" step="any" inputmode="decimal" value="${esc(x.n ?? '')}" placeholder="Qté" aria-label="Quantité"><button type="button" class="pc-itx" data-kcrm="${j}" aria-label="Retirer">×</button></div>`).join('')}</div>
-      <div class="row"><button type="button" class="btn ghost sm" data-kcadd>➕ Ajouter un composant</button><span class="pc-sp"></span><button type="button" class="btn ghost sm" data-kdel>🗑 Supprimer le pack</button><button type="button" class="btn vt-or sm" data-ksave>💾 Enregistrer</button></div></section>`;
+      <div class="row"><button type="button" class="btn ghost sm" data-kcadd>➕ Ajouter un composant</button><span class="pc-sp"></span><button type="button" class="btn ghost sm" data-kdel>🗑 Supprimer le pack</button><button type="button" class="btn vt-or" data-ksave>💾 Enregistrer</button></div></section>`);
+    }
     return page('🧰 Packs d’organisation', `<a class="btn ghost" href="#/prepa">← Prépa de commande</a><button type="button" class="btn vt-or" data-knew>➕ Nouveau pack</button>`, `
-      <p class="muted pc-intro">Le matériel et les consommables de Magnolia à ajouter dans les préparations pour monter un stand ou une animation (bar à saumon, churros, pause café…). <b>Ils ne sont jamais vendus ni visibles sur le site.</b> Dans Prépa de commande, un pack est proposé quand un produit de la commande contient un de ses mots ; ses éléments arrivent sur le bon avec une case à cocher. Une quantité vide = pas indiquée, à compléter.</p>
-      <div data-kliste>${PC.kits.map(carte).join('') || '<p class="muted">Aucun pack.</p>'}</div>`);
+      <p class="muted pc-intro">Le matériel et les consommables de Magnolia à ajouter dans les préparations pour monter un stand ou une animation. <b>Ils ne sont jamais vendus ni visibles sur le site.</b> Ouvrez un pack pour ajouter, modifier ou retirer ses composants.</p>
+      <section class="box pc-box"><div class="table pc-kitlt"><table><thead><tr><th>Pack</th><th>Composants</th><th>Proposé quand la commande contient</th><th></th></tr></thead><tbody>${PC.kits.map((k, i) => `<tr data-href="#/prepa/packs/${esc(k.id)}"><td><b>🧰 ${esc(k.nom)}</b>${k.recup ? ' <span class="pill d-envoye">♻ à récupérer</span>' : ''}</td><td class="nw">${(k.composants || []).length} élément${(k.composants || []).length > 1 ? 's' : ''}</td><td class="muted sm">${esc((k.mots || []).join(', '))}</td><td class="n nw"><a class="btn vt-or sm" href="#/prepa/packs/${esc(k.id)}">Ouvrir ›</a><button type="button" class="btn ghost sm pc-eff1" data-kdl="${i}" title="Supprimer ce pack" aria-label="Supprimer ce pack">🗑</button></td></tr>`).join('') || '<tr><td colspan="4" class="muted">Aucun pack.</td></tr>'}</tbody></table></div></section>`);
   }
-  prepaPacks.after = () => {
-    const lire = s => { const k = PC.kits[+s.dataset.ki]; k.nom = $('[data-kf="nom"]', s).value; k.recup = $('[data-kf="recup"]', s).checked; k.mots = $('[data-kf="mots"]', s).value.split(','); k.composants = $$('.pc-itr', s).map(r => ({ nom: $('[data-kc="nom"]', r).value, n: $('[data-kc="n"]', r).value })); return k; };
-    const z = $('[data-kliste]');
-    z.addEventListener('change', e => { const c = e.target.closest('[data-kf="recup"]'); if (c) c.closest('.pc-recup').classList.toggle('on', c.checked); });
-    z.addEventListener('click', async e => {
-      const s = e.target.closest('[data-ki]'); if (!s) return;
-      if (e.target.closest('[data-kcadd]')) { const k = lire(s); k.composants.push({ nom: '', n: '' }); render(); return; }
-      const rm = e.target.closest('[data-kcrm]'); if (rm) { const k = lire(s); k.composants.splice(+rm.dataset.kcrm, 1); render(); return; }
-      if (e.target.closest('[data-ksave]')) { const k = lire(s); try { const r = await api(`${A}/prepa-kits/${encodeURIComponent(k.id)}`, { method: 'PUT', body: k }); Object.assign(k, r.kit); toast('Pack enregistré.'); } catch (err) { toast(err.message, true); } return; }
-      if (e.target.closest('[data-kdel]')) { const k = PC.kits[+s.dataset.ki]; if (!confirm(`Supprimer « ${k.nom} » ?`)) return; try { await api(`${A}/prepa-kits/${encodeURIComponent(k.id)}`, { method: 'DELETE' }); toast('Pack supprimé.'); render(); } catch (err) { toast(err.message, true); } }
+  prepaPacks.after = kid => {
+    const suppr = async k => { if (!confirm(`Supprimer le pack « ${k.nom} » ?\n\nIl ne sera plus proposé dans Prépa de commande (les bons déjà faits ne changent pas).`)) return false; try { await api(`${A}/prepa-kits/${encodeURIComponent(k.id)}`, { method: 'DELETE' }); toast('Pack supprimé.'); return true; } catch (err) { toast(err.message, true); return false; } };
+    if (!kid) {
+      $$('.pc-kitlt tr[data-href]').forEach(tr => tr.addEventListener('click', e => { if (!e.target.closest('a,button')) location.hash = tr.dataset.href; }));
+      $$('[data-kdl]').forEach(bt => bt.addEventListener('click', async () => { if (await suppr(PC.kits[+bt.dataset.kdl])) render(); }));
+      $('[data-knew]')?.addEventListener('click', async () => { try { const r = await api(A + '/prepa-kits', { method: 'POST', body: { nom: 'Nouveau pack', composants: [{ nom: '', n: '' }] } }); location.hash = '#/prepa/packs/' + encodeURIComponent(r.kit.id); } catch (err) { toast(err.message, true); } });
+      return;
+    }
+    const s = $('[data-ki]'); if (!s) return;
+    const lire = () => { const k = PC.kits[+s.dataset.ki]; k.nom = $('[data-kf="nom"]', s).value; k.recup = $('[data-kf="recup"]', s).checked; k.mots = $('[data-kf="mots"]', s).value.split(','); k.composants = $$('.pc-itr', s).map(r => ({ nom: $('[data-kc="nom"]', r).value, n: $('[data-kc="n"]', r).value })); return k; };
+    const ligne = j => `<div class="pc-itr" data-j="${j}"><input data-kc="nom" value="" aria-label="Composant" placeholder="Composant"><input data-kc="n" type="number" min="0" step="any" inputmode="decimal" value="" placeholder="Qté" aria-label="Quantité"><button type="button" class="pc-itx" data-kcrm="${j}" aria-label="Retirer">×</button></div>`;
+    s.addEventListener('change', e => { const c = e.target.closest('[data-kf="recup"]'); if (c) c.closest('.pc-recup').classList.toggle('on', c.checked); });
+    s.addEventListener('click', async e => {
+      if (e.target.closest('[data-kcadd]')) { const z = $('.pc-kitc2', s); z.insertAdjacentHTML('beforeend', ligne(z.children.length)); $('.pc-itr:last-child [data-kc="nom"]', z).focus(); return; }
+      const rm = e.target.closest('[data-kcrm]'); if (rm) { rm.closest('.pc-itr').remove(); return; }
+      if (e.target.closest('[data-ksave]')) { const k = lire(); try { const r = await api(`${A}/prepa-kits/${encodeURIComponent(k.id)}`, { method: 'PUT', body: k }); Object.assign(k, r.kit); toast('Pack enregistré.'); render(); } catch (err) { toast(err.message, true); } return; }
+      if (e.target.closest('[data-kdel]')) { if (await suppr(PC.kits[+s.dataset.ki])) location.hash = '#/prepa/packs'; }
     });
-    $('[data-knew]')?.addEventListener('click', async () => { try { await api(A + '/prepa-kits', { method: 'POST', body: { nom: 'Nouveau pack', composants: [] } }); toast('Pack créé en bas de la liste.'); render(); } catch (err) { toast(err.message, true); } });
   };
   function prepaLignes() {
     const L = PC.liste, auj = L.aujourdhui, q = PC.q.trim().toLowerCase();
@@ -436,8 +447,8 @@
     return l.length ? `<div class="table pc-lt"><table><thead><tr><th class="pc-cbc"><input type="checkbox" class="pc-cbl" data-pctout aria-label="Tout cocher" title="Tout cocher"${PC.retires ? ' hidden' : ''}></th><th>Date</th><th>Client</th><th>Événement</th><th>Devis</th><th>Bon de préparation</th><th></th></tr></thead><tbody>${l.map(d => `<tr data-href="#/prepa/${esc(d.devisId)}"><td class="pc-cbc">${d.retire ? '' : `<input type="checkbox" class="pc-cbl" data-pcsl="${esc(d.devisId)}"${PC.sel.has(d.devisId) ? ' checked' : ''} aria-label="Cocher ${esc(d.client || '')}">`}</td><td class="nw"><b>${d.date ? esc(dateFr(d.date, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })) : '<span class="muted">Date à fixer</span>'}</b></td><td><b>${esc(d.client || '—')}</b></td><td>${esc(d.type || '')}${d.invites ? ` · ${esc(d.invites)} pers.` : ''}<small class="vt-sub">${esc([d.lieu, d.ville].filter(Boolean).join(' · '))}</small></td><td class="nw">${dv(d)}</td><td>${d.retire ? '<span class="pill d-refuse">Retiré de la liste</span>' : etat(d)}</td><td class="n">${d.retire ? `<button type="button" class="btn ghost sm" data-pcremet="${esc(d.devisId)}">↩ Remettre dans la liste</button>` : `<a class="btn sm ${d.bon ? 'ghost' : 'vt-or'}" href="#/prepa/${esc(d.devisId)}">${d.bon ? 'Ouvrir ›' : '📋 Préparer ›'}</a><button type="button" class="btn ghost sm pc-eff1" data-pceff1="${esc(d.devisId)}" title="Effacer et retirer de la liste" aria-label="Effacer et retirer de la liste">🗑</button>`}</td></tr>`).join('')}</tbody></table></div>`
       : `<div class="vide"><p>${PC.du || PC.au ? `Aucun événement ${PC.du && PC.au ? `du ${esc(dateFr(PC.du, { day: 'numeric', month: 'long' }))} au ${esc(dateFr(PC.au, { day: 'numeric', month: 'long', year: 'numeric' }))}` : PC.du ? 'à partir du ' + esc(dateFr(PC.du, { day: 'numeric', month: 'long', year: 'numeric' })) : 'jusqu’au ' + esc(dateFr(PC.au, { day: 'numeric', month: 'long', year: 'numeric' }))}${q ? ' pour cette recherche' : ''}.` : PC.retires ? 'Aucun événement retiré.' : q ? 'Aucun événement ne correspond à cette recherche.' : PC.vue === 'avenir' ? 'Aucun événement signé à venir.' : 'Aucun événement.'}</p><p class="muted sm">${PC.tous ? '' : 'Seuls les devis signés, réservés ou facturés sont proposés : cochez « Montrer aussi les devis pas encore signés » pour voir les autres.'}</p></div>`;
   }
-  prepa.after = id => {
-    if (id === 'packs') return prepaPacks.after();
+  prepa.after = (id, sub) => {
+    if (id === 'packs') return prepaPacks.after(sub);
     if (id) return prepaEdit.after(id);
     const selMaj = () => { const ok = new Set(PC.liste.devis.filter(d => !d.retire).map(d => d.devisId)); [...PC.sel].forEach(i => { if (!ok.has(i)) PC.sel.delete(i); }); const n = PC.sel.size, bar = $('[data-pcsel]'); bar.hidden = !n; $('[data-pcseln]').textContent = n + (n > 1 ? ' lignes cochées' : ' ligne cochée'); $('[data-pceffsel]').textContent = n > 1 ? `🗑 Effacer les ${n} lignes` : '🗑 Effacer cette ligne'; $('[data-pceffsel]').disabled = !n; const vis = $$('[data-pcsl]'), t = $('[data-pctout]'); if (t) { t.checked = vis.length > 0 && vis.every(c => c.checked); t.indeterminate = !t.checked && vis.some(c => c.checked); } };
     const effacer = async ids => {
