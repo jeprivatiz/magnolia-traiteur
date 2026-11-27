@@ -1,3 +1,0 @@
-buffet-chafing-plats 28099100 https://videos.pexels.com/video-files/28099100/12298358_1920_1080_25fps.mp4 0 6
-bouchees-vapeur 8094284 https://videos.pexels.com/video-files/8094284/8094284-hd_1920_1080_25fps.mp4 0.5 9
-table-repas-complet 6645760 https://videos.pexels.com/video-files/6645760/6645760-hd_1920_1080_30fps.mp4 0 6.5

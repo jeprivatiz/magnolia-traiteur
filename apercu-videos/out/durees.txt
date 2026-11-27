@@ -1,3 +1,0 @@
-buffet-chafing-plats 28099100 duree=7.040000
-bouchees-vapeur 8094284 duree=10.920000
-table-repas-complet 6645760 duree=7.786667
