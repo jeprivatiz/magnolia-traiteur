@@ -153,4 +153,8 @@ function messageRappel(site, jours) {
   };
 }
 
-module.exports = { CATEGORIES, TYPES, MAX_PHOTOS, nettoyerArticle, catalogueBlog, promptArticle, articleDepuisIa, etatRappel, reglagesRappel, messageRappel, heureParis, srcOk };
+/* date qui classe les reportages (Jean-Luc, 2026-11-27) : la date indiquée dans le back-office, sinon celle de la publication */
+const dateTri = a => String(a?.dateEvenement || a?.publieLe || a?.createdAt || '').slice(0, 10);
+const parDate = (a, b) => dateTri(b).localeCompare(dateTri(a)) || String(b.publieLe || b.createdAt || '').localeCompare(String(a.publieLe || a.createdAt || ''));
+
+module.exports = { dateTri, parDate, CATEGORIES, TYPES, MAX_PHOTOS, nettoyerArticle, catalogueBlog, promptArticle, articleDepuisIa, etatRappel, reglagesRappel, messageRappel, heureParis, srcOk };
