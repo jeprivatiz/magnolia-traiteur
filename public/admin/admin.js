@@ -472,6 +472,9 @@
     const x = await api(A + '/prepa/' + encodeURIComponent(id) + (PC.reprendre ? '?reprendre=1' : ''));
     PC.reprendre = false; PC.x = x; PC.id = id; PC.sale = !!(x.bon.nouveau || x.reprise);
     const b = x.bon, c = b.client, e = b.evenement, h = b.horaires;
+    /* horaires en listes déroulantes (Jean-Luc, 2026-11-27 : « ça ira plus vite ») : de 5 h à 2 h du matin, par quart d'heure ; une valeur tapée avant reste proposée */
+    const PC_HEURES = Array.from({ length: 22 * 4 }, (_, i) => { const m = 5 * 60 + i * 15, hh = Math.floor(m / 60) % 24, mm = m % 60; return `${hh} h${mm ? ' ' + String(mm).padStart(2, '0') : ''}`; });
+    const pcHeure = (k, lab, v) => { v = String(v ?? ''); return `<label>${lab}<select data-f="${k}"><option value="">— Choisir —</option>${v && !PC_HEURES.includes(v) ? `<option selected>${esc(v)}</option>` : ''}${PC_HEURES.map(o => `<option${o === v ? ' selected' : ''}>${o}</option>`).join('')}</select></label>`; };
     const inp = (k, lab, v, at = '') => `<label>${lab}<input data-f="${k}" value="${esc(v ?? '')}"${at}></label>`;
     const env = (b.envois || []).slice().reverse();
     const nonSigne = x.devis.statut !== 'accepte' && !x.devis.facture;
@@ -495,7 +498,7 @@
         <label>Accès pour les livreurs <small class="muted">(étage, digicode, stationnement…)</small><textarea data-f="acces" rows="2">${esc(b.acces)}</textarea></label>
       </section>
       </div>
-      <section class="box pc-box"><h2>🕒 Horaires</h2><div class="pc-hor">${x.horaires.map(([k, lab]) => inp('horaires.' + k, lab, h[k], ` placeholder="${k === 'livraison' ? 'ex. 17 h 30' : 'ex. 18 h'}"`)).join('')}</div></section>
+      <section class="box pc-box"><h2>🕒 Horaires</h2><div class="pc-hor">${x.horaires.map(([k, lab]) => pcHeure('horaires.' + k, lab, h[k])).join('')}</div></section>
       <section class="box pc-box"><h2>👥 Équipe sur l’événement</h2>
         <p class="muted sm">Choisissez dans la liste (équipe Magnolia et prestataires des Contacts) ou tapez un nom. ${b.personnelDevis.length ? `<b>Prévu au devis :</b> ${esc(b.personnelDevis.join(' · '))}` : ''}</p>
         <div class="pc-roles">${x.roles.map(([k, lab]) => `<div class="pc-role" data-role="${k}"><h3>${PC_ICO[k] || ''} ${esc(lab)}</h3><div class="pc-chips" data-chips="${k}">${pcChips(b, k)}</div>
