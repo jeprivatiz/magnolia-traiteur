@@ -1086,7 +1086,7 @@ async function createApp(opts = {}) {
   /* ---------- historique commercial de l'ancien CRM (Teamleader) : affaires depuis 2017 (server/historique.js) ---------- */
   const historique = HIST.creerHistorique({ store, sources: { liste: () => SOURCES.liste(), ajouter: n => SOURCES.ajouter(n) }, log });
   historique.routes(A, { sameSite, manager: peut('fichiers'), wrap, audit });
-  HSUP.routes(app, A, { sameSite, json, wrap, audit, store, brevo, SITE, peutEquipe: peut('equipe'), log });
+  HSUP.routes(app, A, { sameSite, json, wrap, audit, store, brevo, ia, SITE, peutEquipe: peut('equipe'), log });
   /* affaires visibles : toutes, ou « seulement ses opportunités » = les siennes et celles sans commercial */
   async function affairesVisibles(req) {
     const vis = await visibles(req);

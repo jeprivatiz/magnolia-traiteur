@@ -31,7 +31,9 @@ test('back-office, mini-application et lien par SMS', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mg-'));
   const env = { DB_FILE: path.join(dir, 'db.json'), UPLOAD_DIR: path.join(dir, 'up'), ADMIN_EMAIL: 'chef@magnolia.test', ADMIN_PASSWORD: 'mot-de-passe-essai', BREVO_API_KEY: '', DB_HOST: '', ANTHROPIC_API_KEY: '', SITE_URL: 'https://essai.test' };
   const { createApp } = require('../server/index');
-  const app = await createApp({ env, noTimers: true, log: { log() {}, warn() {}, error() {}, info() {} } });
+  let dernierPrompt = '';
+  const iaAsk = async prompt => { dernierPrompt = prompt; return '{"date":"2026-11-24","debut":"18:05","fin":"20:00","taches":["Fiches produits","inconnue"],"autre":"Dégustation","precision":"Mariage Dupont"}'; };
+  const app = await createApp({ env, iaAsk, noTimers: true, log: { log() {}, warn() {}, error() {}, info() {} } });
   const srv = app.listen(0); const base = 'http://127.0.0.1:' + srv.address().port;
   const mk = () => { let cookie = ''; return async (u, { method = 'GET', body } = {}) => { const r = await fetch(base + u, { method, headers: { 'content-type': 'application/json', 'x-mg': '1', cookie }, body: body ? JSON.stringify(body) : undefined }); const sc = r.headers.get('set-cookie'); if (sc) cookie = sc.split(';')[0]; const t = await r.text(); let j = null; try { j = JSON.parse(t); } catch {} return { status: r.status, j, t }; }; };
   const chef = mk(), romain = mk(), anonyme = mk();
@@ -50,8 +52,7 @@ test('back-office, mini-application et lien par SMS', async () => {
     assert.equal((await romain('/api/admin/actions/heures-sup', { method: 'POST', body: { uid: 'autre', date: '2026-11-22', debut: '10:00', fin: '12:00', quoi: 'x y z' } })).status, 403);
     assert.equal((await chef('/api/admin/actions/heures-sup', { method: 'POST', body: { date: '2026-11-22', debut: '10:00', fin: '14:30', quoi: 'Livraison dimanche' } })).status, 200);
 
-    const vueR = (await romain('/api/admin/actions/heures-sup')).j;
-    assert.equal(vueR.admin, false); assert.equal(vueR.liste.length, 1, 'Romain ne voit que les siennes');
+    assert.equal((await romain('/api/admin/actions/heures-sup')).status, 403, 'la liste du back-office est réservée au manager');
     const vueC = (await chef('/api/admin/actions/heures-sup')).j;
     assert.equal(vueC.liste.length, 2); assert.equal(vueC.minutes, 450);
     assert.deepEqual(vueC.totaux.map(t => t.minutes), [270, 180], 'total par personne, du plus grand au plus petit'); assert.equal(vueC.totaux[1].nom, 'Romain GOUJON');
@@ -73,13 +74,39 @@ test('back-office, mini-application et lien par SMS', async () => {
     const ma = (await anonyme('/api/heures/' + t)).j; assert.equal(ma.liste.length, 2); assert.ok(!('uid' in ma.liste[0]));
     const vue2 = (await chef('/api/admin/actions/heures-sup?qui=' + uidR)).j.liste;
     assert.equal(vue2.find(x => x.date === '2026-11-21').depuis, 'telephone', 'arrive à son nom dans le back-office');
+    /* tâches en cases + « Autre » ajoutée à la liste */
+    const tc = await anonyme('/api/heures/' + t, { method: 'POST', body: { date: '2026-11-20', debut: '18:00', fin: '19:00', taches: ['Livraison', 'fiches PRODUITS', 'n’existe pas'], autre: 'dégustation avec les mariés', precision: 'Mariage Dupont' } });
+    assert.equal(tc.status, 200, tc.t);
+    assert.deepEqual(tc.j.taches, ['Livraison', 'Fiches produits', 'Dégustation avec les mariés']);
+    assert.equal(tc.j.quoi, 'Livraison, Fiches produits, Dégustation avec les mariés — Mariage Dupont');
+    const lt = (await anonyme('/api/heures/' + t)).j.taches;
+    assert.deepEqual(lt.at(-1), { groupe: 'Ajoutées par l’équipe', taches: ['Dégustation avec les mariés'] });
+    assert.match((await anonyme('/api/heures/' + t, { method: 'POST', body: { date: '2026-11-19', debut: '18:00', fin: '19:00', taches: [] } })).j.error, /Cochez au moins une tâche/);
+    /* « Dire mes heures » : l'IA remplit, rien n'est enregistré */
+    const avant = (await anonyme('/api/heures/' + t)).j.liste.length;
+    const dt = await anonyme('/api/heures/' + t + '/dictee', { method: 'POST', body: { texte: 'j’ai travaillé mardi de 18 h à 20 h sur la création de fiches' } });
+    assert.equal(dt.status, 200, dt.t);
+    assert.deepEqual({ date: dt.j.date, debut: dt.j.debut, fin: dt.j.fin, taches: dt.j.taches, autre: dt.j.autre }, { date: '2026-11-24', debut: '18:00', fin: '20:00', taches: ['Fiches produits'], autre: 'Dégustation' }, 'heure arrondie au quart d’heure, tâche inconnue ignorée');
+    assert.match(dernierPrompt, /Fiches produits/); assert.match(dernierPrompt, /création de fiches/);
+    assert.equal((await anonyme('/api/heures/' + t)).j.liste.length, avant, 'rien d’enregistré');
+    assert.equal((await chef('/api/admin/actions/heures-sup/dictee', { method: 'POST', body: { texte: 'samedi de 10 h à 12 h livraison' } })).status, 200);
+    assert.equal((await romain('/api/admin/actions/heures-sup/dictee', { method: 'POST', body: { texte: 'samedi de 10 h à 12 h livraison' } })).status, 403);
+    /* page mobile : script valide, bouton « Dire mes heures », pas de suppression */
+    const html = (await anonyme('/heures/' + t)).t;
+    assert.match(html, /Dire mes heures/); assert.doesNotMatch(html, /class="suppr"/);
+    new (require('vm').Script)(html.split('<script>')[1].split('</script>')[0]);
+    assert.equal((await anonyme('/api/heures/' + t + '/' + tc.j.id, { method: 'DELETE' })).status, 404, 'plus de suppression depuis le téléphone');
     /* nouveau lien : l'ancien est coupé */
     await chef('/api/admin/actions/heures-sup/lien/' + uidR, { method: 'POST', body: { nouveau: true } });
     assert.equal((await anonyme('/heures/' + t)).status, 404);
     assert.equal((await anonyme('/api/heures/' + t)).status, 404);
-    /* retrait : Romain retire la sienne, pas celle du chef */
+    /* suppression : manager seulement, par cases à cocher */
     const idC = vueC.liste.find(x => x.date === '2026-11-22').id;
+    const tous = (await chef('/api/admin/actions/heures-sup')).j.liste;
     assert.equal((await romain('/api/admin/actions/heures-sup/' + idC, { method: 'DELETE' })).status, 403);
-    assert.equal((await chef('/api/admin/actions/heures-sup/' + idC, { method: 'DELETE' })).status, 200);
+    assert.equal((await romain('/api/admin/actions/heures-sup/supprimer', { method: 'POST', body: { ids: [idC] } })).status, 403);
+    const sup = await chef('/api/admin/actions/heures-sup/supprimer', { method: 'POST', body: { ids: [idC, tc.j.id, 'inconnu'] } });
+    assert.equal(sup.j.supprimees, 2);
+    assert.equal((await chef('/api/admin/actions/heures-sup')).j.liste.length, tous.length - 2);
   } finally { srv.close(); }
 });
