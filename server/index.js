@@ -3050,7 +3050,7 @@ Réponds uniquement en JSON : {${sms ? '' : '"sujet": "...", '}"texte": "..."}`;
     if (!d) return null;
     const [cl, dem, fa, c] = await Promise.all([d.clientId ? store.get('clients/' + d.clientId) : null, d.demandeId ? store.get('demandes/' + d.demandeId) : null, store.list('factures'), cat.get()]);
     const facture = fa.map(x => x.data).filter(f => f && f.devisId === d.id && f.type !== 'avoir' && !f.annuleeParAvoir).sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')))[0] || null;
-    return { devis: { ...d, id: d.id || devisId }, client: cl, demande: dem, facture, bySlug: c.bySlug, R: c.reglages || {} };
+    return { devis: { ...d, id: d.id || devisId }, client: cl, demande: dem, facture, bySlug: c.bySlug, produits: c.produits, R: c.reglages || {} };
   }
   /* noms proposés dans les listes déroulantes : comptes de l'équipe + prestataires (fiches « Prestataire » des contacts) */
   async function personnesPrepa() {
@@ -3079,7 +3079,7 @@ Réponds uniquement en JSON : {${sms ? '' : '"sujet": "...", '}"texte": "..."}`;
     const neuf = PREP.bonDepuis(x);
     /* ?reprendre=1 : on repart des lignes du devis (le reste du bon est gardé) */
     const bon = avant ? (req.query.reprendre ? { ...avant, lignes: neuf.lignes, personnelDevis: neuf.personnelDevis, allergenesProduits: neuf.allergenesProduits } : avant) : neuf;
-    res.set('Cache-Control', 'no-store').json({ bon, existe: !!avant, devis: { numero: x.devis.numero, statut: x.devis.statut, facture: x.facture?.numero || '' }, personnes: await personnesPrepa(), roles: PREP.ROLES, horaires: PREP.HORAIRES, message: PREP.messageDefaut(bon, req.ctx.name || '') });
+    res.set('Cache-Control', 'no-store').json({ bon, existe: !!avant, devis: { numero: x.devis.numero, statut: x.devis.statut, facture: x.facture?.numero || '' }, personnes: await personnesPrepa(), roles: PREP.ROLES, horaires: PREP.HORAIRES, listes: PREP.listesPrepa(x.produits), iaActive: ia.actif, message: PREP.messageDefaut(bon, req.ctx.name || '') });
   }));
   A.put('/prepa/:id', sameSite, json, wrap(async (req, res) => {
     const x = await contextePrepa(req.params.id);
@@ -3095,6 +3095,43 @@ Réponds uniquement en JSON : {${sms ? '' : '"sujet": "...", '}"texte": "..."}`;
     if (!x) return res.status(404).send('Devis introuvable.');
     const bon = (await store.get('prepas/' + req.params.id)) || PREP.bonDepuis(x);
     res.set('Cache-Control', 'no-store').set('X-Robots-Tag', 'noindex').type('html').send(PREP.documentHtml(bon, { R: x.R, retour: '/admin#/prepa/' + encodeURIComponent(req.params.id), par: bon.majPar || req.ctx.name || '' }));
+  }));
+  /* message à un groupe de l'équipe (régisseurs, livraison, personnel) : modèle, rédaction par l'IA, envoi SMS ou e-mail */
+  const ROLE_OK = r => PREP.ROLES.some(([k]) => k === r);
+  A.post('/prepa/:id/ia', sameSite, json, wrap(async (req, res) => {
+    const bon = await store.get('prepas/' + req.params.id);
+    if (!bon) return res.status(400).json({ error: 'Enregistrez d’abord le bon de préparation.' });
+    const role = s(req.body?.role, 20), canal = req.body?.canal === 'sms' ? 'sms' : 'email';
+    if (!ROLE_OK(role)) return res.status(400).json({ error: 'Groupe inconnu.' });
+    if (req.body?.modele) return res.json({ ...PREP.modeleMessage(bon, role, canal), ia: false });
+    if (!iaLimit(req.ctx.uid)) return res.status(429).json({ error: 'Trop de demandes : réessayez dans une minute.' });
+    try {
+      const r = IA.json(await ia.demander(PREP.promptMessage({ b: bon, role, canal, consigne: s(req.body?.consigne, 800), texte: txt(req.body?.texte, 4000), sujet: s(req.body?.sujet, 200), expediteur: req.ctx.name || '' }), { effort: 'low', maxTokens: 1500 })) || {};
+      const tx = String(r.texte || '').trim();
+      if (!tx) return res.status(502).json({ error: 'L’IA n’a pas proposé de texte. Réessayez.' });
+      res.json({ sujet: canal === 'sms' ? '' : String(r.sujet || '').slice(0, 200), texte: tx.slice(0, canal === 'sms' ? 640 : 4000), ia: true });
+    } catch (e) { iaErreur(res, e); }
+  }));
+  A.post('/prepa/:id/message', sameSite, json, wrap(async (req, res) => {
+    const bon = await store.get('prepas/' + req.params.id);
+    if (!bon) return res.status(400).json({ error: 'Enregistrez d’abord le bon de préparation.' });
+    const b = req.body || {}, role = s(b.role, 20), canal = b.canal === 'sms' ? 'sms' : 'email', texte = txt(b.texte, canal === 'sms' ? 640 : 6000);
+    if (!ROLE_OK(role)) return res.status(400).json({ error: 'Groupe inconnu.' });
+    if (!texte) return res.status(400).json({ error: 'Le message est vide.' });
+    const dest = (Array.isArray(b.a) ? b.a : []).slice(0, 40).map(p => ({ nom: s(p?.nom, 80), email: s(p?.email, 160).toLowerCase(), tel: normTel(p?.tel)?.ok ? normTel(p.tel).tel : '' }));
+    const ok = dest.filter(p => canal === 'sms' ? p.tel : isEmail(p.email));
+    if (!ok.length) return res.status(400).json({ error: canal === 'sms' ? 'Aucune des personnes cochées n’a de portable valable.' : 'Aucune des personnes cochées n’a d’e-mail valable.' });
+    const R = (await cat.get()).reglages || {};
+    const sujet = s(b.sujet, 160) || 'Magnolia Traiteur · ' + PREP.titreBon(bon);
+    for (const p of ok) {
+      if (canal === 'sms') await brevo.sendSms({ to: p.tel, lien: false, content: texte });
+      else await brevo.sendEmail({ to: p.email, name: p.nom, replyTo: req.ctx.email || R.email, subject: sujet, html: `<div style="font-family:Arial,Helvetica,sans-serif;color:#1d2a24;max-width:640px">${esc(texte).replace(/\n/g, '<br>')}</div>`, text: texte });
+    }
+    const sans = dest.filter(p => !ok.includes(p)).map(p => p.nom);
+    const envois = [...(bon.envois || []), { at: new Date().toISOString(), par: req.ctx.name || '', a: ok.map(p => p.nom || p.tel || p.email).join(', '), canaux: [canal], groupe: role }].slice(-30);
+    await store.set('prepas/' + req.params.id, { ...bon, envois });
+    audit(req.ctx, 'message à l’équipe (prépa de commande)', 'prepas/' + req.params.id, `${PREP.NOM_ROLE[role]} · ${canal} · ${ok.length}`);
+    res.json({ ok: true, a: ok.map(p => p.nom), sans, envois });
   }));
   A.post('/prepa/:id/envoyer', sameSite, json, wrap(async (req, res) => {
     const bon = await store.get('prepas/' + req.params.id);
