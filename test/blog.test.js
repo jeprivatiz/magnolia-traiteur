@@ -106,6 +106,14 @@ test('l’IA rédige le reportage, il reste caché jusqu’à « Publier », pui
     assert.doesNotMatch(await (await fetch(base + '/')).text(), /Notre nouveau four/);
     assert.equal((await call('/api/admin/blog/' + m.j.id, { method: 'PUT', body: { ...enLigne, statut: 'publie' } })).status, 200);
     assert.equal((await fetch(base + '/blog/notre-nouveau-four-a-pizza')).status, 200);
+    /* ordre selon la date du reportage, la plus récente d'abord (Jean-Luc, 2026-11-27) */
+    await call('/api/admin/blog/' + m.j.id, { method: 'PUT', body: { ...enLigne, statut: 'publie', dateEvenement: '2020-05-01' } });
+    let liste = await (await fetch(base + '/blog')).text();
+    assert.ok(liste.indexOf('Un titre plus court') < liste.indexOf('Notre nouveau four'), 'four (2020) après');
+    await call('/api/admin/blog/' + m.j.id, { method: 'PUT', body: { ...enLigne, statut: 'publie', dateEvenement: '2099-01-01' } });
+    liste = await (await fetch(base + '/blog')).text();
+    assert.ok(liste.indexOf('Notre nouveau four') < liste.indexOf('Un titre plus court'), 'four (2099) avant');
+    assert.equal((await call('/api/admin/blog')).j.articles[0].id, m.j.id, 'même ordre dans le back-office');
     assert.match(await (await fetch(base + '/sitemap.xml')).text(), new RegExp('/blog/' + a.slug));
     /* publier sans photo : refusé */
     const vide = await call('/api/admin/blog', { method: 'POST', body: { titre: 'Sans photo', sections: [{ texte: 'x' }] } });

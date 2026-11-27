@@ -4860,7 +4860,7 @@
     const e = r.rappel, g = r.reglages;
     const carte = a => { const p = a.photos?.[0]; return `<div class="bl-cw${a.statut === 'publie' ? ' on' : ''}"><a class="bl-c" href="#/blog/${esc(a.id)}"><span class="bl-img">${p ? `<img src="${esc(p.src)}" alt="" loading="lazy">` : '<span class="muted sm">Pas de photo</span>'}</span>
       <span class="bl-t"><span class="row">${a.statut === 'publie' ? '<span class="pill d-accepte">✓ Publié</span>' : '<span class="pill d-envoye">Brouillon à relire</span>'}<small class="muted">${esc(BLOG_CAT[a.categorie] || '')}${a.invites ? ' · ' + a.invites + ' invités' : ''}</small></span>
-      <b>${esc(a.titre || 'Sans titre')}</b><small class="muted">${a.statut === 'publie' ? 'Publié le ' + dateFr(a.publieLe) : 'Créé le ' + dateFr(a.createdAt)}${a.creePar ? ' · ' + esc(a.creePar) : ''}</small></span></a>${interEnLigne(a, 'data-blbasc="' + esc(a.id) + '"')}</div>`; };
+      <b>${esc(a.titre || 'Sans titre')}</b><small class="bl-date">📅 ${dateFr(a.dateEvenement || a.publieLe || a.createdAt)}</small><small class="muted">${a.statut === 'publie' ? 'Publié le ' + dateFr(a.publieLe) : 'Créé le ' + dateFr(a.createdAt)}${a.creePar ? ' · ' + esc(a.creePar) : ''}</small></span></a>${interEnLigne(a, 'data-blbasc="' + esc(a.id) + '"')}</div>`; };
     const tel = g.tel || g.alertesSms, mail = g.email || g.alertesEmails;
     return page('📝 Blog · nos reportages', `<a class="btn" href="#/blog/nouveau">✨ Nouveau reportage avec l’IA</a><a class="btn ghost" href="/blog" target="_blank" rel="noopener">Voir le blog ↗</a>`, `
       ${e.aFaire && e.actif ? `<section class="box hl bl-rappel"><div><b>⏰ C’est le moment de préparer le prochain reportage.</b><p class="muted sm">${e.dernierePublication ? 'Dernier reportage publié le ' + dateFr(e.dernierePublication) + '.' : 'Aucun reportage publié pour l’instant.'} Quelques lignes + vos photos : l’IA s’occupe du reste.</p></div><a class="btn" href="#/blog/nouveau">✨ Écrire le reportage</a></section>` : ''}
@@ -4913,7 +4913,7 @@
         <details class="bl-plus"${d.categorie || d.dateEvenement || d.lieu || d.invites ? ' open' : ''}><summary>Préciser (facultatif) : rubrique, date, lieu, invités</summary>
         <div class="g3"><label>Rubrique<select name="categorie"><option value="">L’IA choisit</option>${Object.entries(BLOG_CAT).map(([k, v]) => `<option value="${k}"${d.categorie === k ? ' selected' : ''}>${v}</option>`).join('')}</select></label>
         <label>Type d’événement ou d’histoire<select name="typeEvenement"><option value="">L’IA choisit</option>${(r.types || []).map(t => `<option${d.typeEvenement === t ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></label>
-        <label>Date de l’événement<input type="date" name="dateEvenement" value="${esc(d.dateEvenement || '')}"></label>
+        <label>📅 Date du reportage <small class="muted">(classe les reportages)</small><input type="date" name="dateEvenement" value="${esc(d.dateEvenement || '')}"></label>
         <label>Lieu <small class="muted">(ville ou type de lieu)</small><input name="lieu" value="${esc(d.lieu || '')}" placeholder="ex. Massy (91), un hangar"></label>
         <label>Nombre d’invités<input name="invites" inputmode="numeric" value="${esc(d.invites || '')}" placeholder="ex. 400"></label></div></details>
       </section>
@@ -4973,7 +4973,7 @@
         <label>Introduction <small class="muted">(en grand, sous la photo)</small><textarea name="chapo" rows="3">${esc(a.chapo || '')}</textarea></label>
         <div class="g3"><label>Rubrique<select name="categorie">${Object.entries(BLOG_CAT).map(([k, v]) => `<option value="${k}"${a.categorie === k ? ' selected' : ''}>${v}</option>`).join('')}</select></label>
         <label>Type d’événement ou d’histoire<select name="typeEvenement"><option value="">—</option>${[...new Set([...(types || []), a.typeEvenement].filter(Boolean))].map(t => `<option${a.typeEvenement === t ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></label>
-        <label>Date de l’événement<input type="date" name="dateEvenement" value="${esc(a.dateEvenement || '')}"></label>
+        <label>📅 Date du reportage <small class="muted">(classe les reportages sur le site)</small><input type="date" name="dateEvenement" value="${esc(a.dateEvenement || String(a.publieLe || a.createdAt || '').slice(0, 10))}" required></label>
         <label>Lieu<input name="lieu" value="${esc(a.lieu || '')}"></label><label>Nombre d’invités<input name="invites" inputmode="numeric" value="${esc(a.invites || '')}"></label></div></section>
       <section class="box"><h2>Chiffres clés <small class="muted">(bandeau sous la photo, 4 maximum)</small></h2>
         <div class="bl-chiffres">${[0, 1, 2, 3].map(i => `<div><input data-chv="${i}" value="${esc(ch[i]?.valeur || '')}" placeholder="${['400', '14', '3', '2 400'][i]}" maxlength="14"><input data-chl="${i}" value="${esc(ch[i]?.libelle || '')}" placeholder="${['invités', 'serveurs', 'buffets', 'pièces cocktail'][i]}" maxlength="40"></div>`).join('')}</div></section>

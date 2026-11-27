@@ -1371,7 +1371,7 @@ async function createApp(opts = {}) {
     let s = slug || 'reportage', k = 2; while (pris.has(s)) s = `${slug}-${k++}`; return s;
   }
   A.get('/blog', peut('site'), wrap(async (req, res) => {
-    const l = (await articlesBlog()).sort((a, b) => String(b.publieLe || b.createdAt || '').localeCompare(String(a.publieLe || a.createdAt || '')));
+    const l = (await articlesBlog()).sort(BLOG.parDate);
     const R = (await store.get('site/reglages')) || {};
     res.set('Cache-Control', 'no-store').json({ articles: l, rappel: await etatBlog(), reglages: { ...BLOG.reglagesRappel(R), tel: R.blog?.rappel?.tel || '', email: R.blog?.rappel?.email || '', alertesSms: R.alertes?.sms || '', alertesEmails: R.alertes?.emails || '' }, types: BLOG.TYPES, ia: ia.actif });
   }));

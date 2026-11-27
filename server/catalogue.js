@@ -24,8 +24,8 @@ function createCatalogue(store) {
     cache = {
       reglages: reglages || {}, rubriques, produits, bySlug, byRub, lieux: lieuxL, index,
       avis: avis.map(d => ({ id: d.id, ...d.data })).filter(a => a.statut === 'visible' || a.statut === 'vedette' || !a.statut).sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0)),
-      /* reportages publiés, du plus récent au plus ancien (accueil, /blog) */
-      blog: blog.map(d => d.data).filter(a => a && a.statut === 'publie' && a.slug).sort((a, b) => String(b.publieLe || '').localeCompare(String(a.publieLe || ''))),
+      /* reportages publiés, du plus récent au plus ancien selon la date du reportage (accueil, /blog) */
+      blog: blog.map(d => d.data).filter(a => a && a.statut === 'publie' && a.slug).sort(require('./blog').parDate),
       pages: Object.fromEntries(pages.map(d => [d.data.url, d.data])),
       /* médiathèque : nom donné à chaque image (texte alternatif pour Google) et images retirées (Jean-Luc, 2026-11-27) */
       medias: { noms: medias?.noms || {}, caches: medias?.caches || [] },
