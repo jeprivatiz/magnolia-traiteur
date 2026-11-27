@@ -2405,6 +2405,47 @@ tr.rem-det > td { padding: 4px 0 12px 14px; }
   .qs-rsv .row .btn{flex:1 1 auto}
   .qs-rsv .row .btn.sm{margin-left:0}
 }
+
+/* ---------- Contacts : recherche multicritère plus lisible (cartes ombrées) + envoi SMS / e-mail aux contacts trouvés (Jean-Luc, 2026-11-27) ---------- */
+.cl-multi { border: 1px solid color-mix(in srgb, var(--or) 35%, var(--ligne)); box-shadow: 0 2px 4px rgba(20, 30, 25, .06), 0 10px 28px rgba(20, 30, 25, .09); background: color-mix(in srgb, var(--doux) 55%, var(--carte)); }
+.cl-multi > summary { background: linear-gradient(90deg, var(--doux), color-mix(in srgb, var(--or) 12%, var(--doux))); border-bottom: 1px solid color-mix(in srgb, var(--or) 25%, var(--ligne)); }
+.cl-multi .cl-gr { margin: 14px 16px 0; padding: 14px 16px 14px; border: 1px solid var(--ligne); border-left: 4px solid var(--or); border-radius: 12px; background: var(--carte); box-shadow: 0 1px 2px rgba(20, 30, 25, .06), 0 4px 14px rgba(20, 30, 25, .07); }
+.cl-multi .cl-gr-h { border-left-color: var(--vert-2); }
+.cl-multi .cl-gt { font-size: .92rem; margin-bottom: 10px; }
+.cl-multi .cl-crit > span { font-weight: 600; color: var(--texte); opacity: .8; }
+.cl-multi .cl-crit select { background: color-mix(in srgb, var(--doux) 45%, var(--carte)); border: 1.5px solid color-mix(in srgb, var(--or) 30%, var(--ligne)); box-shadow: 0 1px 3px rgba(20, 30, 25, .08); font-weight: 500; }
+.cl-multi .cl-crit select:hover { border-color: var(--or); }
+.cl-multi .cl-crit select.on { background: color-mix(in srgb, var(--or) 12%, var(--carte)); }
+.cl-multi .cl-res { margin: 14px 16px 16px; border: 0; border-radius: 12px; background: var(--carte); box-shadow: 0 1px 2px rgba(20, 30, 25, .06), 0 4px 14px rgba(20, 30, 25, .07); }
+.cl-bar input[type=search] { border: 1.5px solid color-mix(in srgb, var(--or) 30%, var(--ligne)); box-shadow: 0 2px 8px rgba(20, 30, 25, .08); }
+.cl-f .qs-own-b { box-shadow: 0 1px 4px rgba(20, 30, 25, .1); }
+#clTable > .table { box-shadow: 0 2px 4px rgba(20, 30, 25, .06), 0 8px 24px rgba(20, 30, 25, .08); }
+.cl-env { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; padding: 14px 18px; margin: 0 0 14px; border-radius: 14px; background: linear-gradient(120deg, var(--vert), var(--vert-2)); color: #fff; box-shadow: 0 6px 22px rgba(29, 59, 47, .28); }
+.cl-env p { margin: 0; flex: 1 1 260px; font-size: .95rem; }
+.cl-env p b { font-size: 1.15rem; }
+.cl-env p small { display: block; opacity: .8; font-size: .8rem; margin-top: 2px; }
+.cl-env .btn { background: #fff; color: var(--vert); border-color: #fff; font-weight: 600; box-shadow: 0 2px 8px rgba(0, 0, 0, .15); }
+.cl-env .btn.or { background: var(--or); color: #fff; border-color: var(--or); }
+.cl-env .btn:disabled { opacity: .55; }
+.cl-env .btn small { font-weight: 500; opacity: .85; }
+@media (max-width: 640px) { .cl-multi .cl-gr { margin: 10px 10px 0; padding: 12px; } .cl-multi .cl-res { margin: 10px; } .cl-env .btn { flex: 1 1 100%; justify-content: center; } }
+/* écran d'envoi : « Les contacts de ma recherche » */
+.df-rech { border: 1px solid color-mix(in srgb, var(--or) 35%, var(--ligne)); border-left: 4px solid var(--or); background: color-mix(in srgb, var(--or) 8%, var(--carte)); border-radius: 12px; padding: 12px 14px; margin: 10px 0 12px; }
+.df-rech p { margin: 0 0 8px; }
+.df-rech .pf-ps { margin-bottom: 8px; }
+/* SMS : petit téléphone qui montre le SMS pendant qu'on l'écrit + compteur */
+.df-smsz { display: grid; grid-template-columns: 1fr 230px; gap: 16px; align-items: start; }
+.df-mini { width: 230px; border-radius: 34px; border: 8px solid #16181a; background: #f2f2f7; box-shadow: 0 0 0 1px #3a3d40, 0 14px 30px rgba(0, 0, 0, .25); padding: 26px 10px 16px; min-height: 300px; position: relative; color: #000; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; }
+.df-mini::before { content: ''; position: absolute; top: 7px; left: 50%; transform: translateX(-50%); width: 70px; height: 16px; border-radius: 10px; background: #16181a; }
+.df-mini-h { text-align: center; font-size: .72rem; color: #666; margin: 4px 0 10px; }
+.df-mini-h b { display: block; color: #000; font-size: .8rem; }
+.df-mini-b { background: #e5e5ea; border-radius: 16px 16px 16px 4px; padding: 8px 11px; font-size: .78rem; line-height: 1.35; white-space: pre-wrap; word-break: break-word; max-height: 330px; overflow: auto; }
+.df-mini-b:empty::before { content: 'Votre SMS apparaîtra ici…'; color: #888; }
+.df-cpt { font-size: .9rem; background: var(--doux); border-radius: 10px; padding: 8px 12px; }
+.df-cout { display: block; border-radius: 12px; padding: 10px 14px; background: var(--doux); border: 1px solid var(--ligne); font-size: .92rem; color: var(--texte); }
+.df-cout.ko { background: color-mix(in srgb, var(--rouge) 10%, var(--carte)); border-color: color-mix(in srgb, var(--rouge) 40%, var(--ligne)); }
+.df-cout.okc { background: color-mix(in srgb, var(--vert-ok) 10%, var(--carte)); border-color: color-mix(in srgb, var(--vert-ok) 35%, var(--ligne)); }
+@media (max-width: 760px) { .df-smsz { grid-template-columns: 1fr; } .df-mini { margin: 0 auto; } }
 /* Suivi client (2026-11-27) : devis pas encore envoyé en rouge ; relance envoyée en vert ; cadre « Relancer » */
 .qs-st.todo .qs-dot{border-color:#c0392b}
 .qs-st.todo b,.qs-st.todo i{color:#c0392b}

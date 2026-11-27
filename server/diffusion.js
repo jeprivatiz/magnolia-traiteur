@@ -57,7 +57,7 @@ function profils({ clients, demandes, devis, factures, totaux }) {
       nbCommandes: commandes.length + (crm ? 1 : 0), totalCents: commandes.reduce((t, x) => t + x, 0) + crm,
       nbDemandes: dem.filter(d => d.type !== 'contact').length,
       derniere: dates[dates.length - 1] || '',
-      accordEmail: !!ok.email, accordSms: !!ok.sms, stopEmail: !!stop.email, stopSms: !!stop.sms,
+      accordEmail: !!ok.email, accordSms: !!ok.sms, stopEmail: !!stop.email || !!c.nePasContacter, stopSms: !!stop.sms || !!c.nePasContacter,
     };
   });
 }
