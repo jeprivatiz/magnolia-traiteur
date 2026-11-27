@@ -6,11 +6,18 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
+<<<<<<< HEAD
 let vuParIa = '';
 test('bon de préparation de commande', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mg-'));
   const { createApp } = require('../server/index');
   const app = await createApp({ env: { DB_FILE: path.join(dir, 'db.json'), UPLOAD_DIR: path.join(dir, 'up'), ADMIN_EMAIL: 'chef@magnolia.test', ADMIN_PASSWORD: 'mot-de-passe-essai', BREVO_API_KEY: '', DB_HOST: '', ANTHROPIC_API_KEY: '' }, iaAsk: async p => { vuParIa = p; return JSON.stringify({ texte: 'Magnolia : RDV 16 h, passer par l’entrée de service.' }); }, noTimers: true, log: { log() {}, warn() {}, error() {}, info() {} } });
+=======
+test('bon de préparation de commande', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mg-'));
+  const { createApp } = require('../server/index');
+  const app = await createApp({ env: { DB_FILE: path.join(dir, 'db.json'), UPLOAD_DIR: path.join(dir, 'up'), ADMIN_EMAIL: 'chef@magnolia.test', ADMIN_PASSWORD: 'mot-de-passe-essai', BREVO_API_KEY: '', DB_HOST: '', ANTHROPIC_API_KEY: '' }, noTimers: true, log: { log() {}, warn() {}, error() {}, info() {} } });
+>>>>>>> 7378d3717cba638f20102d863baca02fe8fbd464
   const srv = app.listen(0);
   const base = 'http://127.0.0.1:' + srv.address().port;
   let cookie = '';
@@ -75,6 +82,7 @@ test('bon de préparation de commande', async () => {
     assert.match(html, /Marcel DURAND/); assert.doesNotMatch(html, /Retour au back-office/);
     assert.equal((await fetch(base + '/preparation/zzzzzzzzzzzzzzzzzzzzzzzz')).status, 404);
     assert.equal((await call('/api/admin/prepa/' + id)).j.bon.envois.length, 1);
+<<<<<<< HEAD
     // listes déroulantes : softs et matériel
     assert.ok(g.listes.softs.some(n => /Coca/i.test(n)), JSON.stringify(g.listes.softs));
     assert.ok(g.listes.materiel.some(n => /Bain-marie|chafing/i.test(n)));
@@ -119,3 +127,7 @@ test('bon de préparation : nappes avec taille, couleur, extensible ou non', () 
   const b = P.nettoyer({ lignes: [{ type: 'produit', designation: 'Nappage', liste: 'nappes', items: [{ nom: '170 × 250 cm', couleur: 'Noire', type: 'Extensible', n: '12' }] }], client: {}, evenement: {}, horaires: {} });
   assert.match(P.documentHtml({ ...b, personnelDevis: [] }), /<b>12<\/b> 170 × 250 cm · nappe noire · extensible/);
 });
+=======
+  } finally { srv.close(); }
+});
+>>>>>>> 7378d3717cba638f20102d863baca02fe8fbd464
