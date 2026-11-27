@@ -26,5 +26,5 @@ Une vidéo différente par formule (Pexels, licence Pexels, 800×600 en boucle a
 | Formule | Fichier | Ce qu'on voit | Source |
 |---|---|---|---|
 | Entrées + plat | buffet-chafing-plats | Assiette garnie d'un plat et de son accompagnement devant une rangée de chafing dishes | https://www.pexels.com/video/28099100/ (LayG Traveller) |
-| Assortiment 13 pièces salées | bouchees-vapeur | Bouchées vapeur dressées à la baguette dans des paniers en bambou | https://www.pexels.com/video/8094284/ (Mikhail Nilov) |
+| Assortiment 13 pièces salées | nems-assortiment | Nems servis sur une assiette, bouchées siu mai et crevettes sur la table (remplace le 2026-11-27 les bouchées posées sur un couvercle, refusées) | https://www.pexels.com/video/7361597/ |
 | Entrées + plat + dessert | (vidéo d’origine chinois-boucle remise le 2026-11-27, demande de Jean-Luc) | — |
