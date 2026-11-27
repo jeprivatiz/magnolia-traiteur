@@ -1086,10 +1086,10 @@
     const out = [etape('done', 'Demande', d1(o.d.createdAt) + (o.d.source ? ' · ' + (/IA/.test(o.d.source) ? '✨ IA' : 'tél.') : o.d.lignes ? ' · site' : ''), '✓')];
     out.push(sent ? etape('done', 'Devis envoyé', d1(o.envoyeLe) + (o.envoyePar ? ' · par ' + o.envoyePar : ''), '✓') : `<button type="button" class="qs-stb" data-qdevis="${o.d.id}" title="Préparer le devis">${etape('now todo', 'Devis à envoyer', o.main ? 'brouillon, pas encore envoyé' : 'à préparer')}</button>`);
     const rel = o.relances[o.relances.length - 1];
-    const relB = h => sent && !decided ? `<button type="button" class="qs-stb" data-qrel="${o.d.id}" title="Choisir un modèle et envoyer une relance">${h}</button>` : h;
+    const relB = h => `<button type="button" class="qs-stb" data-qrel="${o.d.id}" title="Choisir un modèle et envoyer une relance">${h}</button>`;
     out.push(relB(o.late && sent ? etape('warn', 'À relancer', 'depuis ' + (o.late >= 48 ? Math.floor(o.late / 24) + ' jours' : o.late + ' h'), '!')
       : rel ? etape('done relok', '✓ Relance envoyée', d1(rel.at) + ' · ' + rel.how + (o.relances.length > 1 ? ' · ' + o.relances.length + ' relances' : ''), '✓')
-      : etape(decided ? 'skip' : sent ? 'opt' : '', 'Relance', decided ? 'pas utile' : sent ? '+ relancer' : '—')));
+      : etape(decided ? 'skip' : 'opt', 'Relance', decided ? 'si besoin' : '+ relancer')));
     if (st === 'refuse') out.push(etape('lost', 'Refusé', 'classé · ' + d1(o.at('refuse')), '✕'));
     else {
       const acc = ['accord', 'reserve', 'termine'].includes(st), sig = o.main?.statut === 'accepte' && o.main.signature;
@@ -1135,7 +1135,7 @@
     if (!m) return `<div class="qs-rsv qs-rel"><p>Aucun modèle de relance. Ajoutez-en dans Outils › Modèles.</p><div class="row"><button class="btn ghost" type="button" data-relx>Fermer</button></div></div>`;
     const sms = m.canal === 'sms', dest = sms ? D.tel : D.email;
     return `<form class="qs-rsv qs-rel" data-relform="${o.d.id}">
-      <div class="qs-rsv-h"><b>✉ Relancer ${esc(o.d.contact?.nom || 'le client')}</b><span class="muted sm">${D.relances ? D.relances + ' relance' + (D.relances > 1 ? 's' : '') + ' déjà envoyée' + (D.relances > 1 ? 's' : '') + ' · ' : ''}devis n° ${esc(o.main.numero)}</span></div>
+      <div class="qs-rsv-h"><b>✉ Relancer ${esc(o.d.contact?.nom || 'le client')}</b><span class="muted sm">${D.relances ? D.relances + ' relance' + (D.relances > 1 ? 's' : '') + ' déjà envoyée' + (D.relances > 1 ? 's' : '') + ' · ' : ''}${D.devis ? 'devis n° ' + esc(D.devis.numero) : 'pas encore de devis envoyé : relance de la demande ' + esc(D.ref)}</span></div>
       <label class="qs-rel-mod">Modèle de relance<select name="modele" data-relmod>${D.modeles.map(x => `<option value="${esc(x.id)}"${x.id === m.id ? ' selected' : ''}>${x.canal === 'sms' ? '💬 ' : '✉ '}${esc(x.nom)}</option>`).join('')}</select></label>
       <p class="sm qs-rel-to">${sms ? '💬 SMS' : '✉ E-mail'} envoyé à <b>${dest ? esc(dest) : `<span class="err">aucun ${sms ? 'portable' : 'e-mail'} sur la fiche</span>`}</b></p>
       ${sms ? '' : `<label>Objet<input name="sujet" value="${esc(m.sujet)}"></label>`}
@@ -1145,10 +1145,10 @@
     </form>`;
   }
   async function ouvrirRelance(id, canal) {
-    const x = (cache.opps || []).find(y => y.d.id === id); if (!x?.main) return toast('Pas encore de devis envoyé à relancer.', true);
+    const x = (cache.opps || []).find(y => y.d.id === id); if (!x) return;
     SV.rsv = null; SV.rel = { id, canal, data: null }; suiviDessin();
     try {
-      const D = await api(`${A}/actions/relance-modeles/${x.main.id}`);
+      const D = await api(`${A}/actions/relance-modeles-demande/${id}`);
       if (SV.rel?.id !== id) return;
       const em = D.modeles.filter(m => m.canal !== 'sms'), sm = D.modeles.filter(m => m.canal === 'sms');
       const def = canal === 'sms' ? sm[0] : em[Math.min(D.relances, em.length - 1)] || D.modeles[0];
@@ -1203,7 +1203,7 @@
         const x = (cache.opps || []).find(y => y.d.id === g.dataset.relform), b = g.querySelector('[type=submit]');
         b.disabled = true; b.textContent = 'Envoi…';
         try {
-          await api(`${A}/actions/relancer/${x.main.id}`, { method: 'POST', body: { modele: g.modele.value, sujet: g.sujet?.value || '', texte: g.texte.value } });
+          await api(`${A}/actions/relancer-demande/${x.d.id}`, { method: 'POST', body: { modele: g.modele.value, sujet: g.sujet?.value || '', texte: g.texte.value } });
           SV.rel = null; await majDemande(x.d.id, d => d, '✓ Relance envoyée à ' + (x.d.contact?.nom || 'au client') + '.');
         } catch (err) { toast(err.message, true); b.disabled = false; b.textContent = '📨 Envoyer la relance'; }
         return;
@@ -1231,7 +1231,7 @@
         const f = t.closest('form'), x = o(f.dataset.relform), m = SV.rel.data.modeles.find(y => y.id === f.modele.value);
         t.disabled = true; const lab = t.textContent; t.textContent = '✨ L’IA écrit…';
         try {
-          const r = await api(`${A}/ia/relance`, { method: 'POST', body: { devisId: x.main.id, canal: m.canal, sujet: f.sujet?.value || '', texte: f.texte.value, consigne: f.consigne.value } });
+          const r = await api(`${A}/ia/relance`, { method: 'POST', body: { demandeId: x.d.id, canal: m.canal, sujet: f.sujet?.value || '', texte: f.texte.value, consigne: f.consigne.value } });
           if (f.sujet && r.sujet) f.sujet.value = r.sujet; f.texte.value = r.texte; toast('Texte réécrit par l’IA : relisez-le avant d’envoyer.');
         } catch (err) { toast(err.message, true); }
         t.disabled = false; t.textContent = lab; return;

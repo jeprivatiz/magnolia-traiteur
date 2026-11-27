@@ -952,7 +952,7 @@ async function createApp(opts = {}) {
     [/^\/devis\/([^/]+)\/apercu/, 'devis'],
     [/^\/factures\/([^/]+)\/apercu/, 'factures'],
     [/^\/actions\/(?:facture|facture-reglement|facture-reglement-retirer|facture-payee|envoyer-facture|relancer-facture|archiver-facture|avoir-facture)\/([^/]+)/, 'factures'],
-    [/^\/actions\/(?:devis-depuis-demande|reserver)\/([^/]+)/, 'demandes'],
+    [/^\/actions\/(?:devis-depuis-demande|reserver|relance-modeles-demande|relancer-demande)\/([^/]+)/, 'demandes'],
   ];
   A.use(wrap(async (req, res, next) => {
     const p = req.path, dr = req.ctx.droits || {};
@@ -1972,13 +1972,14 @@ async function createApp(opts = {}) {
   /* ✨ l'IA réécrit la relance (consigne facultative : « plus court », « proposer un appel »…) */
   A.post('/ia/relance', sameSite, json, wrap(async (req, res) => {
     if (!iaLimit(req.ctx.uid)) return res.status(429).json({ error: 'Trop de demandes : réessayez dans une minute.' });
-    const d = await store.get('devis/' + s(req.body?.devisId, 60));
+    const c = req.body?.demandeId ? await cibleRelance(s(req.body.demandeId, 60)) : null;
+    const d = c ? (c.devis || { numero: c.dem.ref, evenement: c.dem.evenement, clientId: c.dem.clientId, clientNom: c.dem.contact?.nom, sansDevis: true }) : await store.get('devis/' + s(req.body?.devisId, 60));
     if (!d) return res.status(404).json({ error: 'Devis introuvable.' });
     const sms = req.body?.canal === 'sms', texte = s(req.body?.texte, 4000), sujet = s(req.body?.sujet, 200), consigne = s(req.body?.consigne, 500);
-    const v = varsRelance(d, await store.get('clients/' + d.clientId));
-    const prompt = `Tu es le commercial de Magnolia Traiteur (traiteur événementiel, Villebon-sur-Yvette). Réécris ce message de relance pour un client qui n'a pas encore accepté son devis.
-Client : ${v.nom || 'inconnu'} · ${v.evenement} du ${v.date} · devis ${v.numero} de ${v.montant} TTC.
-Règles : français, vouvoiement, chaleureux et professionnel, sans pression excessive, aucune information inventée (prix, remise, disponibilité) ; garde le lien du devis tel quel : ${v.lien}. ${sms ? 'SMS : 300 caractères maximum, signé « Magnolia Traiteur ».' : 'E-mail court (6 à 10 lignes), signé « L’équipe Magnolia Traiteur » avec le 07 63 66 98 92.'}
+    const v = c ? c.vars : varsRelance(d, await store.get('clients/' + d.clientId));
+    const prompt = `Tu es le commercial de Magnolia Traiteur (traiteur événementiel, Villebon-sur-Yvette). Réécris ce message de relance pour un client ${d.sansDevis ? 'dont la demande est en cours (le devis n’est pas encore envoyé)' : 'qui n’a pas encore accepté son devis'}.
+Client : ${v.nom || 'inconnu'} · ${v.evenement} du ${v.date} · ${d.sansDevis ? 'demande ' + v.numero : 'devis ' + v.numero + ' de ' + v.montant + ' TTC'}.
+Règles : français, vouvoiement, chaleureux et professionnel, sans pression excessive, aucune information inventée (prix, remise, disponibilité) ; garde le lien tel quel : ${v.lien}. ${sms ? 'SMS : 300 caractères maximum, signé « Magnolia Traiteur ».' : 'E-mail court (6 à 10 lignes), signé « L’équipe Magnolia Traiteur » avec le 07 63 66 98 92.'}
 ${consigne ? 'Consigne du commercial : ' + consigne + '\n' : ''}Message actuel :${sms ? '' : '\nObjet : ' + sujet}
 ${texte}
 
@@ -2002,8 +2003,58 @@ Réponds uniquement en JSON : {${sms ? '' : '"sujet": "...", '}"texte": "..."}`;
     else { if (!cl?.email) return res.status(400).json({ error: 'Pas d’e-mail sur la fiche du client.' }); await brevo.sendEmail({ to: cl.email, name: cl.nom, subject: sujet, html: esc(texte).replace(/\n/g, '<br>'), text: texte }); }
     const now = new Date().toISOString();
     await store.set('devis/' + d.id, { ...d, derniereRelance: now, relances: [...(d.relances || []), { at: now, modele: m.nom, canal: m.canal, sujet: m.canal === 'sms' ? '' : sujet, texte: texte.slice(0, 3000), par: req.ctx.name }] });
-    if (d.demandeId) await changerStatut(d.demandeId, 'relance', req.ctx.name);
+    if (d.demandeId) await relanceStatut(d.demandeId, req.ctx.name);
     audit(req.ctx, 'relance envoyée', 'devis/' + d.id, m.nom);
+    res.json({ ok: true });
+  }));
+  /* une relance ne fait jamais reculer une fiche déjà en « Accord » ou « Réservé » */
+  async function relanceStatut(demandeId, par) {
+    const dm = await store.get('demandes/' + demandeId);
+    if (dm && ['demande', 'devis_envoye'].includes(dm.statut)) await changerStatut(demandeId, 'relance', par);
+  }
+  /* Relance depuis la carte du Suivi client, par la fiche (demande) : avec le devis envoyé s'il y en a un,
+     sinon une relance de la demande elle-même (pas encore de devis : le lien mène au site). */
+  async function cibleRelance(demId) {
+    const dem = await store.get('demandes/' + demId);
+    if (!dem) return null;
+    const l = (await store.list('devis')).map(x => x.data).filter(x => x && x.demandeId === dem.id).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+    const devis = l.find(x => x.statut === 'accepte') || l.find(x => x.statut === 'envoye') || null;
+    const cl = await store.get('clients/' + (devis?.clientId || dem.clientId)) || { nom: dem.contact?.nom, email: dem.contact?.email, tel: dem.contact?.tel };
+    const vars = devis ? varsRelance(devis, cl) : { prenom: (cl.nom || '').split(' ')[0], nom: cl.nom || '', numero: dem.ref || '', evenement: String(dem.evenement?.type || 'événement').toLowerCase(), date: dateFr(dem.evenement?.date), lien: SITE, montant: dem.totalEstimeCents ? euros(dem.totalEstimeCents) : '' };
+    return { dem, devis, cl, vars };
+  }
+  const MODELES_SANS_DEVIS = [
+    { id: 'demande-suivi', nom: 'Suivi de votre demande (pas encore de devis)', canal: 'email', sujet: 'Votre demande pour votre {evenement} du {date}', texte: 'Bonjour {prenom},\n\nNous avons bien reçu votre demande pour votre {evenement} du {date} et nous préparons votre devis.\nPour qu’il vous ressemble, pouvez-vous nous confirmer le nombre d’invités, l’adresse et l’horaire de livraison ?\nUn simple retour à cet e-mail suffit, ou appelez-nous au 07 63 66 98 92.\n\nBelle journée,\nL’équipe Magnolia Traiteur' },
+    { id: 'demande-sms', nom: 'SMS : suivi de votre demande', canal: 'sms', sujet: '', texte: 'Magnolia Traiteur : nous préparons votre devis pour le {date}. Une précision ? Appelez-nous au 07 63 66 98 92. {lien}' },
+  ];
+  A.get('/actions/relance-modeles-demande/:id', wrap(async (req, res) => {
+    const c = await cibleRelance(req.params.id);
+    if (!c) return res.status(404).json({ error: 'Fiche introuvable.' });
+    const ordre = m => ({ 'relance-j3': 1, 'relance-j7': 2, 'relance-derniere': 3, 'sms-relance': 9 }[m.id] || (m.canal === 'sms' ? 8 : 5));
+    const mods = c.devis ? (await store.list('modeles')).map(x => x.data).filter(m => m && m.id !== 'merci').sort((a, b) => ordre(a) - ordre(b)) : MODELES_SANS_DEVIS;
+    const nb = (c.devis?.relances || []).length + (c.dem.relancesNotees || []).filter(r => r.modele).length;
+    res.json({ email: c.cl.email || '', tel: c.cl.tel || '', relances: nb, devis: c.devis ? { id: c.devis.id, numero: c.devis.numero } : null, ref: c.dem.ref || '',
+      modeles: mods.map(m => ({ id: m.id, nom: m.nom, canal: m.canal, sujet: remplir(m.sujet || '', c.vars), texte: remplir(m.texte || '', c.vars) })) });
+  }));
+  A.post('/actions/relancer-demande/:id', sameSite, json, wrap(async (req, res) => {
+    const c = await cibleRelance(req.params.id);
+    if (!c) return res.status(404).json({ error: 'Fiche introuvable.' });
+    const id = s(req.body?.modele, 60);
+    const m = c.devis ? await store.get('modeles/' + id) : MODELES_SANS_DEVIS.find(x => x.id === id);
+    if (!m) return res.status(404).json({ error: 'Modèle introuvable.' });
+    const texte = remplir(s(req.body?.texte, 5000) || m.texte, c.vars), sujet = remplir(s(req.body?.sujet, 200) || m.sujet, c.vars);
+    if (m.canal === 'sms') { if (!c.cl.tel) return res.status(400).json({ error: 'Pas de portable sur la fiche du client.' }); await brevo.sendSms({ to: c.cl.tel, content: texte }); }
+    else { if (!c.cl.email) return res.status(400).json({ error: 'Pas d’e-mail sur la fiche du client.' }); await brevo.sendEmail({ to: c.cl.email, name: c.cl.nom, subject: sujet, html: esc(texte).replace(/\n/g, '<br>'), text: texte }); }
+    const now = new Date().toISOString(), trace = { at: now, modele: m.nom, canal: m.canal, sujet: m.canal === 'sms' ? '' : sujet, texte: texte.slice(0, 3000), par: req.ctx.name };
+    if (c.devis) {
+      const d = await store.get('devis/' + c.devis.id);
+      await store.set('devis/' + d.id, { ...d, derniereRelance: now, relances: [...(d.relances || []), trace] });
+    } else {
+      const dm = await store.get('demandes/' + c.dem.id);
+      await store.set('demandes/' + dm.id, priseDe({ ...dm, relancesNotees: [...(dm.relancesNotees || []), { ...trace, how: m.canal === 'sms' ? 'SMS' : 'e-mail' }] }, req.ctx.name, 'relance'));
+    }
+    await relanceStatut(c.dem.id, req.ctx.name);
+    audit(req.ctx, 'relance envoyée', c.devis ? 'devis/' + c.devis.id : 'demandes/' + c.dem.id, m.nom);
     res.json({ ok: true });
   }));
 
