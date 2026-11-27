@@ -34,5 +34,14 @@ test('relance : modèles remplis, texte modifié, historique', async () => {
     const d2 = (await call('/api/admin/devis/' + id)).j;
     assert.equal(d2.relances.length, 1); assert.equal(d2.relances[0].sujet, 'Objet modifié'); assert.equal(d2.relances[0].texte, 'Bonjour Tara, petit mot perso.');
     assert.equal((await call('/api/admin/actions/relance-modeles/' + id)).j.relances, 1);
+    // fiche du site sans devis : la relance s'ouvre quand même (modèles « demande »), notée sur la fiche, statut inchangé si déjà en Accord
+    const pd = await call('/api/demandes', { method: 'POST', body: { nom: 'Lina Petit', email: 'lina@example.test', tel: '06 11 22 33 44', evenement: 'Anniversaire', date: '2027-04-10', invites: 10, cp: '91140', ville: 'Villebon-sur-Yvette', lignes: [{ slug: (await app.locals.catalogue.get()).produits.find(x => x.prixCents > 0 && x.statut !== 'masque').slug, qte: 50 }] } }); assert.equal(pd.status, 200, JSON.stringify(pd.j));
+    const dem = (await call('/api/admin/demandes')).j.find(x => /Lina/.test(x.contact?.nom));
+    await call('/api/admin/demandes/' + dem.id, { method: 'PUT', body: { ...dem, statut: 'accord' } });
+    const M2 = (await call('/api/admin/actions/relance-modeles-demande/' + dem.id)).j;
+    assert.equal(M2.devis, null); assert.equal(M2.modeles[0].id, 'demande-suivi'); assert.match(M2.modeles[0].texte, /Bonjour Lina/);
+    assert.equal((await call('/api/admin/actions/relancer-demande/' + dem.id, { method: 'POST', body: { modele: 'demande-suivi' } })).status, 200);
+    const dem2 = (await call('/api/admin/demandes/' + dem.id)).j;
+    assert.equal(dem2.statut, 'accord'); assert.equal(dem2.relancesNotees.length, 1); assert.equal(dem2.relancesNotees[0].how, 'e-mail');
   } finally { srv.close(); }
 });
