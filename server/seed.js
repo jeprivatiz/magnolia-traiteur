@@ -912,7 +912,7 @@ async function initSousRubriques(store, { log = console } = {}) {
      à la main dans le back-office n'est pas touchée. */
   const RCv = await store.get('site/reglages');
   if (RCv && !RCv.chinoisVideos1) {
-    const VC = { 'buffet-chinois-entrees-plat': 'buffet-chafing-plats', 'buffet-chinois-assortiment-13-pieces-salees': 'bouchees-vapeur', 'buffet-chinois-entrees-plat-dessert': null };
+    const VC = { 'buffet-chinois-entrees-plat': 'buffet-chafing-plats', 'buffet-chinois-assortiment-13-pieces-salees': 'nems-assortiment', 'buffet-chinois-entrees-plat-dessert': null };
     for (const [id, n] of Object.entries(VC)) {
       const x = await store.get('produits/' + id);
       if (!n || !x || (x.video?.src && x.video.src !== '/site/v/chinois-boucle.mp4')) continue;
@@ -935,6 +935,18 @@ async function initSousRubriques(store, { log = console } = {}) {
       await store.set('produits/buffet-chinois-entrees-plat-dessert', n);
     }
     await store.set('site/reglages', { ...(await store.get('site/reglages')), chinoisDessert2390: true });
+  }
+
+  /* Buffet chinois « Assortiment 13 pièces salées » (Jean-Luc, 2026-11-27) : la vidéo des bouchées posées sur un couvercle
+     de panier vapeur faisait « IA ». Remplacée par une vraie vidéo : nems servis sur une assiette, bouchées siu mai et crevettes
+     sur la table (Pexels 7361597). Une fois ; une vidéo choisie à la main dans le back-office n'est pas touchée. */
+  const RCn = await store.get('site/reglages');
+  if (RCn && !RCn.chinoisNems1) {
+    const x = await store.get('produits/buffet-chinois-assortiment-13-pieces-salees');
+    if (x && (!x.video?.src || x.video.src === '/site/v/chinois/bouchees-vapeur.mp4')) {
+      await store.set('produits/buffet-chinois-assortiment-13-pieces-salees', { ...x, video: { src: '/site/v/chinois/nems-assortiment.mp4', poster: '/site/v/chinois/nems-assortiment.jpg' } });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), chinoisNems1: true });
   }
 
   /* plateaux de sushis : compositions, prix et photos du site actuel magnoliatraiteur.fr/plateaux-de-sushis (Jean-Luc, 2026-11-22).
