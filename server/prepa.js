@@ -44,7 +44,7 @@ function allergenesDe(lignes, bySlug) {
    - buffets / formules : ce que le client a choisi (entrées, plats, desserts…) avec le nombre de chacun ;
    - Pack softs en individuel : liste déroulante de tous les softs + nombre ;
    - Matériel traiteur : liste déroulante de tout le matériel + nombre. */
-const LISTES = { softs: 'Softs', materiel: 'Matériel', nappes: 'Nappes', compo: 'Choix du client' };
+const LISTES = { softs: 'Softs', materiel: 'Matériel', nappes: 'Nappes', kit: 'Composants du pack', compo: 'Choix du client' };
 /* nappes (Jean-Luc, 2026-11-27) : couleur, extensible ou non, taille + nombre */
 const NAPPES_COULEURS = ['Blanche', 'Noire'];
 const NAPPES_TYPES = ['Non extensible', 'Extensible'];
@@ -113,7 +113,7 @@ function listesPrepa(produits = []) {
   return { softs, materiel, nappes: tailles.length ? tailles : ['170 × 250 cm'], nappesCouleurs: NAPPES_COULEURS, nappesTypes: NAPPES_TYPES };
 }
 /* « Quantité à préparer » remplie d'après les choix (Jean-Luc, 2026-11-27) : total par groupe, « 60 entrées · 30 plats · 30 desserts » ; même règle dans admin.js (pcQteAuto) */
-const qteAuto = l => { const it = (l.items || []).filter(x => x.nom && +x.n > 0); if (!it.length) return ''; const g = new Map(); for (const x of it) { const k = x.groupe || ({ softs: 'softs', materiel: 'articles', nappes: 'nappes' })[l.liste] || 'pièces'; g.set(k, (g.get(k) || 0) + (+x.n)); } return [...g].map(([k, n]) => `${n} ${String(k).toLowerCase()}`).join(' · '); };
+const qteAuto = l => { if (l.liste === 'kit') return ''; const it = (l.items || []).filter(x => x.nom && +x.n > 0); if (!it.length) return ''; const g = new Map(); for (const x of it) { const k = x.groupe || ({ softs: 'softs', materiel: 'articles', nappes: 'nappes' })[l.liste] || 'pièces'; g.set(k, (g.get(k) || 0) + (+x.n)); } return [...g].map(([k, n]) => `${n} ${String(k).toLowerCase()}`).join(' · '); };
 const nomItem = x => [x.nom, x.couleur && 'nappe ' + x.couleur.toLowerCase(), x.type && x.type.toLowerCase()].filter(Boolean).join(' · ');
 const itemsTexte = l => (l.items || []).filter(x => x.nom).map(x => `${x.n !== '' && x.n != null ? x.n + ' × ' : ''}${nomItem(x)}`);
 
@@ -170,7 +170,7 @@ function nettoyer(b = {}, avant = {}, bySlug = new Map()) {
   const c = b.client || {}, e = b.evenement || {}, h = b.horaires || {};
   const lignes = (Array.isArray(b.lignes) ? b.lignes : []).slice(0, 400).map(l => l?.type === 'titre'
     ? { id: s(l.id, 20) || 'l' + rid6(), type: 'titre', designation: s(l.designation, 300) }
-    : { id: s(l?.id, 20) || 'l' + rid6(), type: 'produit', produit: s(l?.produit, 160), designation: s(l?.designation, 300), detail: txt(l?.detail, 600), qteDevis: l?.qteDevis === '' || l?.qteDevis == null ? '' : Math.max(0, Math.min(1e6, +String(l.qteDevis).replace(',', '.') || 0)), unite: s(l?.unite, 40), qtePrepa: s(l?.qtePrepa, 160), qteAuto: !!l?.qteAuto, recup: !!l?.recup, note: txt(l?.note, 400), allergenes: (Array.isArray(l?.allergenes) ? l.allergenes : bySlug.get(l?.produit)?.allergenes || []).slice(0, 14).map(x => s(x, 30)), liste: LISTES[l?.liste] ? l.liste : '', items: (Array.isArray(l?.items) ? l.items : []).slice(0, 80).map(x => ({ groupe: s(x?.groupe, 60), nom: s(x?.nom, 120), ...(l?.liste === 'nappes' ? { couleur: s(x?.couleur, 40), type: s(x?.type, 40) } : {}), n: x?.n === '' || x?.n == null ? '' : Math.max(0, Math.min(1e6, Math.round(+String(x.n).replace(',', '.') || 0))) })).filter(x => x.nom) })
+    : { id: s(l?.id, 20) || 'l' + rid6(), type: 'produit', produit: s(l?.produit, 160), designation: s(l?.designation, 300), detail: txt(l?.detail, 600), qteDevis: l?.qteDevis === '' || l?.qteDevis == null ? '' : Math.max(0, Math.min(1e6, +String(l.qteDevis).replace(',', '.') || 0)), unite: s(l?.unite, 40), qtePrepa: s(l?.qtePrepa, 160), qteAuto: !!l?.qteAuto, recup: !!l?.recup, note: txt(l?.note, 400), allergenes: (Array.isArray(l?.allergenes) ? l.allergenes : bySlug.get(l?.produit)?.allergenes || []).slice(0, 14).map(x => s(x, 30)), liste: LISTES[l?.liste] ? l.liste : '', ...(l?.liste === 'kit' ? { kitId: s(l?.kitId, 60) } : {}), items: (Array.isArray(l?.items) ? l.items : []).slice(0, 80).map(x => ({ groupe: s(x?.groupe, 60), nom: s(x?.nom, 120), ...(l?.liste === 'nappes' ? { couleur: s(x?.couleur, 40), type: s(x?.type, 40) } : {}), n: x?.n === '' || x?.n == null ? '' : Math.max(0, Math.min(1e6, Math.round((+String(x.n).replace(',', '.') || 0) * 100) / 100)) })).filter(x => x.nom) })
     .filter(l => l.designation || l.type === 'produit' && (l.qtePrepa || l.note));
   return {
     id: avant.id || s(b.devisId, 60), devisId: avant.devisId || s(b.devisId, 60), devisNumero: s(b.devisNumero ?? avant.devisNumero, 40), factureNumero: s(b.factureNumero ?? avant.factureNumero, 40),
@@ -198,7 +198,7 @@ const titreBon = b => `Bon de préparation · ${b.client.nom || 'client'}${b.eve
 function itemsDoc(l) {
   const it = (l.items || []).filter(x => x.nom); if (!it.length) return '';
   const g = new Map(); for (const x of it) { const k = x.groupe || (LISTES[l.liste] && l.liste !== 'compo' ? LISTES[l.liste] : ''); if (!g.has(k)) g.set(k, []); g.get(k).push(x); }
-  return `<div class="it">${[...g].map(([k, l2]) => `<div>${k ? `<em>${esc(k)}${l2.length > 1 && l2.every(x => x.n !== '') ? ` · ${l2.reduce((t, x) => t + (+x.n || 0), 0)} au total` : ''}</em>` : ''}<ul>${l2.map(x => `<li><span class="cb" role="checkbox" aria-checked="false" tabindex="0" aria-label="Préparé"></span><b>${x.n !== '' && x.n != null ? esc(x.n) : '…'}</b> ${esc(nomItem(x))}</li>`).join('')}</ul></div>`).join('')}</div>`;
+  return `<div class="it">${[...g].map(([k, l2]) => `<div>${k ? `<em>${esc(k)}${l2.length > 1 && l2.every(x => x.n !== '') ? ` · ${l2.reduce((t, x) => t + (+x.n || 0), 0)} au total` : ''}</em>` : ''}<ul>${l2.map(x => `<li><span class="cb" role="checkbox" aria-checked="false" tabindex="0" aria-label="Préparé"></span><b>${x.n !== '' && x.n != null ? esc(String(x.n).replace('.', ',')) : '…'}</b> ${esc(nomItem(x))}</li>`).join('')}</ul></div>`).join('')}</div>`;
 }
 
 /* le bon en A4 (aperçu, impression, PDF, lien envoyé à la cuisine) — sans aucun prix */
