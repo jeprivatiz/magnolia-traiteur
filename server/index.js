@@ -30,6 +30,7 @@ const LC = require('./livraison-client');
 const FAC = require('./factures');
 const { creerEntreprises } = require('./entreprises');
 const DR = require('./droits');
+const REM = require('./remuneration');
 const SRC = require('./sources');
 const HIST = require('./historique');
 const TAR = require('./tarifs');
@@ -927,7 +928,7 @@ async function createApp(opts = {}) {
     if (/^\/(?:factures(?:\/|$)|actions\/(?:factures$|facture\/|facture-|envoyer-facture|relancer-facture|archiver-facture|avoir-facture|reglement-devis))/.test(p) && !dr.factures) return refus(res, 'factures');
     if (/^\/(?:diffusion\/|ia\/diffusion-)/.test(p) && !dr.diffusion) return refus(res, 'diffusion');
     if (/^\/ia\/(?:seo|texte-produit)$/.test(p) && !dr.produits) return refus(res, 'produits');
-    if (/^\/actions\/(?:journal|envois)$/.test(p) && !dr.equipe) return refus(res, 'equipe');
+    if (/^\/actions\/(?:journal|envois|remuneration(?:\/.*)?)$/.test(p) && !dr.equipe) return refus(res, 'equipe');
     if (req.method !== 'GET' && p !== '/actions/presence') presence(req.ctx); /* une action compte aussi comme un signe de vie */
     if (req.method !== 'GET') {
       const coll = p.split('/')[1];
@@ -2735,6 +2736,33 @@ async function createApp(opts = {}) {
     }
     const personnes = [...pers.values()].sort((a, b) => b.minutes - a.minutes || b.actions - a.actions || a.who.localeCompare(b.who, 'fr'));
     res.json({ intact, total: rows.length, nb: lignes.length, lignes: lignes.slice(-500).reverse(), personnes, depuis, du, au, qui });
+  }));
+  /* Rémunération par action (Jean-Luc, 2026-11-27) : barème € par action + gains de chacun sur la période, d'après le journal */
+  A.get('/actions/remuneration', wrap(async (req, res) => {
+    const jourOk = j => /^\d{4}-\d{2}-\d{2}$/.test(j || '');
+    let du = jourOk(req.query.du) ? req.query.du : '', au = jourOk(req.query.au) ? req.query.au : '';
+    if (du && au && du > au) [du, au] = [au, du];
+    const bar = (await store.get('_remuneration/bareme')) || {};
+    const cents = REM.nettoyerBareme(Object.fromEntries(Object.entries(bar.montants || {}).map(([k, c]) => [k, (+c || 0) / 100])));
+    const users = (await store.list('_users')).filter(u => u.data);
+    const comptes = new Map(users.map(u => [u.id, u.data.name || u.data.email || '']));
+    const parNom = new Map(users.map(u => [nomCle(u.data.name), u.id]));
+    const signes = [];
+    for (const { id, data: d } of await store.list('devis')) {
+      if (!d || d.statut !== 'accepte' || !d.signature?.at) continue;
+      const uid = parNom.get(nomCle(d.commercial)); if (!uid) continue;
+      signes.push({ uid, at: d.signature.at, resume: `${d.numero || id}${d.clientNom ? ' · ' + d.clientNom : ''}` });
+    }
+    const rows = (await store.list('_audit')).map(d => d.data).filter(Boolean).sort((a, b) => a.n - b.n);
+    const personnes = REM.calculer({ rows, signes, cents, comptes, jourDe: jourParis, dansJour: j => (!du || j >= du) && (!au || j <= au) });
+    res.json({ du, au, actions: REM.ACTIONS.map(a => ({ k: a.k, groupe: a.groupe, nom: a.nom, unique: !!a.unique, cents: cents[a.k] })), personnes, majLe: bar.majLe || '', majPar: bar.majPar || '', modifiable: !!req.ctx.droits?.admin });
+  }));
+  A.put('/actions/remuneration/bareme', sameSite, json, peut('admin'), wrap(async (req, res) => {
+    const montants = REM.nettoyerBareme(req.body?.montants || {});
+    await store.set('_remuneration/bareme', { montants, majLe: new Date().toISOString(), majPar: req.ctx.name || '' });
+    const nb = Object.values(montants).filter(Boolean).length;
+    audit(req.ctx, 'barème de rémunération modifié', '_remuneration/bareme', `${nb} action${nb > 1 ? 's' : ''} rémunérée${nb > 1 ? 's' : ''}`);
+    res.json({ ok: true, montants });
   }));
   /* signe de vie envoyé par la page du back-office tant que la personne s'en sert */
   A.post('/actions/presence', sameSite, wrap(async (req, res) => { await presence(req.ctx); res.json({ ok: true }); }));

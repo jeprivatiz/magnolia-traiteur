@@ -2196,3 +2196,23 @@ textarea.mic-cible { background-image: none; }
 .ia-maj:hover { filter: brightness(1.06); }
 .sp-edit > .ia-ligne { margin-top: 8px; }
 textarea.ia-pose { border-color: var(--or); box-shadow: 0 0 0 3px rgba(184, 150, 90, .25); transition: box-shadow .3s; }
+/* Rémunération par action (2026-11-27) */
+.rem-bar { border: 1px solid var(--ligne); border-radius: 12px; padding: 10px 14px; background: var(--doux); }
+.rem-bar > summary { cursor: pointer; font-weight: 600; color: var(--vert); padding: 4px 0; }
+.rem-g { margin: 14px 0 6px; font-size: .9rem; color: var(--vert); }
+.rem-lignes { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 6px 18px; }
+.rem-l { display: flex; flex-direction: row; flex-wrap: nowrap !important; align-items: center; justify-content: space-between; gap: 10px; background: var(--carte, #fff); border: 1px solid var(--ligne); border-radius: 10px; padding: 7px 10px; font-size: .88rem; }
+.rem-eur { display: flex; align-items: center; gap: 4px; white-space: nowrap; font-weight: 600; }
+.rem-eur input { width: 84px; text-align: right; background: #fff; border: 1.5px solid #c9a227; border-radius: 8px; padding: 6px 8px; font-weight: 600; }
+.rem-eur input:disabled { border-color: var(--ligne); background: var(--doux); }
+.rem-bar .row { margin-top: 12px; }
+tr.rem-det { cursor: default !important; background: transparent !important; }
+tr.rem-det > td { padding: 4px 0 12px 14px; }
+.rem-dtab { background: var(--doux); border-radius: 10px; }
+.rem-ex { display: inline-block; margin-left: 6px; font-size: .78rem; }
+.rem-ex summary { cursor: pointer; color: var(--gris); }
+.rem-ex ul { margin: 4px 0 0; padding-left: 16px; }
+@media (max-width: 600px) { .rem-lignes { grid-template-columns: 1fr; } .rem-eur input { width: 70px; } }
+.rem-l > span:first-child { flex: 1; min-width: 0; }
+.rem-eur { flex: 0 0 auto; }
+@media (max-width: 600px) { .rem-dtab th:nth-child(3), .rem-dtab td:nth-child(3) { display: none; } tr.rem-det > td { padding-left: 0; } .rem-dtab td:first-child { min-width: 9em; } }
