@@ -222,7 +222,11 @@ const VIDEOS_ACCUEIL = {
 const _empreintes = new Map();
 /* ?v= change dès que le fichier change : sinon téléphones et navigateurs gardent l'ancienne vidéo 30 jours en cache */
 function versionne(f) { if (!_empreintes.has(f)) { try { _empreintes.set(f, `${f}?v=${require('crypto').createHash('md5').update(_fs.readFileSync(_path.join(__dirname, '..', 'public', f))).digest('hex').slice(0, 8)}`); } catch { _empreintes.set(f, f); } } return _empreintes.get(f); }
-function videoAccueil(slug) {
+/* vidéo envoyée par Jean-Luc au back-office (Catalogue › rubrique › « Vidéo de la vignette », 2026-11-27) : passe devant celle du code ; vide = vidéo d'origine */
+const videoPerso = r => { const u = String(r?.videoVignette || '').trim(); return /\.(mp4|mov|m4v|webm)(\?|$)/i.test(u) ? u : ''; };
+function videoAccueil(slug, r) {
+  const perso = videoPerso(r);
+  if (perso) return `<video class="tile-v" muted loop playsinline preload="metadata" disablepictureinpicture aria-hidden="true" src="${esc(perso)}#t=0.1" data-vignette="${esc(perso)}"></video>`;
   const n = VIDEOS_ACCUEIL[slug], src = n && `/site/v/accueil/${n}.mp4`;
   if (!src || !logoExiste(src)) return '';
   const v = versionne;
@@ -232,18 +236,18 @@ function univers(c) {
   /* vignette vidéo = la vidéo seule, son image d'attente vient de la vidéo (pas de photo dessous, Jean-Luc 2026-11-24) */
   /* vignette sans photo d'accueil : la photo du bandeau de la rubrique (Mobilier et matériel à la location, Jean-Luc 2026-11-25) ; une vidéo d'accueil passe toujours devant */
   /* la vignette Lieux prend la place de la rubrique « lieux » (ordre du back-office) */
-  const vLieux = videoAccueil('lieux');
+  const vLieux = videoAccueil('lieux', c.rubriques.find(r => r.slug === 'lieux'));
   const lieux = `<a class="tile" href="/lieux">${vLieux || img(c.lieux[0]?.photos?.[0], '')}<span class="tile-t"><b>Lieux de réception</b><small>${c.lieux.filter(l => l.statut !== 'masque').length} lieux à privatiser</small></span></a>`;
   const rubs = c.rubriques.filter(r => r.statut !== 'masque');
   /* Saveurs du monde : seule vignette animée, un petit globe qui tourne sur fond de verdure (Jean-Luc, 2026-11-24) */
   /* depuis le 2026-11-27, la vidéo des cuisiniers passe avant le globe (le globe reste si le fichier manque) */
   /* provenance de chaque cuisinier, en petit en haut à droite, changée au milieu de chaque fondu (vidéo de 26 s : un visage toutes les 2,6 s, Jean-Luc 2026-11-27) */
   const TAGS_CHEFS = ['Traiteur français', 'Traiteur africain', 'Traiteur chinois', 'Traiteur italien', 'Traiteur antillais', 'Traiteur libanais', 'Traiteur japonais', 'Traiteur espagnol', 'Traiteur indien', 'Traiteur maghrébin'];
-  const globe = r => { if (videoAccueil(r.slug)) return `<a class="tile" href="${rubHref(r)}">${videoAccueil(r.slug)}<span class="tile-tag" data-tags='${esc(JSON.stringify(TAGS_CHEFS))}' data-pas="2.6">${TAGS_CHEFS[0]}</span><span class="tile-t"><b>${esc(r.nom)}</b><small>${esc(r.accroche || 'Dix traiteurs, une seule maison')}</small></span></a>`;
+  const globe = r => { if (videoAccueil(r.slug, r)) return `<a class="tile" href="${rubHref(r)}">${videoAccueil(r.slug, r)}${videoPerso(r) ? '' : `<span class="tile-tag" data-tags='${esc(JSON.stringify(TAGS_CHEFS))}' data-pas="2.6">${TAGS_CHEFS[0]}</span>`}<span class="tile-t"><b>${esc(r.nom)}</b><small>${esc(r.accroche || 'Dix traiteurs, une seule maison')}</small></span></a>`;
     const ids = sousVisibles(r).map(x => (lieuDe(x)?.[2] || []).map(String)).filter(g => g.length).concat([['250']]); // un groupe de pays par spécialité (France en dernier)
     return `<a class="tile vg" href="${rubHref(r)}" data-vg='${esc(JSON.stringify(ids))}'>${img('/site/c/paysages/antilles.webp', '')}<canvas aria-hidden="true"></canvas><span class="tile-t"><b>${esc(r.nom)}</b><small>${esc(r.accroche || 'Dix traiteurs, une seule maison')}</small></span></a>`; };
   return rubs.map(r => r.slug === 'lieux' ? lieux : r.slug === 'saveurs-du-monde' ? globe(r) : `<a class="tile" href="${rubHref(r)}">
-    ${r.slug === 'carte-magnolia' ? img(r.photoAccueil || r.photo, '') + MENU_TABLE : videoAccueil(r.slug) || img(r.photoAccueil || r.photo || r.bandeauPhoto, '')}<span class="tile-t"><b>${esc(r.nom).replace(/^(Plateaux?) (?=de fruits de mer)/i, '$1<br class="br-m"> ')}</b>${r.accroche ? `<small>${esc(r.accroche)}</small>` : `<small>${c.byRub.get(r.slug)?.length || 0} prestations</small>`}</span></a>`).join('')
+    ${r.slug === 'carte-magnolia' && !videoPerso(r) ? img(r.photoAccueil || r.photo, '') + MENU_TABLE : videoAccueil(r.slug, r) || img(r.photoAccueil || r.photo || r.bandeauPhoto, '')}<span class="tile-t"><b>${esc(r.nom).replace(/^(Plateaux?) (?=de fruits de mer)/i, '$1<br class="br-m"> ')}</b>${r.accroche ? `<small>${esc(r.accroche)}</small>` : `<small>${c.byRub.get(r.slug)?.length || 0} prestations</small>`}</span></a>`).join('')
     + (rubs.some(r => r.slug === 'lieux') ? '' : lieux);
 }
 
@@ -1114,4 +1118,4 @@ function facturePage(c, f, t, { apercu = false } = {}) {
 
 module.exports = {
   sousPhotoHtml,
-  sectionsRub, plateau3dHtml, universListe, RANGEMENTS, pageSpecialites, specialite, sousVisibles, layout, home, boutique, produit, lieux, filtrerLieux, lieu, selection, texte, maison, livraison, commander, temoignages, contact, legal, erreur, espaceConnexion, espace, devisPage, lieuxDuDevis, facturePage, textToHtml, V, BANDEAUX_DEFAUT };
+  sectionsRub, plateau3dHtml, universListe, RANGEMENTS, pageSpecialites, specialite, sousVisibles, layout, home, boutique, produit, lieux, filtrerLieux, lieu, selection, texte, maison, livraison, commander, temoignages, contact, legal, erreur, espaceConnexion, espace, devisPage, lieuxDuDevis, facturePage, textToHtml, V, BANDEAUX_DEFAUT, VIDEOS_ACCUEIL };

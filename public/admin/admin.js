@@ -3739,7 +3739,7 @@
 
   /* ---------- catalogue ---------- */
   async function catalogue() {
-    const [rubs, prods, lieuxL] = await Promise.all([api(A + '/rubriques'), api(A + '/produits'), api(A + '/lieux').catch(() => [])]);
+    const [rubs, prods, lieuxL, vidsAcc] = await Promise.all([api(A + '/rubriques'), api(A + '/produits'), api(A + '/lieux').catch(() => []), api(A + '/actions/videos-accueil').catch(() => ({}))]);
     /* la rubrique « Lieux de réception » ne contient pas de produits : ses fiches sont dans le menu Lieux (compteur = lieux visibles, comme sur le site) */
     const nbLieux = lieuxL.filter(l => l.statut !== 'masque').length;
     const nbRub = slug => slug === 'lieux' ? nbLieux : prods.filter(p => dansRub(p, slug)).length;
@@ -3760,7 +3760,7 @@
         <label>Titre du paragraphe de présentation<input name="introTitre" value="${esc(rub.introTitre || '')}" placeholder="ex. Cocktails et buffets à la française"></label>
         <label class="span3">Paragraphe de présentation <small class="muted">(sous le bandeau, centré ; une ligne vide = nouveau paragraphe ; vide = rien)</small><textarea name="introTexte" rows="5">${esc(rub.introTexte || '')}</textarea></label>
         <details class="span3 landbox"><summary>Page d’atterrissage : titre et Google</summary><div class="g3"><label>Grand titre de la page<input name="titrePage" value="${esc(rub.titrePage || '')}" placeholder="${esc(rub.nom || '')}"></label></div>${seoBloc('rubrique', rub.seoTitre, rub.seoDescription)}</details>
-        <div class="span3 phrow">${photoField('photoAccueil', rub.photoAccueil || rub.photo, 'Photo de la vignette')}<div class="row"><label>Ordre<input type="number" name="ordre" value="${rub.ordre ?? 0}" class="num"></label><label>TVA par défaut<select name="tva">${[5.5, 10, 20].map(t => `<option value="${t}"${+(rub.tva || 10) === t ? ' selected' : ''}>${t} %</option>`).join('')}</select></label><button class="btn ghost">Enregistrer la rubrique</button></div></div>
+        <div class="span3 phrow">${photoField('photoAccueil', rub.photoAccueil || rub.photo, 'Photo de la vignette')}${videoField('videoVignette', rub.videoVignette, vidsAcc[r] || '')}<div class="row"><label>Ordre<input type="number" name="ordre" value="${rub.ordre ?? 0}" class="num"></label><label>TVA par défaut<select name="tva">${[5.5, 10, 20].map(t => `<option value="${t}"${+(rub.tva || 10) === t ? ' selected' : ''}>${t} %</option>`).join('')}</select></label><button class="btn ghost">Enregistrer la rubrique</button></div></div>
         <div class="span3 sousbox pliable" data-pli="sous"><div class="plihead"><h3>Spécialités <small class="muted">(${(rub.sous || []).length} · vignettes affichées avant les prestations, ex. Buffet libanais, Paëlla party)</small></h3><button type="button" class="btn ghost sm plibtn" data-plibtn></button></div><div class="plibody">
           <p class="muted sm">Sans spécialité, la rubrique affiche directement toutes ses prestations. Chaque prestation se range dans une spécialité depuis sa fiche (liste « Spécialité »).</p>
           <label class="stylev">Style des vignettes<select name="styleVignettes"><option value="carte"${(rub.styleVignettes || (rub.slug === 'saveurs-du-monde' ? 'carte' : 'photo')) === 'carte' ? ' selected' : ''}>Carte du monde (pays en doré)</option><option value="photo"${(rub.styleVignettes || (rub.slug === 'saveurs-du-monde' ? 'carte' : 'photo')) === 'photo' ? ' selected' : ''}>Photo de chaque spécialité</option></select></label>
@@ -4227,9 +4227,18 @@
   const vigGalerie = (src, i, alt) => `<figure class="ph${i === 0 ? ' main' : ''}" draggable="true" data-i="${i}"><div class="ph-img"><img src="${esc(src)}" alt="">${i === 0 ? '<span class="ph-badge">★ Photo principale</span>' : ''}</div>
     <div class="ph-act">${i ? '<button type="button" data-main title="Mettre en photo principale">★ Principale</button>' : ''}<button type="button" class="ph-del" data-rm title="Supprimer de la galerie">🗑 Supprimer</button></div>${alt === undefined ? '' : `<input value="${esc(alt || '')}" placeholder="Description (Google)" data-alt>`}</figure>`;
   const confirmerRetrait = () => confirm('Supprimer cette photo de la galerie ?\n\nElle reste dans la médiathèque. Pensez à enregistrer.');
+  const EST_VIDEO = /\.(mp4|mov|m4v|webm)(\?|#|$)/i;
+  /* Vidéo de la vignette de l'accueil (Jean-Luc, 2026-11-27) : la vidéo envoyée remplace celle posée dans le code ;
+     « Revenir à la vidéo d'origine » vide le champ. Fichier depuis l'iPhone (MOV) ou l'ordinateur (MP4). */
+  function videoField(name, val, origine) {
+    const apercu = val ? `<video src="${esc(val)}" muted loop autoplay playsinline></video>`
+      : origine ? `<video src="${esc(origine)}" muted loop autoplay playsinline></video><span class="pf-orig">Vidéo d’origine</span>` : `<span>Aucune vidéo · cliquez pour en choisir une</span>`;
+    return `<div class="pf pfv" data-pf data-quoi="la vidéo" data-video-seule data-vide="${esc(origine)}"><span class="lab">Vidéo de la vignette <small class="muted">(accueil, passe devant la photo)</small></span><button type="button" class="pf-img" data-pf-open title="Changer la vidéo de la vignette">${apercu}<span class="pf-over">✎ Changer la vidéo</span></button><input type="hidden" name="${name}" value="${esc(val || '')}">
+      <div class="pf-act"><button type="button" class="btn sm or" data-pf-open>🎬 Changer la vidéo de la vignette</button><div class="pf-menu" hidden><label class="pf-opt">📱 Depuis mon iPhone ou mon ordinateur<input type="file" accept="video/mp4,video/quicktime,video/*" hidden></label><button type="button" class="pf-opt" data-pick>🖼 Depuis la médiathèque</button><button type="button" class="pf-opt pf-del" data-clear>↺ Revenir à la vidéo d’origine</button></div></div><p class="muted sm">Vidéo courte (10 à 30 s) : elle passe en boucle, sans le son, recadrée au format de la vignette (un peu plus haute que large). Enregistrée aussitôt, 150 Mo maximum.</p><p class="pf-note" hidden>Vidéo changée : pensez à <b>enregistrer</b> la rubrique.</p></div>`;
+  }
   function photoField(name, val, label) {
     const quoi = /attente/i.test(label) ? 'l’image' : /vid[ée]o/i.test(label) ? 'la vidéo' : 'la photo';
-    const apercu = v => v ? (/\.mp4$/i.test(v) ? `<video src="${esc(v)}" muted></video>` : `<img src="${esc(v)}" alt="">`) : `<span>Aucune · cliquez pour choisir</span>`;
+    const apercu = v => v ? (EST_VIDEO.test(v) ? `<video src="${esc(v)}" muted></video>` : `<img src="${esc(v)}" alt="">`) : `<span>Aucune · cliquez pour choisir</span>`;
     return `<div class="pf" data-pf data-quoi="${quoi}"><span class="lab">${esc(label)}</span><button type="button" class="pf-img" data-pf-open title="Modifier ${quoi}">${apercu(val)}<span class="pf-over">✎ Modifier ${quoi}</span></button><input type="hidden" name="${name}" value="${esc(val || '')}">
       <div class="pf-act"><button type="button" class="btn sm" data-pf-open>✎ Modifier ${quoi}</button><div class="pf-menu" hidden><label class="pf-opt">💻 Depuis mon ordinateur<input type="file" accept="image/*,video/mp4" hidden></label><button type="button" class="pf-opt" data-pick>🖼 Depuis la médiathèque</button><button type="button" class="pf-opt pf-del" data-clear>✕ Retirer ${quoi}</button></div></div><p class="pf-note" hidden>${quoi === 'la vidéo' ? 'Vidéo changée' : 'Photo changée'} : pensez à <b>enregistrer</b>.</p></div>`;
   }
@@ -4310,11 +4319,16 @@
       if (pf.dataset.lie) return; pf.dataset.lie = '1';
       const input = $('input[type=hidden]', pf), prev = $('.pf-img', pf), menu = $('.pf-menu', pf), quoi = pf.dataset.quoi;
       const over = `<span class="pf-over">✎ Modifier ${quoi}</span>`;
-      const set = u => { input.value = u; prev.innerHTML = (!u ? '<span>Aucune · cliquez pour choisir</span>' : /\.mp4$/i.test(u) ? `<video src="${esc(u)}" muted></video>` : `<img src="${esc(u)}" alt="">`) + over; $('.pf-note', pf).hidden = false; menu.hidden = true; input.dispatchEvent(new Event('input', { bubbles: true })); };
+      const set = u => { input.value = u; prev.innerHTML = (!u ? (pf.dataset.vide ? `<video src="${esc(pf.dataset.vide)}" muted loop autoplay playsinline></video><span class="pf-orig">Vidéo d’origine</span>` : '<span>Aucune · cliquez pour choisir</span>') : EST_VIDEO.test(u) ? `<video src="${esc(u)}" muted></video>` : `<img src="${esc(u)}" alt="">`) + over; $('.pf-note', pf).hidden = false; menu.hidden = true; input.dispatchEvent(new Event('input', { bubbles: true })); };
       $$('[data-pf-open]', pf).forEach(b => b.addEventListener('click', e => { e.stopPropagation(); const was = menu.hidden; $$('.pf-menu').forEach(m => { m.hidden = true; }); menu.hidden = !was; }));
-      $('input[type=file]', pf).addEventListener('change', async e => { const f = e.target.files[0]; if (!f) return; menu.hidden = true; toast('Envoi…'); try { set(await uploadFile(f)); toast('Envoyé. Pensez à enregistrer.'); } catch (err) { toast(err.message, true); } e.target.value = ''; });
-      $('[data-pick]', pf).addEventListener('click', async () => { menu.hidden = true; const u = await pickMedia(); if (u) set(u); });
-      $('[data-clear]', pf).addEventListener('click', () => set(''));
+      /* vidéo de vignette : seulement une vidéo, enregistrée aussitôt (la rubrique est enregistrée, en ligne tout de suite) */
+      const seule = 'videoSeule' in pf.dataset, form = pf.closest('form');
+      const auto = u => { set(u); if (seule && form?.requestSubmit) { form.requestSubmit(); $('.pf-note', pf).hidden = true; } };
+      $('input[type=file]', pf).addEventListener('change', async e => { const f = e.target.files[0]; if (!f) return; menu.hidden = true;
+        if (seule && !/^video\//.test(f.type) && !EST_VIDEO.test(f.name || '')) { toast('Choisissez une vidéo (MP4 ou MOV).', true); e.target.value = ''; return; }
+        toast(seule ? 'Envoi de la vidéo… (peut prendre une minute)' : 'Envoi…'); try { const u = await uploadFile(f); seule ? auto(u) : (set(u), toast('Envoyé. Pensez à enregistrer.')); } catch (err) { toast(err.message, true); } e.target.value = ''; });
+      $('[data-pick]', pf).addEventListener('click', async () => { menu.hidden = true; const u = await pickMedia(); if (!u) return; if (seule && !EST_VIDEO.test(u)) return toast('Choisissez une vidéo dans la médiathèque.', true); seule ? auto(u) : set(u); });
+      $('[data-clear]', pf).addEventListener('click', () => seule ? auto('') : set(''));
     });
     if (!window.__pfClose) { window.__pfClose = true; document.addEventListener('click', e => { if (!e.target.closest('.pf-act, [data-pf-open]')) $$('.pf-menu').forEach(m => { m.hidden = true; }); }); }
   }
