@@ -59,9 +59,20 @@ function compoDe(l, p) {
     for (const id of l.choix?.[g.id] || []) {
       const [oid, n] = String(id).split(':'); const o = (g.options || []).find(x => x.id === oid);
       if (!o) continue;
-      out.push({ groupe: s(String(g.titre || '').replace(/^vos\s+/i, ''), 60).replace(/^./, c => c.toUpperCase()), nom: s(o.label, 120), n: g.mode === 'quantites' ? Math.max(0, Math.round(+n || 0)) : (Number(l.qte) || '') });
+      out.push({ groupe: nomGroupe(g), nom: s(o.label, 120), n: g.mode === 'quantites' ? Math.max(0, Math.round(+n || 0)) : (Number(l.qte) || '') });
     }
   }
+  return out;
+}
+/* menus déroulants des formules (Jean-Luc, 2026-11-27 : « entrée, plat, dessert » = une liste pour les entrées, une pour les plats, une pour les desserts) :
+   pour chaque fiche à choix, les groupes (sans « Vos ») et leurs options, même si le client n'a encore rien choisi */
+const nomGroupe = g => s(String(g.titre || '').replace(/^vos\s+/i, ''), 60).replace(/^./, c => c.toUpperCase());
+function choixProduit(p) {
+  return (p?.groupes || []).filter(g => (g.options || []).length && !/dur[ée]e|heure/i.test(g.titre || g.id || '')).map(g => ({ groupe: nomGroupe(g), options: g.options.map(o => s(o.label, 120)).filter(Boolean) })).filter(g => g.options.length);
+}
+function choixProduits(lignes = [], bySlug = new Map()) {
+  const out = {};
+  for (const l of lignes) { if (!l?.produit || out[l.produit]) continue; const g = choixProduit(bySlug.get(l.produit)); if (g.length) out[l.produit] = g; }
   return out;
 }
 /* listes proposées dans les menus déroulants : softs (La cave de Magnolia : sodas, jus, eaux) et matériel (Indispensables, Mobilier à la location) */
@@ -74,6 +85,8 @@ function listesPrepa(produits = []) {
   const tailles = uniq(produits.filter(p => p && /nappe|nappage/i.test(p.titre || '')).map(p => (/(\d+\s*[×x]\s*\d+\s*cm|[ØO]\s*\d+\s*cm)/i.exec(p.titre || '') || [])[1]).filter(Boolean).map(x => x.replace(/\s*[×x]\s*/, ' × ').replace(/\s+cm/, ' cm')));
   return { softs, materiel, nappes: tailles.length ? tailles : ['170 × 250 cm'], nappesCouleurs: NAPPES_COULEURS, nappesTypes: NAPPES_TYPES };
 }
+/* « Quantité à préparer » remplie d'après les choix (Jean-Luc, 2026-11-27) : total par groupe, « 60 entrées · 30 plats · 30 desserts » ; même règle dans admin.js (pcQteAuto) */
+const qteAuto = l => { const it = (l.items || []).filter(x => x.nom && +x.n > 0); if (!it.length) return ''; const g = new Map(); for (const x of it) { const k = x.groupe || ({ softs: 'softs', materiel: 'articles', nappes: 'nappes' })[l.liste] || 'pièces'; g.set(k, (g.get(k) || 0) + (+x.n)); } return [...g].map(([k, n]) => `${n} ${String(k).toLowerCase()}`).join(' · '); };
 const nomItem = x => [x.nom, x.couleur && 'nappe ' + x.couleur.toLowerCase(), x.type && x.type.toLowerCase()].filter(Boolean).join(' · ');
 const itemsTexte = l => (l.items || []).filter(x => x.nom).map(x => `${x.n !== '' && x.n != null ? x.n + ' × ' : ''}${nomItem(x)}`);
 
@@ -85,7 +98,7 @@ function lignesDepuisDevis(devis, bySlug = new Map()) {
     if (estLivraison(l) || estPersonnelL(l, bySlug)) continue;
     const p = bySlug.get(l.produit), designation = s(String(l.designation || p?.titre || '').replace(/\*\*/g, ''), 300);
     const liste = listeDe(l.produit, designation), items = liste === 'compo' || !liste ? compoDe(l, p) : [];
-    out.push({ id: 'l' + rid6(), type: 'produit', produit: s(l.produit, 160), designation, detail: items.length ? '' : txt(l.detail, 600), qteDevis: Number(l.qte) || '', unite: s(l.unite, 40), qtePrepa: '', note: txt(l.note, 400), allergenes: [...(p?.allergenes || [])], liste: items.length ? 'compo' : liste, items });
+    out.push({ id: 'l' + rid6(), type: 'produit', produit: s(l.produit, 160), designation, detail: items.length ? '' : txt(l.detail, 600), qteDevis: Number(l.qte) || '', unite: s(l.unite, 40), qtePrepa: qteAuto({ liste, items }), qteAuto: true, note: txt(l.note, 400), allergenes: [...(p?.allergenes || [])], liste: items.length || (!liste && choixProduit(p).length) ? 'compo' : liste, items });
   }
   /* un intertitre sans produit en dessous ne sert à rien */
   return out.filter((x, i) => x.type !== 'titre' || (out[i + 1] && out[i + 1].type !== 'titre'));
@@ -129,7 +142,7 @@ function nettoyer(b = {}, avant = {}, bySlug = new Map()) {
   const c = b.client || {}, e = b.evenement || {}, h = b.horaires || {};
   const lignes = (Array.isArray(b.lignes) ? b.lignes : []).slice(0, 400).map(l => l?.type === 'titre'
     ? { id: s(l.id, 20) || 'l' + rid6(), type: 'titre', designation: s(l.designation, 300) }
-    : { id: s(l?.id, 20) || 'l' + rid6(), type: 'produit', produit: s(l?.produit, 160), designation: s(l?.designation, 300), detail: txt(l?.detail, 600), qteDevis: l?.qteDevis === '' || l?.qteDevis == null ? '' : Math.max(0, Math.min(1e6, +String(l.qteDevis).replace(',', '.') || 0)), unite: s(l?.unite, 40), qtePrepa: s(l?.qtePrepa, 60), note: txt(l?.note, 400), allergenes: (Array.isArray(l?.allergenes) ? l.allergenes : bySlug.get(l?.produit)?.allergenes || []).slice(0, 14).map(x => s(x, 30)), liste: LISTES[l?.liste] ? l.liste : '', items: (Array.isArray(l?.items) ? l.items : []).slice(0, 80).map(x => ({ groupe: s(x?.groupe, 60), nom: s(x?.nom, 120), ...(l?.liste === 'nappes' ? { couleur: s(x?.couleur, 40), type: s(x?.type, 40) } : {}), n: x?.n === '' || x?.n == null ? '' : Math.max(0, Math.min(1e6, Math.round(+String(x.n).replace(',', '.') || 0))) })).filter(x => x.nom) })
+    : { id: s(l?.id, 20) || 'l' + rid6(), type: 'produit', produit: s(l?.produit, 160), designation: s(l?.designation, 300), detail: txt(l?.detail, 600), qteDevis: l?.qteDevis === '' || l?.qteDevis == null ? '' : Math.max(0, Math.min(1e6, +String(l.qteDevis).replace(',', '.') || 0)), unite: s(l?.unite, 40), qtePrepa: s(l?.qtePrepa, 160), qteAuto: !!l?.qteAuto, note: txt(l?.note, 400), allergenes: (Array.isArray(l?.allergenes) ? l.allergenes : bySlug.get(l?.produit)?.allergenes || []).slice(0, 14).map(x => s(x, 30)), liste: LISTES[l?.liste] ? l.liste : '', items: (Array.isArray(l?.items) ? l.items : []).slice(0, 80).map(x => ({ groupe: s(x?.groupe, 60), nom: s(x?.nom, 120), ...(l?.liste === 'nappes' ? { couleur: s(x?.couleur, 40), type: s(x?.type, 40) } : {}), n: x?.n === '' || x?.n == null ? '' : Math.max(0, Math.min(1e6, Math.round(+String(x.n).replace(',', '.') || 0))) })).filter(x => x.nom) })
     .filter(l => l.designation || l.type === 'produit' && (l.qtePrepa || l.note));
   return {
     id: avant.id || s(b.devisId, 60), devisId: avant.devisId || s(b.devisId, 60), devisNumero: s(b.devisNumero ?? avant.devisNumero, 40), factureNumero: s(b.factureNumero ?? avant.factureNumero, 40),
@@ -322,4 +335,4 @@ ${consigne ? 'Consigne de la personne qui envoie (prioritaire) : ' + consigne + 
 Réponds uniquement en JSON : {${sms ? '' : '"sujet": "...", '}"texte": "..."}`;
 }
 
-module.exports = { NOM_ROLE, modeleMessage, promptMessage, infosRole, LISTES, listesPrepa, compoDe, listeDe, itemsTexte, ROLES, HORAIRES, bonDepuis, lignesDepuisDevis, nettoyer, documentHtml, emailHtml, messageDefaut, smsTexte, titreBon, dateCourte, allergenesDe };
+module.exports = { qteAuto, choixProduit, choixProduits, NOM_ROLE, modeleMessage, promptMessage, infosRole, LISTES, listesPrepa, compoDe, listeDe, itemsTexte, ROLES, HORAIRES, bonDepuis, lignesDepuisDevis, nettoyer, documentHtml, emailHtml, messageDefaut, smsTexte, titreBon, dateCourte, allergenesDe };

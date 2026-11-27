@@ -432,13 +432,26 @@
   const PC_LIB = { compo: 'Choix du client · nombre de chaque', softs: 'Softs · nombre de chaque', materiel: 'Matériel · nombre de chaque', nappes: 'Nappes · taille, couleur, extensible ou non, nombre' };
   const pcSel = (k, v, L, lab) => `<select data-it="${k}" aria-label="${lab}">${v && !L.includes(v) ? `<option selected>${esc(v)}</option>` : ''}${v ? '' : `<option value="">${lab}…</option>`}${L.map(o => `<option${o === v ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
   function pcItemsHtml(l, i) {
-    const it = l.items || []; if (!l.liste && !it.length) return '';
+    const it = l.items || []; if (!l.liste && !it.length && !(PC.x?.choix || {})[l.produit]) return '';
     const L = (PC.x?.listes || {})[l.liste] || [];
     const tot = {}; for (const x of it) if (x.groupe) tot[x.groupe] = (tot[x.groupe] || 0) + (+x.n || 0);
     if (l.liste === 'nappes') {
       const LX = PC.x?.listes || {};
       const rowsN = it.map((x, j) => `<div class="pc-itr pc-itn" data-j="${j}">${x.libre ? `<input data-it="nom" value="${esc(x.nom)}" placeholder="Taille, ex. 240 × 300 cm" aria-label="Taille">` : pcSel('nom', x.nom, L, 'Taille')}${pcSel('couleur', x.couleur || '', LX.nappesCouleurs || [], 'Couleur')}${pcSel('type', x.type || '', LX.nappesTypes || [], 'Extensible ?')}<input data-it="n" type="number" min="0" inputmode="numeric" value="${esc(x.n ?? '')}" placeholder="Nb" aria-label="Nombre"><button type="button" class="pc-itx" data-itrm="${i}:${j}" aria-label="Retirer">×</button></div>`).join('');
       return `<div class="pc-it"><small class="pc-ith">${PC_LIB.nappes}</small>${rowsN}<div class="pc-itadd"><button type="button" class="btn ghost sm" data-itnappe="${i}">➕ Ajouter des nappes</button><button type="button" class="btn ghost sm" data-itlibre="${i}">✏ Autre taille (à taper)</button></div></div>`;
+    }
+    const G = (PC.x?.choix || {})[l.produit];
+    if (G && (l.liste === 'compo' || !l.liste)) {
+      /* une liste déroulante par groupe (entrées, plats, accompagnements, desserts) + nombre ; plusieurs lignes possibles */
+      const ligne = (x, j, opts) => `<div class="pc-itr" data-j="${j}">${x.libre || (x.nom && !opts.includes(x.nom)) ? `<input data-it="nom" value="${esc(x.nom)}" placeholder="ex. Colombo de poulet" aria-label="Nom">` : `<select data-it="nom" aria-label="Choix">${x.nom ? '' : '<option value="">— Choisir —</option>'}${opts.map(o => `<option${o === x.nom ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select>`}<input data-it="n" type="number" min="0" inputmode="numeric" value="${esc(x.n ?? '')}" placeholder="Nb" aria-label="Nombre"><button type="button" class="pc-itx" data-itrm="${i}:${j}" aria-label="Retirer">×</button></div>`;
+      const noms = G.map(g => g.groupe);
+      const blocs = G.map(g => {
+        const r = it.map((x, j) => [x, j]).filter(([x]) => x.groupe === g.groupe);
+        const n = r.reduce((t, [x]) => t + (+x.n || 0), 0);
+        return `<div class="pc-itgb"><span class="pc-itg">${esc(g.groupe)}${n ? ` <small>· ${n} au total</small>` : ''}</span>${r.map(([x, j]) => ligne(x, j, g.options)).join('')}<select class="pc-itaddg" data-itaddg="${i}" data-g="${esc(g.groupe)}" aria-label="Ajouter ${esc(g.groupe)}"><option value="">➕ ${esc(g.groupe)} : ajouter…</option>${g.options.map(o => `<option>${esc(o)}</option>`).join('')}</select></div>`;
+      }).join('');
+      const autres = it.map((x, j) => [x, j]).filter(([x]) => !noms.includes(x.groupe));
+      return `<div class="pc-it"><small class="pc-ith">Choix du client · une liste par groupe, nombre de chaque</small>${blocs}${autres.length ? `<div class="pc-itgb"><span class="pc-itg">Autres</span>${autres.map(([x, j]) => ligne(x, j, [])).join('')}</div>` : ''}<div class="pc-itadd"><button type="button" class="btn ghost sm" data-itlibre="${i}">✏ Autre (à taper)</button></div></div>`;
     }
     const rows = it.map((x, j) => `<div class="pc-itr" data-j="${j}">${x.groupe && x.groupe !== it[j - 1]?.groupe ? `<span class="pc-itg">${esc(x.groupe)}</span>` : ''}${L.length && (!x.nom || L.includes(x.nom)) && !x.libre ? `<select data-it="nom" aria-label="Choix">${x.nom ? '' : '<option value="">— Choisir —</option>'}${L.map(o => `<option${o === x.nom ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select>` : `<input data-it="nom" value="${esc(x.nom)}" placeholder="${l.liste === 'materiel' ? 'ex. Plateaux inox' : l.liste === 'softs' ? 'ex. Orangina 33 cl' : 'ex. Colombo de poulet'}" aria-label="Nom">`}<input data-it="n" type="number" min="0" inputmode="numeric" value="${esc(x.n ?? '')}" placeholder="Nb" aria-label="Nombre"><button type="button" class="pc-itx" data-itrm="${i}:${j}" aria-label="Retirer">×</button></div>`).join('');
     const sous = Object.keys(tot).length > 1 || Object.values(tot).some(v => v) ? `<small class="pc-ittot">${Object.entries(tot).map(([g, n]) => `${esc(g)} : <b>${n}</b>`).join(' · ')}</small>` : '';
@@ -451,7 +464,7 @@
       : `<div class="pc-l" data-i="${i}"><span class="pc-no">${++n}</span>
         <div class="pc-pr"><input data-lf="designation" value="${esc(l.designation)}" placeholder="Produit" aria-label="Produit">${l.detail || !l.produit ? `<textarea data-lf="detail" rows="${Math.min(4, Math.max(1, String(l.detail || '').split('\n').length))}" placeholder="Choix, composition (facultatif)" aria-label="Choix">${esc(l.detail || '')}</textarea>` : ''}${(l.allergenes || []).length ? `<small class="pc-al">⚠ ${esc(l.allergenes.join(', '))}</small>` : ''}</div>
         <div class="pc-q"><small>Quantité du devis</small>${l.produit ? `<b>${pcQte(l)}</b>` : `<input data-lf="qteDevis" inputmode="decimal" value="${esc(l.qteDevis ?? '')}" placeholder="—" aria-label="Quantité">`}</div>
-        <label class="pc-q pc-qp"><small>Quantité à préparer</small><input data-lf="qtePrepa" value="${esc(l.qtePrepa || '')}" placeholder="à venir"></label>
+        <label class="pc-q pc-qp"><small>Quantité à préparer</small><textarea data-lf="qtePrepa" rows="${String(l.qtePrepa || '').length > 14 ? 2 : 1}" placeholder="à venir">${esc(l.qtePrepa || '')}</textarea></label>
         <label class="pc-nt"><small>Remarque pour la préparation</small><input data-lf="note" value="${esc(l.note || '')}" placeholder="ex. sans piment, à part…"></label>
         <button type="button" class="pc-x" data-pclrm="${i}" title="Retirer cette ligne" aria-label="Retirer">🗑</button>${pcItemsHtml(l, i)}</div>`).join('') || '<p class="muted">Aucune ligne : ajoutez un produit ci-dessous, ou reprenez les lignes du devis.</p>';
   }
@@ -501,10 +514,14 @@
       </form>`);
   }
   /* lit l'écran dans PC.x.bon */
+  /* « Quantité à préparer » d'après les choix (même règle que server/prepa.js qteAuto) : « 60 entrées · 30 plats » ; tant qu'on ne la tape pas soi-même */
+  const pcQteAuto = l => { const it = (l.items || []).filter(x => x.nom && +x.n > 0); if (!it.length) return ''; const g = new Map(); for (const x of it) { const k = x.groupe || ({ softs: 'softs', materiel: 'articles', nappes: 'nappes' })[l.liste] || 'pièces'; g.set(k, (g.get(k) || 0) + (+x.n)); } return [...g].map(([k, n]) => `${n} ${String(k).toLowerCase()}`).join(' · '); };
   function pcLire() {
     const b = PC.x.bon, f = $('#pcF'); if (!f) return b;
     $$('[data-f]', f).forEach(i => { const [a, k] = i.dataset.f.split('.'); if (k) b[a][k] = i.value; else b[a] = i.value; });
-    $$('[data-pclignes] .pc-l', f).forEach(r => { const l = b.lignes[+r.dataset.i]; if (!l) return; $$('[data-lf]', r).forEach(i => { l[i.dataset.lf] = i.value; }); $$('.pc-itr', r).forEach(x => { const it = (l.items || [])[+x.dataset.j]; if (it) $$('[data-it]', x).forEach(i => { it[i.dataset.it] = i.dataset.it === 'n' ? (i.value === '' ? '' : +i.value) : i.value; }); }); });
+    $$('[data-pclignes] .pc-l', f).forEach(r => { const l = b.lignes[+r.dataset.i]; if (!l) return; $$('[data-lf]', r).forEach(i => { l[i.dataset.lf] = i.value; }); $$('.pc-itr', r).forEach(x => { const it = (l.items || [])[+x.dataset.j]; if (it) $$('[data-it]', x).forEach(i => { it[i.dataset.it] = i.dataset.it === 'n' ? (i.value === '' ? '' : +i.value) : i.value; }); });
+      const q = pcQteAuto(l), qi = $('[data-lf="qtePrepa"]', r);
+      if (q && (l.qteAuto || !l.qtePrepa)) { l.qtePrepa = q; l.qteAuto = true; if (qi && qi.value !== q) qi.value = q; } });
     return b;
   }
   async function pcSauver(silence) {
@@ -517,12 +534,21 @@
   prepaEdit.after = id => {
     const f = $('#pcF'), b = () => PC.x.bon;
     const nb = () => { const n = b().lignes.filter(l => l.type !== 'titre').length; $('[data-pcnb]').textContent = `${n} produit${n > 1 ? 's' : ''}`; };
-    const redessiner = () => { $('[data-pclignes]').innerHTML = pcLignesHtml(b()); nb(); };
+    const redessiner = () => { $('[data-pclignes]').innerHTML = pcLignesHtml(b()); nb(); pcLire(); };
     nb();
     f.addEventListener('input', () => { PC.sale = true; });
     f.addEventListener('submit', e => e.preventDefault());
     const ajouter = (k, p) => { if (!p.nom) return; const l = b()[k] = b()[k] || []; if (l.some(x => x.nom.toLowerCase() === p.nom.toLowerCase())) { toast(`${p.nom} est déjà dans la liste.`); return; } l.push(p); $(`[data-chips="${k}"]`).innerHTML = pcChips(b(), k); PC.sale = true; };
+    /* une quantité tapée à la main n'est plus remplacée ; vidée, elle se remplit de nouveau d'après les choix */
+    f.addEventListener('input', e => {
+      const r = e.target.closest('[data-pclignes] .pc-l'); if (!r) return; const l = b().lignes[+r.dataset.i]; if (!l) return;
+      if (e.target.matches('[data-lf="qtePrepa"]')) { l.qteAuto = false; return; }
+      if (e.target.closest('.pc-itr')) pcLire();
+    });
     f.addEventListener('change', e => {
+      if (e.target.closest('.pc-itr')) pcLire();
+      const sg = e.target.closest('[data-itaddg]');
+      if (sg && sg.value !== '') { pcLire(); const l = b().lignes[+sg.dataset.itaddg]; l.items = l.items || []; if (!l.items.some(x => x.groupe === sg.dataset.g && x.nom === sg.value)) l.items.push({ groupe: sg.dataset.g, nom: sg.value, n: Number(l.qteDevis) || '' }); if (!l.liste) l.liste = 'compo'; redessiner(); PC.sale = true; return; }
       const s = e.target.closest('[data-itadd]'); if (!s || s.value === '') return;
       pcLire(); const l = b().lignes[+s.dataset.itadd]; (l.items = l.items || []).push({ nom: s.value, n: '' }); redessiner(); PC.sale = true;
       $(`[data-pclignes] .pc-l[data-i="${s.dataset.itadd}"] .pc-itr:last-of-type [data-it="n"]`)?.focus();

@@ -126,3 +126,19 @@ test('bon de préparation : unités au pluriel (« 3 nappes »)', () => {
   const h = P.documentHtml({ ...b, personnelDevis: [] });
   for (const x of ['3 nappes', '2 plateaux', '1 bouteille<', '12 km']) assert.ok(h.includes(x), x);
 });
+
+test('prépa : formule entrée/plat/dessert sans choix → listes par groupe', () => {
+  const P = require('../server/prepa');
+  const p = { slug: 'buffet-x', groupes: [{ id: 'entrees', titre: 'Vos entrées', options: [{ id: 'a', label: 'Accras' }] }, { id: 'plats', titre: 'Vos plats', options: [{ id: 'b', label: 'Colombo' }] }, { id: 'duree', titre: 'Durée', options: [{ id: 'h', label: '4 h' }] }] };
+  const by = new Map([['buffet-x', p]]);
+  const L = P.lignesDepuisDevis({ lignes: [{ produit: 'buffet-x', designation: 'Buffet', qte: 20, unite: 'personne' }] }, by);
+  assert.equal(L[0].liste, 'compo'); assert.deepEqual(L[0].items, []);
+  assert.deepEqual(P.choixProduits(L, by), { 'buffet-x': [{ groupe: 'Entrées', options: ['Accras'] }, { groupe: 'Plats', options: ['Colombo'] }] });
+});
+
+test('prépa : quantité à préparer remplie d’après les choix', () => {
+  const P = require('../server/prepa');
+  assert.equal(P.qteAuto({ liste: 'compo', items: [{ groupe: 'Entrées', nom: 'Accras', n: 30 }, { groupe: 'Entrées', nom: 'Boudins', n: 30 }, { groupe: 'Plats', nom: 'Colombo', n: 30 }, { groupe: 'Desserts', nom: '', n: 5 }] }), '60 entrées · 30 plats');
+  assert.equal(P.qteAuto({ liste: 'nappes', items: [{ nom: '170 × 250 cm', n: 8 }, { nom: '240 × 300 cm', n: 4 }] }), '12 nappes');
+  assert.equal(P.qteAuto({ liste: 'compo', items: [] }), '');
+});

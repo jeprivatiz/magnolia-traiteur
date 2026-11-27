@@ -3079,7 +3079,7 @@ Réponds uniquement en JSON : {${sms ? '' : '"sujet": "...", '}"texte": "..."}`;
     const neuf = PREP.bonDepuis(x);
     /* ?reprendre=1 : on repart des lignes du devis (le reste du bon est gardé) */
     const bon = avant ? (req.query.reprendre ? { ...avant, lignes: neuf.lignes, personnelDevis: neuf.personnelDevis, allergenesProduits: neuf.allergenesProduits } : avant) : neuf;
-    res.set('Cache-Control', 'no-store').json({ bon, existe: !!avant, devis: { numero: x.devis.numero, statut: x.devis.statut, facture: x.facture?.numero || '' }, personnes: await personnesPrepa(), roles: PREP.ROLES, horaires: PREP.HORAIRES, listes: PREP.listesPrepa(x.produits), iaActive: ia.actif, message: PREP.messageDefaut(bon, req.ctx.name || '') });
+    res.set('Cache-Control', 'no-store').json({ bon, existe: !!avant, devis: { numero: x.devis.numero, statut: x.devis.statut, facture: x.facture?.numero || '' }, personnes: await personnesPrepa(), roles: PREP.ROLES, horaires: PREP.HORAIRES, listes: PREP.listesPrepa(x.produits), choix: PREP.choixProduits(bon.lignes, x.bySlug), iaActive: ia.actif, message: PREP.messageDefaut(bon, req.ctx.name || '') });
   }));
   A.put('/prepa/:id', sameSite, json, wrap(async (req, res) => {
     const x = await contextePrepa(req.params.id);

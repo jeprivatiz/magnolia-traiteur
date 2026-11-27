@@ -2584,3 +2584,9 @@ tr.rem-det > td { padding: 4px 0 12px 14px; }
   .pc-itn [data-it=nom] { grid-column: 1 / -1; }
   .pc-itn [data-it=couleur] { grid-column: 1 / 2; } .pc-itn [data-it=type] { grid-column: 2 / 3; } .pc-itn input[data-it=n] { grid-column: 3; }
 }
+.pc-itgb { display: grid; gap: 6px; margin: 4px 0 8px; }
+.pc-itgb .pc-itg { display: flex; gap: 6px; align-items: baseline; font-weight: 600; }
+.pc-itgb .pc-itg small { font-weight: 400; color: #6b6b6b; }
+.pc-itgb .pc-itr { max-width: 760px; }
+.pc-itaddg { max-width: 320px; border-style: dashed !important; }
+.pc-qp textarea { font-weight: 600; resize: vertical; min-height: 0; line-height: 1.35; }
