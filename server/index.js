@@ -960,7 +960,7 @@ async function createApp(opts = {}) {
     [/^\/prepa\/([^/]+)/, 'devis'],
     [/^\/factures\/([^/]+)\/apercu/, 'factures'],
     [/^\/actions\/(?:facture|facture-reglement|facture-reglement-retirer|facture-payee|envoyer-facture|relancer-facture|archiver-facture|avoir-facture)\/([^/]+)/, 'factures'],
-    [/^\/actions\/(?:devis-depuis-demande|reserver)\/([^/]+)/, 'demandes'],
+    [/^\/actions\/(?:devis-depuis-demande|reserver|relance-modeles-demande|relancer-demande)\/([^/]+)/, 'demandes'],
   ];
   A.use(wrap(async (req, res, next) => {
     const p = req.path, dr = req.ctx.droits || {};
@@ -1232,7 +1232,8 @@ async function createApp(opts = {}) {
     }
     if (q.filtre === 'importes') l = l.filter(a => a.importe); else if (q.filtre === 'autres') l = l.filter(a => !a.importe);
     const par = Math.min(200, Math.max(10, parseInt(q.par, 10) || 50)), page = Math.max(1, parseInt(q.page, 10) || 1);
-    res.json({ total: l.length, tous: items.length, importes: items.filter(a => a.importe).length, acheteurs: items.filter(a => a.acheteur).length, entreprises: await ENT.nombre(), facettes, page, par, items: l.slice((page - 1) * par, page * par).map(a => ({ ...a.c, nbDemandes: a.nb, verrou: a.verrou, histo: a.histo ? { commandes: a.histo.commandes, perdues: a.histo.perdues, caHtCents: a.histo.caHtCents, derniere: a.histo.derniere } : null, fac: a.fac ? { factures: a.fac.factures, netHtCents: a.fac.netHtCents, duCents: a.fac.duCents } : null })), effacables: q.ids === undefined && q.avecIds ? l.filter(a => !a.verrou).map(a => a.id) : undefined });
+    const joignables = { email: l.filter(a => a.k.email && !a.k.stopEmail && !a.c.nePasContacter).length, sms: l.filter(a => a.k.mobile && !a.k.stopSms && !a.c.nePasContacter).length };
+    res.json({ joignables, total: l.length, tous: items.length, importes: items.filter(a => a.importe).length, acheteurs: items.filter(a => a.acheteur).length, entreprises: await ENT.nombre(), facettes, page, par, items: l.slice((page - 1) * par, page * par).map(a => ({ ...a.c, nbDemandes: a.nb, verrou: a.verrou, histo: a.histo ? { commandes: a.histo.commandes, perdues: a.histo.perdues, caHtCents: a.histo.caHtCents, derniere: a.histo.derniere } : null, fac: a.fac ? { factures: a.fac.factures, netHtCents: a.fac.netHtCents, duCents: a.fac.duCents } : null })), effacables: q.ids === undefined && q.avecIds ? l.filter(a => !a.verrou).map(a => a.id) : undefined });
   }));
 
   /* effacer des contacts cochés (Jean-Luc, 2026-11-24) : jamais un contact qui a une demande, un devis ou une facture ;
@@ -1967,7 +1968,15 @@ async function createApp(opts = {}) {
     return { ...auto, envoye: true, devisId: id, numero: d.numero, ttcCents, raisons: [] };
   }
 
-  const varsRelance = (d, cl) => ({ prenom: (cl?.nom || d.clientNom || '').split(' ')[0], nom: cl?.nom || d.clientNom || '', numero: d.numero, evenement: String(d.evenement?.type || 'événement').toLowerCase(), date: dateFr(d.evenement?.date), lien: `${SITE}/devis/${d.token}`, montant: euros(totaux(d).ttcCents) });
+  /* nom du client pour « Bonjour {prenom} » : jamais un nom fabriqué à partir de l'adresse e-mail (« Tarabernard75 ») */
+  const cleNom = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const remplirR = (t, v) => remplir(t, v).replace(/Bonjour ,/g, 'Bonjour,');
+  function nomRelance(email, ...noms) {
+    const loc = cleNom(String(email || '').split('@')[0]);
+    const ok = n => { const k = cleNom(n); return k.length > 1 && !/\d/.test(n) && !(loc && !/\s/.test(n) && k === loc); };
+    return noms.map(n => String(n || '').trim()).find(ok) || '';
+  }
+  const varsRelance = (d, cl, autres = []) => { const nom = nomRelance(cl?.email, ...autres, cl?.nom, d.clientNom); return { prenom: nom.split(' ')[0], nom, numero: d.numero, evenement: String(d.evenement?.type || 'événement').toLowerCase(), date: dateFr(d.evenement?.date), lien: `${SITE}/devis/${d.token}`, montant: euros(totaux(d).ttcCents) }; };
   /* cadre « Relancer » du Suivi client : les modèles de relance déjà remplis pour ce devis (nom du client, lien, date…) */
   A.get('/actions/relance-modeles/:id', wrap(async (req, res) => {
     const d = await store.get('devis/' + req.params.id);
@@ -1975,18 +1984,19 @@ async function createApp(opts = {}) {
     const cl = await store.get('clients/' + d.clientId), vars = varsRelance(d, cl);
     const mods = (await store.list('modeles')).map(x => x.data).filter(m => m && m.id !== 'merci');
     const ordre = m => ({ 'relance-j3': 1, 'relance-j7': 2, 'relance-derniere': 3, 'sms-relance': 9 }[m.id] || (m.canal === 'sms' ? 8 : 5));
-    res.json({ email: cl?.email || '', tel: cl?.tel || '', relances: (d.relances || []).length, modeles: mods.sort((a, b) => ordre(a) - ordre(b)).map(m => ({ id: m.id, nom: m.nom, canal: m.canal, sujet: remplir(m.sujet || '', vars), texte: remplir(m.texte || '', vars) })) });
+    res.json({ email: cl?.email || '', tel: cl?.tel || '', relances: (d.relances || []).length, modeles: mods.sort((a, b) => ordre(a) - ordre(b)).map(m => ({ id: m.id, nom: m.nom, canal: m.canal, sujet: remplirR(m.sujet || '', vars), texte: remplirR(m.texte || '', vars) })) });
   }));
   /* ✨ l'IA réécrit la relance (consigne facultative : « plus court », « proposer un appel »…) */
   A.post('/ia/relance', sameSite, json, wrap(async (req, res) => {
     if (!iaLimit(req.ctx.uid)) return res.status(429).json({ error: 'Trop de demandes : réessayez dans une minute.' });
-    const d = await store.get('devis/' + s(req.body?.devisId, 60));
+    const c = req.body?.demandeId ? await cibleRelance(s(req.body.demandeId, 60)) : null;
+    const d = c ? (c.devis || { numero: c.dem.ref, evenement: c.dem.evenement, clientId: c.dem.clientId, clientNom: c.dem.contact?.nom, sansDevis: true }) : await store.get('devis/' + s(req.body?.devisId, 60));
     if (!d) return res.status(404).json({ error: 'Devis introuvable.' });
     const sms = req.body?.canal === 'sms', texte = s(req.body?.texte, 4000), sujet = s(req.body?.sujet, 200), consigne = s(req.body?.consigne, 500);
-    const v = varsRelance(d, await store.get('clients/' + d.clientId));
-    const prompt = `Tu es le commercial de Magnolia Traiteur (traiteur événementiel, Villebon-sur-Yvette). Réécris ce message de relance pour un client qui n'a pas encore accepté son devis.
-Client : ${v.nom || 'inconnu'} · ${v.evenement} du ${v.date} · devis ${v.numero} de ${v.montant} TTC.
-Règles : français, vouvoiement, chaleureux et professionnel, sans pression excessive, aucune information inventée (prix, remise, disponibilité) ; garde le lien du devis tel quel : ${v.lien}. ${sms ? 'SMS : 300 caractères maximum, signé « Magnolia Traiteur ».' : 'E-mail court (6 à 10 lignes), signé « L’équipe Magnolia Traiteur » avec le 07 63 66 98 92.'}
+    const v = c ? c.vars : varsRelance(d, await store.get('clients/' + d.clientId));
+    const prompt = `Tu es le commercial de Magnolia Traiteur (traiteur événementiel, Villebon-sur-Yvette). Réécris ce message de relance pour un client ${d.sansDevis ? 'dont la demande est en cours (le devis n’est pas encore envoyé)' : 'qui n’a pas encore accepté son devis'}.
+Client : ${v.nom || 'inconnu'} · ${v.evenement} du ${v.date} · ${d.sansDevis ? 'demande ' + v.numero : 'devis ' + v.numero + ' de ' + v.montant + ' TTC'}.
+Règles : français, vouvoiement, chaleureux et professionnel, sans pression excessive, aucune information inventée (prix, remise, disponibilité) ; garde le lien tel quel : ${v.lien}. ${sms ? 'SMS : 300 caractères maximum, signé « Magnolia Traiteur ».' : 'E-mail court (6 à 10 lignes), signé « L’équipe Magnolia Traiteur » avec le 07 63 66 98 92.'}
 ${consigne ? 'Consigne du commercial : ' + consigne + '\n' : ''}Message actuel :${sms ? '' : '\nObjet : ' + sujet}
 ${texte}
 
@@ -2005,13 +2015,64 @@ Réponds uniquement en JSON : {${sms ? '' : '"sujet": "...", '}"texte": "..."}`;
     const cl = await store.get('clients/' + d.clientId);
     const vars = varsRelance(d, cl);
     /* texte relu / modifié dans le cadre « Relancer » du Suivi client : il remplace celui du modèle */
-    const texte = remplir(s(req.body?.texte, 5000) || m.texte, vars), sujet = remplir(s(req.body?.sujet, 200) || m.sujet, vars);
+    const texte = remplirR(s(req.body?.texte, 5000) || m.texte, vars), sujet = remplirR(s(req.body?.sujet, 200) || m.sujet, vars);
     if (m.canal === 'sms') { if (!cl?.tel) return res.status(400).json({ error: 'Pas de portable sur la fiche du client.' }); await brevo.sendSms({ to: cl.tel, content: texte }); }
     else { if (!cl?.email) return res.status(400).json({ error: 'Pas d’e-mail sur la fiche du client.' }); await brevo.sendEmail({ to: cl.email, name: cl.nom, subject: sujet, html: esc(texte).replace(/\n/g, '<br>'), text: texte }); }
     const now = new Date().toISOString();
     await store.set('devis/' + d.id, { ...d, derniereRelance: now, relances: [...(d.relances || []), { at: now, modele: m.nom, canal: m.canal, sujet: m.canal === 'sms' ? '' : sujet, texte: texte.slice(0, 3000), par: req.ctx.name }] });
-    if (d.demandeId) await changerStatut(d.demandeId, 'relance', req.ctx.name);
+    if (d.demandeId) await relanceStatut(d.demandeId, req.ctx.name);
     audit(req.ctx, 'relance envoyée', 'devis/' + d.id, m.nom);
+    res.json({ ok: true });
+  }));
+  /* une relance ne fait jamais reculer une fiche déjà en « Accord » ou « Réservé » */
+  async function relanceStatut(demandeId, par) {
+    const dm = await store.get('demandes/' + demandeId);
+    if (dm && ['demande', 'devis_envoye'].includes(dm.statut)) await changerStatut(demandeId, 'relance', par);
+  }
+  /* Relance depuis la carte du Suivi client, par la fiche (demande) : avec le devis envoyé s'il y en a un,
+     sinon une relance de la demande elle-même (pas encore de devis : le lien mène au site). */
+  async function cibleRelance(demId) {
+    const dem = await store.get('demandes/' + demId);
+    if (!dem) return null;
+    const l = (await store.list('devis')).map(x => x.data).filter(x => x && x.demandeId === dem.id).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+    const devis = l.find(x => x.statut === 'accepte') || l.find(x => x.statut === 'envoye') || null;
+    const cl = await store.get('clients/' + (devis?.clientId || dem.clientId)) || { nom: dem.contact?.nom, email: dem.contact?.email, tel: dem.contact?.tel };
+    const nom = nomRelance(cl.email || dem.contact?.email, dem.contact?.nom, cl.nom);
+    const vars = devis ? varsRelance(devis, cl, [dem.contact?.nom]) : { prenom: nom.split(' ')[0], nom, numero: dem.ref || '', evenement: String(dem.evenement?.type || 'événement').toLowerCase(), date: dateFr(dem.evenement?.date), lien: SITE, montant: dem.totalEstimeCents ? euros(dem.totalEstimeCents) : '' };
+    return { dem, devis, cl, vars };
+  }
+  const MODELES_SANS_DEVIS = [
+    { id: 'demande-suivi', nom: 'Suivi de votre demande (pas encore de devis)', canal: 'email', sujet: 'Votre demande pour votre {evenement} du {date}', texte: 'Bonjour {prenom},\n\nNous avons bien reçu votre demande pour votre {evenement} du {date} et nous préparons votre devis.\nPour qu’il vous ressemble, pouvez-vous nous confirmer le nombre d’invités, l’adresse et l’horaire de livraison ?\nUn simple retour à cet e-mail suffit, ou appelez-nous au 07 63 66 98 92.\n\nBelle journée,\nL’équipe Magnolia Traiteur' },
+    { id: 'demande-sms', nom: 'SMS : suivi de votre demande', canal: 'sms', sujet: '', texte: 'Magnolia Traiteur : nous préparons votre devis pour le {date}. Une précision ? Appelez-nous au 07 63 66 98 92. {lien}' },
+  ];
+  A.get('/actions/relance-modeles-demande/:id', wrap(async (req, res) => {
+    const c = await cibleRelance(req.params.id);
+    if (!c) return res.status(404).json({ error: 'Fiche introuvable.' });
+    const ordre = m => ({ 'relance-j3': 1, 'relance-j7': 2, 'relance-derniere': 3, 'sms-relance': 9 }[m.id] || (m.canal === 'sms' ? 8 : 5));
+    const mods = c.devis ? (await store.list('modeles')).map(x => x.data).filter(m => m && m.id !== 'merci').sort((a, b) => ordre(a) - ordre(b)) : MODELES_SANS_DEVIS;
+    const nb = (c.devis?.relances || []).length + (c.dem.relancesNotees || []).filter(r => r.modele).length;
+    res.json({ email: c.cl.email || '', tel: c.cl.tel || '', relances: nb, devis: c.devis ? { id: c.devis.id, numero: c.devis.numero } : null, ref: c.dem.ref || '',
+      modeles: mods.map(m => ({ id: m.id, nom: m.nom, canal: m.canal, sujet: remplirR(m.sujet || '', c.vars), texte: remplirR(m.texte || '', c.vars) })) });
+  }));
+  A.post('/actions/relancer-demande/:id', sameSite, json, wrap(async (req, res) => {
+    const c = await cibleRelance(req.params.id);
+    if (!c) return res.status(404).json({ error: 'Fiche introuvable.' });
+    const id = s(req.body?.modele, 60);
+    const m = c.devis ? await store.get('modeles/' + id) : MODELES_SANS_DEVIS.find(x => x.id === id);
+    if (!m) return res.status(404).json({ error: 'Modèle introuvable.' });
+    const texte = remplirR(s(req.body?.texte, 5000) || m.texte, c.vars), sujet = remplirR(s(req.body?.sujet, 200) || m.sujet, c.vars);
+    if (m.canal === 'sms') { if (!c.cl.tel) return res.status(400).json({ error: 'Pas de portable sur la fiche du client.' }); await brevo.sendSms({ to: c.cl.tel, content: texte }); }
+    else { if (!c.cl.email) return res.status(400).json({ error: 'Pas d’e-mail sur la fiche du client.' }); await brevo.sendEmail({ to: c.cl.email, name: c.cl.nom, subject: sujet, html: esc(texte).replace(/\n/g, '<br>'), text: texte }); }
+    const now = new Date().toISOString(), trace = { at: now, modele: m.nom, canal: m.canal, sujet: m.canal === 'sms' ? '' : sujet, texte: texte.slice(0, 3000), par: req.ctx.name };
+    if (c.devis) {
+      const d = await store.get('devis/' + c.devis.id);
+      await store.set('devis/' + d.id, { ...d, derniereRelance: now, relances: [...(d.relances || []), trace] });
+    } else {
+      const dm = await store.get('demandes/' + c.dem.id);
+      await store.set('demandes/' + dm.id, priseDe({ ...dm, relancesNotees: [...(dm.relancesNotees || []), { ...trace, how: m.canal === 'sms' ? 'SMS' : 'e-mail' }] }, req.ctx.name, 'relance'));
+    }
+    await relanceStatut(c.dem.id, req.ctx.name);
+    audit(req.ctx, 'relance envoyée', c.devis ? 'devis/' + c.devis.id : 'demandes/' + c.dem.id, m.nom);
     res.json({ ok: true });
   }));
 
@@ -2448,7 +2509,20 @@ Réponds uniquement en JSON : {${sms ? '' : '"sujet": "...", '}"texte": "..."}`;
   const canalDe = v => (v === 'sms' ? 'sms' : 'email');
   const critDe = b => ({ statut: ['commandes', 'prospects'].includes(b?.statut) ? b.statut : '', montantMin: Math.max(0, Math.round(+b?.montantMin || 0)), deps: (Array.isArray(b?.deps) ? b.deps : []).map(x => s(x, 3)).slice(0, 120), types: (Array.isArray(b?.types) ? b.types : []).map(x => s(x, 60)).slice(0, 40), pro: ['pro', 'part'].includes(b?.pro) ? b.pro : '', accord: !!b?.accord, metiers: (Array.isArray(b?.metiers) ? b.metiers : []).map(x => s(x, 60)).slice(0, 40), dj: (Array.isArray(b?.dj) ? b.dj : []).map(x => s(x, 60)).slice(0, 40), contactDe: (Array.isArray(b?.contactDe) ? b.contactDe : []).map(x => s(x, 80)).slice(0, 60), civ: ['Mme', 'M.'].includes(b?.civ) ? b.civ : '' });
   /* destinataires : mode « critères » (tous ceux qui correspondent, moins ceux décochés) ou « un par un » (seulement ceux cochés) */
-  function destinataires(l, canal, b) {
+  /* mode « recherche » : les contacts trouvés par la recherche multicritère de la liste Contacts (mêmes filtres, côté serveur) */
+  const rechercheDe = b => { const r = b && typeof b === 'object' ? b : {}, k = {}; for (const x of CRIT_CLIENTS) if (r.k?.[x]) k[x] = s(r.k[x], 80); return { q: s(r.q, 80), filtre: ['importes', 'autres'].includes(r.filtre) ? r.filtre : '', vue: r.vue === 'clients' ? 'clients' : '', k }; };
+  async function idsRecherche(b) {
+    const r = rechercheDe(b), { items } = await annuaireServeur();
+    let l = filtrerCriteres(filtrerClients(items, r.q), r.k);
+    if (r.vue === 'clients') l = l.filter(a => a.acheteur);
+    if (r.filtre === 'importes') l = l.filter(a => a.importe); else if (r.filtre === 'autres') l = l.filter(a => !a.importe);
+    return new Set(l.map(a => a.id));
+  }
+  async function destinataires(l, canal, b) {
+    if (b?.mode === 'recherche') {
+      const ids = await idsRecherche(b.recherche), ex = new Set((b.exclus || []).map(String));
+      return DIF.filtrer(l, canal, {}).filter(p => ids.has(p.id) && !ex.has(p.id));
+    }
     const base = DIF.filtrer(l, canal, critDe(b?.criteres));
     if (b?.mode === 'manuel') { const ins = new Set((b.inclus || []).map(String)); return DIF.filtrer(l, canal, {}).filter(p => ins.has(p.id)); }
     const ex = new Set((b?.exclus || []).map(String));
@@ -2468,17 +2542,20 @@ Réponds uniquement en JSON : {${sms ? '' : '"sujet": "...", '}"texte": "..."}`;
       ia: ia.actif, brevo: brevo.live, lienSms: await lienSms(), moi: { email: req.ctx.email || '', tel: String(R.alertes?.sms || '').split(/[,;]/)[0].trim() }, creneauSms: DIF.creneauSms(),
     });
   }));
+  A.get('/diffusion/credits', wrap(async (req, res) => { res.set('Cache-Control', 'no-store'); res.json(await brevo.compte?.() || { live: brevo.live, sms: null, email: null }); }));
   A.post('/diffusion/selection', sameSite, json, wrap(async (req, res) => {
     const l = await lesProfils(), canal = canalDe(req.body?.canal), b = req.body || {};
-    const choisis = destinataires(l, canal, b), ids = new Set(choisis.map(p => p.id));
-    /* liste affichée : en mode critères, ceux qui correspondent ; en mode un par un, tout le fichier joignable */
+    const choisis = await destinataires(l, canal, b), ids = new Set(choisis.map(p => p.id));
+    /* liste affichée : en mode critères, ceux qui correspondent ; en mode un par un, tout le fichier joignable ; en mode recherche, les contacts trouvés */
     const k = critDe(b.criteres);
-    let vue = b.mode === 'manuel' ? DIF.filtrer(l, canal, { q: b.q }) : DIF.filtrer(l, canal, { ...k, q: b.q });
+    let trouves = null, nonJoignables = 0;
+    if (b.mode === 'recherche') { const tous = await idsRecherche(b.recherche), ok = DIF.filtrer(l, canal, {}); trouves = ok.filter(p => tous.has(p.id)); nonJoignables = tous.size - trouves.length; }
+    let vue = b.mode === 'manuel' ? DIF.filtrer(l, canal, { q: b.q }) : b.mode === 'recherche' ? DIF.filtrer(trouves, canal, { q: b.q }) : DIF.filtrer(l, canal, { ...k, q: b.q });
     if (b.seulementCoches) vue = vue.filter(p => ids.has(p.id));
     vue.sort((a, c) => (c.totalCents - a.totalCents) || String(c.derniere).localeCompare(String(a.derniere)));
     const page = Math.max(0, +b.page | 0), N = 50;
     res.json({
-      nb: choisis.length, correspondent: b.mode === 'manuel' ? null : DIF.filtrer(l, canal, k).length, vue: vue.length, page, pages: Math.ceil(vue.length / N),
+      nb: choisis.length, correspondent: b.mode === 'manuel' ? null : trouves ? trouves.length : DIF.filtrer(l, canal, k).length, nonJoignables, vue: vue.length, page, pages: Math.ceil(vue.length / N),
       lignes: vue.slice(page * N, page * N + N).map(p => ({ id: p.id, nom: p.nom, societe: p.societe, contact: canal === 'email' ? p.email : p.tel, deps: p.deps, totalCents: p.totalCents, nbCommandes: p.nbCommandes, derniere: p.derniere, coche: ids.has(p.id) })),
     });
   }));
@@ -2549,12 +2626,14 @@ Réponds uniquement en JSON : {${sms ? '' : '"sujet": "...", '}"texte": "..."}`;
     const err = await verifier(m, canal); if (err) return res.status(400).json({ error: err });
     if (canal === 'sms') { const cr = DIF.creneauSms(); if (!cr.ok) return res.status(400).json({ error: cr.raison }); }
     profilsCache = null;
-    const liste = destinataires(await lesProfils(), canal, req.body);
+    const liste = await destinataires(await lesProfils(), canal, req.body);
     if (!liste.length) return res.status(400).json({ error: 'Aucun destinataire sélectionné.' });
+    if (canal === 'sms') { const cpt = await brevo.compte?.(), besoin = liste.length * DIF.comptage(DIF.smsFinal(m.texte, { prenom: 'Alexandra', lien: await lienSms() })).sms; if (cpt?.sms != null && besoin > cpt.sms) return res.status(400).json({ error: `Pas assez de crédits SMS : il en faut ${besoin.toLocaleString('fr-FR')}, il en reste ${cpt.sms.toLocaleString('fr-FR')} sur Brevo. Rechargez le compte Brevo ou réduisez la sélection.` }); }
+    else { const cpt = await brevo.compte?.(); if (cpt?.email != null && liste.length > cpt.email) return res.status(400).json({ error: `Le forfait Brevo n’autorise plus que ${cpt.email.toLocaleString('fr-FR')} e-mails : réduisez la sélection ou changez de forfait.` }); }
     if (+req.body?.confirme !== liste.length) return res.status(409).json({ error: `Le nombre de destinataires a changé (${liste.length}). Vérifiez puis confirmez à nouveau.`, nb: liste.length });
     const id = 'cp_' + rid(8), now = new Date().toISOString();
     const nbSms = canal === 'sms' ? DIF.comptage(DIF.smsFinal(m.texte, { prenom: 'Alexandra', lien: await lienSms() })).sms : 0;
-    const camp = { id, canal, message: m, criteres: critDe(req.body?.criteres), mode: req.body?.mode === 'manuel' ? 'manuel' : 'criteres', nb: liste.length, nbSms, ids: liste.map(p => p.id), envoyes: 0, echecs: [], statut: 'en_cours', live: brevo.live, at: now, par: req.ctx.name || req.ctx.email || '' };
+    const camp = { id, canal, message: m, criteres: critDe(req.body?.criteres), mode: ['manuel', 'recherche'].includes(req.body?.mode) ? req.body.mode : 'criteres', ...(req.body?.mode === 'recherche' ? { recherche: rechercheDe(req.body.recherche) } : {}), nb: liste.length, nbSms, ids: liste.map(p => p.id), envoyes: 0, echecs: [], statut: 'en_cours', live: brevo.live, at: now, par: req.ctx.name || req.ctx.email || '' };
     await store.set('_campagnes/' + id, camp);
     audit(req.ctx, canal === 'sms' ? 'SMS groupé envoyé' : 'e-mail groupé envoyé', '_campagnes/' + id, `${liste.length} destinataires · ${m.objet || m.texte.slice(0, 60)}`);
     res.json({ ok: true, id, nb: liste.length });
