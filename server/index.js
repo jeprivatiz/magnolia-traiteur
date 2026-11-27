@@ -762,6 +762,13 @@ async function createApp(opts = {}) {
     const idx = await store.get('_devistoken/' + sha(token));
     return idx ? store.get('devis/' + idx.id) : null;
   }
+  /* bon de préparation ouvert par la personne qui prépare (lien de l'e-mail / du SMS), sans connexion : jamais de prix */
+  app.get('/preparation/:token', wrap(async (req, res, next) => {
+    if (!/^[\w-]{16,40}$/.test(req.params.token)) return next();
+    const b = (await store.list('prepas')).map(x => x.data).find(x => x?.token === req.params.token);
+    if (!b) return next();
+    res.set('Cache-Control', 'no-store').set('X-Robots-Tag', 'noindex, nofollow').type('html').send(require('./prepa').documentHtml(b, { R: (await cat.get()).reglages || {}, par: b.majPar || '' }));
+  }));
   app.get('/devis/:token', wrap(async (req, res, next) => {
     const d = await devisParToken(req.params.token);
     if (!d || d.statut === 'brouillon') return next();
@@ -950,6 +957,7 @@ async function createApp(opts = {}) {
   const ROUTES_DOC = [
     [/^\/actions\/(?:envoyer-devis|relancer|relance-modeles|dupliquer-devis|facture-depuis-devis|reglement-devis)\/([^/]+)/, 'devis'],
     [/^\/devis\/([^/]+)\/apercu/, 'devis'],
+    [/^\/prepa\/([^/]+)/, 'devis'],
     [/^\/factures\/([^/]+)\/apercu/, 'factures'],
     [/^\/actions\/(?:facture|facture-reglement|facture-reglement-retirer|facture-payee|envoyer-facture|relancer-facture|archiver-facture|avoir-facture)\/([^/]+)/, 'factures'],
     [/^\/actions\/(?:devis-depuis-demande|reserver)\/([^/]+)/, 'demandes'],
@@ -2942,6 +2950,86 @@ Réponds uniquement en JSON : {${sms ? '' : '"sujet": "...", '}"texte": "..."}`;
     const r = await seed(store, { force: true, log }); await importerAvisAncienSite(store, { log }); await initSousRubriques(store, { log });
     cat.invalidate(); audit(req.ctx, 'catalogue réimporté depuis le brouillon', '');
     res.json({ ok: true, ...r });
+  }));
+  /* ---------- Prépa de commande (Jean-Luc, 2026-11-27) : bon de préparation pour la cuisine, depuis un devis signé / une facture ----------
+     Collection `prepas` (id = id du devis). Jamais de prix. Lien sans connexion /preparation/:token pour la personne qui prépare. */
+  const PREP = require('./prepa');
+  const txt = (v, n = 3000) => String(v ?? '').replace(/\r/g, '').trim().slice(0, n);
+  const aujourdhui = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Paris' });
+  async function contextePrepa(devisId) {
+    const d = await store.get('devis/' + devisId);
+    if (!d) return null;
+    const [cl, dem, fa, c] = await Promise.all([d.clientId ? store.get('clients/' + d.clientId) : null, d.demandeId ? store.get('demandes/' + d.demandeId) : null, store.list('factures'), cat.get()]);
+    const facture = fa.map(x => x.data).filter(f => f && f.devisId === d.id && f.type !== 'avoir' && !f.annuleeParAvoir).sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')))[0] || null;
+    return { devis: { ...d, id: d.id || devisId }, client: cl, demande: dem, facture, bySlug: c.bySlug, R: c.reglages || {} };
+  }
+  /* noms proposés dans les listes déroulantes : comptes de l'équipe + prestataires (fiches « Prestataire » des contacts) */
+  async function personnesPrepa() {
+    const [us, cls] = await Promise.all([store.list('_users'), store.list('clients')]);
+    const eq = us.filter(u => !u.data.disabled).map(u => { const p = partiesNom(u.data); return { nom: [p.prenom, p.nomFamille].filter(Boolean).join(' ') || u.data.name || u.data.email, tel: u.data.portable || '', email: u.data.email || '', groupe: 'Équipe Magnolia' }; });
+    const pr = cls.map(x => x.data).filter(c => c && !c.supprime && (c.genre === 'prestataire' || (c.genre !== 'client' && (c.metiers || []).length))).map(c => ({ nom: c.nom || '', tel: c.tel || '', email: c.email || '', groupe: 'Prestataires', metiers: (c.metiers || []).slice(0, 4) }));
+    return [...eq, ...pr].filter(p => p.nom).sort((a, b) => a.groupe.localeCompare(b.groupe) || a.nom.localeCompare(b.nom, 'fr'));
+  }
+  A.get('/prepa', wrap(async (req, res) => {
+    const [dv, fa, dem, bons, vis] = await Promise.all([store.list('devis'), store.list('factures'), store.list('demandes'), store.list('prepas'), visibles(req)]);
+    const facDe = new Map(); for (const f of fa.map(x => x.data).filter(f => f?.devisId && f.type !== 'avoir' && !f.annuleeParAvoir)) facDe.set(f.devisId, f.numero);
+    const demSt = new Map(dem.map(x => [x.data?.id || x.id, x.data?.statut]));
+    const bonDe = new Map(bons.map(b => [b.id, b.data]));
+    const L = dv.map(x => ({ ...x.data, id: x.data?.id || x.id })).filter(d => !vis || vis.devis.has(d.id)).filter(d => d.statut !== 'refuse').map(d => {
+      const b = bonDe.get(d.id), st = demSt.get(d.demandeId);
+      const confirme = d.statut === 'accepte' || facDe.has(d.id) || ['accord', 'reserve', 'termine'].includes(st);
+      const env = (b?.envois || []).slice(-1)[0];
+      return { devisId: d.id, numero: d.numero, client: b?.client?.nom || d.clientNom || '', date: b?.evenement?.date || d.evenement?.date || '', type: d.evenement?.type || '', invites: b?.evenement?.invites || d.evenement?.invites || '', ville: d.evenement?.ville || '', lieu: d.evenement?.lieu || '', statut: d.statut, reserve: st === 'reserve', facture: facDe.get(d.id) || '', confirme, bon: b ? { maj: b.updatedAt || b.creeLe, envoyeLe: env?.at || '', envoyeA: env?.a || '' } : null };
+    });
+    res.set('Cache-Control', 'no-store').json({ aujourdhui: aujourdhui(), devis: L.sort((a, b) => String(a.date || '9999').localeCompare(String(b.date || '9999'))) });
+  }));
+  A.get('/prepa/:id', wrap(async (req, res) => {
+    const x = await contextePrepa(req.params.id);
+    if (!x) return res.status(404).json({ error: 'Devis introuvable.' });
+    const avant = await store.get('prepas/' + req.params.id);
+    const neuf = PREP.bonDepuis(x);
+    /* ?reprendre=1 : on repart des lignes du devis (le reste du bon est gardé) */
+    const bon = avant ? (req.query.reprendre ? { ...avant, lignes: neuf.lignes, personnelDevis: neuf.personnelDevis, allergenesProduits: neuf.allergenesProduits } : avant) : neuf;
+    res.set('Cache-Control', 'no-store').json({ bon, existe: !!avant, devis: { numero: x.devis.numero, statut: x.devis.statut, facture: x.facture?.numero || '' }, personnes: await personnesPrepa(), roles: PREP.ROLES, horaires: PREP.HORAIRES, message: PREP.messageDefaut(bon, req.ctx.name || '') });
+  }));
+  A.put('/prepa/:id', sameSite, json, wrap(async (req, res) => {
+    const x = await contextePrepa(req.params.id);
+    if (!x) return res.status(404).json({ error: 'Devis introuvable.' });
+    const avant = (await store.get('prepas/' + req.params.id)) || {};
+    const bon = { ...PREP.nettoyer({ ...req.body, devisId: req.params.id }, { id: req.params.id, devisId: req.params.id, creePar: req.ctx.name || '', ...avant }, x.bySlug), updatedAt: new Date().toISOString(), majPar: req.ctx.name || '' };
+    await store.set('prepas/' + req.params.id, bon);
+    audit(req.ctx, avant.id ? 'bon de préparation modifié' : 'bon de préparation créé', 'prepas/' + req.params.id, `${x.devis.numero || ''} · ${bon.client.nom}`);
+    res.json({ ok: true, bon });
+  }));
+  A.get('/prepa/:id/document', wrap(async (req, res) => {
+    const x = await contextePrepa(req.params.id);
+    if (!x) return res.status(404).send('Devis introuvable.');
+    const bon = (await store.get('prepas/' + req.params.id)) || PREP.bonDepuis(x);
+    res.set('Cache-Control', 'no-store').set('X-Robots-Tag', 'noindex').type('html').send(PREP.documentHtml(bon, { R: x.R, retour: '/admin#/prepa/' + encodeURIComponent(req.params.id), par: bon.majPar || req.ctx.name || '' }));
+  }));
+  A.post('/prepa/:id/envoyer', sameSite, json, wrap(async (req, res) => {
+    const bon = await store.get('prepas/' + req.params.id);
+    if (!bon) return res.status(400).json({ error: 'Enregistrez d’abord le bon de préparation.' });
+    const b = req.body || {}, canaux = [].concat(b.canaux || []).filter(c => c === 'email' || c === 'sms');
+    const dest = (Array.isArray(b.a) ? b.a : []).slice(0, 10).map(p => ({ nom: s(p?.nom, 80), email: s(p?.email, 160).toLowerCase(), tel: normTel(p?.tel)?.ok ? normTel(p.tel).tel : '' })).filter(p => p.email || p.tel);
+    if (!canaux.length) return res.status(400).json({ error: 'Cochez « E-mail » et / ou « SMS ».' });
+    if (!dest.length) return res.status(400).json({ error: 'Choisissez la personne qui reçoit le bon (avec son e-mail ou son portable).' });
+    if (canaux.includes('email') && !dest.some(p => isEmail(p.email))) return res.status(400).json({ error: 'Aucune adresse e-mail valable pour l’envoi par e-mail.' });
+    if (canaux.includes('sms') && !dest.some(p => p.tel)) return res.status(400).json({ error: 'Aucun numéro de portable valable pour l’envoi par SMS.' });
+    const token = bon.token || rid(18);
+    const lien = SITE + '/preparation/' + token;
+    const R = (await cat.get()).reglages || {};
+    const sujet = s(b.sujet, 160) || PREP.titreBon(bon);
+    const html = PREP.emailHtml(bon, { message: txt(b.message), lien, R });
+    const faits = [];
+    for (const p of dest) {
+      if (canaux.includes('email') && isEmail(p.email)) { await brevo.sendEmail({ to: p.email, name: p.nom, replyTo: req.ctx.email || R.email, subject: sujet, html, text: `${txt(b.message)}\n\nBon de préparation : ${lien}` }); faits.push(p.nom || p.email); }
+      if (canaux.includes('sms') && p.tel) { await brevo.sendSms({ to: p.tel, lien: false, content: PREP.smsTexte(bon, lien) }); if (!faits.includes(p.nom || p.tel)) faits.push(p.nom || p.tel); }
+    }
+    const envois = [...(bon.envois || []), { at: new Date().toISOString(), par: req.ctx.name || '', a: faits.join(', '), canaux }].slice(-30);
+    await store.set('prepas/' + req.params.id, { ...bon, token, envois });
+    audit(req.ctx, 'bon de préparation envoyé', 'prepas/' + req.params.id, `${faits.join(', ')} (${canaux.join(' + ')})`);
+    res.json({ ok: true, lien, a: faits, envois });
   }));
   /* ---------- Validation tarifs (Jean-Luc, 2026-11-26) : fiches fournisseurs, document A4 à faire signer, scans signés ----------
      Tout est interne : rien de cela n'est lu par les pages du site. Droit « Modifier les prix » (comme les prix d'achat). */

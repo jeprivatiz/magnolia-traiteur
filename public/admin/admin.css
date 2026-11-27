@@ -453,8 +453,8 @@ body { background: var(--bo-bg); }
 .side .tabs .chip.crm-sub { display: none; }
 .side .tabs.crm-open .chip.crm-sub { display: flex; background: var(--bo-tint); border-radius: 0; padding-left: 30px; font-size: 13.5px; }
 .side .tabs.crm-open .chip.crm-sub.on { background: var(--bo-green); border-radius: 10px; }
-.side .tabs.crm-open .chip.crm-sub[data-tab=tarifs] { border-radius: 0 0 10px 10px; margin-bottom: 8px; }
-.side .tabs.crm-open .chip.crm-sub[data-tab=tarifs].on { border-radius: 10px; }
+.side .tabs.crm-open .chip.crm-sub[data-tab=prepa] { border-radius: 0 0 10px 10px; margin-bottom: 8px; }
+.side .tabs.crm-open .chip.crm-sub[data-tab=prepa].on { border-radius: 10px; }
 .me { border-top: 1px solid var(--bo-line); }
 .me span small, .me .lnk { color: var(--bo-soft); }
 .me a { color: var(--bo-gold); }
@@ -2418,3 +2418,69 @@ tr.rem-det > td { padding: 4px 0 12px 14px; }
 .qs-rel .qs-rel-to .err{color:#c0392b}
 .qs-rel-ia{display:flex;gap:8px;flex-wrap:wrap}
 .qs-rel-ia input{flex:1 1 240px}
+
+/* ---------- Prépa de commande (Jean-Luc, 2026-11-27) ---------- */
+.pc-intro { max-width: 900px; }
+.pc-sub { display: block; font-family: var(--sans); font-size: 1rem; font-weight: 500; color: var(--or); margin-top: 4px; }
+.pc-box input:not([type=checkbox]), .pc-box select, .pc-box textarea, .pc-mod input:not([type=checkbox]), .pc-mod select, .pc-mod textarea { background: color-mix(in srgb, var(--doux) 55%, var(--carte)); border: 1.5px solid color-mix(in srgb, var(--or) 35%, var(--ligne)); }
+.pc-box h2 { font-size: 1.05rem; }
+.pc-box h3 { margin-bottom: 8px; }
+.pc-cols { grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); }
+.pc-lbar { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; margin-bottom: 12px; }
+.pc-lbar input[type=search] { max-width: 380px; flex: 1 1 240px; }
+.pc-seg { display: inline-flex; border: 1.5px solid var(--or); border-radius: 999px; overflow: hidden; }
+.pc-seg button { font: inherit; font-weight: 600; border: 0; background: transparent; color: var(--vert); padding: 8px 16px; cursor: pointer; min-height: 40px; }
+.pc-seg button.on { background: var(--vert); color: #fff; }
+.pc-ck { display: inline-flex; align-items: center; gap: 8px; margin: 0; font-size: .9rem; color: var(--texte); cursor: pointer; }
+.pc-ok { color: var(--vert-ok); font-size: .78rem; font-weight: 600; }
+.pc-ns { color: var(--orange); font-size: .8rem; font-weight: 600; }
+.pc-lt tr[data-href] { cursor: pointer; }
+.pc-alp small { display: block; font-size: .82rem; font-weight: 500; color: var(--gris); margin-bottom: 6px; }
+.pc-ap { display: inline-block; margin: 0 6px 6px 0; padding: 3px 10px; border-radius: 999px; font-size: .8rem; font-weight: 600; color: var(--rouge); background: color-mix(in srgb, var(--rouge) 10%, transparent); }
+.pc-hor { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0 12px; }
+.pc-roles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.pc-role { border: 1px solid var(--ligne); border-radius: 10px; padding: 12px; background: color-mix(in srgb, var(--doux) 35%, var(--carte)); display: flex; flex-direction: column; gap: 8px; }
+.pc-chips { display: flex; flex-wrap: wrap; gap: 6px; min-height: 32px; align-items: center; }
+.pc-chip { display: inline-flex; align-items: center; gap: 6px; background: var(--vert); color: #fff; border-radius: 999px; padding: 4px 6px 4px 12px; font-size: .88rem; }
+.pc-chip small { opacity: .8; }
+.pc-chip button { border: 0; background: rgba(255, 255, 255, .2); color: #fff; width: 24px; height: 24px; border-radius: 50%; cursor: pointer; font-size: 1rem; line-height: 1; }
+.pc-libre { display: grid; grid-template-columns: 1fr auto; gap: 6px; }
+.pc-libre input[data-pclibre] { grid-column: 1 / -1; }
+.pc-libre .btn { min-height: 42px; }
+.pc-lignes { display: flex; flex-direction: column; gap: 8px; }
+.pc-l { display: grid; grid-template-columns: 30px minmax(0, 1fr) 120px 140px minmax(0, .8fr) 36px; gap: 10px; align-items: start; border: 1px solid var(--ligne); border-radius: 10px; padding: 10px; background: var(--carte); }
+.pc-l:nth-child(even) { background: color-mix(in srgb, var(--doux) 30%, var(--carte)); }
+.pc-l label { margin: 0; }
+.pc-l small { display: block; font-size: .74rem; font-weight: 500; color: var(--gris); margin-bottom: 4px; }
+.pc-no { font-weight: 600; color: var(--gris); padding-top: 10px; text-align: center; }
+.pc-pr { display: flex; flex-direction: column; gap: 6px; }
+.pc-pr input[data-lf=designation] { font-weight: 600; }
+.pc-pr textarea { font-size: .9rem; min-height: 38px; }
+.pc-al { color: var(--rouge) !important; font-weight: 600; }
+.pc-q b { display: block; font-size: 1.05rem; color: var(--vert); padding-top: 6px; }
+.pc-qp input { font-weight: 600; }
+.pc-x { border: 0; background: transparent; cursor: pointer; font-size: 1.1rem; padding: 8px 4px; margin-top: 18px; opacity: .7; }
+.pc-x:hover { opacity: 1; }
+.pc-ti { grid-template-columns: minmax(0, 1fr) 36px; background: color-mix(in srgb, var(--or) 12%, var(--carte)) !important; }
+.pc-ti input { font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--vert); }
+.pc-ti .pc-x { margin-top: 0; }
+.pc-addl { margin-top: 12px; flex-wrap: wrap; }
+.pc-env { margin: 0; padding-left: 18px; }
+.pc-bas { flex-wrap: wrap; margin-bottom: 30px; }
+.pc-mod { width: min(720px, 100%); }
+.pc-modc { overflow: auto; padding-right: 2px; }
+.pc-dl { display: flex; flex-direction: column; gap: 6px; margin: 6px 0 12px; }
+.pc-dst { display: flex; align-items: center; gap: 8px; margin: 0; padding: 8px 10px; border: 1px solid var(--ligne); border-radius: 8px; color: var(--texte); font-size: .95rem; cursor: pointer; }
+.pc-can { display: flex; flex-wrap: wrap; gap: 10px 22px; margin: 8px 0 12px; }
+@media (max-width: 1100px) { .pc-roles { grid-template-columns: 1fr; } .pc-hor { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 760px) {
+  .pc-hor { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pc-cols { grid-template-columns: 1fr; }
+  .pc-l { grid-template-columns: 1fr 1fr; gap: 8px; padding: 10px 10px 10px 12px; position: relative; }
+  .pc-no { position: absolute; left: -2px; top: -10px; padding: 0 6px; background: var(--vert); color: #fff; border-radius: 999px; font-size: .74rem; }
+  .pc-pr, .pc-nt { grid-column: 1 / -1; }
+  .pc-pr { padding-right: 34px; }
+  .pc-x { position: absolute; right: 4px; top: 4px; margin: 0; }
+  .pc-ti { grid-template-columns: 1fr; padding-right: 44px; }
+  .pc-lt td small.vt-sub { white-space: normal; }
+}
