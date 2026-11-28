@@ -1263,6 +1263,54 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('site/reglages', { ...(await store.get('site/reglages')), escapeGame1: true });
   }
 
+  /* Animation karaoké (Jean-Luc, 2026-11-28) : 890 € TTC la prestation de 3 heures, animateur, son, micros et écran compris ;
+     plus de « Sur devis ». Accroche dans la description sous le prix, détail en puces dans la description sous la photo.
+     Prix d'achat inconnu : laissé vide (à remplir dans Catalogue > fiche). Photos : Pexels 30489716 (amis qui chantent au micro
+     dans un bar en soirée) et 6762298 (amis qui chantent ensemble), licence Pexels ; seulement si la fiche n'a pas déjà
+     des photos ajoutées dans le back-office. Une fois ; modifiable ensuite dans Catalogue > fiche. */
+  const RKa = await store.get('site/reglages');
+  if (RKa && !RKa.karaoke1) {
+    for (const { id, data: p } of await store.list('produits')) {
+      if ((p.slug || id) !== 'karaoke') continue;
+      const anciennes = (p.photos || []).every(x => /images\.pexels\.com|\/pages-digital\//.test(String((x && x.src) || '')));
+      const photos = anciennes ? [{ src: pexels(30489716), alt: 'Amis qui chantent au karaoké pendant une soirée' }, { src: pexels(6762298), alt: 'Invités qui chantent ensemble au micro' }] : p.photos;
+      await store.set('produits/' + id, { ...p, titre: 'Animation karaoké', prixCents: 89000, coutCents: p.coutCents || null, prixTexte: null, unite: 'prestation', min: 1, minimumTexte: null, aCompleter: false, photos,
+        extrait: 'Chantez, riez, vibrez ensemble : 3 heures de karaoké clé en main, avec animateur, sonorisation, micros sans fil et écran pour les paroles.',
+        description: [
+          'Chantez, riez, vibrez ensemble : l’animation karaoké qui fédère tous les publics.',
+          'Idéale pour une soirée d’entreprise, un anniversaire, un séminaire ou une fête entre amis, notre animation karaoké transforme vos invités en vraies stars le temps d’une soirée conviviale et sans complexe. 890 € TTC pour 3 heures d’animation, tout compris.',
+        ],
+        sousPhoto: [
+          '**LE CONCEPT**',
+          '- **Clé en main** : fini les catalogues incompréhensibles et les micros qui grésillent, notre animateur s’occupe de tout.',
+          '- **Pour tout le monde** : une animation fluide et participative, pour les chanteurs du dimanche comme pour les amateurs de grands refrains repris en chœur.',
+          '- **Des milliers de titres** : variété française et internationale, tubes des années 80 à aujourd’hui, pop, rock, rap, chansons de fête… chacun trouve son morceau en quelques secondes.',
+          '',
+          '**COMPRIS DANS LE PRIX**',
+          '- **3 heures d’animation continue**, avec un animateur qui gère la musique, lance les morceaux et met l’ambiance.',
+          '- **Une sonorisation** adaptée à votre lieu et au nombre d’invités.',
+          '- **2 à 4 micros sans fil**, réglés avec de légers effets pour le confort de la voix.',
+          '- **Un écran pour les paroles** (télévision ou vidéoprojecteur selon votre lieu).',
+          '- L’installation et le démontage sur place.',
+          '',
+          '**CE QUI FAIT LA DIFFÉRENCE**',
+          '- **Une ambiance qui met tout le monde à l’aise** : pas besoin de savoir chanter, ici on vient pour partager, rire et chanter ensemble.',
+          '- **Pas de temps mort** : les demandes de chansons sont gérées simplement, pour que chacun puisse passer au micro.',
+          '- **Sur mesure** : playlist à thème (années 90 et 2000, soirée à thème, tubes du moment) ou jingles personnalisés pour un événement d’entreprise.',
+          '',
+          '**BON À SAVOIR**',
+          '- **Nombre d’invités conseillé** : 30 à 50 personnes pour une ambiance dynamique. Au-delà, nous prévoyons une installation renforcée.',
+          '- **Plus longtemps ?** La durée peut être prolongée, ou la soirée peut continuer avec un DJ.',
+          '- **À prévoir sur place** : un espace dégagé pour les chanteurs et une prise électrique classique à proximité.',
+          '- **En extérieur ou dans un lieu où le son est limité** : parlons-en avant, nous adaptons le matériel.',
+        ],
+        sousPhotoAuto: false,
+        regles: { ...(p.regles || {}), personnel: null, packs: false },
+        updatedAt: new Date().toISOString() });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), karaoke1: true });
+  }
+
   /* Duo Flaming Soul (Jean-Luc, 2026-11-28) : 1 790 € TTC la prestation (prix d'achat 1 000 € TTC, jamais montré au client) ;
      la mention « Sur devis » disparaît. Une fois ; modifiable ensuite dans Catalogue > fiche. */
   const RFs = await store.get('site/reglages');
