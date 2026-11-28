@@ -1157,6 +1157,17 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('site/reglages', { ...(await store.get('site/reglages')), christophineSupp: true });
   }
 
+  /* Duo Flaming Soul (Jean-Luc, 2026-11-28) : 1 790 € TTC la prestation (prix d'achat 1 000 € TTC, jamais montré au client) ;
+     la mention « Sur devis » disparaît. Une fois ; modifiable ensuite dans Catalogue > fiche. */
+  const RFs = await store.get('site/reglages');
+  if (RFs && !RFs.flamingSoulPrix) {
+    for (const { id, data: p } of await store.list('produits')) {
+      if ((p.slug || id) !== 'duo-flaming-soul') continue;
+      await store.set('produits/' + id, { ...p, prixCents: 179000, coutCents: 100000, prixTexte: null, unite: p.unite || 'prestation', min: 1, minimumTexte: null, aCompleter: false, updatedAt: new Date().toISOString() });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), flamingSoulPrix: true });
+  }
+
   /* Buffet des traditions (Jean-Luc, 2026-11-26) : le client choisit exactement 3 salades parmi celles de la description ;
      le cake, le plateau de charcuteries, le plateau de fromages et le dessert sont affichés « compris dans la formule » (rien à choisir).
      Une fois, seulement si la fiche n'a pas encore de choix ; modifiable ensuite dans « Choix proposés au client ». */
