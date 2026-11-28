@@ -31,3 +31,5 @@ Toutes issues de Pexels (licence Pexels : usage commercial gratuit, sans attribu
 | maghreb.jpg | Chefchaouen, Maroc | https://www.pexels.com/photo/chafchaoune-from-above-22717147/ |
 - Lune du globe : https://www.pexels.com/photo/full-moon-596134/ (licence Pexels), détourée et passée en noir et blanc → public/site/lune/lune.png
 - /site/c/entreprises/soiree-champagne.webp : Pexels 6405756 (soirée, collègues qui trinquent au champagne), licence Pexels, page Entreprises (cadre du formulaire).
+- /site/c/entreprises/mange-debout.webp : Pexels 16985199 (mange-debout et tabourets sous verrière), licence Pexels, page Entreprises (vignette Mobilier & matériel).
+- /site/v/entreprises/cave.mp4 (+ image cave.jpg) : vidéo Pexels 5537823 de cottonbro studio (cave voûtée à tonneaux), licence Pexels, page Entreprises (vignette La cave & les open bars).

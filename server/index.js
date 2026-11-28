@@ -226,6 +226,29 @@ async function createApp(opts = {}) {
     if (m && !(await store.get('modeles/' + m.id))) await store.set('modeles/' + m.id, m);
     await store.set('_migr/relanceDerniere', { at: new Date().toISOString() });
   }
+  /* une seule fois (Jean-Luc, 2026-11-28) : les 6 coffrets avaient tous le même texte général ; chacun reçoit sa vraie définition
+     (celle de la brochure), seulement si le texte n'a pas été retouché depuis. */
+  if (!(await store.get('_migr/coffretsDefinitions'))) {
+    const GENERAL = 'Coffrets italien, libanais, chinois, créatif, fromages et fruits.';
+    const DEF = {
+      'coffret-italien-mamma-mia': 'Charcuteries italiennes, fromages, arancini, saumon mariné et légumes. Pour 8 à 10 personnes.',
+      'coffret-libanais-du-chef-leon': 'Houmous, taboulé, falafels, shawarma, mezzés et pain chaud. Pour 8 à 10 personnes.',
+      'coffret-chinois-aux-neuf-saveurs': 'Nems, gyozas, tempuras, raviolis et bouchées vapeur, avec leurs sauces. Pour 8 à 10 personnes.',
+      'coffret-crudites-bio-du-jardin': 'Légumes croquants de saison accompagnés d’une vinaigrette bio. Pour 8 à 10 personnes.',
+      'coffret-fromages-de-nos-regions': 'Sept fromages, raisins et pain frais pour une dégustation conviviale. Pour 8 à 10 personnes.',
+      'coffret-fruits-frais': 'Un assortiment de fruits de saison, prêts à déguster. Pour 8 à 10 personnes.',
+    };
+    for (const { id, data: p } of await store.list('produits')) {
+      const t = p && DEF[p.slug];
+      if (!t) continue;
+      const desc = Array.isArray(p.description) ? p.description : [];
+      const ch = {};
+      if (String(p.extrait || '').trim() === GENERAL) ch.extrait = t;
+      if (desc.length === 1 && String(desc[0]).trim() === GENERAL) ch.description = [t];
+      if (Object.keys(ch).length) await store.set('produits/' + id, { ...p, ...ch });
+    }
+    await store.set('_migr/coffretsDefinitions', { at: new Date().toISOString() });
+  }
   if (!(await store.get('_migr/caveMagnolia'))) {
     const net = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
     for (const { id, data: p } of await store.list('produits')) {

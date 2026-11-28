@@ -364,7 +364,7 @@ const BANDEAUX_DEFAUT = {
   temoignages: { photo: '/site/v/temoignages-table.jpg', video: '/site/v/temoignages-table.mp4', titre: 'Avis clients', chapo: 'Mariages, anniversaires, séminaires, fêtes de famille : ils nous ont confié leur événement et le racontent.', bouton: 'Lire les avis', ancre: '#avis' },
   /* page d'arrivée des entreprises (publicité Google Ads « traiteur entreprise », Jean-Luc 2026-11-28) */
   entreprises: { photo: '/site/v/bandeaux/cocktails-buffets-2.jpg', video: '/site/v/bandeaux/cocktails-buffets-2.mp4', titre: 'Magnolia\nle traiteur des entreprises', chapo: 'Petits-déjeuners, plateaux repas, cocktails, séminaires et soirées d’entreprise : un seul interlocuteur pour tout votre événement, du café d’accueil au dernier verre.', bouton: 'Recevoir mon devis sous 24 h', ancre: '#devis-entreprise',
-    fiches: ['cocktail-corporate-magnolia', 'petit-dejeuner-classique', 'pause-cafe', 'plateau-de-80-mini-clubs', 'plateau-japonais-38-pieces', 'grand-cocktail-magnolia', 'repas-servi-a-table-elabore-par-le-chef', 'open-bar-vins-et-champagnes'],
+    fiches: ['cocktail-corporate-magnolia', 'petit-dejeuner-classique', 'pause-cafe', 'coffret-italien-mamma-mia', 'plateau-japonais-38-pieces', 'grand-cocktail-magnolia', 'repas-servi-a-table-elabore-par-le-chef', 'open-bar-vins-et-champagnes'],
     introTitre: 'Tout ce dont votre entreprise a besoin, au même endroit', introTexte: 'Réunion du matin, déjeuner de travail, séminaire, inauguration, pot de départ ou soirée de fin d’année : choisissez votre besoin ci-dessous, vous arrivez directement sur nos propositions, avec leurs prix TTC. Vous pouvez aussi nous décrire votre projet en quelques lignes : un conseiller vous envoie votre devis sous 24 h, au nom de votre société.' },
   maison: { photo: '/site/c/personnel80-client-20261102.webp.webp', video: '', titre: 'La maison Magnolia', chapo: 'Votre événement commence ici.', bouton: 'Découvrir nos propositions', ancre: '/boutique' },
 };
@@ -938,9 +938,11 @@ const BESOINS_ENT = [
   ['Séminaire & buffets du monde', 'Dix traiteurs, une seule maison', '/saveurs-du-monde'],
   /* deux rubriques dans la même vignette (Jean-Luc, 2026-11-28) : moitié gauche salée, moitié droite sucrée, deux boutons */
   ['Pot de départ & inauguration', 'Animations culinaires salées et sucrées devant vos invités', ['/animations-salees', '/douceurs'], '', ['Salées', 'Sucrées']],
-  ['La cave & les open bars', 'Champagnes, vins, softs et barmen', '/boissons'],
+  /* vraie cave à tonneaux en vidéo, rien de festif (Jean-Luc, 2026-11-28) ; son image d'attente cave.jpg servira aussi pour la brochure */
+  ['La cave & les open bars', 'Champagnes, vins, softs et barmen', '/boissons', '/site/v/entreprises/cave.mp4'],
   ['Personnel de réception', 'Maîtres d’hôtel, serveurs, barmen', '/personnel'],
-  ['Mobilier & matériel', 'Mange-debout, nappes, vaisselle, buffets', '/mobilier-a-la-location'],
+  /* mange-debout dans un lieu d'entreprise, plus de photo de mariage (Jean-Luc, 2026-11-28) */
+  ['Mobilier & matériel', 'Mange-debout, nappes, vaisselle, buffets', '/mobilier-a-la-location', '/site/c/entreprises/mange-debout.webp'],
   ['Soirée d’entreprise', 'DJ, musiciens, animations et spectacles', '/musique-animations'],
   ['Lieux pour vos événements', 'Péniches, lofts, salons à privatiser', '/lieux'],
 ];
@@ -967,7 +969,8 @@ const FAQ_ENT = [
 ];
 function entreprises(c) {
   const R = c.reglages, B = bandeauDe(c, 'entreprises'), A = R.accueil || {};
-  const fiches = ((R.bandeaux?.entreprises?.fiches || []).length ? R.bandeaux.entreprises.fiches : FICHES_ENT).map(s => c.bySlug.get(s)).filter(p => p && p.statut !== 'masque');
+  /* le plateau de mini-clubs (photo du coffret depuis la brochure) devient le Coffret italien (Jean-Luc, 2026-11-28) */
+  const fiches = ((R.bandeaux?.entreprises?.fiches || []).length ? R.bandeaux.entreprises.fiches : FICHES_ENT).map(s => s === 'plateau-de-80-mini-clubs' ? 'coffret-italien-mamma-mia' : s).map(s => c.bySlug.get(s)).filter(p => p && p.statut !== 'masque');
   const rubVue = new Set(c.rubriques.filter(r => r.statut !== 'masque').map(r => '/' + r.slug).concat('/lieux'));
   const tuiles = BESOINS_ENT.map(([t, sous, href, photo, noms]) => {
     if (Array.isArray(href)) {
@@ -978,7 +981,9 @@ function entreprises(c) {
     }
     if (!rubVue.has(href)) return null;
     const r = c.rubriques.find(x => '/' + x.slug === href);
-    const v = photo ? '' : videoAccueil(href === '/lieux' ? 'lieux' : r?.slug, r);
+    const film = /\.mp4$/.test(photo || '') && logoExiste(photo) ? `<video class="tile-v" muted loop playsinline preload="none" disablepictureinpicture aria-hidden="true" poster="${versionne(photo.replace(/\.mp4$/, '.jpg'))}" data-vignette="${versionne(photo)}"></video>` : '';
+    if (/\.mp4$/.test(photo || '')) photo = '';
+    const v = film || (photo ? '' : videoAccueil(href === '/lieux' ? 'lieux' : r?.slug, r));
     const ph = photo || (href === '/lieux' ? c.lieux[0]?.photos?.[0] : (r?.photoAccueil || r?.photo || r?.bandeauPhoto));
     return `<a class="tile" href="${esc(href)}">${v || img(ph, '')}<span class="tile-t"><b>${esc(t)}</b><small>${esc(sous)}</small></span></a>`;
   }).filter(Boolean).join('');
