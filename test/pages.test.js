@@ -35,7 +35,7 @@ test('pages publiques principales en 200', async () => {
     assert.equal(api.resultats[0].href, '/zone-de-livraison');
         /* le sur-titre « Un voyage à votre table » ne doit pas être collé au bandeau photo */
     const sm = await (await fetch(base + '/saveurs-du-monde')).text();
-    assert.match(sm, /class="sm-globe" id="specialites"/, 'globe 3D sous le bandeau de Saveurs du monde');
+    assert.match(sm, /class="sm-globe sm-plat" id="specialites"/, 'carte du monde (à plat, globe 3D au bouton) sous le bandeau de Saveurs du monde');
     const nSpe = (sm.match(/class="sm-pave[ "]/g) || []).length;
     assert.ok(nSpe >= 3, 'chaque spécialité a son pavé à gauche du globe');
     assert.ok(!/class="sm-pave on"/.test(sm), 'aucun pays coché à l’arrivée');

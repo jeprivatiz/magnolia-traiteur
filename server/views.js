@@ -458,26 +458,26 @@ function pageGlobe(c, r) {
     const vedette = L.find(p => rangementDe(p) === 'buffets' && p.prixCents != null) || L.find(p => p.prixCents != null) || L[0];
     const lieu = lieuDe(x);
     return { slug: x.slug, nom: x.nom, pays: x.pays || (lieu ? lieu[1] : ''), n: L.length, href: `/${r.slug}/${x.slug}`, photo: x.photoGlobe || (lieu && PHOTOS_PAYS[lieu[0]] ? `/site/pays/${lieu[0]}.jpg` : x.bandeauPhoto || x.photo || ''), vignette: vedette?.photos?.[0]?.src || x.photo || '',
-      phrase: x.phraseGlobe || (lieu && PHRASES_GLOBE[lieu[0]]) || speChapo(x), ids: lieu ? lieu[2].map(Number) : [], centre: lieu ? CENTRES_GLOBE[lieu[0]] || null : null };
+      phrase: x.phraseGlobe || (lieu && PHRASES_GLOBE[lieu[0]]) || speChapo(x), lieu: lieu ? lieu[0] : '', ids: lieu ? lieu[2].map(Number) : [], centre: lieu ? CENTRES_GLOBE[lieu[0]] || null : null };
   });
   /* la France, en dernier : elle mène au Buffet & cocktail français (Jean-Luc, 2026-11-23) */
   const fr = c.rubriques.find(x => x.slug === 'cocktails-buffets' && x.statut !== 'masque');
   if (fr) items.push({ slug: 'france', nom: 'Cocktail et buffet français', pays: 'France', n: (c.byRub.get(fr.slug) || []).filter(p => p.statut !== 'masque').length, href: '/' + fr.slug,
-    photo: fr.photoGlobe || fr.bandeauPhoto || fr.photo || '', vignette: fr.photo || '', phrase: fr.phraseGlobe || PHRASES_GLOBE.france, ids: [250], centre: CENTRES_GLOBE.france });
+    photo: fr.photoGlobe || fr.bandeauPhoto || fr.photo || '', vignette: fr.photo || '', phrase: fr.phraseGlobe || PHRASES_GLOBE.france, lieu: 'france', ids: [250], centre: CENTRES_GLOBE.france });
   const body = `${bandeauHtml(c, { /* vidéo : une brochette de chefs de tous horizons qui sourient face caméra (Jean-Luc, 2026-11-24), dont cuisiniers africain et indien (la photo antillaise « fait danseuse » : retirée) ; sources : data/credits-videos-monde.md */
     photo: '/site/v/monde/chefs.jpg', video: '/site/v/monde/chefs.mp4', signature: r.signature ?? 'par la Maison Magnolia' /* Jean-Luc, 2026-11-24 */, titre: r.titrePage || r.nom, chapo: r.chapo || r.accroche || 'Choisissez votre spécialité : chaque cuisine a ses buffets, ses plats et ses douceurs.', bouton: 'Choisir ma spécialité', ancre: '#specialites' }, [['La boutique', '/boutique'], [r.nom]])}
-<section class="sm-globe" id="specialites" data-sm data-sm-paris="[2.35,48.86]">
+<section class="sm-globe sm-plat" id="specialites" data-sm data-sm-paris="[2.35,48.86]">
   <div class="sm-map" data-sm-map aria-label="Globe des saveurs du monde : faites-le tourner, touchez un pays"></div>
   <svg class="sm-fleche" data-sm-fleche aria-hidden="true"><defs><marker id="sm-pointe" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="#e2c495"/></marker><linearGradient id="sm-grad" x1="0" x2="1"><stop offset="0" stop-color="#e2c495" stop-opacity=".25"/><stop offset="1" stop-color="#e2c495"/></linearGradient></defs><path data-sm-trait d="" fill="none" stroke="url(#sm-grad)" stroke-width="2.2" stroke-linecap="round" marker-end="url(#sm-pointe)"/></svg>
   <div class="sm-tete" data-sm-tete>
     <p class="eyebrow">Un voyage à votre table</p>
     <h2 data-sm-titre>Choisissez votre destination culinaire</h2>
     <p class="sm-sous" data-sm-sous>Dix traiteurs, une seule maison : le meilleur de chaque cuisine, réuni pour vos événements, quel que soit le nombre de personnes.</p>
-    <p class="sm-phrase" data-sm-phrase>Touchez un pays à gauche ou sur le globe pour découvrir sa cuisine.</p>
+    <p class="sm-phrase" data-sm-phrase>Touchez un pays à gauche ou sur la carte pour découvrir sa cuisine.</p>
   </div>
   <ul class="sm-paves" data-sm-paves>${items.map((x, i) => `<li><a class="sm-pave" href="${esc(x.href)}" data-sm-i="${i}"><span><i>${esc(x.pays)}</i><b>${esc(x.nom)}</b><small>${x.n} prestation${x.n > 1 ? 's' : ''}</small></span></a></li>`).join('')}</ul>
-  <div class="zl-ctrl sm-ctrl" data-sm-ctrl hidden><button type="button" data-sm-act="3d" aria-pressed="true">Vue 3D</button><button type="button" data-sm-act="tour" aria-pressed="true">Rotation</button><button type="button" data-sm-act="reset">Recentrer</button></div>
-  <p class="sm-aide" aria-hidden="true">Faites tourner le globe et touchez un pays</p>
+  <div class="zl-ctrl sm-ctrl" data-sm-ctrl hidden><button type="button" data-sm-act="3d" aria-pressed="false">Vue 3D</button><button type="button" data-sm-act="tour" aria-pressed="true" hidden>Rotation</button><button type="button" data-sm-act="reset">Recentrer</button></div>
+  <p class="sm-aide" aria-hidden="true" data-sm-aide>Touchez un pays sur la carte</p>
   <script type="application/json" data-sm-data>${JSON.stringify(items).replace(/</g, '\\u003c')}</script>
 </section>`;
   return layout(c, { title: r.seoTitre || r.titrePage || r.nom, description: r.seoDescription || r.chapo || '', body, path: '/' + r.slug, /* vignette de partage : 5 cuisiniers adultes côte à côte, européen, africain, métisse, asiatique, indien (photos Pexels, voir data/credits-videos-monde.md) avec « Dix traiteurs, une seule maison. » écrit dessus (Jean-Luc, 2026-11-25) */

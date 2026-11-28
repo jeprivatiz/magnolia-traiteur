@@ -186,7 +186,9 @@
   /* ---------- choix d'une spécialité ---------- */
   let arcAnim = 0;
   /* pointe de flèche dorée au bout du trajet pays → Paris (Jean-Luc, 2026-11-28) */
-  let pointe = null, arcPts = null;
+  let pad = () => {};
+  let pointe = null, arcPts = null; const speMarques = [];
+  const majSpe = () => speMarques.forEach((m, k) => m && m.getElement().classList.toggle('actif', k === actif));
   function majPointe() {
     if (!pointe || !arcPts || arcPts.length < 2) return;
     const b = arcPts[arcPts.length - 1], a = arcPts[Math.max(0, arcPts.length - 4)];
@@ -196,7 +198,7 @@
   /* état de départ : aucun pays, bandeau d'arrivée, titre d'invitation (2e clic sur le pays choisi, Jean-Luc 2026-11-23) */
   const titre0 = $('[data-sm-titre]').textContent, phrase0 = $('[data-sm-phrase]')?.textContent || '';
   function deselectionner() {
-    actif = -1;
+    actif = -1; majSpe();
     $$('[data-sm-i]').forEach(p => p.classList.remove('on'));
     const ss = $('[data-sm-sous]'); if (ss) ss.hidden = false;
     $('[data-sm-titre]').textContent = titre0; const ph = $('[data-sm-phrase]'); if (ph) ph.textContent = phrase0;
@@ -209,11 +211,11 @@
     map.getSource('choix').setData({ type: 'FeatureCollection', features: [] });
     map.getSource('arc').setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: [PARIS, PARIS] } });
     arcPts = null; pointe && pointe.getElement().classList.remove('on');
-    map.flyTo({ center: [20, 22], zoom: zoomBase() + .35, duration: calme ? 0 : 1600, essential: true });
+    vueMonde(1600);
   }
   function choisir(i, { voler = true, bandeau = true } = {}) {
     if (i === actif) { deselectionner(); return; }
-    actif = i;
+    actif = i; majSpe();
     $$('[data-sm-i]').forEach(p => p.classList.toggle('on', +p.dataset.smI === i));
     const x = items[i]; if (!x) return;
     majTete(x);
@@ -230,7 +232,7 @@
     box.innerHTML = `${x.vignette ? `<img src="${esc(x.vignette)}" alt="">` : ''}<span><b>${esc(x.nom)}</b><small>Voir nos propositions →</small></span>`;
     carteVoir = new maplibregl.Marker({ element: box, anchor: mobile() ? 'top' : 'bottom-left', offset: mobile() ? [0, 18] : [14, -14] }).setLngLat(c).addTo(map);
     /* la Terre tourne vers le pays */
-    if (voler) map.flyTo({ center: [c[0] - (mobile() ? 0 : 6), Math.max(-35, Math.min(45, c[1] - 4))], zoom: zoomBase() + .35, duration: calme ? 0 : 2200, essential: true, curve: 1.2 });
+    if (voler && !plat()) map.flyTo({ center: [c[0] - (mobile() ? 0 : 6), Math.max(-35, Math.min(45, c[1] - 4))], zoom: zoomBase() + .35, duration: calme ? 0 : 2200, essential: true, curve: 1.2 });
     /* ordre voulu par Jean-Luc (2026-11-28) : la flèche part d'abord du pavé vers le pays,
        puis le trajet repart du pays vers Paris (jamais de Paris vers le pays) */
     cancelAnimationFrame(arcAnim);
@@ -278,17 +280,25 @@
   requestAnimationFrame(defile);
 
   /* ---------- globe ---------- */
+  /* carte à plat d'abord (Jean-Luc, 2026-11-28) ; le globe 3D seulement avec le bouton « Vue 3D » */
+  const plat = () => !!map && map.getProjection()?.type === 'mercator';
+  const MONDE = [[-82, -14], [146, 58]]; // des Antilles au Japon
+  function vueMonde(duree = 0) {
+    if (!map) return;
+    if (plat()) { const box = map.getContainer(); map.fitBounds(MONDE, { padding: mobile() ? { top: 10, bottom: 40, left: 10, right: 46 } : { top: 260, bottom: 40, left: Math.min(380, box.clientWidth * .3) + 20, right: 90 }, duration: calme ? 0 : duree, essential: true }); }
+    else map.flyTo({ center: [20, 22], zoom: zoomBase() + .35, duration: calme ? 0 : duree, essential: true });
+  }
   function zoomBase() { const b = map.getContainer(); const w = b.clientWidth - (mobile() ? 0 : 380), h = b.clientHeight - (mobile() ? 0 : 270); return Math.log2(Math.max(260, Math.min(w, h)) / 512) + (mobile() ? .95 : 1.3); }
   /* rotation permanente (Jean-Luc, 2026-11-22) : la Terre tourne tout doucement d'ouest en est ;
      quand le pays choisi passe derrière, elle accélère pour le faire revenir vite de l'autre côté. */
-  let tour = true, pause = 0, vitesse = 0, tPrec = 0;
+  let tour = false, pause = 0, vitesse = 0, tPrec = 0;
   const LENT = 5, VITE = 75; // degrés par seconde
   const ecart = lon => { const d = ((lon - map.getCenter().lng) % 360 + 540) % 360 - 180; return d; }; // -180..180, négatif = à gauche
   function arreterTour() { tour = false; vitesse = 0; $('[data-sm-act="tour"]')?.setAttribute('aria-pressed', 'false'); }
   function boucleTour(t) {
     requestAnimationFrame(boucleTour);
     const dt = tPrec ? Math.min(.1, (t - tPrec) / 1000) : 0; tPrec = t;
-    if (!map || !tour || performance.now() < pause || map.isMoving()) { vitesse = 0; return; }
+    if (!map || !tour || plat() || performance.now() < pause || map.isMoving()) { vitesse = 0; return; }
     /* le pays file vers la gauche : dès qu'il va disparaître (bord gauche), on accélère jusqu'à son retour à droite */
     const d = actif >= 0 ? ecart(centreDe(items[actif])[0]) : 0;
     const cible = d < -70 || d > 110 ? VITE : LENT;
@@ -303,8 +313,8 @@
     creerOrbites(box);
     try {
       map = new ml.Map({
-        container: box, attributionControl: false, center: [15, 30], zoom: 1.4, minZoom: .6, maxZoom: 5, renderWorldCopies: false,
-        style: { version: 8, projection: { type: 'globe' }, sources: {}, layers: [{ id: 'mer', type: 'background', paint: { 'background-color': '#10261c' } }],
+        container: box, attributionControl: false, center: [15, 30], zoom: 1.4, minZoom: 0, maxZoom: 5, renderWorldCopies: false,
+        style: { version: 8, projection: { type: 'mercator' }, sources: {}, layers: [{ id: 'mer', type: 'background', paint: { 'background-color': '#10261c' } }],
           sky: { 'atmosphere-blend': ['interpolate', ['linear'], ['zoom'], 0, .9, 4, .3], 'sky-color': '#ffffff', 'horizon-color': '#e2c495', 'fog-color': '#ffffff', 'sky-horizon-blend': .6, 'horizon-fog-blend': .8, 'fog-ground-blend': 1 } },
         cooperativeGestures: false, dragRotate: false, pitchWithRotate: false, touchPitch: false,
         /* taille du globe fixe (Jean-Luc) : on le fait tourner, on ne zoome pas */
@@ -326,8 +336,8 @@
       map.addLayer({ id: 'terres', type: 'fill', source: 'pays', paint: { 'fill-color': ['case', ['boolean', ['feature-state', 'survol'], false], '#3d6a55', ['in', ['id'], ['literal', [...nos]]], '#24493a', '#1a3a2d'], 'fill-opacity': .92 } });
       map.addLayer({ id: 'points', type: 'circle', source: 'points', paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], .6, .7, 2, 1.3, 4, 2.4], 'circle-color': '#d9bc86', 'circle-opacity': .75 } });
       map.addLayer({ id: 'frontieres', type: 'line', source: 'pays', paint: { 'line-color': '#c9a46a', 'line-opacity': .22, 'line-width': .5 } });
-      map.addLayer({ id: 'choix', type: 'fill-extrusion', source: 'choix', paint: { 'fill-extrusion-color': '#d4b07a', 'fill-extrusion-height': 260000, 'fill-extrusion-base': 0, 'fill-extrusion-opacity': .95, 'fill-extrusion-vertical-gradient': true } });
-      map.addLayer({ id: 'choix-bord', type: 'line', source: 'choix', paint: { 'line-color': '#f6e7c8', 'line-width': 1.4 } });
+      map.addLayer({ id: 'choix', type: 'fill-extrusion', source: 'choix', paint: { 'fill-extrusion-color': '#ffffff', 'fill-extrusion-height': 260000, 'fill-extrusion-base': 0, 'fill-extrusion-opacity': .95, 'fill-extrusion-vertical-gradient': true } });
+      map.addLayer({ id: 'choix-bord', type: 'line', source: 'choix', paint: { 'line-color': '#ffffff', 'line-width': 1.4 } });
       map.addLayer({ id: 'arc-halo', type: 'line', source: 'arc', layout: { 'line-cap': 'round' }, paint: { 'line-color': '#e2c495', 'line-width': 7, 'line-opacity': .18, 'line-blur': 3 } });
       map.addLayer({ id: 'arc', type: 'line', source: 'arc', layout: { 'line-cap': 'round' }, paint: { 'line-color': '#f1dcb0', 'line-width': 1.8 } });
       /* Paris, notre point de départ */
@@ -335,9 +345,22 @@
       new ml.Marker({ element: pa, anchor: 'left', offset: [-5, 0] }).setLngLat(PARIS).addTo(map);
       const po = document.createElement('div'); po.className = 'sm-pointe';
       pointe = new ml.Marker({ element: po, anchor: 'center', rotationAlignment: 'viewport' }).setLngLat(PARIS).addTo(map);
-      const pad = () => map.setPadding(mobile() ? { left: 0, top: 0, right: 0, bottom: 40 } : { left: Math.min(380, box.clientWidth * .3), top: 250, right: 0, bottom: 30 });
+      /* à plat : pas de marge de caméra (vueMonde donne la sienne) */
+      pad = () => map.setPadding(plat() ? { left: 0, top: 0, right: 0, bottom: 0 } : mobile() ? { left: 0, top: 0, right: 0, bottom: 40 } : { left: Math.min(380, box.clientWidth * .3), top: 250, right: 0, bottom: 30 });
       pad(); addEventListener('resize', pad);
       map.setZoom(zoomBase());
+
+      /* toutes nos spécialités marquées sur la carte, point qui clignote + nom, comme la carte de la brochure (Jean-Luc, 2026-11-28) */
+      const COTE = { espagne: 'g', maghreb: 'g', france: 'g', italie: 'd', liban: 'd', japon: 'd', chine: 'h', inde: 'b', afrique: 'b', antilles: 'b' };
+      items.forEach((x, i) => {
+        if (!x.ids.length && !x.centre) return;
+        const el = document.createElement('button'); el.type = 'button';
+        el.className = 'sm-spe sm-spe-' + (COTE[x.lieu] || 'd');
+        el.innerHTML = `<i></i><b></b><span>${esc(x.pays || x.nom)}</span>`;
+        el.setAttribute('aria-label', x.nom);
+        el.addEventListener('click', e => { e.stopPropagation(); choisir(i); });
+        speMarques[i] = new ml.Marker({ element: el, anchor: 'center', opacityWhenCovered: '0' }).setLngLat(centreDe(x)).addTo(map);
+      });
 
       /* survol et clic sur un pays */
       const tip = document.createElement('div'); tip.className = 'zl-tip sm-tip'; tip.hidden = true; box.appendChild(tip);
@@ -366,14 +389,23 @@
       if (!tour) ctrl.querySelector('[data-sm-act="tour"]').setAttribute('aria-pressed', 'false');
       ctrl.addEventListener('click', e => {
         const b = e.target.closest('[data-sm-act]'); if (!b) return;
-        if (b.dataset.smAct === '3d') { const g = (map.getProjection()?.type || 'globe') === 'globe'; root.classList.toggle('sm-plat', g); map.setPaintProperty('choix', 'fill-extrusion-color', g ? '#ffffff' : '#d4b07a'); map.setPaintProperty('choix-bord', 'line-color', g ? '#ffffff' : '#f6e7c8'); map.setProjection({ type: g ? 'mercator' : 'globe' }); b.setAttribute('aria-pressed', String(!g)); if (g) map.easeTo({ zoom: Math.max(1, zoomBase() - .2), duration: 600 }); }
+        if (b.dataset.smAct === '3d') {
+          const g = !plat(); root.classList.toggle('sm-plat', g);
+          map.setPaintProperty('choix', 'fill-extrusion-color', g ? '#ffffff' : '#d4b07a'); map.setPaintProperty('choix-bord', 'line-color', g ? '#ffffff' : '#f6e7c8');
+          map.setProjection({ type: g ? 'mercator' : 'globe' }); pad(); b.setAttribute('aria-pressed', String(!g));
+          /* globe : il tourne tout seul ; à plat : pas de rotation */
+          tour = !g; pause = 0; const bt = $('[data-sm-act="tour"]'); bt.hidden = g; bt.setAttribute('aria-pressed', String(tour));
+          const aide = $('[data-sm-aide]'); if (aide) aide.textContent = g ? 'Touchez un pays sur la carte' : 'Faites tourner le globe et touchez un pays';
+          if (actif >= 0 && !g) { const c = centreDe(items[actif]); map.jumpTo({ center: [c[0] - (mobile() ? 0 : 6), Math.max(-35, Math.min(45, c[1] - 4))], zoom: zoomBase() + .35 }); } else vueMonde(0);
+        }
         if (b.dataset.smAct === 'tour') { if (tour) arreterTour(); else { tour = true; pause = 0; b.setAttribute('aria-pressed', 'true'); } }
-        if (b.dataset.smAct === 'reset') { if (actif < 0) { map.flyTo({ center: [20, 22], zoom: zoomBase() + .35, duration: 1400 }); return; } const c = centreDe(items[actif]); map.flyTo({ center: [c[0] - (mobile() ? 0 : 6), Math.max(-35, Math.min(45, c[1] - 4))], zoom: zoomBase() + .35, duration: 1400 }); }
+        if (b.dataset.smAct === 'reset') { if (actif < 0 || plat()) { vueMonde(1400); return; } const c = centreDe(items[actif]); map.flyTo({ center: [c[0] - (mobile() ? 0 : 6), Math.max(-35, Math.min(45, c[1] - 4))], zoom: zoomBase() + .35, duration: 1400 }); }
       });
 
       /* au départ : la Terre tourne, puis se pose sur la première spécialité */
       /* à l'arrivée : aucun pays choisi, la Terre tourne doucement en montrant l'Europe et l'Afrique */
-      map.jumpTo({ center: [20, 22], zoom: zoomBase() + .35 });
+      vueMonde(0);
+      addEventListener('resize', () => { if (plat()) vueMonde(0); });
       $('[data-sm-act="tour"]').setAttribute('aria-pressed', String(tour));
       boucleFleche();
       requestAnimationFrame(boucleTour);
