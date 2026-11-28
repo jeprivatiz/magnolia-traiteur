@@ -432,7 +432,27 @@
       });
     };
     form.addEventListener('input', refresh); form.addEventListener('change', refresh);
-    $('[data-inv]', form)?.addEventListener('click', e => { q.value = e.currentTarget.dataset.inv; e.currentTarget.parentElement.remove(); refresh(); });
+    /* « Mettre 52 personnes » : la ligne reste à sa place (rien ne bouge sous le doigt), le lien devient une simple confirmation */
+    $('[data-inv]', form)?.addEventListener('click', e => { const b = e.currentTarget; q.value = b.dataset.inv; b.blur(); const ok = document.createElement('span'); ok.className = 'inv-ok'; ok.textContent = `✓ ${b.dataset.inv} ${plur(P.unite || '', +b.dataset.inv)} (vos invités)`; b.replaceWith(ok); refresh(); });
+    /* garde-fou (demande de Jean-Luc, 2026-11-28) : un clic dans le pavé de commande (quantité, personnel, pack, choix, propositions)
+       ne doit jamais faire descendre la page ; si le navigateur la déplace tout seul juste après le clic, on la remet où elle était */
+    {
+      let y0 = null, t0 = 0;
+      const note = () => { y0 = scrollY; t0 = performance.now(); };
+      const garde = e => {
+        if (y0 == null || e.target.closest?.('[type=submit]')) return;
+        const y = y0, t = t0;
+        const remet = () => { if (y0 === y && performance.now() - t < 900 && Math.abs(scrollY - y) > 40) scrollTo({ top: y, behavior: 'instant' }); };
+        requestAnimationFrame(() => { remet(); requestAnimationFrame(remet); });
+        setTimeout(remet, 120); setTimeout(remet, 350);
+      };
+      form.addEventListener('pointerdown', note, true);
+      form.addEventListener('click', garde, true);
+      form.addEventListener('toggle', garde, true);
+      form.addEventListener('change', garde, true);
+      addEventListener('touchmove', () => { y0 = null; }, { passive: true });
+      addEventListener('wheel', () => { y0 = null; }, { passive: true });
+    }
     $$('[data-q]', form).forEach(b => b.addEventListener('click', () => { const step = perPers && +q.value >= 20 ? 5 : 1; q.value = Math.max(P.min || 1, (+q.value || 0) + (+b.dataset.q) * step); refresh(); }));
     refresh();
     let go = 'add';
@@ -752,7 +772,8 @@ document.querySelector('.lsearch')?.addEventListener('submit', e => {
   let ouvert = false;
   const ajuste = () => {
     if (ouvert) return;
-    sp.classList.remove('coupe');
+    /* on mesure sans jamais déplier le texte (scrollHeight donne la hauteur complète même coupé) :
+       le déplier puis le replier faisait sauter la page sur iPhone à chaque clic dans le pavé de commande */
     const ligne = parseFloat(getComputedStyle(txt).lineHeight) || 24;
     let h = ligne * 5;
     if (matchMedia('(min-width: 861px)').matches && info && media) {
@@ -761,9 +782,10 @@ document.querySelector('.lsearch')?.addEventListener('submit', e => {
     }
     h = Math.max(h, ligne * 3);
     const trop = txt.scrollHeight > h + 2;
-    sp.style.setProperty('--sp-h', Math.floor(h) + 'px');
-    sp.classList.toggle('coupe', trop);
-    btn.hidden = !trop;
+    const hpx = Math.floor(h) + 'px';
+    if (sp.style.getPropertyValue('--sp-h') !== hpx) sp.style.setProperty('--sp-h', hpx);
+    if (sp.classList.contains('coupe') !== trop) sp.classList.toggle('coupe', trop);
+    if (btn.hidden !== !trop) btn.hidden = !trop;
   };
   btn.addEventListener('click', () => {
     ouvert = !ouvert;
