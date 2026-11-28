@@ -11,13 +11,14 @@
 const QR = require('./vendor/qrcode');
 const { esc } = require('./util');
 
-const PAGES_SITE = { accueil: '/', lieux: '/lieux', contact: '/contact', 'zone-de-livraison': '/zone-de-livraison', 'comment-commander': '/comment-commander', temoignages: '/temoignages', maison: '/maison', boutique: '/boutique', 'ma-selection': '/ma-selection' };
+const PAGES_SITE = { accueil: '/', lieux: '/lieux', contact: '/contact', 'zone-de-livraison': '/zone-de-livraison', 'comment-commander': '/comment-commander', temoignages: '/temoignages', avis: '/temoignages', 'blog-entreprises': '/blog?type=entreprises', 'blog-maison': '/blog?type=maison', maison: '/maison', boutique: '/boutique', 'ma-selection': '/ma-selection' };
 
 /* adresse réelle d'une clé de QR code */
 function cible(c, cle) {
   cle = String(cle || '').toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 120);
   if (!cle || cle === 'accueil') return '/';
   if (PAGES_SITE[cle]) return PAGES_SITE[cle];
+  if (cle === 'instagram') { const u = String(((c.reglages || {}).instagram) || ''); return /^https:\/\/(www\.)?instagram\.com\//.test(u) ? u : 'https://www.instagram.com/magnoliatraiteur/'; }
   const visible = x => x && x.statut !== 'masque';
   const rubs = c.rubriques.filter(visible);
   const p = c.bySlug.get(cle);
@@ -406,11 +407,14 @@ function html(c, opts = {}) {
   grille(GRILLES.indisp1); grille(GRILLES.indisp2); grille(GRILLES.personnel); grille(GRILLES.son); grille(GRILLES.live); grille(GRILLES.surprendre); grille(GRILLES.jeux);
 
   /* lieux */
-  const lieux = c.lieux.filter(vis).filter(l => (l.photos || []).length).slice(0, 6);
-  if (lieux.length) ajoute(n => `<section class="pg grille g3" id="p${n}"><div class="pg-in">
-<header class="g-h"><div><p class="eyebrow">Lieux de réception</p><h2>Le lieu de votre événement</h2><p class="intro">Loft, péniche, salle de mariage, domaine ou rooftop : trouvez le lieu idéal grâce à notre recherche multicritère en ligne (localisation, type de lieu, nombre d’invités, type d’événement), puis confiez-nous le traiteur et les prestations.</p></div>${qr('lieux', 's', 'Tous les lieux')}</header>
-<div class="cartes">${lieux.map(l => `<article class="carte"><div class="carte-ph">${photo(photoDe(l), l.nom)}${qr(l.slug, 's', '')}</div><div class="carte-b"><h3><a href="${esc(lien(l.slug))}">${esc(l.nom)}</a></h3><p>${esc(court([l.capacite ? `Jusqu’à ${l.capacite} personnes.` : '', l.resume || l.description || ''].filter(Boolean).join(' '), 140))}</p><a class="voir" href="${esc(lien(l.slug))}">Voir le lieu ↗</a></div></article>`).join('')}</div>
-</div>${pied(n)}</section>`, 'Nos lieux de réception');
+  /* bandeau + renvoi vers le moteur de recherche des lieux (Jean-Luc, 2026-11-28). L'adresse se change sans toucher au code :
+     variable BROCHURE_LIEUX_URL (par ex. la recherche de Je Privatise plus tard), sinon la page Lieux du site. */
+  const lieux = c.lieux.filter(vis).filter(l => (l.photos || []).length).slice(0, 3);
+  const rechLieux = /^https?:\/\//.test(opts.lieuxUrl || '') ? opts.lieuxUrl : lien('lieux');
+  ajoute(n => `<section class="pg grille g3 avec-bandeau" id="p${n}"><div class="g-bandeau">${photo('/site/c/lieux-bandeau.webp', 'Lieu de réception')}</div><div class="pg-in">
+<header class="g-h"><div><p class="eyebrow">Lieux de réception</p><h2>Le lieu de votre événement</h2><p class="intro">Loft, péniche, salle de mariage, domaine ou rooftop : trouvez le lieu idéal grâce à notre recherche multicritère en ligne (localisation, type de lieu, nombre d’invités, type d’événement), puis confiez-nous le traiteur et les prestations.</p></div></header>
+${lieux.length ? `<div class="cartes">${lieux.map(l => `<article class="carte"><div class="carte-ph">${photo(photoDe(l), l.nom)}${qr(l.slug, 's', '')}</div><div class="carte-b"><h3><a href="${esc(lien(l.slug))}">${esc(l.nom)}</a></h3><p>${esc(court([l.capacite ? `Jusqu’à ${l.capacite} personnes.` : '', l.resume || l.description || ''].filter(Boolean).join(' '), 140))}</p><a class="voir" href="${esc(lien(l.slug))}">Voir le lieu ↗</a></div></article>`).join('')}</div>` : ''}
+</div><div class="form-bas"><a class="qr qr-l" href="${esc(rechLieux)}">${qrSvg(rechLieux)}</a><div class="form-bas-t"><b>Trouvez le lieu qui correspondra à votre demande</b><span>Scannez ce QR code ou cliquez : vous arrivez sur notre moteur de recherche des lieux, avec la localisation, le type de lieu, le nombre d’invités et le type d’événement.</span><a href="${esc(rechLieux)}">Rechercher un lieu →</a></div></div>${pied(n)}</section>`, 'Nos lieux de réception');
 
   /* commander & livraison */
   ajoute(n => `<section class="pg cmd" id="p${n}"><div class="pg-in">
@@ -433,7 +437,8 @@ function html(c, opts = {}) {
 
   /* sommaire */
   pages[nSommaire - 1] = n => `<section class="pg som" id="p${n}"><div class="pg-in"><p class="eyebrow">Magnolia Traiteur</p><h2>Sommaire</h2><p class="lead">Cliquez sur une rubrique pour y aller directement.</p>
-<ol class="som-l">${sommaire.map(x => `<li class="niv${x.niveau}"><a href="#p${x.n}"><span>${esc(x.t)}</span><i></i><b>${x.n}</b></a></li>`).join('')}</ol></div>${pied(n)}</section>`;
+<ol class="som-l">${sommaire.map(x => `<li class="niv${x.niveau}"><a href="#p${x.n}"><span>${esc(x.t)}</span><i></i><b>${x.n}</b></a></li>`).join('')}</ol></div>
+<div class="som-plus"><p class="eyebrow">Et aussi, en ligne</p><ul>${[['avis', 'Tous nos avis', 'Ce que disent nos clients'], ['instagram', 'Notre Instagram', '@magnoliatraiteur'], ['blog-entreprises', 'Nos reportages entreprises', 'Séminaires, soirées, inaugurations'], ['blog-maison', 'La maison Magnolia', 'Nos coulisses et nos nouveautés']].map(([k, t, st]) => `<li>${qr(k, 'xs', '')}<a href="${esc(lien(k))}"><b>${esc(t)}</b><span>${esc(st)}</span></a></li>`).join('')}</ul></div>${pied(n)}</section>`;
 
   const corps = pages.map((fn, i) => fn(i + 1)).join('\n');
   return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">

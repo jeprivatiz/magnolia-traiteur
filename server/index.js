@@ -428,6 +428,21 @@ async function createApp(opts = {}) {
     log.info && log.info('Photo coffret mise à la place des mini-clubs : ' + changes.join(', '));
     await store.set('_migr/coffretPartout', { at: new Date().toISOString(), changes });
   }
+  /* une seule fois (Jean-Luc, 2026-11-28) : la fiche Barman avait une photo qui ne s'affichait pas (lien Pexels externe) →
+     même photo, gardée sur le site ; et les deux forfaits DJ ont chacun leur photo (le 7 h en prenait la même que le 4 h) */
+  if (!(await store.get('_migr/barmanDjPhotos'))) {
+    const b = await store.get('produits/barman');
+    if (b) {
+      const ph = (b.photos || []).filter(p => !/pexels/.test((p && p.src) || ''));
+      await store.set('produits/barman', { ...b, photos: [{ src: '/site/c/personnel-barman.webp', alt: 'Barman qui sert un cocktail au bar' }, ...ph] });
+    }
+    const d4 = await store.get('produits/dj-forfait-4-heures'), d7 = await store.get('produits/dj-forfait-7-heures');
+    const src = p => ((p && p.photos && p.photos[0]) || {}).src || '';
+    if (d7 && (!src(d7) || src(d7) === src(d4))) {
+      await store.set('produits/dj-forfait-7-heures', { ...d7, photos: [{ src: '/site/c/dj-forfait-7-heures.webp', alt: 'DJ aux platines pendant une soirée, la piste pleine' }, ...(d7.photos || []).filter(p => p && p.src !== src(d4))] });
+    }
+    await store.set('_migr/barmanDjPhotos', { at: new Date().toISOString() });
+  }
   /* une seule fois (Jean-Luc, 2026-11-28) : le Cocktail Premium Magnolia ne comprend PAS d'huîtres : textes et photos d'huîtres retirés */
   if (!(await store.get('_migr/premiumSansHuitres'))) {
     const p = await store.get('produits/cocktail-premium-magnolia');
@@ -3579,7 +3594,7 @@ Réponds uniquement en JSON : {${sms ? '' : '"sujet": "...", '}"texte": "..."}`;
     const c = await cat.get();
     const pdf = fs.existsSync(PDF_BROCHURE) ? '/telecharger-la-brochure?v=' + views.V : '';
     res.set('X-Robots-Tag', 'noindex').set('Cache-Control', 'no-store').type('html')
-      .send(BROCHURE.html(c, { base: baseBrochure(req), v: views.V, pdf, barre: !('impression' in req.query) }));
+      .send(BROCHURE.html(c, { base: baseBrochure(req), v: views.V, pdf, barre: !('impression' in req.query), lieuxUrl: env.BROCHURE_LIEUX_URL }));
   }));
   app.get('/b/:cle', wrap(async (req, res) => { res.set('Cache-Control', 'no-store').redirect(302, BROCHURE.cible(await cat.get(), req.params.cle)); }));
   app.get(['/telecharger-la-brochure', '/brochure.pdf'], (req, res) => {
