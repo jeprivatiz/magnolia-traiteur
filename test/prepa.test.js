@@ -177,3 +177,12 @@ test('reprise du matériel : jour affiché quand ce n’est pas le jour de l’�
   const b = P.nettoyer({ horaires: { reprise: '10 h' }, recuperation: { date: '2026-12-13', heure: '' } }, {});
   assert.equal(b.recuperation.heure, '10 h');
 });
+
+test('accompagnement à rajouter : ceux de la spécialité d’abord, et pas compté dans la quantité à préparer', () => {
+  const P = require('../server/prepa');
+  const produits = [{ slug: 'coq', titre: 'Coq au vin', sous: 'francais', rangement: 'plats' }, { slug: 'puree', titre: 'Purée maison', sous: 'francais', rangement: 'accompagnements' }, { slug: 'riz', titre: 'Riz créole', sous: 'antillais', rangement: 'accompagnements' }];
+  const r = P.accompsPour([{ produit: 'coq' }], produits, new Map(produits.map(p => [p.slug, p])));
+  assert.deepEqual(r.par.coq, ['Purée maison']);
+  assert.ok(r.tous.includes('Riz créole') && r.tous.includes('Gratin dauphinois'));
+  assert.equal(P.qteAuto({ items: [{ groupe: P.ACC_G, nom: 'Purée maison', n: 30 }] }), '');
+});

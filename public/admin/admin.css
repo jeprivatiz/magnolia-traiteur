@@ -2729,3 +2729,14 @@ tr.rem-det > td { padding: 4px 0 12px 14px; }
 .pc-validq { font-size: .95rem; }
 .pc-valide { display: flex; flex-wrap: wrap; gap: 8px; }
 .pc-valide .pc-et { width: auto; margin: 0; }
+
+/* accompagnement à rajouter sur un plat */
+.pc-acc { margin-top: 6px; }
+.pc-accsel { max-width: 420px; border-style: dashed; }
+/* boutons d'envoi d'un cadre : à qui + combien ; grisés s'il n'y a personne */
+.pc-rbtn { flex-wrap: wrap; }
+.pc-rbtn .btn { white-space: normal; line-height: 1.25; }
+.pc-rbtn .btn:disabled { opacity: .45; cursor: not-allowed; }
+.pc-rbn { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px; margin-left: 4px; font-size: .75rem; border-radius: 10px; background: rgba(255,255,255,.25); }
+.pc-rbtn .ghost .pc-rbn { background: #efe6d2; }
+.pc-rbv { flex-basis: 100%; text-align: center; }
