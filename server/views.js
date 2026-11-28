@@ -561,14 +561,14 @@ const LANDINGS = {
     avis: ['mt_26884', 'mt_24710', 'mt_51780', 'mt_28562', 'mt_27254', 'mt_57508'],
     avisTitre: 'Ils ont voyagé aux Antilles avec nous',
     equipe: {
-      video: '/site/v/antillais-boucle.mp4', poster: '/site/v/antillais-boucle.jpg',
+      video: '/site/v/antillais-serveurs.mp4', poster: '/site/v/antillais-serveurs.jpg',
       surtitre: 'Notre maison antillaise',
       titre: 'Une équipe dédiée à la cuisine des îles',
       texte: ['Notre département « Le Traiteur Antillais » cuisine pour vous accras, boudins, colombos, fricassées et douceurs au coco, avec les recettes et les épices des Antilles.', 'Nos camions livrent 7 jours sur 7 sur Paris et toute l’Île-de-France ; nos serveurs installent le buffet, le réchauffent et le servent si vous le souhaitez.'],
       points: ['Livraison et installation du buffet', 'Serveurs et maîtres d’hôtel sur demande', 'Chafing-dish pour servir chaud', 'Devis sous 24 h, sans paiement en ligne'],
     },
     insta: [
-      ['/site/c/antilles-menus/equipe-3-serveurs-logo.webp', 'Nos serveurs en tablier Magnolia devant un buffet antillais'] /* image tirée de la vidéo antillais-boucle : le logo sur les tabliers (Jean-Luc, 2026-11-28) */,
+      ['/site/c/antilles-menus/equipe-3-serveurs-mt.webp', 'Nos serveurs en tablier Magnolia devant un buffet antillais'] /* image tirée de la vidéo antillais-boucle : le logo sur les tabliers (Jean-Luc, 2026-11-28) */,
       ['/site/c/antilles-menus/accras-client-20261101.webp.webp', 'Accras de morue'],
       ['/site/c/antilles-menus/buffet-complet.jpg.webp', 'Buffet antillais en chafing-dish'],
       ['/site/c/antilles-menus/dombres-crevettes-client-20261101.webp.webp', 'Dombrés aux crevettes'],

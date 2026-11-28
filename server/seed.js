@@ -53,7 +53,7 @@ const REGLAGES_DEFAUT = {
     sousTitre: 'Traiteur, animations et lieux de réception pour tous vos événements.',
     videos: [
       { src: '/site/v/italien-boucle.mp4', poster: '/site/v/italien-boucle.jpg', titre: 'Buffet italien', lien: '/saveurs-du-monde/buffet-italien-entree-plat-dessert' },
-      { src: '/site/v/antillais-boucle.mp4', poster: '/site/v/antillais-boucle.jpg', titre: 'Buffet antillais', lien: '/buffet-antillais' },
+      { src: '/site/v/antillais-serveurs.mp4', poster: '/site/v/antillais-serveurs.jpg', titre: 'Buffet antillais', lien: '/buffet-antillais' },
       { src: '/site/v/chinois-boucle.mp4', poster: '/site/v/chinois-boucle.jpg', titre: 'Buffet chinois', lien: '/buffet-chinois' },
     ],
     chiffres: [
@@ -270,7 +270,7 @@ const SOUS_DEFAUT = {
     { slug: 'buffet-africain', nom: 'Buffet africain', pays: 'Afrique', photo: '/site/v/africain-boucle.jpg', video: '/site/v/africain-boucle.mp4', mots: ['africain'], dossiers: ['africain-'] },
     { slug: 'couscous-party', nom: 'Couscous party', pays: 'Maghreb', photo: '/site/c/couscous-menus/couscous-royal-sans-logo-20261106.webp.webp', mots: ['couscous'] },
     { slug: 'buffet-italien', nom: 'Buffet italien', pays: 'Italie', photo: '/site/v/italien-boucle.jpg', video: '/site/v/italien-boucle.mp4', mots: ['italien'] },
-    { slug: 'buffet-antillais', nom: 'Buffet antillais', pays: 'Antilles', photo: '/site/v/antillais-boucle.jpg', video: '/site/v/antillais-boucle.mp4', mots: ['antill'], dossiers: ['antilles-'] },
+    { slug: 'buffet-antillais', nom: 'Buffet antillais', pays: 'Antilles', photo: '/site/v/antillais-serveurs.jpg', video: '/site/v/antillais-serveurs.mp4', mots: ['antill'], dossiers: ['antilles-'] },
     { slug: 'buffet-indien', nom: 'Buffet indien', pays: 'Inde', photo: '/site/c/indien-menus/menu-client-1.webp.webp', mots: ['indien'] },
     { slug: 'specialites-japonaises', nom: 'Spécialités japonaises', pays: 'Japon', photo: '/site/c/sushi45.jpg.webp', mots: ['japonais', 'sushi'] },
   ],
@@ -931,6 +931,23 @@ async function initSousRubriques(store, { log = console } = {}) {
       }
     }
     await store.set('site/reglages', { ...remettre(await store.get('site/reglages')), antillaisRizAnnule1: true });
+  }
+
+  /* Tabliers sans « Magnolia for event » (Jean-Luc, 2026-11-28) : sur la vidéo des 3 serveurs (accueil, page antillaise)
+     et sur la photo qui en est tirée (reportages, bloc Instagram), le texte sous le logo MT est effacé image par image ;
+     le logo MT reste. Nouveaux noms de fichiers (cache de 30 jours chez les visiteurs) : on remplace les anciens chemins
+     partout où ils sont enregistrés. Une fois. */
+  const RTab = await store.get('site/reglages');
+  if (RTab && !RTab.tabliersSansTexte1) {
+    const CH = [[/\/site\/v\/antillais-boucle\.(mp4|jpg)/g, '/site/v/antillais-serveurs.$1'], [/\/site\/c\/antilles-menus\/equipe-3-serveurs-logo\.webp/g, '/site/c/antilles-menus/equipe-3-serveurs-mt.webp']];
+    const changer = x => { let j = JSON.stringify(x); for (const [re, n] of CH) j = j.replace(re, n); return JSON.parse(j); };
+    const touche = x => CH.some(([re]) => new RegExp(re.source).test(JSON.stringify(x || '')));
+    for (const col of ['rubriques', 'produits', 'blog', 'pages']) {
+      for (const { id, data: x } of (await store.list(col)) || []) {
+        if (touche(x)) await store.set(col + '/' + id, changer(x));
+      }
+    }
+    await store.set('site/reglages', { ...changer(await store.get('site/reglages')), tabliersSansTexte1: true });
   }
 
   /* Buffet chinois, « Nos buffets » (Jean-Luc, 2026-11-27) : les 3 formules montraient toutes la même vidéo (chinois-boucle).
