@@ -8,8 +8,12 @@ const MOIS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 
 const moisAnnee = a => { const d = a.dateEvenement ? new Date(a.dateEvenement + 'T12:00') : a.publieLe ? new Date(a.publieLe) : null; return d && !isNaN(d) ? `${MOIS[d.getMonth()]} ${d.getFullYear()}` : ''; };
 const Maj = t => t ? t.charAt(0).toUpperCase() + t.slice(1) : '';
 const nbFr = n => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
-const surTitre = a => [a.typeEvenement || CATEGORIES[a.categorie], a.invites ? nbFr(a.invites) + ' invités' : ''].filter(Boolean).join(' · ');
+const surTitre = a => [a.typeEvenement || (a.specialite ? '' : CATEGORIES[a.categorie]), a.invites ? nbFr(a.invites) + ' invités' : ''].filter(Boolean).join(' · ');
 const href = a => '/blog/' + a.slug;
+/* reportages du blog général : sans ceux des spécialités, réservés au bas de leur page (Jean-Luc, 2026-11-28) */
+const general = c => (c.blog || []).filter(a => !a.specialite);
+const speDe = (c, a) => a.specialite ? (c.rubriques.find(r => r.slug === 'saveurs-du-monde')?.sous || []).find(x => x.slug === a.specialite) : null;
+const NOTE_ILLU = 'Photos d’illustration : prestations Magnolia similaires. Les photos de cet événement arriveront bientôt.';
 const photo = (src, alt = '', attrs = '') => src ? `<img src="${esc(src)}" alt="${esc(alt)}" loading="lazy" decoding="async"${attrs ? ' ' + attrs : ''}>` : '';
 const lecture = a => Math.max(1, Math.round([a.chapo, ...(a.sections || []).map(s => s.titre + ' ' + s.texte)].join(' ').split(/\s+/).length / 220));
 const paras = (t, cls = '') => String(t || '').split('\n').filter(Boolean).map((p, i) => `<p${i === 0 && cls ? ` class="${cls}"` : ''}>${esc(p)}</p>`).join('');
@@ -17,7 +21,7 @@ const paras = (t, cls = '') => String(t || '').split('\n').filter(Boolean).map((
 /* carte d'un reportage (accueil, liste, « d'autres reportages ») */
 function carte(a, { grande = false } = {}) {
   const p = a.photos?.[0];
-  return `<a class="rep-c${grande ? ' grande' : ''}" href="${href(a)}" data-cat="${esc(a.categorie)}">${photo(p?.src, p?.legende || a.titre)}<span class="badge">${esc(CATEGORIES[a.categorie] || '')}</span><span class="x"><small>${esc(surTitre(a))}</small><b>${esc(a.titre)}</b></span></a>`;
+  return `<a class="rep-c${grande ? ' grande' : ''}" href="${href(a)}" data-cat="${esc(a.categorie)}">${photo(p?.src, p?.legende || a.titre)}<span class="badge">${esc(a.specialite ? 'Avis client' : CATEGORIES[a.categorie] || '')}</span><span class="x"><small>${esc(surTitre(a))}</small><b>${esc(a.titre)}</b></span></a>`;
 }
 const ONGLETS = [['', 'Tous'], ['entreprises', 'Entreprises'], ['particuliers', 'Particuliers'], ['maison', 'La maison Magnolia']];
 const ongletsCat = (actif, lien, onglets = ONGLETS) => `<div class="rep-onglets" role="group" aria-label="Filtrer les reportages">${onglets.map(([k, t, h]) => `<a href="${h || '/blog' + (k ? '?type=' + k : '')}"${lien ? '' : ` data-rep-f="${k.replace(/s$/, '')}"`} class="${actif === k ? 'on' : ''}"${actif === k ? ' aria-current="true"' : ''}>${t}</a>`).join('')}</div>`;
@@ -27,7 +31,7 @@ const ongletsCat = (actif, lien, onglets = ONGLETS) => `<div class="rep-onglets"
    sans bouton Particuliers (Jean-Luc, 2026-11-28) */
 function encart(c, { entreprises = false } = {}) {
   if (entreprises) return encartEntreprises(c);
-  const l = c.blog || [];
+  const l = general(c);
   if (!l.length) return '';
   /* les 3 derniers, plus les 3 derniers de chaque catégorie pour les boutons Entreprises / Particuliers */
   const choisis = [...l.slice(0, 3), ...l.filter(a => a.categorie === 'entreprise').slice(0, 3), ...l.filter(a => a.categorie === 'particulier').slice(0, 3), ...l.filter(a => a.categorie === 'maison').slice(0, 3)].filter((a, i, t) => t.indexOf(a) === i);
@@ -41,7 +45,7 @@ function encart(c, { entreprises = false } = {}) {
 }
 
 function encartEntreprises(c) {
-  const l = (c.blog || []).filter(a => a.categorie === 'entreprise' || a.categorie === 'maison');
+  const l = general(c).filter(a => a.categorie === 'entreprise' || a.categorie === 'maison');
   if (!l.length) return '';
   const choisis = [...l.slice(0, 3), ...l.filter(a => a.categorie === 'entreprise').slice(0, 3), ...l.filter(a => a.categorie === 'maison').slice(0, 3)].filter((a, i, t) => t.indexOf(a) === i);
   const onglets = [['', 'Tous', '/blog?type=entreprises'], ['entreprises', 'Entreprises'], ['maison', 'La maison Magnolia']];
@@ -57,7 +61,7 @@ function encartEntreprises(c) {
 function liste(c, { type = '' } = {}) {
   const V = views();
   const cat = type === 'entreprises' ? 'entreprise' : type === 'particuliers' ? 'particulier' : type === 'maison' ? 'maison' : '';
-  const l = (c.blog || []).filter(a => !cat || a.categorie === cat);
+  const l = general(c).filter(a => !cat || a.categorie === cat);
   const titre = 'Nos événements en reportage';
   const chapo = 'Pour certaines prestations, nous racontons l’événement en photos : soirées d’entreprise, séminaires, mariages, anniversaires… Pour vous inspirer et voir concrètement comment nous travaillons.';
   const body = `<section class="wrap page-h rep-page-h"><nav class="crumbs" aria-label="Fil d’Ariane"><a href="/">Accueil</a> / <span>Le blog</span></nav><p class="eyebrow">Le blog Magnolia</p><h1>${titre}</h1><p class="lead">${chapo}</p>${ongletsCat(cat ? type : '', true)}</section>
@@ -82,11 +86,13 @@ function article(c, a) {
   const rubNom = p => c.rubriques.find(r => r.slug === p.rubrique)?.nom || '';
   const section = (s, i) => s ? `${s.titre ? `<h2>${esc(s.titre)}</h2>` : ''}${paras(s.texte, i === 0 ? 'lettrine' : '')}` : '';
   const meta = [Maj(moisAnnee(a)), a.lieu, a.typeEvenement, `Lecture ${lecture(a)} min`].filter(Boolean);
-  const autres = [...(c.blog || []).filter(x => x.slug !== a.slug && x.categorie === a.categorie), ...(c.blog || []).filter(x => x.slug !== a.slug && x.categorie !== a.categorie)].slice(0, 3);
+  const spe = speDe(c, a), speHref = spe ? `/saveurs-du-monde/${spe.slug}` : '';
+  const autres = spe ? (c.blog || []).filter(x => x.slug !== a.slug && x.specialite === a.specialite).slice(0, 3)
+    : [...general(c).filter(x => x.slug !== a.slug && x.categorie === a.categorie), ...general(c).filter(x => x.slug !== a.slug && x.categorie !== a.categorie)].slice(0, 3);
   const mosLeg = legendes(mos);
   const body = `<article class="ba">
  <header class="ba-hero${a.chiffres?.length ? '' : ' sans-chiffres'}">${hero ? photo(hero.src, hero.legende || a.titre, 'fetchpriority="high" loading="eager"') : ''}
-  <div class="wrap"><nav class="ba-fil" aria-label="Fil d’Ariane"><a href="/">Accueil</a> · <a href="/blog">Nos reportages</a> · <span>${esc(CATEGORIES[a.categorie] || '')}</span></nav>
+  <div class="wrap"><nav class="ba-fil" aria-label="Fil d’Ariane"><a href="/">Accueil</a> · ${spe ? `<a href="/saveurs-du-monde">Saveurs du monde</a> · <a href="${esc(speHref)}">${esc(spe.nom)}</a>` : `<a href="/blog">Nos reportages</a> · <span>${esc(CATEGORIES[a.categorie] || '')}</span>`}</nav>
    <h1>${esc(a.titre)}</h1><p class="ba-meta">${meta.map(m => `<span>${esc(m)}</span>`).join('')}</p></div>
  </header>
  ${a.chiffres?.length ? `<div class="ba-chiffres n${a.chiffres.length}">${a.chiffres.map(x => `<div><b>${esc(x.valeur)}</b><small>${esc(x.libelle)}</small></div>`).join('')}</div>` : ''}
@@ -94,7 +100,7 @@ function article(c, a) {
   ${a.chapo ? `<p class="ba-chapo">${esc(a.chapo)}</p>` : ''}
   ${section(sec[0], 0)}
  </div>
- ${mosaique(mos, mosLeg.length === 1 ? mosLeg[0] : '')}
+ ${mosaique(mos, mosLeg.length === 1 ? mosLeg[0] : '')}${a.illustrations ? `<p class="ba-illu">${NOTE_ILLU}</p>` : ''}
  <div class="ba-corps suite">
   ${section(sec[1], 1)}
   ${prods.length ? `<h2>Les prestations de cet événement</h2><p>Toutes disponibles pour votre propre réception :</p><div class="ba-menu">${prods.map(p => `<a href="/${esc(p.rubrique)}/${esc(p.slug)}">${photo(p.photos?.[0]?.src, '')}<span><small>${esc(rubNom(p))}</small><b>${esc(p.titre)}</b></span></a>`).join('')}</div>` : ''}
@@ -109,13 +115,24 @@ function article(c, a) {
   ${a.tags?.length ? `<div class="ba-tags">${a.tags.map(t => `<span>${esc(t)}</span>`).join('')}</div>` : ''}
   <div class="ba-cta"><p class="eyebrow light">Votre événement</p><h2>${a.categorie === 'maison' ? 'Et si votre prochain événement était signé Magnolia ?' : `Vous préparez ${a.categorie === 'particulier' ? 'une fête' : 'un événement'} comme celui-ci ?`}</h2>
    <p>Dites-nous le nombre d’invités, la date et le lieu : nous vous envoyons votre devis rapidement.</p>
-   <div class="btns"><a class="btn btn-or" href="/boutique">Composer mon événement</a><a class="btn btn-ghost-light" href="tel:${esc((R.telephone || '').replace(/\s/g, ''))}">${esc(R.telephone || '')}</a></div></div>
+   <div class="btns"><a class="btn btn-or" href="${spe ? esc(speHref) + '#nos-buffets' : '/boutique'}">${spe ? 'Voir nos buffets' : 'Composer mon événement'}</a><a class="btn btn-ghost-light" href="tel:${esc((R.telephone || '').replace(/\s/g, ''))}">${esc(R.telephone || '')}</a></div></div>
  </div>
- ${autres.length ? `<section class="ba-autres"><div class="wrap"><p class="eyebrow">Nos reportages</p><h2>D’autres reportages à découvrir</h2><div class="rep-l n${autres.length}">${autres.map(x => carte(x)).join('')}</div><p class="ba-tous"><a class="lnk" href="/blog">Tous nos reportages →</a></p></div></section>` : ''}
+ ${autres.length ? `<section class="ba-autres"><div class="wrap"><p class="eyebrow">Nos reportages</p><h2>D’autres reportages à découvrir</h2><div class="rep-l n${autres.length}">${autres.map(x => carte(x)).join('')}</div><p class="ba-tous"><a class="lnk" href="${spe ? esc(speHref) : '/blog'}">${spe ? 'Revenir à la page ' + esc(spe.nom) : 'Tous nos reportages'} →</a></p></div></section>` : ''}
 </article>`;
   const site = (process.env.SITE_URL || 'https://www.magnoliatraiteur.fr').replace(/\/$/, '');
   const schema = { '@context': 'https://schema.org', '@type': 'BlogPosting', headline: a.titre, description: a.seoDescription || a.chapo, image: ph.slice(0, 3).map(p => site + p.src), datePublished: a.publieLe || undefined, dateModified: a.updatedAt || a.publieLe || undefined, author: { '@type': 'Organization', name: R.nom || 'Magnolia Traiteur' }, publisher: { '@type': 'Organization', name: R.nom || 'Magnolia Traiteur', logo: { '@type': 'ImageObject', url: site + '/apple-icon.png' } }, mainEntityOfPage: site + href(a), keywords: (a.tags || []).join(', ') || undefined };
   return V.layout(c, { title: a.seoTitre || a.titre, description: a.seoDescription || a.chapo, body, path: href(a), image: hero?.src || '', schema, bodyClass: 'blog-art' });
 }
 
-module.exports = { encart, liste, article, carte };
+/* bas de la page d'une spécialité : ses reportages publiés (Jean-Luc, 2026-11-28) */
+function blocSpecialite(c, x) {
+  const l = (c.blog || []).filter(a => a.specialite === x.slug);
+  if (!l.length) return '';
+  return `<section class="rep-sec spe-blog" id="reportages"><div class="wrap">
+ <div class="rep-tete"><div class="t"><p class="eyebrow">Le blog Magnolia</p><h2>Ils l’ont vécu avec nous</h2>
+ <p class="int">Des fêtes et des réceptions racontées à partir de l’avis que nos clients nous ont laissé.</p></div></div>
+ <div class="rep-l n${Math.min(3, l.length)}">${l.slice(0, 6).map((a, i) => carte(a, { grande: i === 0 && l.length > 2 })).join('')}</div>
+</div></section>`;
+}
+
+module.exports = { encart, liste, article, carte, blocSpecialite };

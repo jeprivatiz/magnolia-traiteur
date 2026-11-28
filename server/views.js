@@ -141,7 +141,7 @@ ${schema ? `<script type="application/ld+json">${JSON.stringify(schema).replace(
     <p class="eyebrow">Nos univers</p>
     <ul class="drawer-l">${rubs.map(r => `<li><a href="${rubHref(r)}">${esc(r.nom)}<span>${c.byRub.get(r.slug)?.length || ''}</span></a></li>`).join('')}<li><a href="/lieux">Lieux de réception<span>${c.lieux.filter(l => l.statut !== 'masque').length}</span></a></li></ul>
     <p class="eyebrow">Magnolia</p>
-    <ul class="drawer-l small"><li><a href="/maison">La maison</a></li><li><a href="/comment-commander">Comment commander</a></li><li><a href="/temoignages">Avis clients</a></li>${c.blog?.length ? '<li><a href="/blog">Nos reportages</a></li>' : ''}<li><a href="/zone-de-livraison">Nos zones de livraison</a></li><li><a href="/contact">Contact</a></li><li><a href="/espace-client">Mon espace client</a></li></ul>
+    <ul class="drawer-l small"><li><a href="/maison">La maison</a></li><li><a href="/comment-commander">Comment commander</a></li><li><a href="/temoignages">Avis clients</a></li>${c.blog?.some(a => !a.specialite) ? '<li><a href="/blog">Nos reportages</a></li>' : ''}<li><a href="/zone-de-livraison">Nos zones de livraison</a></li><li><a href="/contact">Contact</a></li><li><a href="/espace-client">Mon espace client</a></li></ul>
     ${igLien(R, 'drawer-ig', `${igCouleur('igm')}<span><b>Suivez-nous sur Instagram</b>${esc(igCompte(R.instagram))}</span>`, false)}
     <a class="btn btn-or wide" href="tel:${esc((R.telephone || '').replace(/\s/g, ''))}">${icon.phone} ${esc(R.telephone)}</a>
   </div>
@@ -164,7 +164,7 @@ ${schema ? `<script type="application/ld+json">${JSON.stringify(schema).replace(
     <div class="foot-brand"><a class="brand foot-logo" href="/" aria-label="${esc(R.nom)}, accueil">${MONO}<span class="brand-txt">Magnolia<small>${esc(R.sousNom || 'Traiteur · Événementiel')}</small></span></a><p class="slogan">${esc(R.slogan || '')}</p>
       <a class="btn btn-ghost-light" href="/ma-selection">Composer mon événement</a></div>
     <div><h2>Nos univers</h2><ul>${rubs.map(r => `<li><a href="${rubHref(r)}">${esc(r.nom)}</a></li>`).join('')}<li><a href="/lieux">Lieux de réception</a></li></ul></div>
-    <div><h2>Magnolia</h2><ul><li><a href="/boutique">La boutique</a></li><li><a href="/entreprises">Traiteur pour les entreprises</a></li><li><a href="/ma-selection">Ma sélection</a></li><li><a href="/comment-commander">Comment commander</a></li><li><a href="/zone-de-livraison">Nos zones de livraison</a></li><li><a href="/temoignages">Témoignages</a></li>${c.blog?.length ? '<li><a href="/blog">Nos reportages (blog)</a></li>' : ''}<li><a href="/maison">La maison Magnolia</a></li><li><a href="/contact">Contact</a></li><li><a href="/espace-client">Mon espace client</a></li></ul></div>
+    <div><h2>Magnolia</h2><ul><li><a href="/boutique">La boutique</a></li><li><a href="/entreprises">Traiteur pour les entreprises</a></li><li><a href="/ma-selection">Ma sélection</a></li><li><a href="/comment-commander">Comment commander</a></li><li><a href="/zone-de-livraison">Nos zones de livraison</a></li><li><a href="/temoignages">Témoignages</a></li>${c.blog?.some(a => !a.specialite) ? '<li><a href="/blog">Nos reportages (blog)</a></li>' : ''}<li><a href="/maison">La maison Magnolia</a></li><li><a href="/contact">Contact</a></li><li><a href="/espace-client">Mon espace client</a></li></ul></div>
     <div><h2>Nous joindre</h2><ul class="contact"><li><a href="tel:${esc((R.telephone || '').replace(/\s/g, ''))}">${esc(R.telephone)}</a></li><li><a href="mailto:${esc(R.email)}">${esc(R.email)}</a></li><li>${esc(R.adresse)}</li><li>${esc(R.horaires)}</li></ul>${igLien(R, 'foot-ig', `${igCouleur('igf')}<span>Suivez-nous<b>${esc(igCompte(R.instagram))}</b></span>`, false)}</div>
   </div>
   <div class="foot-bas"><p>${esc(R.mentionPied || '')}</p><p><a href="/mentions-legales">Mentions légales</a> · <a href="/confidentialite">Confidentialité</a> · <a href="/cgv">CGV</a> · <a href="/allergenes">Allergènes</a><span data-cookies> · <a href="#cookies">Gérer mes cookies</a></span> · © ${new Date().getFullYear()} ${esc(R.nom)}</p></div>
@@ -514,7 +514,7 @@ function specialite(c, r, x) {
   const hero = x ? bandeauHtml(c, { photo: x.bandeauPhoto || x.photo, video: x.bandeauVideo ?? x.video ?? '', poster: x.bandeauPoster || '', position: x.bandeauPosition || '', titre: speTitre(x), chapo: speChapo(x), bouton: x.bouton || 'Voir les propositions', ancre: '#prestations' }, fil) : '';
   if (x && x.parSections && LANDINGS[x.slug] && x.landing !== false) return pageLanding(c, r, x);
   if (x && x.parSections) return pageSections(c, r, x, chips, hero);
-  return boutique(c, { intro: x ? { titre: x.introTitre, texte: x.introTexte } : { titre: r.introTitre, texte: r.introTexte }, rub: r.slug, titre: x ? speTitre(x) : r.nom, chapo: x ? speChapo(x) : r.chapo, photo: x ? (x.bandeauPhoto || x.photo) : (r.photoAccueil || r.photo), path: `/${r.slug}/${x ? x.slug : 'tout'}`, liste, fil, chips, hero, seo: x ? { title: x.seoTitre || speTitre(x), description: x.seoDescription || speChapo(x) } : null });
+  return boutique(c, { intro: x ? { titre: x.introTitre, texte: x.introTexte } : { titre: r.introTitre, texte: r.introTexte }, rub: r.slug, titre: x ? speTitre(x) : r.nom, chapo: x ? speChapo(x) : r.chapo, photo: x ? (x.bandeauPhoto || x.photo) : (r.photoAccueil || r.photo), path: `/${r.slug}/${x ? x.slug : 'tout'}`, liste, fil, chips, hero, apres: x ? require('./blog-pages').blocSpecialite(c, x) : '', seo: x ? { title: x.seoTitre || speTitre(x), description: x.seoDescription || speChapo(x) } : null });
 }
 
 /* Têtes de rubrique sur téléphone (Jean-Luc, 2026-11-25) : une page de plus de 20 produits rangés en sections
@@ -541,7 +541,8 @@ function pageSections(c, r, x, chips, hero) {
   <div class="shop-bar">${chips}${rubmActif(blocs) ? rubmRetour() : ''}</div>
   ${x.introTexte ? `<div class="spe-intro">${x.introTitre ? `<h2>${esc(x.introTitre)}</h2>` : ''}${String(x.introTexte).split(/\n+/).map(l => l.trim()).filter(Boolean).map(l => `<p>${esc(l)}</p>`).join("")}</div>` : ''}
   ${rubmTuiles(blocs)}${blocs.map(([k, t, L]) => `<div class="spe-bloc" id="${k}" data-rubm-bloc><h2>${esc(t)}</h2><p class="count">${L.length} prestation${L.length > 1 ? 's' : ''} · tarifs TTC</p><div class="cards grid${k === 'buffets' ? ' kb-anim' : ''}">${L.map(p => card(p, c, { rubNom: false })).join('')}</div>${rubmActif(blocs) ? rubmRetour(true) : ''}</div>`).join('')}
-</section>`;
+</section>
+${require('./blog-pages').blocSpecialite(c, x)}`;
   return layout(c, { title: x.seoTitre || speTitre(x), description: x.seoDescription || speChapo(x), body, path: `/${r.slug}/${x.slug}`, image: x.bandeauPhoto || x.photo });
 }
 
@@ -659,6 +660,7 @@ function pageLanding(c, r, x) {
 ${avisHtml}${equipe}${insta}
 ${blocs.length ? `<section class="wrap shop spe-sections" id="prestations"${rubmActif(blocs) ? ' data-rubm' : ''}><div class="shop-bar lp-unite-h"><p class="eyebrow">À la carte</p><h2>Composez votre menu à l’unité</h2>${rubmActif(blocs) ? rubmRetour() : ''}</div>
   ${rubmTuiles(blocs)}${blocs.map(b => bloc(b, ' data-rubm-bloc')).join('')}</section>` : ''}
+${require('./blog-pages').blocSpecialite(c, x)}
 <section class="cta wrap lp-fin"><h2>${esc(L.fin)}</h2><div class="row"><a class="btn btn-vert" href="#nos-buffets">Voir nos buffets</a><a class="lnk" href="tel:${esc(tel)}">ou appelez le ${esc(R.telephone || '')}</a></div>${gBouton()}<p class="lp-autres"><a class="lnk" href="/${esc(r.slug)}">Découvrir nos autres saveurs du monde ${icon.arrow}</a></p></section>`;
   return layout(c, { title: x.seoTitre || speTitre(x), description: x.seoDescription || speChapo(x), body, path: `/${r.slug}/${x.slug}`, image: x.bandeauPhoto || x.photo, bodyClass: 'page-lp' });
 }
@@ -688,7 +690,7 @@ function tuilesSections(r, sections) {
     return `<a class="cat" href="#${esc(k)}" data-cat="${esc(k)}">${img(src, t)}<span class="cat-t">${esc(t)}<small>${L.length} produit${L.length > 1 ? 's' : ''}</small></span></a>`;
   }).join('')}</nav>`;
 }
-function boutique(c, { q = '', rub = '', titre, chapo, photo, path = '/boutique', liste = null, fil = null, chips = '', hero = '', seo = null, intro = null, sections = null, avant = '', scripts = '' }) {
+function boutique(c, { q = '', rub = '', titre, chapo, photo, path = '/boutique', liste = null, fil = null, chips = '', hero = '', seo = null, intro = null, sections = null, avant = '', apres = '', scripts = '' }) {
   const rubs = c.rubriques.filter(r => r.statut !== 'masque' && r.slug !== 'lieux');
   const prods = liste || (q ? c.search(c, q, 400) : c.produits.filter(p => p.statut !== 'masque'));
   const r = rubs.find(x => x.slug === rub);
@@ -711,7 +713,7 @@ ${avant}<section class="wrap shop" id="prestations" data-shop${rubm ? ' data-rub
   ${sections && r?.tuilesSections ? tuilesSections(r, sections) : ''}${sections && rubm ? rubmTuiles(sections) : ''}${sections ? sections.map(([k, t, L]) => { const ved = (r?.sectionsVedette || []).includes(k); return `<div class="spe-bloc${ved ? ' bloc-vedette' : ''}" id="${k}" data-bloc${rubm ? ' data-rubm-bloc' : ''}><h2>${esc(t)}</h2>${r?.tuilesSections ? '<a class="cat-retour" href="#categories" data-cat="">← Toutes les catégories</a>' : ''}<div class="cards grid${ved ? ' cards-vedette' : ''}" data-grid>${L.map(p => card(p, c, { rubNom: false, vedette: ved })).join('')}</div>${rubm ? rubmRetour(true) : ''}</div>`; }).join('')
     : `<div class="cards grid" data-grid>${prods.map(p => card(p, c, { rubNom: !rub })).join('')}</div>`}
   ${!prods.length ? `<div class="empty"><p>Aucune prestation ne correspond à « ${esc(q)} ».</p><p>Appelez-nous au <a href="tel:${esc(c.reglages.telephone)}">${esc(c.reglages.telephone)}</a> : nous trouvons toujours une solution.</p></div>` : ''}
-</section>`;
+</section>${apres}`;
   return layout(c, { title: seo?.title || (r && path === '/' + r.slug && r.seoTitre) || titre, description: seo?.description || (r && path === '/' + r.slug && r.seoDescription) || chapo || (path === '/boutique' && !q ? bandeauDe(c, 'boutique').chapo : ''), body, path, scripts, image: path === '/boutique' && !q ? bandeauDe(c, 'boutique').photo : photo });
 }
 

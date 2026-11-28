@@ -1763,3 +1763,8 @@ h1 .formule { font-size: .5em; margin-top: .45em; }
   .lp-ig-h b { font-size: 1.3rem; }
   .lp-ig-h .btn { display: none; }
 }
+
+/* Reportages des spécialités (Jean-Luc, 2026-11-28) : bas de la page spécialité + mention des photos d'illustration */
+.spe-blog { margin-bottom: 0; }
+.ba-illu { max-width: 1100px; margin: -1.6em auto 2em; padding: 0 clamp(16px, 4vw, 40px); font-size: .82rem; color: var(--gris); text-align: center; font-style: italic; }
+.ba-citation cite small { display: block; font-size: .8em; opacity: .8; margin-top: .3em; }
