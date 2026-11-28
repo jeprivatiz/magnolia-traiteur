@@ -3677,6 +3677,7 @@ Réponds uniquement en JSON : {${sms ? '' : '"sujet": "...", '}"texte": "..."}`;
     res.set('X-Robots-Tag', 'noindex').set('Cache-Control', 'no-store').type('html')
       .send(BROCHURE.html(c, { base: baseBrochure(req), v: views.V, pdf, barre: !('impression' in req.query), lieuxUrl: env.BROCHURE_LIEUX_URL }));
   }));
+  app.get('/envoyer-la-brochure', (req, res) => { res.set('X-Robots-Tag', 'noindex').set('Cache-Control', 'no-store').type('html').send(BROCHURE.pageEnvoyer({ base: req.protocol + '://' + req.get('host') })); });
   app.get('/b/:cle', wrap(async (req, res) => { res.set('Cache-Control', 'no-store').redirect(302, BROCHURE.cible(await cat.get(), req.params.cle)); }));
   app.get(['/telecharger-la-brochure', '/brochure.pdf'], (req, res) => {
     if (!fs.existsSync(PDF_BROCHURE)) return res.redirect(302, '/brochure');

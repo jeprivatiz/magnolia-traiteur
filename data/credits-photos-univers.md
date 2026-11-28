@@ -341,3 +341,4 @@ Photos regardées une à une (vraies photos, sans texte ni logo), licence Pexels
 | Open bar vins et champagnes (maître d'hôtel qui sert le champagne) | https://www.pexels.com/photo/3217956/ | 28/11/2026 (demande de Jean-Luc) |
 | Brochure, Spécialités japonaises (assortiment de sushis et makis) | https://www.pexels.com/photo/7245468/ | 28/11/2026 (demande de Jean-Luc) |
 | Brochure, ouverture Le traiteur français (chef en toque au buffet) | https://www.pexels.com/photo/6971733/ | 28/11/2026 (demande de Jean-Luc) |
+| Brochure, petits-déjeuners (bandeau café et croissants ; pause café ; croissants ; table de petit-déjeuner) | https://www.pexels.com/photo/19279845/ · /7426472/ · /6365932/ · /17598964/ | 28/11/2026 (demande de Jean-Luc) |

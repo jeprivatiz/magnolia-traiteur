@@ -13,7 +13,7 @@ const { esc } = require('./util');
 const cartes = require('./cartes');
 const { pays: PAYS_CARTE, points: POINTS_CARTE } = require('./cartes.json');
 
-const PAGES_SITE = { accueil: '/', lieux: '/lieux', contact: '/contact', 'zone-de-livraison': '/zone-de-livraison', 'comment-commander': '/comment-commander', temoignages: '/temoignages', avis: '/temoignages', 'blog-entreprises': '/blog?type=entreprises', 'blog-maison': '/blog?type=maison', maison: '/maison', boutique: '/boutique', 'ma-selection': '/ma-selection' };
+const PAGES_SITE = { accueil: '/', lieux: '/lieux', contact: '/contact', 'zone-de-livraison': '/zone-de-livraison', 'comment-commander': '/comment-commander', temoignages: '/temoignages', avis: '/temoignages', 'blog-entreprises': '/blog?type=entreprises', 'blog-maison': '/blog?type=maison', envoyer: '/envoyer-la-brochure', maison: '/maison', boutique: '/boutique', 'ma-selection': '/ma-selection' };
 
 /* adresse réelle d'une clé de QR code */
 function cible(c, cle) {
@@ -65,7 +65,7 @@ function court(t, max = 170) {
   return (i > max * .55 ? x.slice(0, i + 1) : x.replace(/\s+\S*$/, '') + '…').trim();
 }
 /* photos choisies pour la brochure seulement (Jean-Luc, 2026-11-28 : un burger, pas des frites, pour le stand à burgers) */
-const PHOTO_BROCHURE = { 'stand-a-burgers': '/site/c/page19-burger-poster.jpg.webp', 'bar-a-pates': '/site/c/bar-a-pates-chef.webp', 'chef-sushi-a-domicile': '/site/c/sushiman-mains.webp' };
+const PHOTO_BROCHURE = { 'pause-cafe': '/site/c/brochure/pdj-pause-cafe.webp', 'petit-dejeuner-classique': '/site/c/brochure/pdj-croissants-assiette.webp', 'petit-dejeuner-luxe': '/site/c/brochure/pdj-table-luxe.webp', 'stand-a-burgers': '/site/c/page19-burger-poster.jpg.webp', 'bar-a-pates': '/site/c/bar-a-pates-chef.webp', 'chef-sushi-a-domicile': '/site/c/sushiman-mains.webp' };
 const photoDe = x => {
   if (x && PHOTO_BROCHURE[x.slug]) return PHOTO_BROCHURE[x.slug];
   const ph = (x && x.photos) || [];
@@ -95,6 +95,28 @@ function carteMonde(ss, ancre) {
   }
   return `<svg class="monde-carte" viewBox="30 50 340 130" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Carte de nos saveurs du monde"><image href="/cartes/monde.svg" x="0" y="0" width="400" height="300"/>`
     + `<path d="${terres}" fill="#c9a56b" stroke="#e3c58f" stroke-width=".4"/><g class="monde-noms">${marques}</g></svg>`;
+}
+
+/* page « Envoyer la brochure » : ouverte depuis le PDF (couverture et pied de chaque page) ou le site, sur téléphone surtout.
+   Un PDF ne peut pas avoir de bouton « Partager » : ce lien mène ici (Jean-Luc, 2026-11-28). */
+function pageEnvoyer(opts = {}) {
+  const lienPdf = (opts.base || '') + '/brochure.pdf', lienWeb = (opts.base || '') + '/brochure';
+  const titre = 'La brochure Magnolia Traiteur', texte = 'Voici la brochure de Magnolia Traiteur, traiteur et événementiel : ' + lienPdf;
+  const u = encodeURIComponent;
+  const bt = (href, txt, cls = '') => `<a class="e-b ${cls}" href="${esc(href)}">${txt}</a>`;
+  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><title>Envoyer la brochure · Magnolia Traiteur</title>
+<style>html{-webkit-text-size-adjust:100%}body{margin:0;font-family:Jost,Poppins,system-ui,sans-serif;background:#1d3b2f;color:#f6f1e8;min-height:100vh;display:flex;align-items:center;justify-content:center}
+main{width:100%;max-width:440px;padding:28px 20px}h1{font-family:Georgia,serif;font-weight:500;font-size:1.7rem;margin:.2em 0 .3em;color:#fff}p{margin:0 0 22px;opacity:.88;line-height:1.5}
+.e-b{display:block;text-align:center;text-decoration:none;font-size:1.08rem;font-weight:500;padding:15px 18px;border-radius:999px;margin:0 0 12px;border:1.5px solid #c9a46a;color:#f6f1e8;background:transparent;cursor:pointer;width:100%;box-sizing:border-box;font-family:inherit}
+.e-b.or{background:#b08a4f;border-color:#b08a4f;color:#fff}.eyebrow{font-size:.75rem;letter-spacing:.22em;text-transform:uppercase;color:#c9a46a;margin:0}.pt{font-size:.85rem;opacity:.7;margin-top:18px}.pt a{color:#e9d3a6}</style></head>
+<body><main><p class="eyebrow">Magnolia Traiteur</p><h1>Envoyer la brochure</h1><p>Choisissez comment l’envoyer : votre correspondant recevra le lien de la brochure PDF.</p>
+<button class="e-b or" type="button" id="e-part" hidden>Partager (SMS, WhatsApp, e-mail…)</button>
+${bt('mailto:?subject=' + u(titre) + '&body=' + u(texte), 'Par e-mail')}${bt('sms:?&body=' + u(texte), 'Par SMS')}${bt('https://wa.me/?text=' + u(texte), 'Par WhatsApp')}
+<button class="e-b" type="button" id="e-copie">Copier le lien</button>
+<p class="pt"><a href="${esc(lienPdf)}">Ouvrir la brochure PDF</a> · <a href="${esc(lienWeb)}">La brochure en ligne</a></p></main>
+<script>(function(){var l=${JSON.stringify(lienPdf)},t=${JSON.stringify(titre)},x=${JSON.stringify('Voici la brochure de Magnolia Traiteur, traiteur et événementiel : ')};
+var p=document.getElementById('e-part');if(navigator.share){p.hidden=false;p.addEventListener('click',function(){navigator.share({title:t,text:x,url:l}).catch(function(){});});}
+var c=document.getElementById('e-copie');c.addEventListener('click',function(){try{navigator.clipboard.writeText(l);c.textContent='Lien copié ✓';}catch(e){prompt('Copiez ce lien :',l);}});})();</script></body></html>`;
 }
 
 const FRANCAIS = [
@@ -262,8 +284,12 @@ const GRILLES = {
     cle: 'coffrets-plateaux', items: ['plateau-de-20-mini-cheeseburgers', 'plateau-de-48-mini-wraps', 'plateau-de-80-mini-clubs', 'plateau-de-20-mini-bokits', 'plateau-de-charcuteries', 'plateau-de-fromages', 'plateau-japonais-75-pieces'] },
   boissons: { eyebrow: 'Les boissons de votre réception', titre: 'La cave de Magnolia', intro: 'Du vin au soft, en passant par les alcools : notre champagne de petit récoltant, une sélection de vins, nos open bars et nos barmans pour servir vos invités.',
     cle: 'boissons', cols: 3, items: ['champagne-andre-diligent', 'open-bar-vins-et-champagnes', 'nos-open-bars', 'bar-a-cocktails-4-h-au-cocktail', 'bar-a-shots-a-volonte-1-h-30', 'sangria-maison-au-litre', 'chateau-minuty-prestige-rose', 'jean-des-valanges-chardonnay-blanc', 'livraison-de-glacons-sac-de-20-kg'] },
-  petitsDej: { eyebrow: 'Pour bien commencer la journée', titre: 'Nos petits-déjeuners', intro: 'Réunions matinales, séminaires ou accueil de vos invités : partagez un moment convivial autour d’un buffet gourmand. Dès 20 personnes.',
-    cle: 'petits-dejeuners', cols: 3, bandeau: true, items: ['pause-cafe', 'petit-dejeuner-classique', 'petit-dejeuner-luxe'] },
+  petitsDej: { eyebrow: 'Pour bien commencer la journée', titre: 'Nos petits-déjeuners', intro: ['Réunions matinales, séminaires, journées de formation ou accueil de vos invités : le petit-déjeuner donne le ton de toute la journée. Nous livrons des buffets gourmands et soignés, dressés pour être servis dès l’arrivée de vos convives, à partir de 20 personnes.',
+      'Viennoiseries, boissons chaudes, jus de fruits et douceurs : choisissez la pause café pour une courte réunion, le petit-déjeuner classique pour l’essentiel, ou le petit-déjeuner luxe pour recevoir comme à l’hôtel. Livraison 7 j/7 sur Paris et toute l’Île-de-France, et un serveur peut s’occuper du service sur place.'],
+    cle: 'petits-dejeuners', cols: 3, bandeau: true, bandeauPhoto: '/site/c/brochure/pdj-bandeau-cafe-croissants.webp' /* photos de petits-déjeuners de qualité photographe (Jean-Luc, 2026-11-28) */, classe: 'g-pdj', items: [
+      { slug: 'pause-cafe', texte: 'Café, thé et jus de fruits, avec quelques douceurs : la pause qui relance une réunion ou un séminaire.' },
+      { slug: 'petit-dejeuner-classique', texte: 'Viennoiseries, boissons chaudes et jus de fruits : l’essentiel d’un bon petit-déjeuner, prêt à l’arrivée de vos invités.' },
+      { slug: 'petit-dejeuner-luxe', texte: 'Une version plus généreuse, avec plus de choix et de douceurs, pour recevoir vos invités comme à l’hôtel.' }] },
   salees1: { eyebrow: 'Animations culinaires', titre: 'Nos animations salées', intro: 'Du spectacle, des saveurs et de la convivialité : nos animations culinaires éveillent les papilles et réunissent vos invités autour d’un moment gourmand.',
     cle: 'animations-salees', cols: 2, items: ['bar-a-saumon-fume', 'bar-a-foie-gras', 'bar-a-huitres', 'saint-jacques-a-la-plancha', 'animation-ti-punch-acras-et-boudins', 'animation-barbecue'] },
   salees2: { eyebrow: 'Animations culinaires', titre: 'Le spectacle en cuisine', intro: 'Burgers, pâtes, pizzas ou sushis préparés sous les yeux de vos invités : une animation qui fait toujours son effet.',
@@ -311,13 +337,14 @@ function html(c, opts = {}) {
   const sommaire = [];
   const pageDe = {}; /* numéro de page de chaque formule (liens internes de la carte du monde) */
   const ajoute = (fn, titreSommaire, niveau = 2) => { const n = pages.length + 1; pages.push(fn); if (titreSommaire) sommaire.push({ n, t: titreSommaire, niveau }); return n; };
-  const pied = n => `<footer class="pg-f"><span>Magnolia Traiteur · <a href="${esc(telHref)}">${esc(tel)}</a> · <a href="${esc(lien('accueil'))}">${esc(siteTxt)}</a></span><b>${n}</b></footer>`;
+  const pied = n => `<footer class="pg-f"><span>Magnolia Traiteur · <a href="${esc(telHref)}">${esc(tel)}</a> · <a href="${esc(lien('accueil'))}">${esc(siteTxt)}</a> · <a class="pf-env" href="${esc(lien('envoyer'))}">Envoyer cette brochure ↗</a></span><b>${n}</b></footer>`;
 
   /* 1. couverture */
   const chiffres = (R.accueil && R.accueil.chiffres) || [];
   const note = (R.avisGoogle && R.avisGoogle.note) || '4,9';
   ajoute(n => `<section class="pg couv" id="p${n}">${photo('/site/c/accueil/website-home-cocktail-20261110.webp', 'Cocktail Magnolia Traiteur', 'couv-img')}
 <div class="couv-voile"></div>
+<a class="couv-env" href="${esc(lien('envoyer'))}">Envoyer cette brochure ↗</a>
 <div class="couv-h"><img class="couv-mono" src="/brand/monogramme.svg" alt=""><p class="couv-marque">MAGNOLIA TRAITEUR<small>Traiteur · Événementiel</small></p></div>
 <div class="couv-b"><p class="eyebrow or">La brochure ${new Date().getFullYear()}</p>
 <h1>Vos événements privés<br>et professionnels</h1>
@@ -375,14 +402,15 @@ function html(c, opts = {}) {
 
   /* page grille : une vignette par fiche, chacune avec son QR code */
   const grille = g => {
+    const textes = {}; for (const x of g.items) if (x && x.texte) textes[x.slug] = x.texte;
     const items = g.items.map(x => typeof x === 'string' ? x : x.slug).map(P).filter(Boolean);
     if (!items.length) return;
     const cols = g.cols || 3;
     const r = rub(g.cle);
     const bandeau = g.bandeauPhoto || (g.bandeau && r ? (r.bandeauPhoto || r.photo) : '');
-    ajoute(n => `<section class="pg grille g${cols}${bandeau ? ' avec-bandeau' : ''}" id="p${n}">${bandeau ? `<div class="g-bandeau">${photo(bandeau, g.titre)}</div>` : ''}<div class="pg-in">
-<header class="g-h"><div><p class="eyebrow">${esc(g.eyebrow)}</p><h2>${esc(g.titre)}</h2><p class="intro">${esc(g.intro)}</p></div>${g.cle ? qr(g.cle, 's', 'Tout voir') : ''}</header>
-<div class="cartes">${items.map(p => `<article class="carte"><div class="carte-ph">${photo(photoDe(p), p.titre)}${qr(p.slug, 's', '')}</div><div class="carte-b"><h3><a href="${esc(lien(p.slug))}">${esc(p.titre)}</a></h3><p>${esc(court(p.extrait || (p.description || [])[0] || '', cols === 2 ? 230 : 140))}</p><a class="voir" href="${esc(lien(p.slug))}">Voir le prix sur le site ↗</a></div></article>`).join('')}</div>
+    ajoute(n => `<section class="pg grille g${cols}${bandeau ? ' avec-bandeau' : ''}${g.classe ? ' ' + g.classe : ''}" id="p${n}">${bandeau ? `<div class="g-bandeau">${photo(bandeau, g.titre)}</div>` : ''}<div class="pg-in">
+<header class="g-h"><div><p class="eyebrow">${esc(g.eyebrow)}</p><h2>${esc(g.titre)}</h2>${[].concat(g.intro || []).map(t => `<p class="intro">${esc(t)}</p>`).join('')}</div>${g.cle ? qr(g.cle, 's', 'Tout voir') : ''}</header>
+<div class="cartes">${items.map(p => `<article class="carte"><div class="carte-ph">${photo(photoDe(p), p.titre)}${qr(p.slug, 's', '')}</div><div class="carte-b"><h3><a href="${esc(lien(p.slug))}">${esc(p.titre)}</a></h3><p>${esc(textes[p.slug] || court(p.extrait || (p.description || [])[0] || '', cols === 2 ? 230 : 140))}</p><a class="voir" href="${esc(lien(p.slug))}">Voir le prix sur le site ↗</a></div></article>`).join('')}</div>
 </div>${pied(n)}</section>`, g.titre);
   };
 
@@ -410,7 +438,7 @@ function html(c, opts = {}) {
   const sm = rub('saveurs-du-monde');
   if (sm) {
     const ss = MONDE.map(d => sous(d.sous)).filter(Boolean);
-    ajoute(n => `<section class="pg monde" id="p${n}"><div class="monde-ph">${carteMonde(ss, slug => pageDe[slug] ? '#p' + pageDe[slug] : lien(slug))}</div><div class="pg-in">
+    ajoute(n => `<section class="pg monde" id="p${n}"><div class="monde-ph">${carteMonde(ss, slug => pageDe[slug] ? '#p' + pageDe[slug] : lien(slug))}<p class="monde-aide">Cliquez sur le pays de votre choix</p></div><div class="pg-in">
 <p class="ouv-num">02</p><h2>Cocktails & buffets du monde</h2>
 <p class="lead">Un monde de saveurs, une même attention. Choisissez l’univers culinaire qui vous ressemble : notre équipe vous accompagne pour composer un menu et un service adaptés à votre réception.</p>
 <div class="monde-g">${ss.map(s => `<div class="monde-t">${photo(s.photo && !/\.mp4$/.test(s.photo) ? s.photo : s.bandeauPhoto, s.nom)}<a class="monde-n" href="${esc(lien(s.slug))}"><b>${esc(s.nom)}</b><i>Voir le prix ↗</i></a>${qr(s.slug, 'xs', '')}</div>`).join('')}</div>
@@ -523,4 +551,4 @@ ${opts.barre === false ? '' : `<script>
 </body></html>`;
 }
 
-module.exports = { html, cible, qrSvg, sansPrix, court, FRANCAIS, MONDE, GRILLES, REPAS };
+module.exports = { html, pageEnvoyer, cible, qrSvg, sansPrix, court, FRANCAIS, MONDE, GRILLES, REPAS };
