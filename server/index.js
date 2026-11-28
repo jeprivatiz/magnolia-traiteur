@@ -3252,7 +3252,7 @@ Réponds uniquement en JSON : {${sms ? '' : '"sujet": "...", '}"texte": "..."}`;
   }));
   A.get('/prepa', wrap(async (req, res) => {
     const [dv, fa, dem, bons, vis, ret] = await Promise.all([store.list('devis'), store.list('factures'), store.list('demandes'), store.list('prepas'), visibles(req), store.list('prepasRetires')]);
-    const retire = new Set(ret.map(x => x.id));
+    const retire = new Set(ret.map(x => x.id)), etats = new Map((await store.list('prepasEtat')).map(x => [x.id, x.data || {}]));
     const facDe = new Map(); for (const f of fa.map(x => x.data).filter(f => f?.devisId && f.type !== 'avoir' && !f.annuleeParAvoir)) facDe.set(f.devisId, f.numero);
     const demSt = new Map(dem.map(x => [x.data?.id || x.id, x.data?.statut]));
     const bonDe = new Map(bons.map(b => [b.id, b.data]));
@@ -3260,7 +3260,7 @@ Réponds uniquement en JSON : {${sms ? '' : '"sujet": "...", '}"texte": "..."}`;
       const b = bonDe.get(d.id), st = demSt.get(d.demandeId);
       const confirme = d.statut === 'accepte' || facDe.has(d.id) || ['accord', 'reserve', 'termine'].includes(st);
       const env = (b?.envois || []).slice(-1)[0];
-      return { devisId: d.id, numero: d.numero, client: b?.client?.nom || d.clientNom || '', date: b?.evenement?.date || d.evenement?.date || '', type: d.evenement?.type || '', invites: b?.evenement?.invites || d.evenement?.invites || '', ville: d.evenement?.ville || '', lieu: d.evenement?.lieu || '', statut: d.statut, reserve: st === 'reserve', facture: facDe.get(d.id) || '', confirme, retire: retire.has(d.id), bon: b ? { maj: b.updatedAt || b.creeLe, envoyeLe: env?.at || '', envoyeA: env?.a || '' } : null };
+      return { devisId: d.id, numero: d.numero, client: b?.client?.nom || d.clientNom || '', date: b?.evenement?.date || d.evenement?.date || '', type: d.evenement?.type || '', invites: b?.evenement?.invites || d.evenement?.invites || '', ville: d.evenement?.ville || '', lieu: d.evenement?.lieu || '', statut: d.statut, reserve: st === 'reserve', facture: facDe.get(d.id) || '', confirme, retire: retire.has(d.id), etat: etats.get(d.id) || {}, bon: b ? { par: b.creePar || b.majPar || '', majPar: b.majPar || '', maj: b.updatedAt || b.creeLe, envoyeLe: env?.at || '', envoyeA: env?.a || '' } : null };
     });
     res.set('Cache-Control', 'no-store').json({ aujourdhui: aujourdhui(), devis: L.sort((a, b) => String(a.date || '9999').localeCompare(String(b.date || '9999'))) });
   }));
@@ -3271,7 +3271,7 @@ Réponds uniquement en JSON : {${sms ? '' : '"sujet": "...", '}"texte": "..."}`;
     const neuf = PREP.bonDepuis(x);
     /* ?reprendre=1 : on repart des lignes du devis (le reste du bon est gardé) */
     const bon = avant ? (req.query.reprendre ? { ...avant, lignes: neuf.lignes, personnelDevis: neuf.personnelDevis, allergenesProduits: neuf.allergenesProduits } : { ...avant, lignes: PREP.completerLignes(avant.lignes, x.bySlug) }) : neuf;
-    res.set('Cache-Control', 'no-store').json({ bon, existe: !!avant, devis: { numero: x.devis.numero, statut: x.devis.statut, facture: x.facture?.numero || '' }, personnes: await personnesPrepa(), roles: PREP.ROLES, roleRecup: PREP.ROLE_RECUP, horaires: PREP.HORAIRES, listes: PREP.listesPrepa(x.produits), kits: await kitsListe(), choix: PREP.choixProduits(bon.lignes, x.bySlug), iaActive: ia.actif, message: PREP.messageDefaut(bon, req.ctx.name || '') });
+    res.set('Cache-Control', 'no-store').json({ bon, existe: !!avant, etat: (await store.get('prepasEtat/' + req.params.id)) || {}, devis: { numero: x.devis.numero, statut: x.devis.statut, facture: x.facture?.numero || '' }, personnes: await personnesPrepa(), roles: PREP.ROLES, roleRecup: PREP.ROLE_RECUP, horaires: PREP.HORAIRES, listes: PREP.listesPrepa(x.produits), kits: await kitsListe(), choix: PREP.choixProduits(bon.lignes, x.bySlug), iaActive: ia.actif, message: PREP.messageDefaut(bon, req.ctx.name || '') });
   }));
   A.put('/prepa/:id', sameSite, json, wrap(async (req, res) => {
     const x = await contextePrepa(req.params.id);
@@ -3289,6 +3289,15 @@ Réponds uniquement en JSON : {${sms ? '' : '"sujet": "...", '}"texte": "..."}`;
     if (avant) await store.delete('prepas/' + req.params.id);
     await store.set('prepasRetires/' + req.params.id, { at: new Date().toISOString(), par: req.ctx.name || '' });
     audit(req.ctx, 'événement retiré de la prépa de commande', 'prepas/' + req.params.id, `${avant?.client?.nom || dv?.clientNom || ''} · ${dv?.numero || ''}`); res.json({ ok: true });
+  }));
+  /* cases « Bon de commande préparé » / « Bon de livraison préparé » du tableau (Jean-Luc, 2026-11-28) : cochées à la main, en vert */
+  A.post('/prepa/:id/etat', sameSite, json, wrap(async (req, res) => {
+    const cle = req.body?.cle; if (!['commande', 'livraison'].includes(cle)) return res.status(400).json({ error: 'Case inconnue.' });
+    if (!(await store.get('devis/' + req.params.id))) return res.status(404).json({ error: 'Événement introuvable.' });
+    const e = (await store.get('prepasEtat/' + req.params.id)) || {};
+    if (req.body.ok) e[cle] = { at: new Date().toISOString(), par: req.ctx.name || '' }; else delete e[cle];
+    await store.set('prepasEtat/' + req.params.id, e);
+    audit(req.ctx, `${cle === 'commande' ? 'bon de commande' : 'bon de livraison'} ${req.body.ok ? 'préparé' : 'décoché'}`, 'prepas/' + req.params.id, ''); res.json({ ok: true, etat: e });
   }));
   /* remettre dans la liste un événement retiré (le bon repart du devis) */
   A.post('/prepa/:id/remettre', sameSite, wrap(async (req, res) => {
