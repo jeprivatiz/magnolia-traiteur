@@ -1724,7 +1724,7 @@ h1 .formule { font-size: .5em; margin-top: .45em; }
 .lp-eq-v { border-radius: 22px; overflow: hidden; aspect-ratio: 4 / 5; box-shadow: 0 24px 50px rgba(20, 30, 25, .22); background: #2a332e; }
 .lp-eq.paysage { grid-template-columns: minmax(0, 6fr) minmax(0, 5fr); }
 .lp-eq.paysage .lp-eq-v { aspect-ratio: 4 / 3; }
-.lp-eq-v video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.lp-eq-v video, .lp-eq-v img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .lp-eq-t h2 { font-size: clamp(1.9rem, 3.6vw, 2.7rem); margin: 0 0 14px; }
 .lp-eq-t p { color: var(--gris); }
 .lp-ig { margin-bottom: 70px; }
@@ -1734,6 +1734,7 @@ h1 .formule { font-size: .5em; margin-top: .45em; }
 .lp-ig-h b { font-family: var(--serif); font-size: 1.6rem; font-weight: 500; }
 .lp-ig-h small { color: var(--gris); font-size: .92rem; }
 .lp-ig-g { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+.lp-ig-g.n3 { grid-template-columns: repeat(3, 1fr); max-width: 760px; }
 .lp-ig-g a { aspect-ratio: 1; overflow: hidden; border-radius: 10px; display: block; }
 .lp-ig-g img { width: 100%; height: 100%; object-fit: cover; transition: transform .5s; }
 .lp-ig-g a:hover img { transform: scale(1.06); }
