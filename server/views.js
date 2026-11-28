@@ -430,7 +430,7 @@ function introHtml(titre, texte) {
 }
 /* centre des lieux dont les pays sont trop petits ou trop nombreux pour un calcul automatique [lon, lat] */
 /* photo d'ambiance du pays derrière le globe (Pexels, licence libre, voir data/credits-photos.md) */
-const PHOTOS_PAYS = { afrique: 1, antilles: 1, chine: 1, espagne: 1, inde: 1, italie: 1, japon: 1, liban: 1, maghreb: 1 };
+const PHOTOS_PAYS = { france: 1, afrique: 1, antilles: 1, chine: 1, espagne: 1, inde: 1, italie: 1, japon: 1, liban: 1, maghreb: 1 };
 /* phrase de présentation de chaque cuisine, sous le nom du pays (modifiable par spécialité : champ phraseGlobe) */
 const PHRASES_GLOBE = {
   espagne: 'Le soleil de l’Espagne à votre table : paëlla mijotée devant vos invités, safran, fruits de mer et chorizo.',
@@ -463,7 +463,7 @@ function pageGlobe(c, r) {
   /* la France, en dernier : elle mène au Buffet & cocktail français (Jean-Luc, 2026-11-23) */
   const fr = c.rubriques.find(x => x.slug === 'cocktails-buffets' && x.statut !== 'masque');
   if (fr) items.push({ slug: 'france', nom: 'Cocktail et buffet français', pays: 'France', n: (c.byRub.get(fr.slug) || []).filter(p => p.statut !== 'masque').length, href: '/' + fr.slug,
-    photo: fr.photoGlobe || fr.bandeauPhoto || fr.photo || '', vignette: fr.photo || '', phrase: fr.phraseGlobe || PHRASES_GLOBE.france, lieu: 'france', ids: [250], centre: CENTRES_GLOBE.france });
+    photo: fr.photoGlobe || '/site/pays/france.jpg' /* vue de Paris, la tour Eiffel au bord de la Seine (Jean-Luc 2026-11-28 : plus de plateau de produits) */, vignette: fr.photo || '', phrase: fr.phraseGlobe || PHRASES_GLOBE.france, lieu: 'france', ids: [250], centre: CENTRES_GLOBE.france });
   const body = `${bandeauHtml(c, { /* vidéo : une brochette de chefs de tous horizons qui sourient face caméra (Jean-Luc, 2026-11-24), dont cuisiniers africain et indien (la photo antillaise « fait danseuse » : retirée) ; sources : data/credits-videos-monde.md */
     photo: '/site/v/monde/chefs.jpg', video: '/site/v/monde/chefs.mp4', signature: r.signature ?? 'par la Maison Magnolia' /* Jean-Luc, 2026-11-24 */, titre: r.titrePage || r.nom, chapo: r.chapo || r.accroche || 'Choisissez votre spécialité : chaque cuisine a ses buffets, ses plats et ses douceurs.', bouton: 'Choisir ma spécialité', ancre: '#specialites' }, [['La boutique', '/boutique'], [r.nom]])}
 <section class="sm-globe sm-plat" id="specialites" data-sm data-sm-paris="[2.35,48.86]">
