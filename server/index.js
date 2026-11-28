@@ -449,6 +449,33 @@ async function createApp(opts = {}) {
     }
     await store.set('_migr/enceinteL1', { at: new Date().toISOString(), cree: !deja });
   }
+  /* une seule fois (Jean-Luc, 2026-11-28) : le coffret mexicain (sa photo, recadrée sans le logo MT), dans Coffrets & plateaux.
+     Créé MASQUÉ tant que le prix n'est pas fixé (plus jamais « Sur devis ») ; Jean-Luc l'affiche depuis le back-office. */
+  if (!(await store.get('_migr/coffretMexicain'))) {
+    if (!(await store.get('produits/coffret-mexicain'))) {
+      const voisin = await store.get('produits/coffret-chinois-aux-neuf-saveurs');
+      const texte = 'Guacamole, pico de gallo, mini tacos garnis, ailes de poulet grillées, croquettes de poulet croustillantes et chips de tortilla. Pour 8 à 10 personnes.';
+      await store.set('produits/coffret-mexicain', {
+        id: 'coffret-mexicain', slug: 'coffret-mexicain', rubrique: 'coffrets-plateaux', autresRubriques: [],
+        titre: 'Coffret mexicain', prixCents: 8990, prixTexte: '89,90 € TTC', unite: 'coffret', min: 1, minimumTexte: 'Pour 8 à 10 personnes',
+        extrait: texte, description: [texte],
+        sousPhoto: ['Un coffret en bois de 9 cases aux couleurs du Mexique, à partager à l’apéritif ou au buffet :', '',
+          '- **Guacamole** maison, en deux cases',
+          '- **Pico de gallo** : tomates, oignons rouges et coriandre fraîche, en deux cases',
+          '- **Mini tacos garnis** de bœuf épicé et de légumes du soleil, en deux cases',
+          '- **Ailes de poulet grillées** et marinées',
+          '- **Croquettes de poulet** croustillantes',
+          '- **Chips de tortilla** pour tremper dans le guacamole et la salsa'],
+        sousPhotoAuto: false,
+        photos: [{ src: '/site/c/coffret-mexicain.webp', alt: 'Coffret mexicain en bois de 9 cases : guacamole, pico de gallo, mini tacos, ailes de poulet, croquettes et chips de tortilla' }],
+        video: null, groupes: [], variantes: [], sections: [], details: [],
+        regles: voisin?.regles || { portee: null, carte: null, adaptationCents: 0, horaire: false, personnel: 'service', packs: true, notePrix: null },
+        ordre: (voisin?.ordre ?? 3) + 0.5, statut: 'masque', maison: true, tva: voisin?.tva ?? 10, coutCents: null, allergenes: [],
+        rangement: voisin?.rangement || null, creeLe: new Date().toISOString(),
+      });
+    }
+    await store.set('_migr/coffretMexicain', { at: new Date().toISOString() });
+  }
   /* une seule fois (Jean-Luc, 2026-11-28) : la photo des sandwichs club colorés (mini-clubs) est remplacée PARTOUT
      (fiches, rubriques, réglages du site) par sa photo du coffret bois 9 cases, recadrée sans le logo */
   if (!(await store.get('_migr/coffretPartout'))) {
