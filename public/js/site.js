@@ -741,6 +741,7 @@ function bandeauCookies() {
     const go = () => { const p = v.play(); if (p) p.catch(() => {}); };
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { v.removeAttribute('autoplay'); return; }
     go(); document.addEventListener('visibilitychange', () => { if (!document.hidden) go(); });
+    v.addEventListener('ended', () => { v.currentTime = 0; go(); }); /* boucle garantie, même si un navigateur ignore loop */
   });
   const plus = document.querySelector('[data-avis-plus]');
   const montrer = el => { if (el && el.hidden) el.hidden = false; };
