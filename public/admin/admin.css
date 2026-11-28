@@ -2707,3 +2707,25 @@ tr.rem-det > td { padding: 4px 0 12px 14px; }
 .pfv .btn.or { background: var(--or, #b8924a); color: #fff; border-color: var(--or, #b8924a); }
 .pfv .lab small { font-weight: 400; }
 .pill.pill-ent { --c: #2b5242; display: inline-block; margin: 0 0 4px; }
+
+/* Prépa de commande : cases vertes « Bon de commande préparé » / « Bon de livraison préparé » */
+.pc-etc { width: 200px; min-width: 200px; cursor: default; }
+.pc-et { display: flex; align-items: center; gap: 8px; width: 100%; margin: 0 0 6px; padding: 5px 10px 5px 6px; font: inherit; font-size: .84rem; font-weight: 600; text-align: left; color: var(--texte); background: #fff; border: 1.5px solid #cdbf9f; border-radius: 9px; cursor: pointer; line-height: 1.2; }
+.pc-et:last-child { margin-bottom: 0; }
+.pc-et:hover { border-color: #2f8a4c; }
+.pc-etb { flex: none; display: inline-grid; place-items: center; width: 22px; height: 22px; font-size: 15px; line-height: 1; color: #fff; background: #fff; border: 2px solid #8a7a5a; border-radius: 5px; }
+.pc-et.on { color: #1d6b37; background: #e7f5ea; border-color: #2f8a4c; }
+.pc-et.on .pc-etb { background: #2f8a4c; border-color: #2f8a4c; }
+/* les deux cochées : toute la ligne en vert grisé */
+.pc-lt tr.pc-fait > td { background: #dfe9e1; color: #4d6153; }
+.pc-lt tr.pc-fait:hover > td { background: #d3e2d6; }
+.pc-lt tr.pc-fait td b { color: #3c5444; }
+
+.pc-et > span:last-child { display: flex; flex-direction: column; }
+.pc-etp { font-weight: 500; font-size: .74rem; color: #3f7a52; }
+.pc-par { margin-top: 4px; }
+/* fiche : qui a préparé le bon + validations */
+.pc-valid { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 18px; margin: 0 0 14px; padding: 12px 16px; background: #fff; border: 1px solid #e3cfa6; border-radius: 12px; }
+.pc-validq { font-size: .95rem; }
+.pc-valide { display: flex; flex-wrap: wrap; gap: 8px; }
+.pc-valide .pc-et { width: auto; margin: 0; }
