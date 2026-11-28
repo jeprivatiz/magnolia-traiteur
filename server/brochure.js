@@ -363,11 +363,12 @@ function html(c, opts = {}) {
   };
 
   /* ---------- chapitre 1 : le traiteur français ---------- */
-  ouverture('01', 'Le traiteur français', 'Du petit-déjeuner au dîner : cocktails déjeunatoires ou dînatoires, buffets généreux et repas servis à table, des recettes de tradition et des bouchées raffinées préparées pour vos invités.', '/site/c/carte-magnolia-bandeau-chef.webp', 'cocktails-buffets', ['Nos petits-déjeuners', 'Nos cocktails & buffets français', 'La carte Magnolia : entrées, plats, repas servi à table, desserts']);
+  ouverture('01', 'Le traiteur français', 'Du petit-déjeuner au dîner : cocktails déjeunatoires ou dînatoires, buffets généreux et repas servis à table, des recettes de tradition et des bouchées raffinées préparées pour vos invités.', '/site/c/carte-magnolia-bandeau-chef.webp', 'cocktails-buffets', ['Nos petits-déjeuners', 'Nos cocktails & buffets français', 'La carte Magnolia : repas servi à table, entrées, plats, desserts']);
   /* les petits-déjeuners ouvrent l'offre traiteur : c'est le premier moment de la journée (Jean-Luc, 2026-11-28) */
   grille(GRILLES.petitsDej);
   for (const d of FRANCAIS) formule(d, 'Cocktails & buffets français');
-  /* La carte Magnolia */
+  /* La carte Magnolia : le repas servi à table la présente, puis ses entrées, ses plats et ses desserts (Jean-Luc, 2026-11-28) */
+  formule(REPAS, 'La carte Magnolia');
   grille(GRILLES.entrees);
   const gammes = [['Gamme Tradition', ['boeuf-bourguignon', 'lasagnes-a-la-bolognaise', 'tartiflette', 'saute-de-veau-aux-champignons', 'roti-de-porc', 'parmentier-de-canard']],
     ['Gamme Gourmet', ['blanquette-de-veau', 'filet-mignon-de-porc-sauce-moutarde', 'paupiette-de-veau-sauce-forestiere', 'confit-de-canard', 'dos-de-cabillaud-sauce-citronnee', 'roti-de-boeuf']],
@@ -378,9 +379,7 @@ function html(c, opts = {}) {
 <div class="gammes">${gammes.map(([t, L]) => { const ps = L.map(P).filter(Boolean); return `<div class="gamme"><div class="gamme-h"><h3>${esc(t)}</h3>${qr(ps[0] ? ps[0].slug : 'carte-magnolia', 's', 'Voir les prix')}</div><ul>${ps.map(p => `<li>${photo(photoDe(p), p.titre)}<a href="${esc(lien(p.slug))}">${esc(p.titre)}</a></li>`).join('')}</ul></div>`; }).join('')}</div>
 <div class="accomp"><h3 class="titre-or">Nos accompagnements, compris dans le prix du plat</h3><p>${accomp.map(esc).join(' · ')}</p><p class="petit">Pour les repas servis à table : un plat unique pour tous les convives, avec jusqu’à deux accompagnements. Des adaptations pour les régimes particuliers peuvent être prévues dans votre devis.</p></div>
 </div>${pied(n)}</section>`, 'La carte Magnolia : nos plats');
-  /* le repas servi à table a sa propre page, avec le salé, avant les desserts (Jean-Luc, 2026-11-28) */
-  formule(REPAS, 'La carte Magnolia');
-  /* les desserts de la carte suivent le repas servi à table, après tout son salé (Jean-Luc, 2026-11-28) */
+  /* les desserts ferment la carte, après tout le salé (Jean-Luc, 2026-11-28) */
   grille(GRILLES.desserts);
 
   /* ---------- chapitre 2 : saveurs du monde ---------- */
