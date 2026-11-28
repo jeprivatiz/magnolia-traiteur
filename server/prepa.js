@@ -81,10 +81,32 @@ function recupDefaut(l, p) {
   if (/chauffeur|livraison|pack traiteur/i.test(String(l?.designation || p?.titre || ''))) return false;
   return liste === 'materiel' || liste === 'nappes' || !!(p && (RUB_RECUP.includes(p.rubrique) || (p.autresRubriques || []).some(r => RUB_RECUP.includes(r))));
 }
+/* tout ce qui est écrit sur le devis devient une ligne à cocher (Jean-Luc, 2026-11-28 : « il ne faut rien oublier ») :
+   « Colombo de poulet × 30, Coq roussi × 22, Riz nature… » → un élément par choix, avec son groupe (Plats, Accompagnements…) et son nombre.
+   Seulement quand c'est une liste de choix (un « × N » ou un nom d'option de la fiche) ; une phrase de description reste telle quelle. */
+const normC = x => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+function itemsDepuisDetail(l, p) {
+  const brut = String(l?.detail || ''); if (!brut.trim()) return null;
+  const [txtChoix, ...reste] = brut.split(/\s+—\s+(?=Note\s*:)/);
+  const segs = txtChoix.split(/\s*[,;\n]\s*|\s+·\s+/).map(x => x.trim()).filter(Boolean);
+  if (!segs.length) return null;
+  const opts = []; for (const g of p?.groupes || []) for (const o of g.options || []) opts.push({ g, k: normC(o.label), label: s(o.label, 120) });
+  const lus = segs.map(seg => {
+    const m = /^(.*?)\s*[×x]\s*(\d+(?:[.,]\d+)?)\s*$/.exec(seg), nom = (m ? m[1] : seg).replace(/^[-•]\s*/, '').trim();
+    const o = opts.find(x => x.k && x.k === normC(nom));
+    return { nom: o ? o.label : nom, groupe: o ? nomGroupe(o.g) : '', n: m ? +m[2].replace(',', '.') : o && o.g.mode !== 'quantites' ? (Number(l.qteDevis) || '') : '', sur: !!(m || o) };
+  });
+  if (!lus.some(x => x.sur) || lus.some(x => x.nom.length > 90)) return null;
+  return { items: lus.map(({ sur, ...x }) => x).filter(x => x.nom), detail: reste.join(' — ') };
+}
 /* bon enregistré avant l'arrivée d'une liste (nappes, softs, matériel) : on la rajoute sur ses lignes, sans toucher au reste */
 function completerLignes(lignes = [], bySlug = new Map()) {
   return lignes.map(l => {
     if (l?.type === 'produit' && l.recup === undefined) l = { ...l, recup: recupDefaut(l, bySlug.get(l.produit)) };
+    if (l?.type === 'produit' && l.detail && (!l.liste || l.liste === 'compo')) {
+      const d = itemsDepuisDetail(l, bySlug.get(l.produit));
+      if (d) { const deja = new Set((l.items || []).map(x => normC(x.nom))); const items = [...(l.items || []), ...d.items.filter(x => !deja.has(normC(x.nom)))]; l = { ...l, liste: 'compo', items, detail: d.detail }; if (l.qteAuto || !l.qtePrepa) l = { ...l, qtePrepa: qteAuto(l), qteAuto: true }; }
+    }
     if (l?.type !== 'produit' || l.liste) return l;
     const liste = listeDe(l.produit, l.designation); if (!liste) return l;
     const items = (l.items || []).length ? l.items : liste === 'nappes' ? itemsNappe(l.designation, l.qteDevis) : [];
@@ -141,8 +163,10 @@ function lignesDepuisDevis(devis, bySlug = new Map()) {
     if (l.type === 'titre') { if (s(l.designation)) out.push({ id: 'l' + rid6(), type: 'titre', designation: s(l.designation, 300) }); continue; }
     if (estLivraison(l) || estPersonnelL(l, bySlug)) continue;
     const p = bySlug.get(l.produit), designation = s(String(l.designation || p?.titre || '').replace(/\*\*/g, ''), 300);
-    const liste = listeDe(l.produit, designation), items = liste === 'compo' || !liste ? compoDe(l, p) : liste === 'nappes' ? itemsNappe(designation, l.qte) : [];
-    out.push({ id: 'l' + rid6(), type: 'produit', produit: s(l.produit, 160), designation, detail: items.length ? '' : txt(l.detail, 600), qteDevis: Number(l.qte) || '', unite: s(l.unite, 40), qtePrepa: qteAuto({ liste, items }), qteAuto: true, note: txt(l.note, 400), allergenes: [...(p?.allergenes || [])], liste: liste || (items.length || choixProduit(p).length ? 'compo' : ''), items, recup: recupDefaut({ produit: l.produit, designation, liste }, p) });
+    const liste0 = listeDe(l.produit, designation), items0 = liste0 === 'compo' || !liste0 ? compoDe(l, p) : liste0 === 'nappes' ? itemsNappe(designation, l.qte) : [];
+    const lu = !items0.length && (liste0 === 'compo' || !liste0) ? itemsDepuisDetail({ detail: txt(l.detail, 600), qteDevis: Number(l.qte) || '' }, p) : null;
+    const liste = lu ? 'compo' : liste0, items = lu ? lu.items : items0;
+    out.push({ id: 'l' + rid6(), type: 'produit', produit: s(l.produit, 160), designation, detail: lu ? lu.detail : items.length ? '' : txt(l.detail, 600), qteDevis: Number(l.qte) || '', unite: s(l.unite, 40), qtePrepa: qteAuto({ liste, items }), qteAuto: true, note: txt(l.note, 400), allergenes: [...(p?.allergenes || [])], liste: liste || (items.length || choixProduit(p).length ? 'compo' : ''), items, recup: recupDefaut({ produit: l.produit, designation, liste }, p) });
   }
   /* un intertitre sans produit en dessous ne sert à rien */
   return out.filter((x, i) => x.type !== 'titre' || (out[i + 1] && out[i + 1].type !== 'titre'));
@@ -429,4 +453,4 @@ ${consigne ? 'Consigne de la personne qui envoie (prioritaire) : ' + consigne + 
 Réponds uniquement en JSON : {${sms ? '' : '"sujet": "...", '}"texte": "..."}`;
 }
 
-module.exports = { ACC_G, accompsPour, horairesVus, ROLE_RECUP, ROLES_MSG, aRecuperer, completerLignes, itemsNappe, qteAuto, choixProduit, choixProduits, NOM_ROLE, modeleMessage, promptMessage, infosRole, LISTES, listesPrepa, compoDe, listeDe, itemsTexte, ROLES, HORAIRES, bonDepuis, lignesDepuisDevis, nettoyer, documentHtml, emailHtml, messageDefaut, smsTexte, titreBon, dateCourte, allergenesDe };
+module.exports = { itemsDepuisDetail, ACC_G, accompsPour, horairesVus, ROLE_RECUP, ROLES_MSG, aRecuperer, completerLignes, itemsNappe, qteAuto, choixProduit, choixProduits, NOM_ROLE, modeleMessage, promptMessage, infosRole, LISTES, listesPrepa, compoDe, listeDe, itemsTexte, ROLES, HORAIRES, bonDepuis, lignesDepuisDevis, nettoyer, documentHtml, emailHtml, messageDefaut, smsTexte, titreBon, dateCourte, allergenesDe };
