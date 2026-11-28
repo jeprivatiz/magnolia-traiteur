@@ -47,6 +47,8 @@ test('pavé sur la page antillaise, rubrique et fiches commandables, puis tout d
     const buche = c.bySlug.get('buche-coco-passion');
     assert.equal(buche.prixCents, 5200); assert.equal(buche.coutCents, 4000);
     assert.equal(c.bySlug.get('pate-sale-boeuf-noel').min, 10);
+    assert.ok(buche.photos.length >= 1 && /images.pexels.com/.test(buche.photos[0].src), 'photo de la bûche');
+    assert.ok(c.produits.filter(p => p.noel).every(p => p.photos.length), 'toutes les fiches ont une photo');
     assert.equal(c.bySlug.get('epaule-agneau-confite-noel').min, 6);
     const fiche = await fetch(base + '/menu-de-noel/buche-coco-passion');
     assert.equal(fiche.status, 200);
