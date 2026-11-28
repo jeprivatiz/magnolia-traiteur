@@ -65,7 +65,7 @@ function court(t, max = 170) {
   return (i > max * .55 ? x.slice(0, i + 1) : x.replace(/\s+\S*$/, '') + '…').trim();
 }
 /* photos choisies pour la brochure seulement (Jean-Luc, 2026-11-28 : un burger, pas des frites, pour le stand à burgers) */
-const PHOTO_BROCHURE = { 'pause-cafe': '/site/c/brochure/pdj-pause-cafe.webp', 'petit-dejeuner-classique': '/site/c/brochure/pdj-croissants-assiette.webp', 'petit-dejeuner-luxe': '/site/c/brochure/pdj-table-luxe.webp', 'stand-a-burgers': '/site/c/page19-burger-poster.jpg.webp', 'bar-a-pates': '/site/c/bar-a-pates-chef.webp', 'chef-sushi-a-domicile': '/site/c/sushiman-mains.webp' };
+const PHOTO_BROCHURE = { 'pause-cafe': '/site/c/brochure/pdj-pause-cafe.webp', 'petit-dejeuner-classique': '/site/c/brochure/pdj-classique-buffet.webp' /* photo Magnolia : mini viennoiseries, jus d'orange et de pomme, café, thé (Jean-Luc, 2026-11-28) */, 'petit-dejeuner-luxe': '/site/c/brochure/pdj-table-luxe.webp', 'stand-a-burgers': '/site/c/page19-burger-poster.jpg.webp', 'bar-a-pates': '/site/c/bar-a-pates-chef.webp', 'chef-sushi-a-domicile': '/site/c/sushiman-mains.webp' };
 const photoDe = x => {
   if (x && PHOTO_BROCHURE[x.slug]) return PHOTO_BROCHURE[x.slug];
   const ph = (x && x.photos) || [];
@@ -285,10 +285,10 @@ const GRILLES = {
   boissons: { eyebrow: 'Les boissons de votre réception', titre: 'La cave de Magnolia', intro: 'Du vin au soft, en passant par les alcools : notre champagne de petit récoltant, une sélection de vins, nos open bars et nos barmans pour servir vos invités.',
     cle: 'boissons', cols: 3, items: ['champagne-andre-diligent', 'open-bar-vins-et-champagnes', 'nos-open-bars', 'bar-a-cocktails-4-h-au-cocktail', 'bar-a-shots-a-volonte-1-h-30', 'sangria-maison-au-litre', 'chateau-minuty-prestige-rose', 'jean-des-valanges-chardonnay-blanc', 'livraison-de-glacons-sac-de-20-kg'] },
   petitsDej: { eyebrow: 'Pour bien commencer la journée', titre: 'Nos petits-déjeuners', intro: ['Réunions matinales, séminaires, journées de formation ou accueil de vos invités : le petit-déjeuner donne le ton de toute la journée. Nous livrons des buffets gourmands et soignés, dressés pour être servis dès l’arrivée de vos convives, à partir de 20 personnes.',
-      'Viennoiseries, boissons chaudes, jus de fruits et douceurs : choisissez la pause café pour une courte réunion, le petit-déjeuner classique pour l’essentiel, ou le petit-déjeuner luxe pour recevoir comme à l’hôtel. Livraison 7 j/7 sur Paris et toute l’Île-de-France, et un serveur peut s’occuper du service sur place.'],
+      'Mini viennoiseries, café, thé et jus de fruits : choisissez la pause café pour une courte réunion, le petit-déjeuner classique pour l’essentiel, ou le petit-déjeuner luxe pour recevoir comme à l’hôtel. Livraison 7 j/7 sur Paris et toute l’Île-de-France, et un serveur peut s’occuper du service sur place.'],
     cle: 'petits-dejeuners', cols: 3, bandeau: true, bandeauPhoto: '/site/c/brochure/pdj-bandeau-cafe-croissants.webp' /* photos de petits-déjeuners de qualité photographe (Jean-Luc, 2026-11-28) */, classe: 'g-pdj', items: [
-      { slug: 'pause-cafe', texte: 'Café, thé et jus de fruits, avec quelques douceurs : la pause qui relance une réunion ou un séminaire.' },
-      { slug: 'petit-dejeuner-classique', texte: 'Viennoiseries, boissons chaudes et jus de fruits : l’essentiel d’un bon petit-déjeuner, prêt à l’arrivée de vos invités.' },
+      { slug: 'pause-cafe', texte: 'Café, thé et jus d’orange, avec des mini viennoiseries : la pause qui relance une réunion, un séminaire ou une formation.' },
+      { slug: 'petit-dejeuner-classique', texte: 'Café et thé Earl Grey à volonté, eaux plate et gazeuse, jus d’orange et de pomme, 2 mini viennoiseries par personne. Thermos et percolateurs fournis, installation comprise.' },
       { slug: 'petit-dejeuner-luxe', texte: 'Une version plus généreuse, avec plus de choix et de douceurs, pour recevoir vos invités comme à l’hôtel.' }] },
   salees1: { eyebrow: 'Animations culinaires', titre: 'Nos animations salées', intro: 'Du spectacle, des saveurs et de la convivialité : nos animations culinaires éveillent les papilles et réunissent vos invités autour d’un moment gourmand.',
     cle: 'animations-salees', cols: 2, items: ['bar-a-saumon-fume', 'bar-a-foie-gras', 'bar-a-huitres', 'saint-jacques-a-la-plancha', 'animation-ti-punch-acras-et-boudins', 'animation-barbecue'] },
@@ -415,7 +415,7 @@ function html(c, opts = {}) {
   };
 
   /* ---------- chapitre 1 : le traiteur français ---------- */
-  ouverture('01', 'Le traiteur français', 'Du petit-déjeuner au dîner : cocktails déjeunatoires ou dînatoires, buffets généreux et repas servis à table, des recettes de tradition et des bouchées raffinées préparées pour vos invités.', '/site/c/chef-toque-buffet.webp' /* chef en toque, manches longues : jamais de bras poilus sur les pages traiteur (Jean-Luc, 2026-11-28) */, 'cocktails-buffets', ['Nos petits-déjeuners', 'Nos cocktails & buffets français', 'La carte Magnolia : repas servi à table, entrées, plats, desserts']);
+  ouverture('01', 'Le traiteur français', 'Du petit-déjeuner au dîner : cocktails déjeunatoires ou dînatoires, buffets généreux et repas servis à table, des recettes de tradition et des bouchées raffinées préparées pour vos invités.', '/site/c/brochure/chef-gants-dressage.webp' /* gros plan de mains gantées qui dressent un plat : jamais de bras poilus sur les pages traiteur (Jean-Luc, 2026-11-28) */, 'cocktails-buffets', ['Nos petits-déjeuners', 'Nos cocktails & buffets français', 'La carte Magnolia : repas servi à table, entrées, plats, desserts']);
   /* les petits-déjeuners ouvrent l'offre traiteur : c'est le premier moment de la journée (Jean-Luc, 2026-11-28) */
   grille(GRILLES.petitsDej);
   for (const d of FRANCAIS) formule(d, 'Cocktails & buffets français');
