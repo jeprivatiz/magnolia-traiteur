@@ -225,7 +225,7 @@ const REPAS = { slug: 'repas-servi-a-table-elabore-par-le-chef', tags: ['Menu co
 const GRILLES = {
   entrees: { eyebrow: 'La carte Magnolia', titre: 'Nos entrées', intro: 'Ouvrez votre repas avec nos entrées fraîches et gourmandes. Entre terre et mer, des saveurs délicates pour régaler vos invités dès la première bouchée. 5 portions minimum du même choix, commande 72 h à l’avance.',
     cle: 'carte-magnolia', items: ['carpaccio-de-tomates', 'tartare-de-noix-de-saint-jacques', 'tartare-de-saumon', 'carpaccio-de-boeuf', 'carpaccio-de-thon', 'foie-gras-et-douceur-de-figues', 'salade-de-jeunes-pousses-aux-gambas', 'le-trio-affine', 'menu-enfant-3-a-12-ans'] },
-  desserts: { eyebrow: 'La carte Magnolia', titre: 'Nos desserts', intro: 'Six desserts qui peuvent varier selon la saison, l’humeur du chef et surtout vos désirs. 5 portions minimum du même choix.',
+  desserts: { eyebrow: 'La carte Magnolia', titre: 'Nos desserts', bandeauPhoto: '/site/c/desserts-bandeau.webp', intro: 'Six desserts qui peuvent varier selon la saison, l’humeur du chef et surtout vos désirs. 5 portions minimum du même choix.',
     cle: 'carte-magnolia', items: ['paris-brest-praline', 'millefeuille-a-la-creme', 'opera-chocolat-cafe', 'entremets-chocolat-praline', 'douceur-vanille-passion', 'entremets-poire-caramel'] },
   coffrets: { eyebrow: 'Coffrets & plateaux', titre: 'Nos coffrets gourmands', intro: 'Faites voyager vos invités avec nos coffrets aux saveurs du monde, pour 8 à 10 personnes. À partager, ils sont le complément idéal de vos apéritifs et de vos buffets.',
     cle: 'coffrets-plateaux', items: ['le-coffret-antillais-saveurs-pays', 'coffret-italien-mamma-mia', 'coffret-libanais-du-chef-leon', 'coffret-chinois-aux-neuf-saveurs', 'coffret-crudites-bio-du-jardin', 'coffret-fromages-de-nos-regions', 'coffret-fruits-frais'] },
@@ -343,7 +343,7 @@ function html(c, opts = {}) {
     if (!items.length) return;
     const cols = g.cols || 3;
     const r = rub(g.cle);
-    const bandeau = g.bandeau && r ? (r.bandeauPhoto || r.photo) : '';
+    const bandeau = g.bandeauPhoto || (g.bandeau && r ? (r.bandeauPhoto || r.photo) : '');
     ajoute(n => `<section class="pg grille g${cols}${bandeau ? ' avec-bandeau' : ''}" id="p${n}">${bandeau ? `<div class="g-bandeau">${photo(bandeau, g.titre)}</div>` : ''}<div class="pg-in">
 <header class="g-h"><div><p class="eyebrow">${esc(g.eyebrow)}</p><h2>${esc(g.titre)}</h2><p class="intro">${esc(g.intro)}</p></div>${g.cle ? qr(g.cle, 's', 'Tout voir') : ''}</header>
 <div class="cartes">${items.map(p => `<article class="carte"><div class="carte-ph">${photo(photoDe(p), p.titre)}${qr(p.slug, 's', '')}</div><div class="carte-b"><h3><a href="${esc(lien(p.slug))}">${esc(p.titre)}</a></h3><p>${esc(court(p.extrait || (p.description || [])[0] || '', cols === 2 ? 230 : 140))}</p><a class="voir" href="${esc(lien(p.slug))}">Voir le prix sur le site ↗</a></div></article>`).join('')}</div>
@@ -351,7 +351,9 @@ function html(c, opts = {}) {
   };
 
   /* ---------- chapitre 1 : le traiteur français ---------- */
-  ouverture('01', 'Le traiteur français', 'Cocktails déjeunatoires ou dînatoires, buffets généreux et repas servis à table : des recettes de tradition et des bouchées raffinées, préparées pour vos invités.', '/site/c/carte-magnolia-bandeau-chef.webp', 'cocktails-buffets', ['Nos cocktails & buffets français', 'La carte Magnolia : entrées, plats, desserts']);
+  ouverture('01', 'Le traiteur français', 'Du petit-déjeuner au dîner : cocktails déjeunatoires ou dînatoires, buffets généreux et repas servis à table, des recettes de tradition et des bouchées raffinées préparées pour vos invités.', '/site/c/carte-magnolia-bandeau-chef.webp', 'cocktails-buffets', ['Nos petits-déjeuners', 'Nos cocktails & buffets français', 'La carte Magnolia : entrées, plats, repas servi à table']);
+  /* les petits-déjeuners ouvrent l'offre traiteur : c'est le premier moment de la journée (Jean-Luc, 2026-11-28) */
+  grille(GRILLES.petitsDej);
   for (const d of FRANCAIS) formule(d, 'Cocktails & buffets français');
   /* La carte Magnolia */
   grille(GRILLES.entrees);
@@ -366,7 +368,6 @@ function html(c, opts = {}) {
 </div>${pied(n)}</section>`, 'La carte Magnolia : nos plats');
   /* le repas servi à table a sa propre page, avec le salé, avant les desserts (Jean-Luc, 2026-11-28) */
   formule(REPAS, 'La carte Magnolia');
-  grille(GRILLES.desserts);
 
   /* ---------- chapitre 2 : saveurs du monde ---------- */
   const sm = rub('saveurs-du-monde');
@@ -390,16 +391,17 @@ function html(c, opts = {}) {
 <div class="form-bas">${qr('grand-large', 'l', '')}<div class="form-bas-t"><b>Composez votre plateau en ligne</b><span>Scannez ou cliquez : choisissez vos produits, voyez les prix à jour et ajoutez-les à votre sélection.</span><a href="${esc(lien('grand-large'))}">Voir sur le site →</a></div>${['huitres-gillardeau-n-3', 'homard-europeen-de-bretagne'].map(vignette).filter(Boolean).map(v => `<div class="form-vg">${photo(v)}</div>`).join('')}</div>${pied(n)}</section>`, 'Plateaux de fruits de mer');
   }
 
-  /* ---------- chapitre 3 : coffrets, boissons, petits-déjeuners ---------- */
-  ouverture('03', 'Coffrets, boissons & petits-déjeuners', 'Des coffrets à partager, des plateaux généreux, notre cave et nos open bars, et de quoi bien commencer la journée.', vignette('le-coffret-antillais-saveurs-pays') || '/site/c/coffret-bois-9-cases.webp', 'coffrets-plateaux', ['Nos coffrets gourmands', 'Nos plateaux à partager', 'La cave de Magnolia', 'Nos petits-déjeuners']);
-  grille(GRILLES.coffrets); grille(GRILLES.plateaux); grille(GRILLES.boissons); grille(GRILLES.petitsDej);
+  /* ---------- chapitre 3 : coffrets, desserts, boissons ---------- */
+  ouverture('03', 'Coffrets, desserts & boissons', 'Des coffrets à partager, des plateaux généreux, les desserts du chef, puis notre cave et nos open bars.', vignette('le-coffret-antillais-saveurs-pays') || '/site/c/coffret-bois-9-cases.webp', 'coffrets-plateaux', ['Nos coffrets gourmands', 'Nos plateaux à partager', 'Nos desserts', 'La cave de Magnolia']);
+  /* les desserts viennent après tout le salé, juste avant la cave (Jean-Luc, 2026-11-28) */
+  grille(GRILLES.coffrets); grille(GRILLES.plateaux); grille(GRILLES.desserts); grille(GRILLES.boissons);
 
   /* ---------- chapitre 4 : animations & douceurs ---------- */
   ouverture('04', 'Animations & douceurs', 'Des stands qui font le spectacle, des douceurs pour petits et grands, des corbeilles de fruits et des gâteaux de fête.', vignette('animation-barbecue') || '/site/c/barbecue40-client-20261031.jpg.webp', 'animations-salees', ['Nos animations salées', 'Nos animations sucrées', 'Corbeilles de fruits & pâtisseries', 'Gâteaux & pièces montées']);
   grille(GRILLES.salees1); grille(GRILLES.salees2); grille(GRILLES.sucrees); grille(GRILLES.corbeilles); grille(GRILLES.gateaux);
 
   /* ---------- chapitre 5 : votre réception de A à Z ---------- */
-  ouverture('05', 'Votre réception, dans les moindres détails', 'Location, personnel, son, lumière, musique, artistes et lieux de réception : une seule demande pour tout organiser.', '/site/c/personnel-bandeau-serveur.webp', 'indispensables', ['Les indispensables & la location', 'Le personnel de réception', 'Son, lumière, musique & artistes', 'Nos lieux de réception', 'Commander & livraison']);
+  ouverture('05', 'Votre réception, dans les moindres détails', 'Location, personnel, son, lumière, musique, artistes et lieux de réception : une seule demande pour tout organiser.', '/site/c/soiree-entreprise-reception.webp', 'indispensables', ['Les indispensables & la location', 'Le personnel de réception', 'Son, lumière, musique & artistes', 'Nos lieux de réception', 'Commander & livraison']);
   grille(GRILLES.indisp1); grille(GRILLES.indisp2); grille(GRILLES.personnel); grille(GRILLES.son); grille(GRILLES.live); grille(GRILLES.surprendre); grille(GRILLES.jeux);
 
   /* lieux */
@@ -438,7 +440,7 @@ function html(c, opts = {}) {
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/brochure.css?v=${opts.v || ''}"></head>
-<body class="brochure">${opts.barre === false ? '' : `<div class="b-barre"><a class="b-ret" href="/">← Le site</a><span>La brochure Magnolia Traiteur · ${pages.length} pages</span>${opts.pdf ? `<a class="b-btn" href="${esc(opts.pdf)}" download>Télécharger le PDF</a>` : ''}<button type="button" class="b-btn" onclick="window.print()">Imprimer</button></div>`}
+<body class="brochure">${opts.barre === false ? '' : `<div class="b-barre"><a class="b-ret" href="/">← Le site</a><span>La brochure Magnolia Traiteur · ${pages.length} pages</span>${opts.pdf ? `<a class="b-btn" href="${esc(opts.pdf)}" download>Télécharger le PDF</a>` : ''}<button type="button" class="b-btn" onclick="window.print()">Imprimer</button><button type="button" class="b-btn" id="b-envoyer">Envoyer</button></div>`}
 ${corps}
 ${opts.barre === false ? '' : `<script>
 /* Retour à la même page de la brochure après avoir ouvert une fiche (Jean-Luc, 2026-11-28) :
@@ -453,6 +455,18 @@ ${opts.barre === false ? '' : `<script>
   function remettre() { var y = lire(); if (y > 0 && Math.abs((window.scrollY || 0) - y) > 40 && !location.hash) window.scrollTo(0, y); }
   window.addEventListener('pageshow', function () { remettre(); setTimeout(remettre, 300); });
   window.addEventListener('load', function () { setTimeout(remettre, 50); });
+})();
+/* bouton « Envoyer » (Jean-Luc, 2026-11-28) : partage du téléphone (SMS, WhatsApp, e-mail…), sinon e-mail prérempli + lien copié */
+(function () {
+  var b = document.getElementById('b-envoyer'); if (!b) return;
+  var lien = location.origin + '/brochure.pdf';
+  var titre = 'La brochure Magnolia Traiteur', texte = 'Voici la brochure de Magnolia Traiteur, traiteur et événementiel : ';
+  b.addEventListener('click', function () {
+    if (navigator.share) { navigator.share({ title: titre, text: texte, url: lien }).catch(function () {}); return; }
+    try { navigator.clipboard && navigator.clipboard.writeText(lien); } catch (e) {}
+    b.textContent = 'Lien copié ✓'; setTimeout(function () { b.textContent = 'Envoyer'; }, 3000);
+    location.href = 'mailto:?subject=' + encodeURIComponent(titre) + '&body=' + encodeURIComponent(texte + lien);
+  });
 })();
 </script>`}
 </body></html>`;
