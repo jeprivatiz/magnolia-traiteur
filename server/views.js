@@ -363,7 +363,7 @@ const BANDEAUX_DEFAUT = {
   lieux: { photo: '/site/v/lieux-ambiances.jpg', video: '', titre: 'Lieux de réception', chapo: 'Lofts, péniches, demeures et salons à privatiser. Associez votre lieu et votre traiteur dans une seule demande.', bouton: 'Voir les lieux', ancre: '#lieux' },
   temoignages: { photo: '/site/v/temoignages-table.jpg', video: '/site/v/temoignages-table.mp4', titre: 'Avis clients', chapo: 'Mariages, anniversaires, séminaires, fêtes de famille : ils nous ont confié leur événement et le racontent.', bouton: 'Lire les avis', ancre: '#avis' },
   /* page d'arrivée des entreprises (publicité Google Ads « traiteur entreprise », Jean-Luc 2026-11-28) */
-  entreprises: { photo: '/site/v/bandeaux/cocktails-buffets-2.jpg', video: '/site/v/bandeaux/cocktails-buffets-2.mp4', titre: 'Traiteur pour les entreprises', chapo: 'Petits-déjeuners, plateaux repas, cocktails, séminaires et soirées d’entreprise : un seul interlocuteur pour tout votre événement, du café d’accueil au dernier verre.', bouton: 'Recevoir mon devis sous 24 h', ancre: '#devis-entreprise',
+  entreprises: { photo: '/site/v/bandeaux/cocktails-buffets-2.jpg', video: '/site/v/bandeaux/cocktails-buffets-2.mp4', titre: 'Magnolia\nle traiteur des entreprises', chapo: 'Petits-déjeuners, plateaux repas, cocktails, séminaires et soirées d’entreprise : un seul interlocuteur pour tout votre événement, du café d’accueil au dernier verre.', bouton: 'Recevoir mon devis sous 24 h', ancre: '#devis-entreprise',
     fiches: ['cocktail-corporate-magnolia', 'petit-dejeuner-classique', 'pause-cafe', 'plateau-de-80-mini-clubs', 'plateau-japonais-38-pieces', 'grand-cocktail-magnolia', 'repas-servi-a-table-elabore-par-le-chef', 'open-bar-vins-et-champagnes'],
     introTitre: 'Tout ce dont votre entreprise a besoin, au même endroit', introTexte: 'Réunion du matin, déjeuner de travail, séminaire, inauguration, pot de départ ou soirée de fin d’année : choisissez votre besoin ci-dessous, vous arrivez directement sur nos propositions, avec leurs prix TTC. Vous pouvez aussi nous décrire votre projet en quelques lignes : un conseiller vous envoie votre devis sous 24 h, au nom de votre société.' },
   maison: { photo: '/site/c/personnel80-client-20261102.webp.webp', video: '', titre: 'La maison Magnolia', chapo: 'Votre événement commence ici.', bouton: 'Découvrir nos propositions', ancre: '/boutique' },
@@ -379,6 +379,10 @@ function bandeau(c, cle, { fil, titre } = {}) {
   const B = bandeauDe(c, cle);
   return bandeauHtml(c, { ...B, titre: titre || B.titre }, fil);
 }
+/* titre de bandeau sur deux lignes : retour à la ligne ou « | » (ex. « Magnolia | le traiteur des entreprises ») */
+const titreParts = t => String(t || '').split(/\s*(?:\n|\|)\s*/).filter(Boolean);
+const titreSimple = t => titreParts(t).join(', ');
+const titreLignes = t => { const [a, ...r] = titreParts(t); return r.length ? `${esc(a)}<span class="h1-l2">${esc(r.join(' '))}</span>` : esc(a || ''); };
 function bandeauHtml(c, B, fil) {
   const R = c.reglages;
   const tel = (R.telephone || '').replace(/\s/g, '');
@@ -386,7 +390,7 @@ function bandeauHtml(c, B, fil) {
   const media = B.video
     ? `<video src="${esc(B.video)}" poster="${esc(B.poster || B.photo || '')}"${B.position ? ` style="object-position:${esc(B.position)}"` : ''} autoplay muted loop playsinline preload="metadata" aria-hidden="true" data-autoplay></video>`
     : img(B.photo, '', '', `fetchpriority="high"${B.position ? ` style="object-position:${esc(B.position)}"` : ''}`).replace(' loading="lazy"', '');
-  return `<section class="phero land${kb(c, B.video ? '' : B.photo, B.titre)}">${media}<div class="phero-c wrap">${crumbs(fil || [[B.titre]])}<h1>${esc(B.titre)}</h1>${B.signature ? `<p class="phero-sig">${esc(B.signature)}</p>` : ''}${B.chapo ? `<p class="lead">${esc(B.chapo)}</p>` : ''}
+  return `<section class="phero land${kb(c, B.video ? '' : B.photo, B.titre)}">${media}<div class="phero-c wrap">${crumbs(fil || [[titreSimple(B.titre)]])}<h1>${titreLignes(B.titre)}</h1>${B.signature ? `<p class="phero-sig">${esc(B.signature)}</p>` : ''}${B.chapo ? `<p class="lead">${esc(B.chapo)}</p>` : ''}
   <div class="row land-cta"><a class="btn btn-or" href="${esc(B.ancre || '/boutique')}">${esc(B.bouton || 'Découvrir')}</a><a class="btn btn-ghost-light" href="tel:${esc(tel)}">${icon.phone}<span>${esc(R.telephone || '')}</span></a></div>
   <p class="confiance"><span><span class="etoiles" aria-hidden="true">★★★★★</span> <b>${esc(G.note || '4,9')}/5</b> sur Google${G.nombre ? `, ${esc(G.nombre)} avis` : ''}</span><span>Livraison 7 j/7 sur Paris et toute l’Île-de-France</span></p></div></section>`;
 }
@@ -928,10 +932,12 @@ function livraison(c) {
    marquée « Entreprise » (POST /api/demandes, entreprise: true). */
 const BESOINS_ENT = [
   ['Petit-déjeuner & réunion', 'Accueil café, viennoiseries, pause du matin', '/petits-dejeuners'],
-  ['Plateaux repas & coffrets', 'Déjeuners de travail, livrés prêts à servir', '/coffrets-plateaux'],
+  /* photo fixe choisie par Jean-Luc (2026-11-28) : son coffret bois 9 cases, recadré sans le logo ni les points Instagram */
+  ['Plateaux repas & coffrets', 'Déjeuners de travail, livrés prêts à servir', '/coffrets-plateaux', '/site/c/entreprises/coffret-bois-9-cases.webp'],
   ['Cocktail d’entreprise', 'Pièces salées et sucrées, debout ou en buffet', '/cocktails-buffets'],
   ['Séminaire & buffets du monde', 'Dix traiteurs, une seule maison', '/saveurs-du-monde'],
-  ['Pot de départ & inauguration', 'Animations culinaires cuisinées devant vos invités', '/animations-salees'],
+  /* deux rubriques dans la même vignette (Jean-Luc, 2026-11-28) : moitié gauche salée, moitié droite sucrée, deux boutons */
+  ['Pot de départ & inauguration', 'Animations culinaires salées et sucrées devant vos invités', ['/animations-salees', '/douceurs'], '', ['Salées', 'Sucrées']],
   ['La cave & les open bars', 'Champagnes, vins, softs et barmen', '/boissons'],
   ['Personnel de réception', 'Maîtres d’hôtel, serveurs, barmen', '/personnel'],
   ['Mobilier & matériel', 'Mange-debout, nappes, vaisselle, buffets', '/mobilier-a-la-location'],
@@ -963,18 +969,25 @@ function entreprises(c) {
   const R = c.reglages, B = bandeauDe(c, 'entreprises'), A = R.accueil || {};
   const fiches = ((R.bandeaux?.entreprises?.fiches || []).length ? R.bandeaux.entreprises.fiches : FICHES_ENT).map(s => c.bySlug.get(s)).filter(p => p && p.statut !== 'masque');
   const rubVue = new Set(c.rubriques.filter(r => r.statut !== 'masque').map(r => '/' + r.slug).concat('/lieux'));
-  const tuiles = BESOINS_ENT.filter(([, , href]) => rubVue.has(href)).map(([t, sous, href]) => {
+  const tuiles = BESOINS_ENT.map(([t, sous, href, photo, noms]) => {
+    if (Array.isArray(href)) {
+      const duo = href.map((h, i) => ({ h, nom: noms?.[i] || '', r: c.rubriques.find(x => '/' + x.slug === h) })).filter(x => rubVue.has(x.h));
+      if (!duo.length) return null;
+      if (duo.length === 1) href = duo[0].h;
+      else return `<div class="tile tile-duo">${duo.map(x => `<a class="duo-a" href="${esc(x.h)}" aria-label="${esc((x.r?.nom || x.nom))}">${img(x.r?.photoAccueil || x.r?.photo || x.r?.bandeauPhoto, '')}</a>`).join('')}<span class="tile-t"><b>${esc(t)}</b><small>${esc(sous)}</small><span class="duo-b">${duo.map(x => `<a href="${esc(x.h)}">${esc(x.nom)} →</a>`).join('')}</span></span></div>`;
+    }
+    if (!rubVue.has(href)) return null;
     const r = c.rubriques.find(x => '/' + x.slug === href);
-    const v = videoAccueil(href === '/lieux' ? 'lieux' : r?.slug, r);
-    const ph = href === '/lieux' ? c.lieux[0]?.photos?.[0] : (r?.photoAccueil || r?.photo || r?.bandeauPhoto);
+    const v = photo ? '' : videoAccueil(href === '/lieux' ? 'lieux' : r?.slug, r);
+    const ph = photo || (href === '/lieux' ? c.lieux[0]?.photos?.[0] : (r?.photoAccueil || r?.photo || r?.bandeauPhoto));
     return `<a class="tile" href="${esc(href)}">${v || img(ph, '')}<span class="tile-t"><b>${esc(t)}</b><small>${esc(sous)}</small></span></a>`;
-  }).join('');
+  }).filter(Boolean).join('');
   const tel = (R.telephone || '').replace(/\s/g, '');
   const G = R.avisGoogle || {};
   const avisEnt = AVIS_ENT.map(re => c.avis.find(a => a.statut !== 'masque' && re.test(a.texte || ''))).filter(Boolean).slice(0, 3);
   const titreAvis = t => t === t.toUpperCase() ? t.charAt(0) + t.slice(1).toLowerCase() : t;
   const chiffres = (A.chiffres || []).filter(x => x.valeur).map(x => `<div><b>${esc(x.valeur)}</b>${/\/\s*5\s*$/.test(x.valeur || '') ? '<i class="etoiles" aria-hidden="true">★★★★★</i>' : ''}<span>${esc(x.label === 'prestations en ligne, prix TTC' ? 'prestations en ligne' : x.label)}</span></div>`).join('');
-  const body = `${bandeauHtml(c, B)}
+  const body = `${bandeauHtml(c, { ...B, titre: B.titre === 'Traiteur pour les entreprises' ? BANDEAUX_DEFAUT.entreprises.titre : B.titre }, [['Traiteur pour les entreprises']])}
 ${bandeLogos(c, { lien: true, titre: 'Ils nous confient leurs événements d’entreprise' })}
 <section class="wrap ent-intro">${introHtml(B.introTitre, B.introTexte)}</section>
 <section class="wrap" id="besoins"><div class="sec-h"><div><p class="eyebrow">Vos besoins</p><h2>Que préparez-vous ?</h2></div><p>Un clic sur votre besoin : vous arrivez sur nos propositions, avec photos, compositions et prix TTC.</p></div>
@@ -991,7 +1004,7 @@ ${chiffres ? `<section class="chiffres wrap ent-chiffres">${chiffres}</section>`
     <ul class="ent-ok"><li>Sans engagement, sans paiement en ligne</li><li>Facture au nom de la société, virement ou Chorus Pro</li><li>Livraison 7 j/7 sur Paris et toute l’Île-de-France</li></ul>
     <p class="ent-tel">Pressé ? <a href="tel:${esc(tel)}">${icon.phone}<b>${esc(R.telephone || '')}</b></a></p>
     <a class="hero-g ent-g" href="${esc(G.url || '#')}" rel="noopener"><span class="stars">★★★★★</span> ${esc(G.note || '4,9')}/5 sur Google${G.nombre ? ` · ${esc(G.nombre)} avis` : ''}</a>
-    <div class="ent-ph">${img(B.photoForm || '/site/c/personnel-bandeau-serveur.webp', 'Serveur Magnolia souriant, plateau à la main')}</div></div>
+    <div class="ent-ph">${img(B.photoForm || '/site/c/entreprises/soiree-champagne.webp', 'Soirée d’entreprise : collègues qui trinquent au champagne')}</div></div>
   <form class="card-form" data-entreprise novalidate>
     <div class="f2"><label>Société<input name="societe" required maxlength="120" autocomplete="organization"></label><label>Prénom et nom<input name="nom" required maxlength="120" autocomplete="name"></label></div>
     <div class="f2"><label>E-mail professionnel<input type="email" name="email" required autocomplete="email"></label><label>Téléphone<input type="tel" name="tel" required autocomplete="tel"></label></div>
