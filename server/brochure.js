@@ -150,7 +150,8 @@ const MONDE = [
       ['Desserts · 2 choix maximum', 'Salade de fruits exotiques · Flan coco · Gâteau roulé au coco · Sorbet coco maison · Blanc-manger coco · Gâteau à l’ananas.'],
       ['Aussi à l’unité', 'Accras, boudins, bokits, pâtés, crabe farci, coffret « Saveurs pays » : toutes nos spécialités antillaises se commandent aussi à la pièce.'],
       ['Personnel & pack traiteur', 'Le personnel de service et le pack traiteur sont à prévoir en option.']],
-    vignettes: ['colombo-de-poulet-antillais', 'boudin-antillais-80-gr'] },
+    /* pas le paysage déjà en tête de Saveurs du monde : une ambiance de buffet antillais (sa photo), puis acras et boudin (Jean-Luc, 2026-11-28) */
+    photo: '/site/c/antilles-menus/buffet-colombo-chafing.webp', vignettes: ['/site/c/antilles-menus/accras-client-20261101.webp.webp', 'boudin-antillais-80-gr'] },
   { sous: 'paella-party', titre: 'Paëlla party', tags: ['400 g par personne', 'Livrée chaude'], accroche: 'Une paëlla dans les règles de l’art.',
     chapo: 'Le secret de notre recette ? L’équilibre entre le riz safrané, les épices, le poulet et les fruits de mer, relevé par notre touche maison. Anniversaire, repas entre amis ou événement d’entreprise : rassemblez vos invités autour d’une paëlla généreuse et colorée.',
     compo: [['Une recette généreuse', 'Oignons et petits pois · Poivrons rouges et verts · Poulet · Moules décortiquées · Calamars · Crevettes du Pacifique · Grosses moules de Nouvelle-Zélande · Chorizo · Riz safrané et mélange d’épices maison.'],
@@ -324,7 +325,7 @@ function html(c, opts = {}) {
     const p = d.slug ? P(d.slug) : null, s = d.sous ? sous(d.sous) : null;
     if (d.slug && !p) return; if (d.sous && !s) return;
     const titre = d.titre || (p ? p.titre : s.nom), cle = d.slug || d.sous;
-    const ph = p ? photoDe(p) : (s.bandeauPhoto || s.photo);
+    const ph = d.photo || (p ? photoDe(p) : (s.bandeauPhoto || s.photo));
     let vign = (d.vignettes || []).map(vignette).filter(Boolean).slice(0, 2);
     let ph2 = ph;
     if (ph2 && dejaVues.has(ph2) && vign.length) { ph2 = vign[0]; vign = vign.slice(1).concat(ph); }
@@ -390,8 +391,8 @@ function html(c, opts = {}) {
     ajoute(n => `<section class="pg form" id="p${n}"><div class="form-ph">${photo(gl.bandeauPhoto || gl.photo, 'Plateaux de fruits de mer')}<div class="form-voile"></div><div class="form-t"><p class="eyebrow or">Au grand large</p><h2>Plateaux de fruits de mer</h2></div></div>
 <div class="pg-in form-in"><div class="form-intro"><p class="accroche">Le savoir-faire du poissonnier Marc Auguet, l’attention du traiteur.</p><ul class="tags"><li>Poissonnier depuis 1975</li><li>Marchés de Saxe et Monge</li></ul></div>
 <p class="chapo">La passion des beaux produits de la mer rencontre l’art de recevoir : huîtres, langoustines, crevettes, homard ou tourteau, présentés sur un lit de glace pilée avec citron et rince-doigts, prêts à prendre place sur votre table ou votre buffet. Composez votre plateau selon vos envies et le nombre de vos invités. Délai de livraison : 48 heures minimum.</p>
-<div class="fdm">${fdm.map(([p, q]) => `<a href="${esc(lien(p.slug))}"><b>${esc(p.titre)}</b><i>${esc(q)}</i></a>`).join('')}</div></div>
-<div class="form-bas">${qr('grand-large', 'l', '')}<div class="form-bas-t"><b>Composez votre plateau en ligne</b><span>Scannez ou cliquez : choisissez vos produits, voyez les prix à jour et ajoutez-les à votre sélection.</span><a href="${esc(lien('grand-large'))}">Voir sur le site →</a></div>${['huitres-gillardeau-n-3', 'homard-europeen-de-bretagne'].map(vignette).filter(Boolean).map(v => `<div class="form-vg">${photo(v)}</div>`).join('')}</div>${pied(n)}</section>`, 'Plateaux de fruits de mer');
+<div class="fdm-zone"><a class="fdm-ph" href="${esc(lien('grand-large'))}">${photo('/site/plateau-fruits-de-mer.webp', 'Plateau de fruits de mer sur son présentoir')}</a><div class="fdm">${fdm.map(([p, q]) => `<a href="${esc(lien(p.slug))}"><b>${esc(p.titre)}</b><i>${esc(q)}</i></a>`).join('')}</div></div></div>
+<div class="form-bas">${qr('grand-large', 'l', '')}<div class="form-bas-t"><b>Composez votre plateau en ligne</b><span>Scannez ou cliquez : choisissez vos produits, voyez les prix à jour et ajoutez-les à votre sélection.</span><a href="${esc(lien('grand-large'))}">Voir sur le site →</a></div></div>${pied(n)}</section>`, 'Plateaux de fruits de mer');
   }
 
   /* ---------- chapitre 3 : coffrets, plateaux, boissons ---------- */
