@@ -1044,6 +1044,8 @@ body.noscroll .partage { display: none; }
   .sm-case img { width: 36px; height: 36px; }
 }
 /* fiche : proposition « Mettre N personnes (vos invités) » sous la quantité minimale */
+.inv-ok { color: var(--vert); font-weight: 500; }
+.fiche-media, .sous-photo, .conf { overflow-anchor: none; }
 .lnk-inv { background: none; border: 0; padding: 0; color: var(--or, #b8862f); text-decoration: underline; cursor: pointer; font: inherit; }
 /* bandeau de Saveurs du monde : photo du pays choisi sur le globe, en fondu */
 .phero > .phero-pays { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 1.1s ease; }
