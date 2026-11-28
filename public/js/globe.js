@@ -392,7 +392,7 @@
         if (b.dataset.smAct === '3d') {
           const g = !plat(); root.classList.toggle('sm-plat', g);
           map.setPaintProperty('choix', 'fill-extrusion-color', g ? '#ffffff' : '#d4b07a'); map.setPaintProperty('choix-bord', 'line-color', g ? '#ffffff' : '#f6e7c8');
-          map.setProjection({ type: g ? 'mercator' : 'globe' }); pad(); b.setAttribute('aria-pressed', String(!g));
+          map.setProjection({ type: g ? 'mercator' : 'globe' }); map.resize(); pad(); b.setAttribute('aria-pressed', String(!g));
           /* globe : il tourne tout seul ; à plat : pas de rotation */
           tour = !g; pause = 0; const bt = $('[data-sm-act="tour"]'); bt.hidden = g; bt.setAttribute('aria-pressed', String(tour));
           const aide = $('[data-sm-aide]'); if (aide) aide.textContent = g ? 'Touchez un pays sur la carte' : 'Faites tourner le globe et touchez un pays';
