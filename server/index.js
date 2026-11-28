@@ -249,6 +249,22 @@ async function createApp(opts = {}) {
     }
     await store.set('_migr/coffretsDefinitions', { at: new Date().toISOString() });
   }
+  /* une seule fois (Jean-Luc, 2026-11-28) : 3 reportages Entreprises d'exemple (entreprises anonymes), ajoutés HORS LIGNE.
+     Photos : vraies photos de Magnolia + Pexels (sources dans data/credits-photos.md). L'équipe les relit, les adapte à une vraie prestation, puis les met en ligne. */
+  if (!(await store.get('_migr/blogEntreprises1'))) {
+    const exemples = JSON.parse(require('fs').readFileSync(path.join(__dirname, '..', 'data', 'blog-entreprises-exemples.json'), 'utf8'));
+    const slugsProduits = new Set((await store.list('produits')).map(d => d.data?.slug || d.id));
+    const pris = new Set((await store.list('blog')).map(d => d.data?.slug));
+    for (const [i, e] of exemples.entries()) {
+      const a = BLOG.nettoyerArticle({ ...e, produits: (e.produits || []).filter(s => slugsProduits.has(s)), statut: 'brouillon', notes: 'Reportage d’exemple rédigé par Claude (entreprise anonyme, déroulé type d’une prestation Magnolia). Photos : celles de Magnolia + photos libres Pexels. À relire et à adapter à une vraie prestation avant de le mettre en ligne.' });
+      let slug = a.slug, n = 2; while (pris.has(slug)) slug = a.slug + '-' + n++;
+      pris.add(slug);
+      const id = 'b_exent' + (i + 1);
+      const now = new Date().toISOString();
+      await store.set('blog/' + id, { ...a, slug, id, createdAt: now, creePar: 'Claude', ia: null, updatedAt: now });
+    }
+    await store.set('_migr/blogEntreprises1', { at: new Date().toISOString(), n: exemples.length });
+  }
   if (!(await store.get('_migr/caveMagnolia'))) {
     const net = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
     for (const { id, data: p } of await store.list('produits')) {

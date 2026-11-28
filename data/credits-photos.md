@@ -33,3 +33,17 @@ Toutes issues de Pexels (licence Pexels : usage commercial gratuit, sans attribu
 - /site/c/entreprises/soiree-champagne.webp : Pexels 6405756 (soirée, collègues qui trinquent au champagne), licence Pexels, page Entreprises (cadre du formulaire).
 - /site/c/entreprises/mange-debout.webp : Pexels 16985199 (mange-debout et tabourets sous verrière), licence Pexels, page Entreprises (vignette Mobilier & matériel).
 - /site/v/entreprises/cave.mp4 (+ image cave.jpg) : vidéo Pexels 5537823 de cottonbro studio (cave voûtée à tonneaux), licence Pexels, page Entreprises (vignette La cave & les open bars).
+
+## Blog : 3 reportages Entreprises d'exemple (2026-11-28, `public/site/c/blog/`)
+Photos Pexels (licence Pexels : usage commercial gratuit, sans attribution obligatoire), aucune photo avec texte ou logo. Les photos de plats et de service viennent des médias de Magnolia.
+- lancement-presentation-modele.webp : https://www.pexels.com/photo/7144176/
+- lancement-service-plateau.webp : https://www.pexels.com/photo/waiter-carrying-tray-with-snacks-15761595/
+- lancement-verrines.webp : https://www.pexels.com/photo/catering-event-with-gourmet-appetizers-on-tray-34321369/
+- lancement-echanges.webp : https://www.pexels.com/photo/photo-of-people-holding-glasses-3182824/
+- resultats-presentation.webp : https://www.pexels.com/photo/man-standing-in-front-of-people-1709003/
+- resultats-equipe-joie.webp : https://www.pexels.com/photo/a-group-of-people-celebrating-7693713/
+- resultats-buffet-chaud.webp : https://www.pexels.com/photo/vibrant-buffet-scene-with-people-serving-food-36318467/
+- fete-equipes-sapin.webp : https://www.pexels.com/photo/people-having-a-christmas-party-in-the-office-6405679/
+- fete-premier-toast.webp : https://www.pexels.com/photo/group-of-men-and-women-doing-glass-toast-6405665/
+- fete-confettis.webp : https://pexels.com/photo/people-toasting-wine-glasses-3171837/
+- fete-fin-de-soiree.webp : https://www.pexels.com/photo/people-having-conversation-6519224/

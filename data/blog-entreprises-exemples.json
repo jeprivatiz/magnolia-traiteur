@@ -1,0 +1,82 @@
+[
+  {
+    "titre": "Lancement d’un nouveau modèle : un cocktail dînatoire au cœur du showroom",
+    "chapo": "Pour dévoiler son nouveau modèle à ses clients et partenaires, une concession automobile de l’Essonne a transformé son showroom en salle de réception le temps d’une soirée. Magnolia Traiteur a imaginé un cocktail dînatoire servi au plateau, pensé pour circuler entre les voitures.",
+    "categorie": "entreprise",
+    "typeEvenement": "Lancement de produit",
+    "lieu": "Showroom automobile, Essonne",
+    "dateEvenement": "2026-10-16",
+    "sections": [
+      { "titre": "Un showroom transformé en salle de réception", "texte": "Recevoir des invités au milieu de voitures neuves demande un peu d’organisation : pas question d’encombrer l’espace ni de risquer une tache sur une carrosserie. Plutôt que de grandes tables de buffet, nous avons proposé des mange-debout répartis autour du nouveau modèle et un bar installé près de l’entrée, loin des véhicules.\nNotre équipe est arrivée en fin d’après-midi pour tout mettre en place pendant que les commerciaux terminaient leur journée. À l’ouverture des portes, tout était prêt, et le showroom a retrouvé son allure habituelle dès le départ des derniers invités." },
+      { "titre": "Un cocktail qui vient à la rencontre des invités", "texte": "Pour un lancement, les invités circulent, discutent, montent dans la voiture, en ressortent. Le service au plateau s’impose : nos serveurs passent de groupe en groupe avec des pièces qui se dégustent en une bouchée, sans assiette ni couverts.\nCanapés, mini-burgers, verrines et cuillères gourmandes se sont succédé tout au long de la soirée, en alternant le salé et le frais pour que chacun trouve son bonheur, y compris les invités qui ne mangent pas de viande." },
+      { "titre": "Le moment de la présentation", "texte": "Pendant le discours de présentation du modèle, le service s’est mis en pause pour laisser toute l’attention à la scène. Dès les derniers mots, les coupes de champagne étaient prêtes sur les plateaux : tout le monde a pu trinquer au lancement au même moment, sans attente au bar.\nC’est un détail que nous préparons toujours avec l’organisateur : connaître l’heure des prises de parole permet de caler le rythme du service et d’éviter les allers-retours au mauvais moment." },
+      { "titre": "Une note sucrée pour prolonger les échanges", "texte": "En fin de soirée, les petits fours sucrés ont pris le relais, accompagnés de café pour ceux qui reprenaient la route. Les invités ont pu poursuivre leurs échanges avec l’équipe commerciale en toute tranquillité, pendant que nos serveurs débarrassaient discrètement.\nUn lancement réussi, c’est d’abord un produit mis en valeur : notre rôle est de faire en sorte que l’accueil soit à la hauteur, sans jamais lui voler la vedette." }
+    ],
+    "photos": [
+      { "src": "/site/c/blog/lancement-presentation-modele.webp", "legende": "Présentation du nouveau modèle aux invités" },
+      { "src": "/site/c/blog/lancement-service-plateau.webp", "legende": "Mini-burgers et pièces cocktail servis au plateau" },
+      { "src": "/site/c/accueil/website-home-cocktail-20261110.webp", "legende": "Coupes de champagne et canapés prêts pour le toast" },
+      { "src": "/site/c/blog/lancement-verrines.webp", "legende": "Verrines et cuillères gourmandes servies entre les groupes" },
+      { "src": "/site/c/cocktail7-photos/canapes-evasion.webp.webp", "legende": "Un assortiment de canapés Magnolia" },
+      { "src": "/site/c/blog/lancement-echanges.webp", "legende": "Les échanges se poursuivent autour d’un verre" },
+      { "src": "/site/c/cocktail7-photos/assortiment-sucre.webp.webp", "legende": "Petits fours sucrés pour terminer la soirée" }
+    ],
+    "produits": ["cocktail-premium-magnolia", "plateau-de-20-mini-cheeseburgers", "open-bar-vins-et-champagnes", "petits-fours-sucres", "mange-debout", "personnel-de-service-polyvalent"],
+    "tags": ["lancement de produit", "cocktail dînatoire", "showroom", "service au plateau", "entreprise"],
+    "seoTitre": "Lancement de produit : cocktail dînatoire en showroom",
+    "seoDescription": "Cocktail dînatoire servi au plateau pour le lancement d’un nouveau modèle dans un showroom automobile de l’Essonne, par Magnolia Traiteur."
+  },
+  {
+    "titre": "Résultats de l’année : une convention d’entreprise qui finit en fête",
+    "chapo": "Chaque début d’année, une entreprise de services des Hauts-de-Seine réunit toutes ses équipes pour présenter les résultats de l’exercice écoulé. Magnolia Traiteur a accompagné la journée, de l’accueil café du matin jusqu’au cocktail de clôture.",
+    "categorie": "entreprise",
+    "typeEvenement": "Convention",
+    "lieu": "Auditorium, Hauts-de-Seine",
+    "dateEvenement": "2026-01-22",
+    "sections": [
+      { "titre": "Une journée pour faire le bilan ensemble", "texte": "La présentation des résultats annuels est un rendez-vous important : c’est le moment où la direction remercie les équipes et fixe le cap de l’année. Le programme était dense, avec des interventions toute la journée dans l’auditorium et des ateliers l’après-midi.\nNotre mission : nourrir tout le monde, bien et vite, sans jamais faire déborder le planning." },
+      { "titre": "Un accueil café pour bien démarrer", "texte": "Dès l’arrivée des premiers collaborateurs, un accueil café attendait dans le hall : boissons chaudes, jus de fruits et viennoiseries. C’est aussi le moment où les équipes de différents sites se retrouvent, parfois pour la seule fois de l’année.\nPendant ce temps, notre cuisine terminait la préparation du déjeuner." },
+      { "titre": "Un déjeuner buffet, chaud et rapide", "texte": "Entre deux sessions, le temps est compté. Nous avons installé un buffet chaud en chafing dish, avec plusieurs points de service pour éviter les files d’attente, complété de plateaux de mini-clubs pour ceux qui préféraient manger léger.\nLes plats restent à bonne température du premier au dernier convive, et nos serveurs réapprovisionnent au fil du service : chacun a pu déjeuner tranquillement et regagner l’auditorium à l’heure." },
+      { "titre": "L’annonce des résultats, puis place à la fête", "texte": "En fin d’après-midi est venu le moment le plus attendu : l’annonce des résultats de l’année, accueillie par une salve d’applaudissements. Pour prolonger ce moment, le hall s’est transformé en espace de cocktail, avec champagne, pièces salées et un bar à foie gras où les toasts étaient dressés minute devant les invités.\nNotre équipe de service, en tenue, a fait circuler les plateaux jusqu’à la fin de la soirée." },
+      { "titre": "Une organisation sans souci pour l’organisateur", "texte": "Sur une journée aussi chargée, l’organisateur ne doit penser qu’à son programme. Livraison, installation, service, puis reprise du matériel, de la vaisselle et des déchets : nous nous occupons de tout, avec un seul interlocuteur du devis jusqu’au dernier plateau." }
+    ],
+    "photos": [
+      { "src": "/site/c/blog/resultats-presentation.webp", "legende": "Présentation des résultats devant l’ensemble des équipes" },
+      { "src": "/site/c/blog/resultats-equipe-joie.webp", "legende": "La joie des équipes à l’annonce des résultats" },
+      { "src": "/site/c/blog/resultats-buffet-chaud.webp", "legende": "Buffet chaud servi en chafing dish au déjeuner" },
+      { "src": "/site/c/cocktail7-photos/mini-clubs.webp.webp", "legende": "Mini-clubs pour un déjeuner sur le pouce" },
+      { "src": "/site/c/accueil/personnel80-client-20261102.webp", "legende": "Notre équipe de service en place pour le cocktail" },
+      { "src": "/site/c/three-bars/foie-hero-clean.webp.webp", "legende": "Toasts de foie gras dressés minute" }
+    ],
+    "produits": ["accueil-cafe-ou-petit-dejeuner-de-base", "buffet-des-traditions", "plateau-de-80-mini-clubs", "bar-a-foie-gras", "open-bar-vins-et-champagnes", "personnel-de-service-polyvalent"],
+    "tags": ["convention", "résultats annuels", "buffet chaud", "cocktail", "entreprise"],
+    "seoTitre": "Convention résultats annuels : traiteur de la journée",
+    "seoDescription": "Accueil café, buffet chaud et cocktail de clôture pour la convention de résultats annuels d’une entreprise des Hauts-de-Seine, par Magnolia Traiteur."
+  },
+  {
+    "titre": "Fête de fin d’année : un cabinet de conseil fête Noël dans ses bureaux",
+    "chapo": "Plutôt que de louer une salle, un cabinet de conseil parisien a choisi de célébrer la fin de l’année dans ses propres locaux, entre sapin et guirlandes. Magnolia Traiteur s’est occupé de tout : cocktail festif, bars à saumon et à foie gras, champagne et personnel.",
+    "categorie": "entreprise",
+    "typeEvenement": "Fête de fin d’année",
+    "lieu": "Bureaux, Paris",
+    "dateEvenement": "2025-12-18",
+    "sections": [
+      { "titre": "Des bureaux qui deviennent une salle de fête", "texte": "Fêter la fin de l’année sur place a de vrais avantages : personne n’a à se déplacer, et le cadre de travail prend un tout autre visage le temps d’une soirée. Nous sommes arrivés en fin de journée, pendant que les équipes bouclaient leurs derniers dossiers.\nEn moins d’une heure, les grandes tables de l’open space se sont transformées en buffets dressés, le coin cuisine en bar, et les guirlandes du cabinet ont fait le reste." },
+      { "titre": "Saumon et foie gras, les classiques des fêtes", "texte": "Pour une soirée de décembre, les invités attendent les grands classiques. Notre maître d’hôtel a tenu le bar à saumon fumé, tranché minute devant les convives, pendant qu’un second poste servait le foie gras sur toasts. Ces animations créent naturellement des points de rencontre : on s’y retrouve, on discute, on revient.\nAutour, nos serveurs ont fait circuler les pièces du cocktail, salées puis sucrées, tout au long de la soirée." },
+      { "titre": "Le toast de fin d’année", "texte": "Au moment des remerciements de la direction, les coupes de champagne étaient servies à tous les invités. Un toast collectif pour clore l’année, quelques confettis, et la fête a pu vraiment commencer.\nNous prévoyons toujours une alternative sans alcool à ce moment-là : personne ne doit lever un verre vide." },
+      { "titre": "Une soirée sans contrainte pour l’organisateur", "texte": "Dans des bureaux, le lendemain compte autant que la soirée : les équipes doivent retrouver leur espace de travail en ordre. Après le départ des derniers invités, nous avons repris l’ensemble du matériel, la vaisselle, les bouteilles vides et les déchets.\nL’organisatrice a pu profiter de la fête comme tous ses collègues, sans avoir à surveiller le moindre détail." }
+    ],
+    "photos": [
+      { "src": "/site/c/blog/fete-equipes-sapin.webp", "legende": "Les équipes réunies autour du sapin pour la fête de fin d’année" },
+      { "src": "/site/c/blog/fete-premier-toast.webp", "legende": "Le premier toast de la soirée" },
+      { "src": "/site/c/three-bars/saumon-hero-clean.webp.webp", "legende": "Saumon fumé tranché minute devant les invités" },
+      { "src": "/site/c/accueil/staff81_maitre-hotel.webp", "legende": "Notre maître d’hôtel en service" },
+      { "src": "/site/c/blog/fete-confettis.webp", "legende": "Coupes levées sous les confettis" },
+      { "src": "/site/c/blog/fete-fin-de-soiree.webp", "legende": "Une ambiance détendue jusqu’en fin de soirée" }
+    ],
+    "produits": ["grand-cocktail-magnolia", "bar-a-saumon-fume", "bar-a-foie-gras", "maitre-d-hotel", "open-bar-vins-et-champagnes", "petits-fours-sucres"],
+    "tags": ["fête de fin d’année", "Noël", "cocktail", "bar à saumon", "entreprise"],
+    "seoTitre": "Fête de fin d’année en entreprise : traiteur à Paris",
+    "seoDescription": "Cocktail festif, bars à saumon et à foie gras, champagne et personnel pour la fête de fin d’année d’un cabinet de conseil parisien, par Magnolia Traiteur."
+  }
+]
