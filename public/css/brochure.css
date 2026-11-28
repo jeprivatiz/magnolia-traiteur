@@ -141,6 +141,9 @@ h2 { font-size: 27pt; }
 .compo-b { break-inside: avoid; margin: 0 0 3.6mm; }
 .compo-b h4 { font-family: var(--sans); font-size: 7.6pt; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--or); margin: 0 0 .8mm; line-height: 1.3; }
 .compo-b p { margin: 0; font-size: 8.9pt; line-height: 1.45; }
+.puces { list-style: none; margin: 0; padding: 0; font-size: 8.5pt; line-height: 1.28; }
+.puces li { position: relative; padding-left: 3.4mm; margin: 0 0 .45mm; }
+.puces li::before { content: ''; position: absolute; left: .4mm; top: 1.45mm; width: 1.3mm; height: 1.3mm; border-radius: 50%; background: var(--or); }
 .form-bas { position: absolute; left: 15mm; right: 15mm; bottom: 15mm; height: 38mm; display: flex; gap: 4mm; align-items: center; background: var(--creme); border-radius: 3mm; padding: 3.5mm; }
 .form-bas-t { flex: 1; font-size: 8pt; color: var(--gris); }
 .form-bas-t b { display: block; font-family: var(--serif); font-size: 13.5pt; font-weight: 500; color: var(--vert); margin-bottom: .8mm; }
