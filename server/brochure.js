@@ -235,7 +235,7 @@ const MONDE = [
       ['Accompagnements · 2 choix', 'Riz blanc · Alloco · Attiéké · Banane plantain ou igname vapeur · Foutou · Placali · Ablo · Bobolo · Chikwangue · Semoule.'],
       ['Desserts · 2 choix', 'Salade de fruits frais · Pyramide de fruits · Tarte tatin · Gâteau coco · Dégué · Plateaux de mangues ou d’ananas.']],
     vignettes: ['poulet-yassa-300-g', 'alloco-300g-pers'] },
-  { sous: 'specialites-japonaises', titre: 'Spécialités japonaises', tags: ['Plateaux prêts à présenter', 'Baguettes, sauces et wasabi offerts'], accroche: 'L’élégance du Japon à partager.',
+  { sous: 'specialites-japonaises', titre: 'Spécialités japonaises', photo: '/site/c/sushis-assortiment.webp' /* assortiment de sushis, pas le mont Fuji (Jean-Luc, 2026-11-28) */, tags: ['Plateaux prêts à présenter', 'Baguettes, sauces et wasabi offerts'], accroche: 'L’élégance du Japon à partager.',
     chapo: 'Sushis, makis et bouchées délicates : nous livrons de très beaux plateaux, prêts à poser sur votre table ou votre buffet, pour un repas ou un cocktail convivial.',
     fiches: ['plateau-japonais-75-pieces', 'plateau-japonais-38-pieces', 'plateau-de-luxe-42-pieces', 'plateau-japonais-36-pieces', 'plateau-californias-et-makis-40-pieces', 'plateau-sushi-tout-cuit-20-pieces', 'chef-sushi-a-domicile'],
     vignettes: ['plateau-japonais-75-pieces', 'chef-sushi-a-domicile'] },
