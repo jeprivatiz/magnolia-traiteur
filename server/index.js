@@ -496,6 +496,16 @@ async function createApp(opts = {}) {
     }
     await store.set('_migr/barmanDjPhotos', { at: new Date().toISOString() });
   }
+  // Open bar vins et champagnes : la vidéo de fête (confettis) remplacée par une photo classique de service du champagne (Jean-Luc, 2026-11-28).
+  if (!(await store.get('_migr/openBarChampagnePhoto'))) {
+    const o = await store.get('produits/open-bar-vins-et-champagnes');
+    if (o) {
+      const { video, ...reste } = o;
+      const garde = video && !/open-bar-champagne\.mp4/.test(video.src || '') ? { video } : {};
+      await store.set('produits/open-bar-vins-et-champagnes', { ...reste, ...garde, photos: [{ src: '/site/c/open-bar-champagne-service.webp', alt: 'Maître d’hôtel qui sert le champagne dans des flûtes' }, ...(o.photos || [])] });
+    }
+    await store.set('_migr/openBarChampagnePhoto', { at: new Date().toISOString() });
+  }
   /* une seule fois (Jean-Luc, 2026-11-28) : le Cocktail Premium Magnolia ne comprend PAS d'huîtres : textes et photos d'huîtres retirés */
   if (!(await store.get('_migr/premiumSansHuitres'))) {
     const p = await store.get('produits/cocktail-premium-magnolia');

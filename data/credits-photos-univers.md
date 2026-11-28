@@ -338,3 +338,4 @@ Photos regardées une à une (vraies photos, sans texte ni logo), licence Pexels
 | Brochure · vignettes cocktails/buffets français : canapés et verrines (3933162), mini-brochettes (5039343), brochettes tomate-mozzarella (22820141), taboulé (5191816), nems (4001867), empanadas (12263158) | https://www.pexels.com/photo/<numéro>/ | 28/11/2026 (Jean-Luc) |
 | Brochure · vignettes cocktails/buffets français : canapés et verrines (3933162), mini-brochettes (5039343), brochettes tomate-mozzarella (22820141), taboulé (5191816), nems (4001867), empanadas (12263158) | https://www.pexels.com/photo/<numéro>/ | 28/11/2026 (Jean-Luc) |
 | Plateau de charcuteries (site et brochure) | https://www.pexels.com/photo/sliced-meat-on-brown-wooden-chopping-board-3593425/ | 28/11/2026 (Jean-Luc) |
+| Open bar vins et champagnes (maître d'hôtel qui sert le champagne) | https://www.pexels.com/photo/3217956/ | 28/11/2026 (demande de Jean-Luc) |
