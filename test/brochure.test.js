@@ -27,6 +27,7 @@ test('brochure : QR codes, aucun prix, adresses courtes /b/', async () => {
     const c = await app.locals.catalogue.get();
     assert.equal(c.bySlug.get('enceinte-bose-l1-pro').prixCents, 7200);
     const acc = await (await fetch(base + '/')).text();
-    assert.match(acc, /Télécharger notre brochure/);
+    assert.match(acc, /class="top-broch"[^>]*>[\s\S]*?Télécharger notre brochure/, 'brochure sur la 1re ligne du menu');
+    assert.doesNotMatch(acc, /nav-broch/, 'plus de pastille collée au logo');
   } finally { srv.close(); }
 });
