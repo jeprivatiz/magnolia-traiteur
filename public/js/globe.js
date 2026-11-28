@@ -91,7 +91,7 @@
       if (k >= 1) { flecheT0 = 0; trait.style.strokeDasharray = ''; trait.style.strokeDashoffset = ''; }
     }
   }
-  const boucleFleche = () => { majFleche(); majOrbites(); flecheAnim = requestAnimationFrame(boucleFleche); };
+  const boucleFleche = () => { majFleche(); majOrbites(); majPointe(); flecheAnim = requestAnimationFrame(boucleFleche); };
 
   /* ---------- satellites et station spatiale en orbite (Jean-Luc, 2026-11-23) ----------
      orbites circulaires inclinées autour du globe, dessinées en SVG au-dessus de la carte ;
@@ -185,6 +185,14 @@
 
   /* ---------- choix d'une spécialité ---------- */
   let arcAnim = 0;
+  /* pointe de flèche dorée au bout du trajet pays → Paris (Jean-Luc, 2026-11-28) */
+  let pointe = null, arcPts = null;
+  function majPointe() {
+    if (!pointe || !arcPts || arcPts.length < 2) return;
+    const b = arcPts[arcPts.length - 1], a = arcPts[Math.max(0, arcPts.length - 4)];
+    const A = map.project(a), B = map.project(b);
+    pointe.setLngLat(b).setRotation(Math.atan2(B.y - A.y, B.x - A.x) * 180 / Math.PI);
+  }
   /* état de départ : aucun pays, bandeau d'arrivée, titre d'invitation (2e clic sur le pays choisi, Jean-Luc 2026-11-23) */
   const titre0 = $('[data-sm-titre]').textContent, phrase0 = $('[data-sm-phrase]')?.textContent || '';
   function deselectionner() {
@@ -200,6 +208,7 @@
     cancelAnimationFrame(arcAnim);
     map.getSource('choix').setData({ type: 'FeatureCollection', features: [] });
     map.getSource('arc').setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: [PARIS, PARIS] } });
+    arcPts = null; pointe && pointe.getElement().classList.remove('on');
     map.flyTo({ center: [20, 22], zoom: zoomBase() + .35, duration: calme ? 0 : 1600, essential: true });
   }
   function choisir(i, { voler = true, bandeau = true } = {}) {
@@ -222,12 +231,19 @@
     carteVoir = new maplibregl.Marker({ element: box, anchor: mobile() ? 'top' : 'bottom-left', offset: mobile() ? [0, 18] : [14, -14] }).setLngLat(c).addTo(map);
     /* la Terre tourne vers le pays */
     if (voler) map.flyTo({ center: [c[0] - (mobile() ? 0 : 6), Math.max(-35, Math.min(45, c[1] - 4))], zoom: zoomBase() + .35, duration: calme ? 0 : 2200, essential: true, curve: 1.2 });
-    /* trajet depuis Paris, tracé petit à petit */
+    /* ordre voulu par Jean-Luc (2026-11-28) : la flèche part d'abord du pavé vers le pays,
+       puis le trajet repart du pays vers Paris (jamais de Paris vers le pays) */
     cancelAnimationFrame(arcAnim);
-    const pts = grandCercle(PARIS, c), src = map.getSource('arc'), t0 = performance.now() + (calme ? 0 : 700);
+    map.getSource('arc').setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: [c, c] } });
+    const pts = grandCercle(c, PARIS), src = map.getSource('arc'), t0 = performance.now() + (calme ? 0 : 1200);
+    arcPts = null; pointe && pointe.getElement().classList.remove('on');
     const pas = t => {
       const k = calme ? 1 : Math.max(0, Math.min(1, (t - t0) / 1600));
-      src.setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: pts.slice(0, Math.max(2, Math.round(pts.length * (1 - Math.pow(1 - k, 2))))) } });
+      if (k > 0) {
+        arcPts = pts.slice(0, Math.max(2, Math.round(pts.length * (1 - Math.pow(1 - k, 2)))));
+        src.setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: arcPts } });
+        pointe && pointe.getElement().classList.add('on'); majPointe();
+      }
       if (k < 1) arcAnim = requestAnimationFrame(pas);
     };
     arcAnim = requestAnimationFrame(pas);
@@ -317,6 +333,8 @@
       /* Paris, notre point de départ */
       const pa = document.createElement('div'); pa.className = 'sm-paris'; pa.innerHTML = '<i></i><span>Paris</span>';
       new ml.Marker({ element: pa, anchor: 'left', offset: [-5, 0] }).setLngLat(PARIS).addTo(map);
+      const po = document.createElement('div'); po.className = 'sm-pointe';
+      pointe = new ml.Marker({ element: po, anchor: 'center', rotationAlignment: 'viewport' }).setLngLat(PARIS).addTo(map);
       const pad = () => map.setPadding(mobile() ? { left: 0, top: 0, right: 0, bottom: 40 } : { left: Math.min(380, box.clientWidth * .3), top: 250, right: 0, bottom: 30 });
       pad(); addEventListener('resize', pad);
       map.setZoom(zoomBase());
