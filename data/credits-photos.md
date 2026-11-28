@@ -48,3 +48,4 @@ Photos Pexels (licence Pexels : usage commercial gratuit, sans attribution oblig
 - fete-confettis.webp : https://pexels.com/photo/people-toasting-wine-glasses-3171837/
 - fete-fin-de-soiree.webp : https://www.pexels.com/photo/people-having-conversation-6519224/
 - /site/v/entreprises/soiree.mp4 (+ image soiree.jpg) : 2e scène (soirée) de /site/v/bandeaux/cocktails-buffets-2.mp4, recoupée en boucle sans coupure, page Entreprises (bandeau).
+  Aussi en bandeau de la page Cocktails & buffet français depuis le 28/11/2026 (1re scène retirée).
