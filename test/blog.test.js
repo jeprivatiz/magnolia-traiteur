@@ -142,7 +142,7 @@ test('l’IA rédige le reportage, il reste caché jusqu’à « Publier », pui
 });
 
 test('reportages des spécialités : citation = avis mot pour mot, hors ligne, jamais sur le blog général', () => {
-  const L = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'blog-specialites.json'), 'utf8'));
+  const L = ['blog-specialites.json', 'blog-specialites-francais.json'].flatMap(f => JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', f), 'utf8')));
   const avis = new Map(JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'avis-magnolia.json'), 'utf8')).avis.map(a => [a.id, a]));
   const net = s => String(s).replace(/[\s\u{1F300}-\u{1FAFF}☀-➿]+/gu, ' ').replace(/\s+([,.!])/g, '$1').trim();
   for (const e of L) {

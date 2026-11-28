@@ -282,6 +282,20 @@ async function createApp(opts = {}) {
     }
     await store.set('_migr/blogSpecialites1', { at: new Date().toISOString(), n: exemples.length });
   }
+  /* une seule fois (Jean-Luc, 2026-11-28) : la cuisine française (Cocktails & buffets français), mêmes règles, HORS LIGNE */
+  if (!(await store.get('_migr/blogSpecialites2'))) {
+    const exemples = JSON.parse(require('fs').readFileSync(path.join(__dirname, '..', 'data', 'blog-specialites-francais.json'), 'utf8'));
+    const slugsProduits = new Set((await store.list('produits')).map(d => d.data?.slug || d.id));
+    const pris = new Set((await store.list('blog')).map(d => d.data?.slug));
+    for (const e of exemples) {
+      const a = BLOG.nettoyerArticle({ ...e, produits: (e.produits || []).filter(s => slugsProduits.has(s)), statut: 'brouillon' });
+      let slug = a.slug, n = 2; while (pris.has(slug)) slug = a.slug + '-' + n++;
+      pris.add(slug);
+      const now = new Date().toISOString();
+      await store.set('blog/b_spe_fr_' + e.avisSource, { ...a, slug, id: 'b_spe_fr_' + e.avisSource, createdAt: now, creePar: 'Claude', ia: null, updatedAt: now });
+    }
+    await store.set('_migr/blogSpecialites2', { at: new Date().toISOString(), n: exemples.length });
+  }
   /* une seule fois (Jean-Luc, 2026-11-28) : la fiche « Matériel traiteur » (verres suspendus, Sur devis) n'est plus utile.
      Elle est masquée (pas effacée : anciens devis intacts, réactivable au back-office) ; son adresse renvoie vers Les indispensables.
      Les vrais produits de matériel (rack, étuve, bain-marie…) ne bougent pas. */
@@ -1586,7 +1600,7 @@ async function createApp(opts = {}) {
   A.get('/blog', peut('site'), wrap(async (req, res) => {
     const l = (await articlesBlog()).sort(BLOG.parDate);
     const R = (await store.get('site/reglages')) || {};
-    res.set('Cache-Control', 'no-store').json({ articles: l, rappel: await etatBlog(), reglages: { ...BLOG.reglagesRappel(R), tel: R.blog?.rappel?.tel || '', email: R.blog?.rappel?.email || '', alertesSms: R.alertes?.sms || '', alertesEmails: R.alertes?.emails || '' }, types: BLOG.TYPES, specialites: ((await store.get('rubriques/saveurs-du-monde'))?.sous || []).filter(x => x.statut !== 'masque').map(x => ({ slug: x.slug, nom: x.nom })), ia: ia.actif });
+    res.set('Cache-Control', 'no-store').json({ articles: l, rappel: await etatBlog(), reglages: { ...BLOG.reglagesRappel(R), tel: R.blog?.rappel?.tel || '', email: R.blog?.rappel?.email || '', alertesSms: R.alertes?.sms || '', alertesEmails: R.alertes?.emails || '' }, types: BLOG.TYPES, specialites: [...((await store.get('rubriques/saveurs-du-monde'))?.sous || []).filter(x => x.statut !== 'masque').map(x => ({ slug: x.slug, nom: x.nom })), ...(r => r ? [{ slug: r.slug, nom: r.nom }] : [])(await store.get('rubriques/cocktails-buffets'))], ia: ia.actif });
   }));
   A.get('/blog/etat', wrap(async (req, res) => res.set('Cache-Control', 'no-store').json(await etatBlog())));
   A.put('/blog/reglages', sameSite, json, peut('site'), wrap(async (req, res) => {
@@ -3786,7 +3800,7 @@ Réponds uniquement en JSON : {${sms ? '' : '"sujet": "...", '}"texte": "..."}`;
     req._masque = r.statut === 'masque';
     if (views.sousVisibles(r).length) return views.pageSpecialites(c, r);
     const p3 = r.slug === 'grand-large' && r.plateau3d !== false ? views.plateau3dHtml(c, r, c.byRub.get(r.slug)) : '';
-    return views.boutique(c, { intro: { titre: r.introTitre, texte: r.introTexte }, rub: r.slug, titre: r.nom, chapo: r.chapo || r.accroche, photo: r.bandeauPhoto || r.photoAccueil || r.photo, path: '/' + r.slug, liste: c.byRub.get(r.slug), sections: views.sectionsRub(r, c.byRub.get(r.slug)), avant: p3, scripts: p3 ? `<script src="/js/plateau.js?v=${views.V}" defer></script>` : '' });
+    return views.boutique(c, { apres: BLOGV.blocSpecialite(c, r), intro: { titre: r.introTitre, texte: r.introTexte }, rub: r.slug, titre: r.nom, chapo: r.chapo || r.accroche, photo: r.bandeauPhoto || r.photoAccueil || r.photo, path: '/' + r.slug, liste: c.byRub.get(r.slug), sections: views.sectionsRub(r, c.byRub.get(r.slug)), avant: p3, scripts: p3 ? `<script src="/js/plateau.js?v=${views.V}" defer></script>` : '' });
   }));
   /* fiche « Matériel traiteur » retirée (2026-11-28) : l'ancienne adresse mène à Les indispensables */
   app.get('/:rub/materiel-traiteur', wrap(async (req, res, next) => {
