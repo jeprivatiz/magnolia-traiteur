@@ -1781,3 +1781,39 @@ h1 .formule { font-size: .5em; margin-top: .45em; }
 /* bandeau à plusieurs vidéos (page d'arrivée) : la suivante apparaît en fondu par-dessus */
 .phero.land > video.lp-suite { opacity: 0; transition: opacity .9s ease; }
 .phero.land > video.lp-suite.on { opacity: 1; }
+
+/* ---------- Petit pavé « Menu de Noël » de la page Buffet antillais (2026-11-28) ---------- */
+.noel-w { margin-top: clamp(22px, 3vw, 34px); }
+.noel { position: relative; overflow: hidden; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: clamp(14px, 2.4vw, 28px);
+  padding: clamp(16px, 2.2vw, 22px) clamp(18px, 3vw, 34px); border-radius: var(--rayon); text-decoration: none; color: #fff;
+  background: radial-gradient(circle at 12% 30%, #2f5a47 0, transparent 55%), linear-gradient(120deg, #15301f 0%, #1d3b2f 55%, #4a1d1d 130%);
+  box-shadow: 0 12px 34px rgba(16, 32, 24, .22); border: 1px solid rgba(201, 164, 106, .45); transition: transform .25s, box-shadow .25s; }
+.noel:hover { transform: translateY(-2px); box-shadow: 0 16px 40px rgba(16, 32, 24, .3); }
+.noel-sapin { width: clamp(84px, 10vw, 118px); height: auto; position: relative; z-index: 1; filter: drop-shadow(0 6px 10px rgba(0, 0, 0, .35)); }
+.noel-sapin .vert { fill: #2e7a4f; stroke: #1e5537; stroke-width: 1.2; stroke-linejoin: round; }
+.noel-sapin .tronc { fill: #7a4a2a; }
+.noel-sapin .guirlande { fill: none; stroke: #e2c495; stroke-width: 1.4; stroke-dasharray: 2 2.6; }
+.noel-sapin .lum circle { fill: #ffd98a; animation: noelLum 1.8s ease-in-out infinite; animation-delay: var(--k); }
+.noel-sapin .lum circle:nth-child(3n) { fill: #ff8a7a; }
+.noel-sapin .lum circle:nth-child(3n+1) { fill: #fff3c9; }
+.noel-sapin .etoile { fill: #e2c495; transform-origin: 50px 13px; animation: noelEtoile 3s ease-in-out infinite; }
+.noel-t { position: relative; z-index: 1; display: grid; gap: 2px; }
+.noel-t small { text-transform: uppercase; letter-spacing: .14em; font-size: .74rem; color: #e2c495; font-weight: 500; }
+.noel-t b { font-family: var(--serif); font-weight: 500; font-size: clamp(1.45rem, 2.6vw, 2rem); line-height: 1.15; }
+.noel-t > span { color: rgba(255, 255, 255, .86); font-size: .98rem; line-height: 1.45; }
+.noel-go { position: relative; z-index: 1; white-space: nowrap; }
+.noel-neige { position: absolute; inset: 0; pointer-events: none; }
+.noel-neige i { position: absolute; top: -10px; left: var(--x); width: var(--t); height: var(--t); border-radius: 50%; background: #fff; opacity: .75;
+  animation: noelNeige var(--d) linear infinite; animation-delay: calc(var(--r) * -1); }
+@keyframes noelNeige { to { transform: translate(18px, 190px); opacity: .15; } }
+@keyframes noelLum { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
+@keyframes noelEtoile { 0%, 100% { transform: scale(1) rotate(0); } 50% { transform: scale(1.14) rotate(8deg); } }
+@media (max-width: 700px) {
+  .noel { grid-template-columns: auto 1fr; }
+  .noel-go { grid-column: 1 / -1; justify-self: stretch; justify-content: center; }
+  .noel-t > span { font-size: .92rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .noel-neige, .noel-sapin .lum circle, .noel-sapin .etoile { animation: none; }
+  .noel-neige { display: none; }
+}

@@ -531,6 +531,8 @@ async function createApp(opts = {}) {
     }
     await store.set('_migr/coffretMexicain', { at: new Date().toISOString() });
   }
+  /* Menu de Noël antillais (Jean-Luc, 2026-11-28) : rubrique + fiches créées une fois, retirées seules le 5 janvier 2027 (server/noel.js) */
+  await require('./noel').initNoel(store);
   /* une seule fois (Jean-Luc, 2026-11-28) : la photo des sandwichs club colorés (mini-clubs) est remplacée PARTOUT
      (fiches, rubriques, réglages du site) par sa photo du coffret bois 9 cases, recadrée sans le logo */
   if (!(await store.get('_migr/coffretPartout'))) {

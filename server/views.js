@@ -82,7 +82,7 @@ function layoutBrut(c, { title, description = '', body, path = '/', schema = nul
   /* un titre Google qui porte déjà la marque (« … | Magnolia Traiteur ») n'est pas doublé */
   const fullTitle = title ? (/\|\s*Magnolia\b/i.test(title) ? title : `${title} · ${R.nom || 'Magnolia Traiteur'}`) : `${R.nom || 'Magnolia Traiteur'} · Traiteur événementiel`;
   const site = (process.env.SITE_URL || 'https://www.magnoliatraiteur.fr').replace(/\/$/, '');
-  const rubs = c.rubriques.filter(r => r.statut !== 'masque' && r.slug !== 'lieux');
+  const rubs = c.rubriques.filter(r => r.statut !== 'masque' && !r.discret && r.slug !== 'lieux');
   return `<!doctype html>
 <html lang="fr">
 <head>
@@ -202,7 +202,7 @@ const trunc = (s, n) => { s = String(s || ''); return s.length > n ? s.slice(0, 
 function universListe(c) {
   const lieux = { slug: 'lieux', nom: 'Lieux de réception', href: '/lieux', photo: c.lieux[0]?.photos?.[0] };
   /* un univers à spécialités (Saveurs du monde) est remplacé par ses spécialités : Paëlla party, Buffet libanais… (un seul clic pour le client) */
-  const l = c.rubriques.filter(r => r.statut !== 'masque').flatMap(r => r.slug === 'lieux' ? [lieux]
+  const l = c.rubriques.filter(r => r.statut !== 'masque' && !r.discret).flatMap(r => r.slug === 'lieux' ? [lieux]
     : sousVisibles(r).length ? sousVisibles(r).map(x => ({ slug: r.slug + '/' + x.slug, nom: String(x.nom || '').split(' · ')[0], href: `/${r.slug}/${x.slug}`, photo: x.photo, prods: prodsDeSous(c, r, x.slug) }))
     : [{ slug: r.slug, nom: r.nom, href: rubHref(r), photo: r.photoAccueil || r.photo || r.bandeauPhoto, prods: c.byRub.get(r.slug) || [] }]);
   return l.some(u => u.slug === 'lieux') ? l : [...l, lieux];
@@ -245,7 +245,7 @@ function univers(c) {
   /* la vignette Lieux prend la place de la rubrique « lieux » (ordre du back-office) */
   const vLieux = videoAccueil('lieux', c.rubriques.find(r => r.slug === 'lieux'));
   const lieux = `<a class="tile" href="/lieux">${vLieux || img(c.lieux[0]?.photos?.[0], '')}<span class="tile-t"><b>Lieux de réception</b><small>${c.lieux.filter(l => l.statut !== 'masque').length} lieux à privatiser</small></span></a>`;
-  const rubs = c.rubriques.filter(r => r.statut !== 'masque');
+  const rubs = c.rubriques.filter(r => r.statut !== 'masque' && !r.discret);
   /* Saveurs du monde : seule vignette animée, un petit globe qui tourne sur fond de verdure (Jean-Luc, 2026-11-24) */
   /* depuis le 2026-11-27, la vidéo des cuisiniers passe avant le globe (le globe reste si le fichier manque) */
   /* provenance de chaque cuisinier, en petit en haut à droite, changée au milieu de chaque fondu (vidéo de 26 s : un visage toutes les 2,6 s, Jean-Luc 2026-11-27) */
@@ -415,7 +415,7 @@ function lienMot(c, t) {
   const m = String(t).match(/^(.*?)\s*[|=]\s*(\/\S*)$/);
   if (m) return { t: m[1], href: m[2] };
   const k = sansAccent(t);
-  const rubs = c.rubriques.filter(r => r.statut !== 'masque');
+  const rubs = c.rubriques.filter(r => r.statut !== 'masque' && !r.discret);
   const r0 = rubs.find(r => sansAccent(r.nom) === k || sansAccent(r.slug) === k);
   if (r0) return { t, href: '/' + r0.slug };
   for (const r of rubs) for (const x of sousVisibles(r)) {
@@ -576,6 +576,7 @@ const LANDINGS = {
       ['/site/c/antilles-menus/colombo.jpg.webp', 'Colombo de poulet'],
     ],
     fin: 'Prêt à faire voyager vos invités ?',
+    noel: 'menu-de-noel', /* petit pavé animé « Menu de Noël » sous la bande défilante (Jean-Luc, 2026-11-28) ; disparaît avec la rubrique le 5 janvier 2027 */
   },
   /* même présentation pour le chinois et le libanais (Jean-Luc, 2026-11-28) ; fournisseurs jamais nommés */
   'buffet-chinois': {
@@ -800,7 +801,7 @@ function pageLanding(c, r, x) {
   const instaL = L.insta?.length ? L.insta : liste.map(p => [p.photos?.find(ph => ph?.src && /^\/site\//.test(ph.src) && !/photo-a-venir|\.svg/.test(ph.src))?.src, p.titre]).filter(([s]) => s).filter((v, i, a) => a.findIndex(w => w[0] === v[0]) === i).slice(0, 6);
   const insta = R.instagram && instaL.length >= 3 ? `<section class="wrap lp-ig"><a class="lp-ig-h" href="${esc(R.instagram)}" target="_blank" rel="noopener">${igCouleur('iglp')}<span><b>${esc(igCompte(R.instagram))}</b><small>Nos buffets, nos équipes, vos fêtes : suivez-nous sur Instagram</small></span><span class="btn btn-line">Suivre</span></a>
     <div class="lp-ig-g${instaL.length < 6 ? ' n3' : ''}">${instaL.map(([src, alt]) => `<a href="${esc(R.instagram)}" target="_blank" rel="noopener" aria-label="${esc(alt)} · Instagram">${img(src, alt)}</a>`).join('')}</div></section>` : '';
-  const body = `${hero}${defile}
+  const body = `${hero}${defile}${paveNoel(c, L.noel)}
 <section class="wrap shop spe-sections lp-top">${x.introTexte ? `<div class="spe-intro">${x.introTitre ? `<h2>${esc(x.introTitre)}</h2>` : ''}${String(x.introTexte).split(/\n+/).map(l => l.trim()).filter(Boolean).map(l => `<p>${esc(l)}</p>`).join('')}</div>` : ''}${buffets ? bloc(buffets) : ''}</section>
 ${avisHtml}${equipe}${insta}
 ${blocs.length ? `<section class="wrap shop spe-sections" id="prestations"${rubmActif(blocs) ? ' data-rubm' : ''}><div class="shop-bar lp-unite-h"><p class="eyebrow">À la carte</p><h2>Composez votre menu à l’unité</h2>${rubmActif(blocs) ? rubmRetour() : ''}</div>
@@ -808,6 +809,29 @@ ${blocs.length ? `<section class="wrap shop spe-sections" id="prestations"${rubm
 ${require('./blog-pages').blocSpecialite(c, x)}
 <section class="cta wrap lp-fin"><h2>${esc(L.fin)}</h2><div class="row"><a class="btn btn-vert" href="${ancre}">${voirTxt}</a><a class="lnk" href="tel:${esc(tel)}">ou appelez le ${esc(R.telephone || '')}</a></div>${gBouton()}<p class="lp-autres">${rub ? `<a class="lnk" href="/saveurs-du-monde">Découvrir nos saveurs du monde ${icon.arrow}</a>` : `<a class="lnk" href="/${esc(r.slug)}">Découvrir nos autres saveurs du monde ${icon.arrow}</a>`}</p></section>`;
   return layout(c, { title: x.seoTitre || titreX, description: x.seoDescription || chapoX, body, path: rub ? '/' + r.slug : `/${r.slug}/${x.slug}`, image: x.bandeauPhoto || x.photo, bodyClass: 'page-lp' });
+}
+
+/* Petit pavé « Menu de Noël » (Jean-Luc, 2026-11-28) : un sapin dont les guirlandes scintillent, de la neige qui tombe,
+   et un lien vers la rubrique des fêtes. Rien n'est affiché si la rubrique est masquée ou terminée (champ finLe). */
+function paveNoel(c, slug) {
+  const r = slug && c.rubriques.find(z => z.slug === slug && z.statut !== 'masque');
+  const n = r ? (c.byRub.get(r.slug) || []).length : 0;
+  if (!r || !n) return '';
+  const flocons = Array.from({ length: 14 }, (_, i) => `<i style="--x:${(i * 37) % 100}%;--d:${6 + (i * 7) % 6}s;--r:${(i * 13) % 9}s;--t:${3 + (i % 3) * 2}px"></i>`).join('');
+  const lumieres = [[50, 30], [44, 44], [57, 47], [38, 60], [52, 62], [64, 64], [33, 77], [46, 79], [60, 80], [70, 78]]
+    .map(([x, y], i) => `<circle cx="${x}" cy="${y}" r="2.6" style="--k:${(i % 4) * .45}s"/>`).join('');
+  return `<section class="wrap noel-w"><a class="noel" href="/${esc(r.slug)}" aria-label="Découvrir notre menu de Noël antillais">
+  <span class="noel-neige" aria-hidden="true">${flocons}</span>
+  <svg class="noel-sapin" viewBox="0 0 100 100" aria-hidden="true">
+    <rect x="45" y="86" width="10" height="10" rx="2" class="tronc"/>
+    <path d="M50 14 L74 50 H62 L80 72 H64 L86 90 H14 L36 72 H20 L38 50 H26 Z" class="vert"/>
+    <path d="M37 52 Q52 58 66 49 M30 72 Q50 82 72 70" class="guirlande"/>
+    <g class="lum">${lumieres}</g>
+    <path d="M50 3 l3.2 6.6 7.2 1 -5.2 5 1.3 7.2 -6.5 -3.4 -6.5 3.4 1.3 -7.2 -5.2 -5 7.2 -1 z" class="etoile"/>
+  </svg>
+  <span class="noel-t"><small>Nouveau · Noël et Nouvel An</small><b>Menu de Noël antillais</b><span>Bokits, pâtés salés, jambon de Noël, bûche coco-passion, punchs… ${n} gourmandises des fêtes à commander dès maintenant.</span></span>
+  <span class="btn btn-or noel-go">Découvrir le menu ${icon.arrow}</span>
+</a></section>`;
 }
 
 function crumbs(list) {
@@ -848,7 +872,7 @@ ${avant}<section class="wrap shop" id="prestations" data-shop${rubm ? ' data-rub
   ${intro && !avant ? introHtml(intro.titre, intro.texte) : ''}${avant ? '<h2 class="p3-titre-liste">Tous nos produits en détail</h2>' : ''}
   ${path === '/boutique' && !q ? (B => B.introTitre || B.introTexte ? `<div class="shop-intro">${B.introTitre ? `<h2>${esc(B.introTitre)}</h2>` : ''}${B.introTexte ? `<p>${esc(B.introTexte)}</p>` : ''}</div>` : '')(bandeauDe(c, 'boutique')) : ''}
   <div class="shop-bar">
-    ${chips}<div class="chips scroll-x" role="tablist"${chips ? ' hidden' : ''}>${liste ? '' : `<a class="chip${!rub ? ' on' : ''}" href="/boutique" data-filter="">Tout <small>${c.produits.filter(p => p.statut !== 'masque').length}</small></a>`}${liste ? '' : rubs.map(x => `<a class="chip${x.slug === rub ? ' on' : ''}" href="/${x.slug}"${x.slug === 'saveurs-du-monde' || x.parSections ? ' data-lien' : ` data-filter="${x.slug}"`}>${esc(x.nom)} <small>${c.byRub.get(x.slug)?.length || 0}</small></a>`).join('')}</div>
+    ${chips}<div class="chips scroll-x" role="tablist"${chips ? ' hidden' : ''}>${liste ? '' : `<a class="chip${!rub ? ' on' : ''}" href="/boutique" data-filter="">Tout <small>${c.produits.filter(p => p.statut !== 'masque').length}</small></a>`}${liste ? '' : rubs.filter(x => !x.discret).map(x => `<a class="chip${x.slug === rub ? ' on' : ''}" href="/${x.slug}"${x.slug === 'saveurs-du-monde' || x.parSections ? ' data-lien' : ` data-filter="${x.slug}"`}>${esc(x.nom)} <small>${c.byRub.get(x.slug)?.length || 0}</small></a>`).join('')}</div>
     <div class="shop-tools">
       <form class="shop-q" action="/boutique" role="search">${icon.search}<input type="search" name="q" value="${esc(q)}" placeholder="Paëlla, DJ, fruits de mer…" aria-label="Rechercher dans la boutique" data-shop-q></form>
       <label class="tri"><span class="sr">Trier</span><select data-sort><option value="ordre">Classement</option><option value="az">Ordre alphabétique (A à Z)</option><option value="asc">Prix croissant</option><option value="desc">Prix décroissant</option></select></label>
