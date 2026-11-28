@@ -53,7 +53,7 @@ const REGLAGES_DEFAUT = {
     sousTitre: 'Traiteur, animations et lieux de réception pour tous vos événements.',
     videos: [
       { src: '/site/v/italien-boucle.mp4', poster: '/site/v/italien-boucle.jpg', titre: 'Buffet italien', lien: '/saveurs-du-monde/buffet-italien-entree-plat-dessert' },
-      { src: '/site/v/antillais-riz.mp4', poster: '/site/v/antillais-riz.jpg', titre: 'Buffet antillais', lien: '/buffet-antillais' },
+      { src: '/site/v/antillais-boucle.mp4', poster: '/site/v/antillais-boucle.jpg', titre: 'Buffet antillais', lien: '/buffet-antillais' },
       { src: '/site/v/chinois-boucle.mp4', poster: '/site/v/chinois-boucle.jpg', titre: 'Buffet chinois', lien: '/buffet-chinois' },
     ],
     chiffres: [
@@ -270,7 +270,7 @@ const SOUS_DEFAUT = {
     { slug: 'buffet-africain', nom: 'Buffet africain', pays: 'Afrique', photo: '/site/v/africain-boucle.jpg', video: '/site/v/africain-boucle.mp4', mots: ['africain'], dossiers: ['africain-'] },
     { slug: 'couscous-party', nom: 'Couscous party', pays: 'Maghreb', photo: '/site/c/couscous-menus/couscous-royal-sans-logo-20261106.webp.webp', mots: ['couscous'] },
     { slug: 'buffet-italien', nom: 'Buffet italien', pays: 'Italie', photo: '/site/v/italien-boucle.jpg', video: '/site/v/italien-boucle.mp4', mots: ['italien'] },
-    { slug: 'buffet-antillais', nom: 'Buffet antillais', pays: 'Antilles', photo: '/site/v/antillais-riz.jpg', video: '/site/v/antillais-riz.mp4', mots: ['antill'], dossiers: ['antilles-'] },
+    { slug: 'buffet-antillais', nom: 'Buffet antillais', pays: 'Antilles', photo: '/site/v/antillais-boucle.jpg', video: '/site/v/antillais-boucle.mp4', mots: ['antill'], dossiers: ['antilles-'] },
     { slug: 'buffet-indien', nom: 'Buffet indien', pays: 'Inde', photo: '/site/c/indien-menus/menu-client-1.webp.webp', mots: ['indien'] },
     { slug: 'specialites-japonaises', nom: 'Spécialités japonaises', pays: 'Japon', photo: '/site/c/sushi45.jpg.webp', mots: ['japonais', 'sushi'] },
   ],
@@ -918,6 +918,19 @@ async function initSousRubriques(store, { log = console } = {}) {
       }
     }
     await store.set('site/reglages', { ...remplacer(await store.get('site/reglages')), antillaisRiz1: true });
+  }
+
+  /* Retour en arrière (Jean-Luc, 2026-11-28, quelques minutes après) : le riz « fait trop IA » → on remet la vidéo d'origine
+     avec la soupe (antillais-boucle) partout. Une fois. */
+  const RRiz2 = await store.get('site/reglages');
+  if (RRiz2 && !RRiz2.antillaisRizAnnule1) {
+    const remettre = x => JSON.parse(JSON.stringify(x).replace(/\/site\/v\/antillais-riz\.(mp4|jpg)/g, '/site/v/antillais-boucle.$1'));
+    for (const col of ['rubriques', 'produits']) {
+      for (const { id, data: x } of (await store.list(col)) || []) {
+        if (JSON.stringify(x || '').includes('/site/v/antillais-riz.')) await store.set(col + '/' + id, remettre(x));
+      }
+    }
+    await store.set('site/reglages', { ...remettre(await store.get('site/reglages')), antillaisRizAnnule1: true });
   }
 
   /* Buffet chinois, « Nos buffets » (Jean-Luc, 2026-11-27) : les 3 formules montraient toutes la même vidéo (chinois-boucle).
