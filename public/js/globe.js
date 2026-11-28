@@ -68,7 +68,8 @@
   }
 
   /* ---------- flèche du pavé vers le pays (SVG au-dessus du globe) ---------- */
-  const svg = $('[data-sm-fleche]'), trait = $('[data-sm-trait]');
+  const svg = $('[data-sm-fleche]'), trait = $('[data-sm-trait]'), revele = $('[data-sm-revele]');
+  const DUREE_POINTILLE = 2600; // ms : « beaucoup plus doucement »
   let flecheAnim = 0, flecheT0 = 0;
   function majFleche() {
     if (!map || actif < 0) { trait.setAttribute('d', ''); return; }
@@ -87,11 +88,13 @@
       : `M${sx},${sy} C${sx + (ex - sx) * .45},${sy} ${ex - (ex - sx) * .3},${ey - 90} ${ex - 6},${ey - 8}`;
     trait.setAttribute('d', d);
     svg.setAttribute('viewBox', `0 0 ${R.width} ${R.height}`);
-    if (flecheT0) {
-      const L = trait.getTotalLength(), k = Math.min(1, (performance.now() - flecheT0) / 900);
-      trait.style.strokeDasharray = L; trait.style.strokeDashoffset = L * (1 - (1 - Math.pow(1 - k, 3)));
-      if (k >= 1) { flecheT0 = 0; trait.style.strokeDasharray = ''; trait.style.strokeDashoffset = ''; }
-    }
+    /* pointillé qui avance tout doucement du pavé vers le pays (Jean-Luc, 2026-11-28) : un masque le dévoile petit à petit */
+    revele.setAttribute('d', d);
+    const L = revele.getTotalLength();
+    const k = flecheT0 ? Math.max(0, Math.min(1, (performance.now() - flecheT0) / DUREE_POINTILLE)) : 1;
+    const e = k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2; // départ et arrivée en douceur
+    revele.style.strokeDasharray = `${L} ${L + 10}`; revele.style.strokeDashoffset = L * (1 - e);
+    if (flecheT0 && k >= 1) { flecheT0 = 0; arrivee(); }
   }
   const boucleFleche = () => { majFleche(); majOrbites(); majPointe(); flecheAnim = requestAnimationFrame(boucleFleche); };
 
@@ -200,7 +203,7 @@
   /* état de départ : aucun pays, bandeau d'arrivée, titre d'invitation (2e clic sur le pays choisi, Jean-Luc 2026-11-23) */
   const titre0 = $('[data-sm-titre]').textContent, phrase0 = $('[data-sm-phrase]')?.textContent || '';
   function deselectionner() {
-    actif = -1; majSpe();
+    actif = -1; majSpe(); clearTimeout(ouvrirT); flecheT0 = 0;
     $$('[data-sm-i]').forEach(p => p.classList.remove('on'));
     const ss = $('[data-sm-sous]'); if (ss) ss.hidden = false;
     $('[data-sm-titre]').textContent = titre0; const ph = $('[data-sm-phrase]'); if (ph) ph.textContent = phrase0;
@@ -235,28 +238,29 @@
     carteVoir = new maplibregl.Marker({ element: box, anchor: mobile() ? 'top' : 'bottom-left', offset: mobile() ? [0, 18] : [14, -14] }).setLngLat(c).addTo(map);
     /* la Terre tourne vers le pays */
     if (voler && !plat()) map.flyTo({ center: [c[0] - (mobile() ? 0 : 6), Math.max(-35, Math.min(45, c[1] - 4))], zoom: zoomBase() + .35, duration: calme ? 0 : 2200, essential: true, curve: 1.2 });
-    /* ordre voulu par Jean-Luc (2026-11-28) : la flèche part d'abord du pavé vers le pays,
-       puis le trajet repart du pays vers Paris (jamais de Paris vers le pays) */
-    cancelAnimationFrame(arcAnim);
-    map.getSource('arc').setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: [c, c] } });
-    const pts = grandCercle(c, PARIS), src = map.getSource('arc'), t0 = performance.now() + (calme ? 0 : 1200);
+    /* nouveau parcours (Jean-Luc, 2026-11-28) : un pointillé part tout doucement du pavé vers le pays,
+       le point s'allume dans une petite explosion de lumière, puis la page de la spécialité s'ouvre toute seule */
+    cancelAnimationFrame(arcAnim); clearTimeout(ouvrirT);
+    map.getSource('arc').setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: [PARIS, PARIS] } });
     arcPts = null; pointe && pointe.getElement().classList.remove('on');
-    const pas = t => {
-      const k = calme ? 1 : Math.max(0, Math.min(1, (t - t0) / 1600));
-      if (k > 0) {
-        arcPts = pts.slice(0, Math.max(2, Math.round(pts.length * (1 - Math.pow(1 - k, 2)))));
-        src.setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: arcPts } });
-        pointe && pointe.getElement().classList.add('on'); majPointe();
-      }
-      if (k < 1) arcAnim = requestAnimationFrame(pas);
-    };
-    arcAnim = requestAnimationFrame(pas);
-    flecheT0 = calme ? 0 : performance.now() + 200;
+    carteVoir.getElement().classList.add('attente');
+    if (calme) { flecheT0 = 0; arrivee(); } else flecheT0 = performance.now() + 150;
+    /* filet de sécurité : si le pavé ou le pays n'est pas à l'écran, on arrive quand même */
+    ouvrirT = setTimeout(() => { if (flecheT0) { flecheT0 = 0; arrivee(); } }, DUREE_POINTILLE + 2500);
+  }
+  let ouvrirT = 0;
+  function arrivee() {
+    if (actif < 0) return;
+    const x = items[actif];
+    marque && marque.getElement().classList.add('boum');
+    carteVoir && carteVoir.getElement().classList.remove('attente');
+    clearTimeout(ouvrirT);
+    ouvrirT = setTimeout(() => { if (items[actif] === x) location.href = x.href; }, calme ? 300 : 900);
   }
   /* ---------- téléphone : la bande de pavés défile toute seule, en boucle, de gauche à droite (Jean-Luc, 2026-11-22) ----------
      elle s'arrête dès qu'on la touche et repart quelques secondes après ; les pavés restent cliquables */
   const bande = $('[data-sm-paves]');
-  bande.addEventListener('click', e => { const p = e.target.closest('[data-sm-i]'); if (!p) return; e.preventDefault(); choisir(+p.dataset.smI); });
+  bande.addEventListener('click', e => { const p = e.target.closest('[data-sm-i]'); if (!p) return; if (e.metaKey || e.ctrlKey || e.shiftKey || !map || !geo) return; e.preventDefault(); choisir(+p.dataset.smI); });
   [...bande.children].forEach(li => { const c = li.cloneNode(true); c.classList.add('sm-copie'); c.setAttribute('aria-hidden', 'true'); c.querySelector('a').tabIndex = -1; bande.appendChild(c); });
   let bandeArret = 0, bandePos = -1, bandeT = 0;
   const largeurJeu = () => { const c = bande.querySelector('.sm-copie'); return c ? c.offsetLeft - bande.firstElementChild.offsetLeft : 0; };
