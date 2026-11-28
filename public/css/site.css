@@ -1017,6 +1017,10 @@ body.noscroll .partage { display: none; }
 @keyframes smCase { from { opacity: 0; } to { opacity: 1; } }
 .sm-paris { display: flex; align-items: center; gap: 6px; pointer-events: none; }
 .sm-paris i { width: 9px; height: 9px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 2px #c9a46a; }
+/* la pointe s'arrête juste avant le point de Paris (centre de la boîte = Paris, triangle à gauche) */
+.sm-pointe { width: 40px; height: 12px; pointer-events: none; visibility: hidden; }
+.sm-pointe::before { content: ''; position: absolute; left: 4px; top: 0; border-top: 6px solid transparent; border-bottom: 6px solid transparent; border-left: 12px solid #f1dcb0; filter: drop-shadow(0 0 3px rgba(0,0,0,.55)); }
+.sm-pointe.on { visibility: visible; }
 .sm-paris span { font-size: .66rem; letter-spacing: .16em; text-transform: uppercase; color: #f6f1e8; text-shadow: 0 1px 4px #000; }
 .sm-tip { font-family: var(--sans); }
 .sm-tip b { display: block; }
