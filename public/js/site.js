@@ -21,6 +21,18 @@
     t.innerHTML = esc(msg) + (lien ? ` <a href="${lien[1]}">${esc(lien[0])}</a>` : '');
     t.classList.add('on'); clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('on'), 4200);
   };
+  /* temps passé (copie de public/admin/admin.js) : une personne de l'équipe connectée qui vérifie le site travaille aussi */
+  if (/(?:^|;\s*)mg_eq=1/.test(document.cookie)) {
+    let geste = Date.now(), signe = 0, fini = false;
+    const vie = () => {
+      if (fini || document.hidden || Date.now() - geste > 10 * 60e3 || Date.now() - signe < 50e3) return;
+      signe = Date.now();
+      fetch('/api/admin/actions/presence', { method: 'POST', headers: { 'x-mg': '1' } }).then(r => { if (r.status === 401) { fini = true; document.cookie = 'mg_eq=; Path=/; Max-Age=0'; } }).catch(() => {});
+    };
+    for (const ev of ['pointerdown', 'keydown', 'wheel', 'touchstart', 'scroll', 'mousemove']) addEventListener(ev, () => { geste = Date.now(); vie(); }, { passive: true, capture: true });
+    setInterval(vie, 60e3);
+    document.addEventListener('visibilitychange', vie);
+  }
   const post = async (url, body) => {
     const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json', 'x-mg': '1' }, body: JSON.stringify(body) });
     const j = await r.json().catch(() => ({}));

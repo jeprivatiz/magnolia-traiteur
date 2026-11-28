@@ -650,8 +650,10 @@ async function createApp(opts = {}) {
   /* ---------- temps passé sur le back-office (Jean-Luc, 2026-11-26) ----------
      Estimation : la page envoie un signe toutes les minutes tant que la personne s'en sert (clic, frappe,
      défilement) et que l'onglet est visible ; après PAUSE sans signe, le compteur s'arrête.
+     2026-11-28 : 10 minutes sans geste au lieu de 5 (lecture d'un devis, appel client) et le site compte aussi
+     quand on est connecté à l'équipe (vérifier une page après une modification, c'est du travail).
      Une plage = [début, fin] en millisecondes, rangée par personne et par jour (heure de Paris). */
-  const PRES_PAUSE = 6 * 60e3, PRES_ECRIT = 55e3;
+  const PRES_PAUSE = 11 * 60e3, PRES_ECRIT = 55e3;
   const jourParis = t => new Date(t).toLocaleDateString('sv-SE', { timeZone: 'Europe/Paris' });
   const presMem = new Map(); /* uid -> { cle, doc, ecrit } */
   let presQueue = Promise.resolve();

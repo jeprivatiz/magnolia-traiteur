@@ -30,15 +30,17 @@
   }
   const A = '/api/admin';
   /* temps passé sur le back-office (estimation) : un signe par minute tant qu'on s'en sert,
-     c'est-à-dire onglet visible ET un geste (clic, frappe, défilement) dans les 5 dernières minutes */
+     c'est-à-dire onglet visible ET un geste (clic, frappe, défilement) dans les 10 dernières minutes (copie dans public/js/site.js) */
   let dernierGeste = Date.now(), dernierSigne = 0;
   const signeDeVie = () => {
-    if (typeof session === 'undefined' || !session || document.hidden || Date.now() - dernierGeste > 5 * 60e3 || Date.now() - dernierSigne < 50e3) return;
+    if (typeof session === 'undefined' || !session || document.hidden || Date.now() - dernierGeste > 10 * 60e3 || Date.now() - dernierSigne < 50e3) return;
     dernierSigne = Date.now();
     fetch(A + '/actions/presence', { method: 'POST', headers: { 'x-mg': '1' } }).catch(() => {});
   };
   for (const ev of ['pointerdown', 'keydown', 'wheel', 'touchstart', 'scroll', 'mousemove']) addEventListener(ev, () => { dernierGeste = Date.now(); signeDeVie(); }, { passive: true, capture: true });
   setInterval(signeDeVie, 60e3);
+  /* repère mg_eq=1 : le site sait alors qu'une personne de l'équipe est connectée et compte aussi son temps (public/js/site.js) */
+  const repereEquipe = on => { try { document.cookie = `mg_eq=${on ? 1 : ''}; Path=/; Max-Age=${on ? 30 * 86400 : 0}; SameSite=Lax`; } catch { /* */ } };
   document.addEventListener('visibilitychange', signeDeVie);
   /* cases « Titre / Description dans Google » (rubrique, spécialité, produit) + « ✨ Proposer avec l'IA » */
   const seoN = (v, max) => `${String(v || '').length} / ${max} caractères`;
@@ -195,7 +197,7 @@
   async function render() {
     if (versionPerimee) { location.reload(); return; }
     if (!session) {
-      try { const s = await fetch('/api/session').then(r => r.json()); if (s.connecte) session = s; } catch { /* */ }
+      try { const s = await fetch('/api/session').then(r => r.json()); if (s.connecte) session = s; repereEquipe(!!s.connecte); } catch { /* */ }
     }
     if (!session) return login();
     const [route, id, sub] = location.hash.replace(/^#\/?/, '').split('?')[0].split('/');
@@ -219,7 +221,7 @@
   addEventListener('hashchange', render);
   function bindShell() {
     $('[data-monmdp]')?.addEventListener('click', monMotDePasse);
-    $('[data-logout]')?.addEventListener('click', async () => { await api('/api/auth/logout', { method: 'POST' }); session = null; render(); });
+    $('[data-logout]')?.addEventListener('click', async () => { await api('/api/auth/logout', { method: 'POST' }); repereEquipe(false); session = null; render(); });
     $('[data-burger]')?.addEventListener('click', () => $('#side').classList.toggle('open'));
     $$('#side nav a').forEach(a => a.addEventListener('click', () => $('#side').classList.remove('open')));
     /* CRM : la flèche ouvre et referme le groupe ; un clic depuis une autre rubrique rouvre la dernière rubrique CRM utilisée */
@@ -5245,9 +5247,9 @@
     const periode = !j.du && !j.au ? 'depuis le début' : j.du === j.au ? 'le ' + dateFr(j.du, { weekday: 'long', day: 'numeric', month: 'long' }) : (j.du ? 'du ' + dateFr(j.du) : 'jusqu’') + (j.au ? (j.du ? ' au ' : 'au ') + dateFr(j.au) : ' à aujourd’hui');
     let jour = '';
     const lignes = j.lignes.map(l => { const d = jourIci(new Date(l.at)); const tete = d !== jour ? `<li class="jrn-jour">${esc(dateFr(d, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }))}</li>` : ''; jour = d; return tete + `<li><time>${new Date(l.at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</time> <b>${esc(l.who)}</b> ${esc(l.op)} <small>${esc(l.resume || l.path)}</small></li>`; }).join('');
-    return `<div class="jrn-temps"><h3>⏱ Temps passé sur le back-office <small class="muted">${esc(periode)}</small></h3>
+    return `<div class="jrn-temps"><h3>⏱ Temps passé sur le back-office et le site <small class="muted">${esc(periode)}</small></h3>
       ${lst.length ? `<table class="jrn-tab"><thead><tr><th>Personne</th><th>Temps</th><th>Jours</th><th>Actions</th></tr></thead><tbody>${lst.map(p => `<tr data-jqui="${esc(p.cle)}"${p.cle === jrnF.qui ? ' class="on"' : ''}><td><b>${esc(p.who || 'Sans nom')}</b></td><td class="jrn-h">${duree(p.minutes)}</td><td>${p.jours || '—'}</td><td>${p.actions || '—'}</td></tr>`).join('')}</tbody>${lst.length > 1 ? `<tfoot><tr><td>Total</td><td class="jrn-h">${duree(tot)}</td><td></td><td>${lst.reduce((s, p) => s + p.actions, 0)}</td></tr></tfoot>` : ''}</table>` : '<p class="muted sm">Personne n’a utilisé le back-office sur cette période.</p>'}
-      <p class="muted sm">C’est une estimation : le temps compte quand la personne se sert du back-office (clic, frappe, défilement) avec la page affichée à l’écran ; après 5 minutes sans aucun geste, le compteur s’arrête. Compté depuis le ${esc(depuis)} (avant, ce n’était pas enregistré).</p></div>
+      <p class="muted sm">C’est une estimation : le temps compte quand la personne se sert du back-office, ou du site en étant connectée, (clic, frappe, défilement) avec la page affichée à l’écran ; après 10 minutes sans aucun geste, le compteur s’arrête. Le temps passé ailleurs (brochure, téléphone, e-mails) ne peut pas être vu. Compté depuis le ${esc(depuis)} (avant, ce n’était pas enregistré).</p></div>
       <h3 class="jrn-nb">${j.nb} action${j.nb > 1 ? 's' : ''}${j.nb > j.lignes.length ? ` <small class="muted">(les ${j.lignes.length} plus récentes affichées)</small>` : ''}</h3>
       <ul class="journal">${lignes || '<li class="muted">Aucune action sur cette période.</li>'}</ul>`;
   };
