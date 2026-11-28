@@ -443,8 +443,8 @@
   /* validation avec fenêtre de confirmation (Jean-Luc, 2026-11-28 : « Votre commande est-elle terminée ? Voulez-vous la valider ? ») */
   async function pcEtatClic(d, k, btn) {
     const ok = !(d.etat || {})[k];
-    const q = ok ? (k === 'commande' ? 'Votre commande est-elle terminée ?\n\nVoulez-vous la valider (« Bon de commande préparé ») ?' : 'Votre bon de livraison est-il terminé ?\n\nVoulez-vous le valider (« Bon de livraison préparé ») ?') + '\n\nVotre nom sera noté, pour savoir à qui poser les questions.' : `Retirer la validation « ${PC_ET[k]} » ?`;
-    if (!confirm(q)) return false;
+    const q = ok ? `<h2>${k === 'commande' ? 'Votre commande est-elle terminée&nbsp;?' : 'Votre bon de livraison est-il terminé&nbsp;?'}</h2><p>${k === 'commande' ? 'Voulez-vous la valider' : 'Voulez-vous le valider'} («&nbsp;${PC_ET[k]}&nbsp;»)&nbsp;? Votre nom sera noté, pour savoir à qui poser les questions.</p>` : `<h2>Retirer la validation « ${PC_ET[k]} » ?</h2><p>La case redeviendra blanche.</p>`;
+    if (!(await confirmer(q, ok ? '✓ Oui, valider' : 'Oui, retirer', ok ? (k === 'commande' ? 'Non, pas encore terminée' : 'Non, pas encore terminé') : 'Non, garder'))) return false;
     try { const r = await api(`${A}/prepa/${encodeURIComponent(d.devisId)}/etat`, { method: 'POST', body: { cle: k, ok } }); d.etat = r.etat; if (btn) { const tr = btn.closest('tr'); btn.outerHTML = pcEtat(d, k); tr?.classList.toggle('pc-fait', !!(d.etat.commande && d.etat.livraison)); } toast(ok ? `${PC_ET[k]} : validé.` : 'Validation retirée.'); return true; } catch (err) { toast(err.message, true); return false; }
   }
   function prepaLignes() {
@@ -3413,10 +3413,10 @@
     const lien = cache.dif?.conf?.lienSms || '', b = versGsm(texte).replace(/\{prenom\}/gi, 'Alexandra').trim();
     return b + (lien && !b.toLowerCase().includes(lien.toLowerCase()) ? '\n' + lien : '') + '\nSTOP au 36173';
   }
-  function confirmer(html, oui) {
+  function confirmer(html, oui, non = 'Annuler') {
     return new Promise(res => {
       const m = document.createElement('div'); m.className = 'modal df-modal'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-modal', 'true');
-      m.innerHTML = `<div class="modal-in df-conf">${html}<div class="row df-cf"><button type="button" class="btn ghost" data-non>Annuler</button><button type="button" class="btn" data-oui>${esc(oui)}</button></div></div>`;
+      m.innerHTML = `<div class="modal-in df-conf">${html}<div class="row df-cf"><button type="button" class="btn ghost" data-non>${esc(non)}</button><button type="button" class="btn" data-oui>${esc(oui)}</button></div></div>`;
       const fin = v => { m.remove(); res(v); };
       m.addEventListener('click', e => { if (e.target === m || e.target.closest('[data-non]')) fin(false); if (e.target.closest('[data-oui]')) fin(true); });
       document.body.append(m); m.querySelector('[data-oui]').focus();
