@@ -351,7 +351,7 @@ function html(c, opts = {}) {
   };
 
   /* ---------- chapitre 1 : le traiteur français ---------- */
-  ouverture('01', 'Le traiteur français', 'Du petit-déjeuner au dîner : cocktails déjeunatoires ou dînatoires, buffets généreux et repas servis à table, des recettes de tradition et des bouchées raffinées préparées pour vos invités.', '/site/c/carte-magnolia-bandeau-chef.webp', 'cocktails-buffets', ['Nos petits-déjeuners', 'Nos cocktails & buffets français', 'La carte Magnolia : entrées, plats, repas servi à table']);
+  ouverture('01', 'Le traiteur français', 'Du petit-déjeuner au dîner : cocktails déjeunatoires ou dînatoires, buffets généreux et repas servis à table, des recettes de tradition et des bouchées raffinées préparées pour vos invités.', '/site/c/carte-magnolia-bandeau-chef.webp', 'cocktails-buffets', ['Nos petits-déjeuners', 'Nos cocktails & buffets français', 'La carte Magnolia : entrées, plats, repas servi à table, desserts']);
   /* les petits-déjeuners ouvrent l'offre traiteur : c'est le premier moment de la journée (Jean-Luc, 2026-11-28) */
   grille(GRILLES.petitsDej);
   for (const d of FRANCAIS) formule(d, 'Cocktails & buffets français');
@@ -368,6 +368,8 @@ function html(c, opts = {}) {
 </div>${pied(n)}</section>`, 'La carte Magnolia : nos plats');
   /* le repas servi à table a sa propre page, avec le salé, avant les desserts (Jean-Luc, 2026-11-28) */
   formule(REPAS, 'La carte Magnolia');
+  /* les desserts de la carte suivent le repas servi à table, après tout son salé (Jean-Luc, 2026-11-28) */
+  grille(GRILLES.desserts);
 
   /* ---------- chapitre 2 : saveurs du monde ---------- */
   const sm = rub('saveurs-du-monde');
@@ -391,10 +393,9 @@ function html(c, opts = {}) {
 <div class="form-bas">${qr('grand-large', 'l', '')}<div class="form-bas-t"><b>Composez votre plateau en ligne</b><span>Scannez ou cliquez : choisissez vos produits, voyez les prix à jour et ajoutez-les à votre sélection.</span><a href="${esc(lien('grand-large'))}">Voir sur le site →</a></div>${['huitres-gillardeau-n-3', 'homard-europeen-de-bretagne'].map(vignette).filter(Boolean).map(v => `<div class="form-vg">${photo(v)}</div>`).join('')}</div>${pied(n)}</section>`, 'Plateaux de fruits de mer');
   }
 
-  /* ---------- chapitre 3 : coffrets, desserts, boissons ---------- */
-  ouverture('03', 'Coffrets, desserts & boissons', 'Des coffrets à partager, des plateaux généreux, les desserts du chef, puis notre cave et nos open bars.', vignette('le-coffret-antillais-saveurs-pays') || '/site/c/coffret-bois-9-cases.webp', 'coffrets-plateaux', ['Nos coffrets gourmands', 'Nos plateaux à partager', 'Nos desserts', 'La cave de Magnolia']);
-  /* les desserts viennent après tout le salé, juste avant la cave (Jean-Luc, 2026-11-28) */
-  grille(GRILLES.coffrets); grille(GRILLES.plateaux); grille(GRILLES.desserts); grille(GRILLES.boissons);
+  /* ---------- chapitre 3 : coffrets, plateaux, boissons ---------- */
+  ouverture('03', 'Coffrets, plateaux & boissons', 'Des coffrets à partager, des plateaux généreux, notre cave et nos open bars.', vignette('le-coffret-antillais-saveurs-pays') || '/site/c/coffret-bois-9-cases.webp', 'coffrets-plateaux', ['Nos coffrets gourmands', 'Nos plateaux à partager', 'La cave de Magnolia']);
+  grille(GRILLES.coffrets); grille(GRILLES.plateaux); grille(GRILLES.boissons);
 
   /* ---------- chapitre 4 : animations & douceurs ---------- */
   ouverture('04', 'Animations & douceurs', 'Des stands qui font le spectacle, des douceurs pour petits et grands, des corbeilles de fruits et des gâteaux de fête.', vignette('animation-barbecue') || '/site/c/barbecue40-client-20261031.jpg.webp', 'animations-salees', ['Nos animations salées', 'Nos animations sucrées', 'Corbeilles de fruits & pâtisseries', 'Gâteaux & pièces montées']);
