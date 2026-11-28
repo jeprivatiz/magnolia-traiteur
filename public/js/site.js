@@ -587,6 +587,25 @@
     try { const r = await post('/api/demandes', { ...f, type: 'contact', lignes: [] }); conversion('contact', r.ref); contactForm.innerHTML = `<p class="ok">Merci, votre message est bien envoyé (référence ${esc(r.ref)}). Nous vous répondons vite.</p>`; }
     catch (err) { toast(err.message); }
   });
+  /* page Entreprises : demande courte, sans sélection, marquée « Entreprise » dans le back-office (Jean-Luc 2026-11-28) */
+  const entForm = $('[data-entreprise]');
+  if (entForm) {
+    const ed = entForm.querySelector('[name=date]'); if (ed) ed.min = new Date(Date.now() + 864e5).toISOString().slice(0, 10);
+    try { const c0 = store.get('mg_contact') || {}; for (const k of ['nom', 'email', 'tel', 'societe', 'cp']) if (c0[k] && entForm[k] && !entForm[k].value) entForm[k].value = c0[k]; } catch { /* */ }
+    entForm.addEventListener('submit', async e => {
+      e.preventDefault();
+      if (!entForm.checkValidity()) { entForm.reportValidity(); return; }
+      const btn = $('[data-send]', entForm), txt = btn.textContent; btn.disabled = true; btn.textContent = 'Envoi…';
+      const f = Object.fromEntries(new FormData(entForm));
+      store.set('mg_contact', { nom: f.nom, email: f.email, tel: f.tel, societe: f.societe, cp: f.cp });
+      try {
+        const r = await post('/api/demandes', { ...f, entreprise: true, lignes: [] });
+        conversion('demande', r.ref);
+        entForm.innerHTML = `<div class="merci ent-merci"><p class="eyebrow">Demande envoyée</p><h2>Merci ${esc(String(f.nom).split(' ')[0])} !</h2><p class="lead">Votre demande <b>${esc(r.ref)}</b> pour ${esc(f.societe)} est bien reçue. Un conseiller Magnolia vous rappelle et vous envoie votre devis sous 24 h.</p><p>Un e-mail de confirmation vient de partir à <b>${esc(f.email)}</b>.</p><p class="row"><a class="btn btn-vert" href="${esc(r.espace || '/espace-client')}">Suivre ma demande</a><a class="lnk" href="#besoins">Continuer à découvrir nos propositions</a></p></div>`;
+        entForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } catch (err) { toast(err.message); btn.disabled = false; btn.textContent = txt; }
+    });
+  }
   const avisForm = $('[data-avis]');
   avisForm?.addEventListener('submit', async e => {
     e.preventDefault();
