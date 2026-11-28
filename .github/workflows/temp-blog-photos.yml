@@ -19,7 +19,7 @@ jobs:
       - name: Téléchargement
         run: |
           mkdir -p tmp-blog && cd tmp-blog
-          for id in 34774346 1709003 6405679 6405675 6519411 6519213 14524171 29708266 6703915 261014 8761520 8761332 6405665 3171815 16408 3182824 3171837 6759184 6952740 25809255 6914469 7693713 7698747 6519224 6405756; do
+          for id in 6817034 7144185 7144176 4895413 15761595 34321369 36318467 2451305 3772524 5371583; do
             curl -fsSL -A "Mozilla/5.0 (magnolia-recuperation)" -o "$id.jpg" "https://images.pexels.com/photos/$id/pexels-photo-$id.jpeg?auto=compress&cs=tinysrgb&w=2000" || echo "échec $id"
           done
           ls -la
