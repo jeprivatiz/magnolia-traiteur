@@ -606,15 +606,16 @@ const LANDINGS = {
     avis: ['mt_56616', 'mt_54332', 'mt_43443', 'mt_26919', 'mt_53782', 'mt_59271'],
     avisTitre: 'Ils ont partagé nos mezzés',
     equipe: {
-      video: '/site/v/libanais-boucle.mp4', poster: '/site/v/libanais-boucle.jpg',
+      /* photo de table de mezzés à la place de la vidéo d'huile sur le houmous (« trop d'huile », Jean-Luc 2026-11-28) */
+      photo: '/site/c/libanais-mezzes.webp.webp',
       surtitre: 'L’art du partage',
       titre: 'Des mezzés à partager, comme au Liban',
       texte: ['Houmous, moutabal, taboulé, falafels, feuilles de vigne, puis chich taouk, kefta et chawarma : une table colorée où chacun se sert et partage.', 'Nous livrons 7 jours sur 7 sur Paris et toute l’Île-de-France ; nos serveurs dressent le buffet et le servent si vous le souhaitez.'],
       points: ['Livraison et installation du buffet', 'Végétariens et vegans faciles à servir', 'Serveurs et maîtres d’hôtel sur demande', 'Devis sous 24 h, sans paiement en ligne'],
     },
     insta: [
-      ['/site/c/libanais-produits/houmous-huile-video.webp', 'Houmous arrosé d’huile d’olive'],
-      ['/site/c/libanais-mezzes.webp.webp', 'Table de mezzés libanais'],
+      ['/site/c/libanais-produits/houmous-sans-logo-20261106.webp.webp', 'Houmous'],
+      ['/site/c/libanais-produits/fattouche.webp.webp', 'Fattouche'],
       ['/site/c/libanais-produits/taboule.webp.webp', 'Taboulé'],
       ['/site/c/libanais-produits/falafel.webp.webp', 'Falafels'],
       ['/site/c/libanais-produits/taouk.webp.webp', 'Chich taouk'],
