@@ -113,7 +113,7 @@ ${schema ? `<script type="application/ld+json">${JSON.stringify(schema).replace(
 <a class="skip" href="#contenu">Aller au contenu</a>
 <header class="top" data-top>
   <div class="top-bar"><div class="top-bar-in"><span class="top-bar-l">Livraison 7 j/7 sur Paris et toute l’Île-de-France</span>
-    <a class="top-broch" href="/telecharger-la-brochure?v=${V}" target="_blank" rel="noopener">${icon.doc}<span>Télécharger notre brochure</span></a>
+    <a class="top-broch" href="/brochure">${icon.doc}<span>Télécharger notre brochure</span></a>
     <a class="top-tel" href="tel:${esc((R.telephone || '').replace(/\s/g, ''))}">${icon.phone}<span>${esc(R.telephone)}</span></a></div></div>
   <div class="top-in">
     <button class="burger" type="button" aria-label="Ouvrir le menu" data-open-menu>${icon.menu}</button>
@@ -135,7 +135,7 @@ ${schema ? `<script type="application/ld+json">${JSON.stringify(schema).replace(
 <div class="drawer" data-menu hidden>
   <div class="drawer-in" role="dialog" aria-modal="true" aria-label="Menu">
     <div class="drawer-h"><span class="brand-txt">Magnolia<small>${esc(R.sousNom || '')}</small></span><button type="button" class="x" data-close-menu aria-label="Fermer">×</button></div>
-    <a class="drawer-broch" href="/telecharger-la-brochure?v=${V}" target="_blank" rel="noopener">${icon.doc}<span><b>Télécharger notre brochure</b>PDF à feuilleter ou à imprimer</span></a>
+    <a class="drawer-broch" href="/brochure">${icon.doc}<span><b>Télécharger notre brochure</b>À feuilleter, imprimer ou télécharger en PDF</span></a>
     <form class="drawer-s" action="/boutique" role="search"><input type="search" name="q" placeholder="Paëlla, DJ, fruits de mer…" aria-label="Rechercher"><button aria-label="Rechercher">${icon.search}</button></form>
     <a class="drawer-ent" href="/entreprises"><span><b>Vous êtes une entreprise ?</b>Cocktails, plateaux repas, séminaires : votre page</span>${icon.arrow}</a>
     <p class="eyebrow">Nos univers</p>
