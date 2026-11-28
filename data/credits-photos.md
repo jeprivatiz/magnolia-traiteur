@@ -47,3 +47,4 @@ Photos Pexels (licence Pexels : usage commercial gratuit, sans attribution oblig
 - fete-premier-toast.webp : https://www.pexels.com/photo/group-of-men-and-women-doing-glass-toast-6405665/
 - fete-confettis.webp : https://pexels.com/photo/people-toasting-wine-glasses-3171837/
 - fete-fin-de-soiree.webp : https://www.pexels.com/photo/people-having-conversation-6519224/
+- /site/v/entreprises/soiree.mp4 (+ image soiree.jpg) : 2e scène (soirée) de /site/v/bandeaux/cocktails-buffets-2.mp4, recoupée en boucle sans coupure, page Entreprises (bandeau).
