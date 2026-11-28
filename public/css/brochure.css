@@ -9,7 +9,7 @@
 }
 @page { size: A4; margin: 0; }
 * { box-sizing: border-box; }
-html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* iPhone : sans ça, Safari grossit les textes de la page réduite et le sommaire déborde (Jean-Luc, 2026-11-28) */
 body.brochure { margin: 0; background: #d9d4ca; font-family: var(--sans); color: var(--encre); font-size: 9pt; line-height: 1.45; }
 a { color: inherit; text-decoration: none; }
 img { display: block; }
@@ -105,8 +105,8 @@ h2 { font-size: 27pt; }
 /* liens « Et aussi, en ligne » du sommaire : avis, Instagram, reportages (Jean-Luc, 2026-11-28) */
 .som-plus { position: absolute; left: 15mm; right: 15mm; bottom: 17mm; background: var(--creme); border-radius: 3mm; padding: 3mm 4mm 3.5mm; }
 .som-plus .eyebrow { margin-bottom: 2mm; }
-.som-plus ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 3mm; }
-.som-plus li { display: flex; align-items: center; gap: 2.2mm; }
+.som-plus ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 3mm; }
+.som-plus li { min-width: 0; display: flex; align-items: center; gap: 2.2mm; }
 .som-plus a { text-decoration: none; font-size: 7.4pt; color: var(--gris); line-height: 1.25; }
 .som-plus a b { display: block; font-family: var(--serif); font-size: 10.5pt; font-weight: 500; color: var(--vert); }
 
