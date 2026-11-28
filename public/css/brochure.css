@@ -203,9 +203,22 @@ h2 { font-size: 27pt; }
 .accomp p { margin: 0 0 2mm; font-size: 9pt; }
 
 /* saveurs du monde */
-.monde .lead { margin-top: 5mm; }
+.monde .lead { margin-top: 3mm; }
+.monde .pg-in { padding-top: 9mm; }
+.monde-ph { background: #1d3b2f; height: 76mm; }
+.monde-carte { display: block; width: 100%; height: 100%; }
+.monde-noms a { cursor: pointer; }
+.monde-noms .halo { fill: #fff; opacity: .28; }
+.monde-noms a:hover text { fill: #f3dcae; }
+/* points des pays qui clignotent (brochure en ligne seulement : un PDF ne bouge pas) */
+@media screen and (prefers-reduced-motion: no-preference) {
+  .monde-noms .halo { transform-box: fill-box; transform-origin: center; animation: monde-pouls 1.6s ease-out infinite; }
+  .monde-noms a:nth-child(2n) .halo { animation-delay: .5s; } .monde-noms a:nth-child(3n) .halo { animation-delay: 1s; }
+}
+@keyframes monde-pouls { 0% { transform: scale(.4); opacity: .8; } 100% { transform: scale(2.1); opacity: 0; } }
+.monde-noms text { font-family: var(--serif); font-size: 5.6px; fill: #fff; paint-order: stroke; stroke: #14291f; stroke-width: 1.3px; stroke-linejoin: round; letter-spacing: .02em; }
 .monde-g { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4mm; margin-top: 6mm; }
-.monde-t { position: relative; height: 46mm; border-radius: 2.6mm; overflow: hidden; display: block; }
+.monde-t { position: relative; height: 43mm; border-radius: 2.6mm; overflow: hidden; display: block; }
 .monde-t > img, .monde-t > .noimg { width: 100%; height: 100%; object-fit: cover; }
 .monde-t::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(18, 38, 30, 0) 35%, rgba(18, 38, 30, .85)); }
 .monde-n { position: absolute; left: 3mm; bottom: 2.6mm; z-index: 1; color: #fff; }

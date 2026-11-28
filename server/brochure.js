@@ -10,6 +10,8 @@
    Photos et titres viennent du catalogue : une fiche masquée disparaît toute seule de la brochure. */
 const QR = require('./vendor/qrcode');
 const { esc } = require('./util');
+const cartes = require('./cartes');
+const { pays: PAYS_CARTE, points: POINTS_CARTE } = require('./cartes.json');
 
 const PAGES_SITE = { accueil: '/', lieux: '/lieux', contact: '/contact', 'zone-de-livraison': '/zone-de-livraison', 'comment-commander': '/comment-commander', temoignages: '/temoignages', avis: '/temoignages', 'blog-entreprises': '/blog?type=entreprises', 'blog-maison': '/blog?type=maison', maison: '/maison', boutique: '/boutique', 'ma-selection': '/ma-selection' };
 
@@ -75,6 +77,26 @@ const photoDe = x => {
 /* ---------------- contenu ---------------- */
 /* chaque page : { t: type, … }. Les fiches sont désignées par leur adresse (slug). */
 /* petites photos du bas de page = ce que contient la formule, plus de photos de plateaux (Jean-Luc, 2026-11-28) */
+/* Saveurs du monde : la carte du monde à plat, verte, du site (vue à plat du globe), avec nos pays en doré et leur nom (Jean-Luc, 2026-11-28) */
+const ETIQ = { espagne: [-6, -4, 'end'], italie: [3, -8, 'middle'], liban: [5, 1, 'start'], maghreb: [-8, 6, 'end'], afrique: [6, 6, 'middle'], antilles: [-4, 11, 'middle'], chine: [0, -9, 'middle'], inde: [0, 12, 'middle'], japon: [6, 0, 'start'] };
+function carteMonde(ss, ancre) {
+  const vus = new Set(); let terres = '', marques = '';
+  for (const s of ss) {
+    const l = cartes.lieuDe(s); if (!l || vus.has(l[0])) continue; vus.add(l[0]);
+    const sel = l[2].map(id => PAYS_CARTE[id]).filter(Boolean);
+    terres += sel.map(x => x.d).join('');
+    let c = l[3] ? POINTS_CARTE[l[3]] : null;
+    if (!c && sel.length) { const big = sel.filter(x => !x.petit); const L = big.length ? big : sel; c = [L.reduce((a, x) => a + x.c[0], 0) / L.length, L.reduce((a, x) => a + x.c[1], 0) / L.length]; }
+    if (!c) continue;
+    if (l[0] === 'afrique') c = [212, 150];
+    const [dx, dy, pos] = ETIQ[l[0]] || [5, 0, 'start'];
+    const x = c[0].toFixed(1), y = c[1].toFixed(1);
+    marques += `<a href="${esc(ancre(s.slug))}"><circle class="halo" cx="${x}" cy="${y}" r="4.5"/><circle cx="${x}" cy="${y}" r="1.7" fill="#fff"/><text x="${(c[0] + dx).toFixed(1)}" y="${(c[1] + dy).toFixed(1)}" text-anchor="${pos}" dominant-baseline="middle">${esc(s.pays || l[1])}</text></a>`;
+  }
+  return `<svg class="monde-carte" viewBox="30 50 340 130" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Carte de nos saveurs du monde"><image href="/cartes/monde.svg" x="0" y="0" width="400" height="300"/>`
+    + `<path d="${terres}" fill="#c9a56b" stroke="#e3c58f" stroke-width=".4"/><g class="monde-noms">${marques}</g></svg>`;
+}
+
 const FRANCAIS = [
   { slug: 'grand-cocktail-magnolia', tags: ['22 pièces par personne', '16 salées · 6 sucrées', 'Dès 15 personnes'], accroche: 'Un cocktail généreux, une réception qui vous ressemble.',
     chapo: 'Pour vos cocktails déjeunatoires ou dînatoires : des bouchées raffinées, des saveurs variées et une finale sucrée, du premier canapé au dernier petit four.',
@@ -287,6 +309,7 @@ function html(c, opts = {}) {
   const pages = []; /* [{ id, html(n) }] */
   const dejaVues = new Set();
   const sommaire = [];
+  const pageDe = {}; /* numéro de page de chaque formule (liens internes de la carte du monde) */
   const ajoute = (fn, titreSommaire, niveau = 2) => { const n = pages.length + 1; pages.push(fn); if (titreSommaire) sommaire.push({ n, t: titreSommaire, niveau }); return n; };
   const pied = n => `<footer class="pg-f"><span>Magnolia Traiteur · <a href="${esc(telHref)}">${esc(tel)}</a> · <a href="${esc(lien('accueil'))}">${esc(siteTxt)}</a></span><b>${n}</b></footer>`;
 
@@ -342,6 +365,7 @@ function html(c, opts = {}) {
     dejaVues.add(ph2);
     let compo = d.compo || [];
     if (d.fiches) compo = d.fiches.map(P).filter(Boolean).map(f => [f.titre, court(f.extrait || (f.description || [])[0] || '', 190), f.slug]);
+    pageDe[cle] = pages.length + 1;
     ajoute(n => `<section class="pg form" id="p${n}"><div class="form-ph">${photo(ph2, titre)}<div class="form-voile"></div><div class="form-t"><p class="eyebrow or">${esc(eyebrow)}</p><h2>${esc(titre)}</h2></div></div>
 <div class="pg-in form-in"><div class="form-intro"><p class="accroche">${esc(d.accroche || '')}</p><ul class="tags">${(d.tags || []).map(t => `<li>${esc(t)}</li>`).join('')}</ul></div>
 <p class="chapo">${esc(d.chapo || '')}</p>
@@ -386,7 +410,8 @@ function html(c, opts = {}) {
   const sm = rub('saveurs-du-monde');
   if (sm) {
     const ss = MONDE.map(d => sous(d.sous)).filter(Boolean);
-    ajoute(n => `<section class="pg monde" id="p${n}"><div class="monde-ph">${photo('/site/c/paysages/antilles.webp', 'Saveurs du monde')}<div class="form-voile"></div><div class="form-t"><p class="ouv-num">02</p><h2>Cocktails & buffets du monde</h2></div></div><div class="pg-in">
+    ajoute(n => `<section class="pg monde" id="p${n}"><div class="monde-ph">${carteMonde(ss, slug => pageDe[slug] ? '#p' + pageDe[slug] : lien(slug))}</div><div class="pg-in">
+<p class="ouv-num">02</p><h2>Cocktails & buffets du monde</h2>
 <p class="lead">Un monde de saveurs, une même attention. Choisissez l’univers culinaire qui vous ressemble : notre équipe vous accompagne pour composer un menu et un service adaptés à votre réception.</p>
 <div class="monde-g">${ss.map(s => `<div class="monde-t">${photo(s.photo && !/\.mp4$/.test(s.photo) ? s.photo : s.bandeauPhoto, s.nom)}<a class="monde-n" href="${esc(lien(s.slug))}"><b>${esc(s.nom)}</b><i>Voir le prix ↗</i></a>${qr(s.slug, 'xs', '')}</div>`).join('')}</div>
 </div>${pied(n)}</section>`, 'Saveurs du monde', 1);
