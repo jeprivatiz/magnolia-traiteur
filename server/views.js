@@ -785,8 +785,8 @@ function selection(c) {
       <div class="f2"><label>Prénom et nom<input name="nom" autocomplete="name" required></label><label>Société <small>(facultatif)</small><input name="societe" autocomplete="organization"></label></div>
       <div class="f2"><label>E-mail<input type="email" name="email" autocomplete="email" required></label><label>Téléphone<input type="tel" name="tel" autocomplete="tel" required></label></div>
       <label>Votre message <small>(allergies, déroulé, accès…)</small><textarea name="message" rows="3"></textarea></label>
-      <label class="check"><input type="checkbox" name="rgpd" required> J’accepte que Magnolia Traiteur utilise ces informations pour répondre à ma demande (<a href="/confidentialite">confidentialité</a>).</label>
-      <label class="check"><input type="checkbox" name="offres" value="1"> J’accepte de recevoir les nouveautés et offres de Magnolia par e-mail et SMS (désinscription en un clic).</label>
+      <label class="check"><input type="checkbox" name="rgpd" required><span>J’accepte que Magnolia Traiteur utilise ces informations pour répondre à ma demande (<a href="/confidentialite">confidentialité</a>).</span></label>
+      <label class="check"><input type="checkbox" name="offres" value="1"><span>J’accepte de recevoir les nouveautés et offres de Magnolia par e-mail et SMS (désinscription en un clic).</span></label>
       <div class="sel-tot"><div><span>Sélection</span><b data-sel-sub>0 €</b></div><div><span>Livraison estimée</span><b data-sel-livr>—</b></div><div class="tot"><span>Total estimé TTC</span><b data-sel-total>0 €</b></div></div><p class="small sel-offerte" data-sel-offerte></p>
       <button class="btn btn-vert wide" data-send>Envoyer ma demande de devis</button>
       <p class="small center">Votre envoi est une demande à étudier, pas une commande. Réponse rapide, du lundi au samedi.</p>
@@ -1022,7 +1022,7 @@ ${chiffres ? `<section class="chiffres wrap ent-chiffres">${chiffres}</section>`
     <div class="f2 ent-2"><label>Personnes<input type="number" name="invites" inputmode="numeric" min="1" max="5000" placeholder="50" required aria-label="Nombre de personnes"></label><label>Date<input type="date" name="date" required></label></div>
     <div class="f2 ent-2"><label>Code postal du lieu<input name="cp" inputmode="numeric" maxlength="5" pattern="[0-9]{5}" placeholder="75008"></label><label>Paiement souhaité<select name="paiement">${PAIEMENTS_ENT.map(x => `<option>${esc(x)}</option>`).join('')}</select></label></div>
     <label>Votre projet <small class="muted">(facultatif)</small><textarea name="message" rows="4" maxlength="3000" placeholder="Ex. : cocktail pour 80 personnes à 18 h 30, avec 2 serveurs et du champagne."></textarea></label>
-    <label class="check"><input type="checkbox" name="offres" value="1"> J’accepte de recevoir les nouveautés et offres de Magnolia par e-mail et SMS (désinscription en un clic).</label>
+    <label class="check"><input type="checkbox" name="offres" value="1"><span>J’accepte de recevoir les nouveautés et offres de Magnolia par e-mail et SMS (désinscription en un clic).</span></label>
     <input name="site" tabindex="-1" autocomplete="off" class="hp" aria-hidden="true">
     <button class="btn btn-vert wide" data-send>Recevoir mon devis sous 24 h</button>
   </form></div></section>
@@ -1067,7 +1067,7 @@ function contact(c) {
   const html = `<div class="cols2"><div><h2>Parlons de votre événement</h2><p><a class="big-tel" href="tel:${esc((R.telephone || '').replace(/\s/g, ''))}">${esc(R.telephone)}</a></p><p><a href="mailto:${esc(R.email)}">${esc(R.email)}</a></p><p>${esc(R.adresse)}</p><p class="small">${esc(R.horaires)}</p></div>
   <form class="card-form" data-contact novalidate><label>Prénom et nom<input name="nom" required autocomplete="name"></label><div class="f2"><label>E-mail<input type="email" name="email" required autocomplete="email"></label><label>Téléphone<input type="tel" name="tel" autocomplete="tel"></label></div>
   <label>Sujet<select name="sujet"><option>Demande d’information</option><option>Devis sur mesure</option><option>Un devis en cours</option><option>Partenariat / lieu</option><option>Autre</option></select></label>
-  <label>Message<textarea name="message" rows="5" required></textarea></label><label class="check"><input type="checkbox" name="offres" value="1"> J’accepte de recevoir les nouveautés et offres de Magnolia par e-mail et SMS (désinscription en un clic).</label><button class="btn btn-vert">Envoyer</button></form></div>`;
+  <label>Message<textarea name="message" rows="5" required></textarea></label><label class="check"><input type="checkbox" name="offres" value="1"><span>J’accepte de recevoir les nouveautés et offres de Magnolia par e-mail et SMS (désinscription en un clic).</span></label><button class="btn btn-vert">Envoyer</button></form></div>`;
   return texte(c, { titre: 'Contact', chapo: 'Une question, un devis sur mesure ? Nous vous répondons vite.', html, path: '/contact' });
 }
 
@@ -1199,7 +1199,7 @@ function devisPage(c, d0, t, { client, demande, apercu = false }) {
     : d.statut === 'refuse' ? '<p>Ce devis a été clôturé. Appelez-nous pour en établir un nouveau.</p>'
     : expire ? `<p>Ce devis a expiré. Appelez-nous au ${esc(R.telephone)} : nous le mettons à jour.</p>`
     : `<h2>Bon pour accord</h2><p>${quoi} à la signature${ac.total ? (ac.raison === 'seuil' ? ' (commande inférieure à ' + euros(ac.seuil) + ' TTC)' : '') : `, solde au plus tard ${ac.delai} jours avant l’événement`}. En signant, vous acceptez les conditions générales de vente ci-dessous.</p>${ac.raison === 'proche' ? `<p class="note-paiement">Votre événement ayant lieu dans moins de ${ac.delai} jours, le paiement en deux fois n’est pas possible : la totalité est réglée à la signature.</p>` : ''}
-     <form class="card-form"${apercu ? ' onsubmit="return false"' : ' data-accept'} novalidate><label>Votre nom et prénom<input name="nom" required autocomplete="name"></label><label class="check"><input type="checkbox" name="ok" required> Je déclare accepter ce devis « bon pour accord ».</label><div class="row"><button class="btn btn-vert"${apercu ? ' disabled' : ''}>Signer le devis</button><button class="btn btn-line" type="button"${apercu ? ' disabled' : ' data-refuse'}>Je ne donne pas suite</button></div><p class="small" data-accept-msg>${apercu ? 'Aperçu : la signature est désactivée ici.' : ''}</p></form>`}
+     <form class="card-form"${apercu ? ' onsubmit="return false"' : ' data-accept'} novalidate><label>Votre nom et prénom<input name="nom" required autocomplete="name"></label><label class="check"><input type="checkbox" name="ok" required><span>Je déclare accepter ce devis « bon pour accord ».</span></label><div class="row"><button class="btn btn-vert"${apercu ? ' disabled' : ''}>Signer le devis</button><button class="btn btn-line" type="button"${apercu ? ' disabled' : ' data-refuse'}>Je ne donne pas suite</button></div><p class="small" data-accept-msg>${apercu ? 'Aperçu : la signature est désactivée ici.' : ''}</p></form>`}
   </div>
   <section class="doc-com noprint" id="commentaire"${apercu ? ' data-apercu' : ` data-com="${esc(d.token)}"`}><h2>Laisser un commentaire</h2>
   <p class="small">Une question, une modification, une précision sur votre événement ? Écrivez-nous ici : ${com?.nom ? `<b>${esc(com.nom)}</b>, votre conseiller, le reçoit` : 'votre conseiller le reçoit'} tout de suite et vous répond rapidement.</p>
