@@ -1044,6 +1044,8 @@ body.noscroll .partage { display: none; }
   .sm-case img { width: 36px; height: 36px; }
 }
 /* fiche : proposition « Mettre N personnes (vos invités) » sous la quantité minimale */
+.conseil-pers { margin: 8px 0 4px; font-size: .92rem; color: var(--vert); }
+.conseil-pers b { font-weight: 600; }
 .inv-ok { color: var(--vert); font-weight: 500; }
 .fiche-media, .sous-photo, .conf { overflow-anchor: none; }
 .lnk-inv { background: none; border: 0; padding: 0; color: var(--or, #b8862f); text-decoration: underline; cursor: pointer; font: inherit; }
