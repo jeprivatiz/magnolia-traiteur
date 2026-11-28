@@ -222,7 +222,7 @@ const MENU_TABLE = `<span class="cm-scene" aria-hidden="true"><span class="cm-om
 const VIDEOS_ACCUEIL = {
   'cocktails-buffets': 'cocktail', boissons: 'boissons', 'traiteur-vegetarien-vegan': 'vegetarien', 'animations-salees': 'barbecue',
   personnel: 'personnel', indispensables: 'photobooth', 'petits-dejeuners': 'petit-dejeuner', douceurs: 'churros',
-  'musique-animations': 'dj', lieux: 'peniche', 'grand-large': 'huitres', 'coffrets-plateaux': 'coffrets', 'mobilier-a-la-location': 'mobilier',
+  'musique-animations': 'dj', lieux: 'soiree-dansante', 'grand-large': 'huitres', 'coffrets-plateaux': 'coffrets', 'mobilier-a-la-location': 'mobilier',
   /* Saveurs du monde = galerie de 10 cuisiniers d'âge mûr qui défilent, un par traiteur (« Dix traiteurs, une seule maison »), en cuisine (Jean-Luc 2026-11-27) */
   'saveurs-du-monde': 'saveurs-chefs',
 };
