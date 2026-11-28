@@ -62,10 +62,14 @@ function court(t, max = 170) {
   const x = t.slice(0, max); const i = Math.max(x.lastIndexOf('. '), x.lastIndexOf(' · '));
   return (i > max * .55 ? x.slice(0, i + 1) : x.replace(/\s+\S*$/, '') + '…').trim();
 }
+/* photos choisies pour la brochure seulement (Jean-Luc, 2026-11-28 : un burger, pas des frites, pour le stand à burgers) */
+const PHOTO_BROCHURE = { 'stand-a-burgers': '/site/c/page19-burger-poster.jpg.webp', 'bar-a-pates': '/site/c/bar-a-pates-chef.webp', 'chef-sushi-a-domicile': '/site/c/sushiman-mains.webp' };
 const photoDe = x => {
+  if (x && PHOTO_BROCHURE[x.slug]) return PHOTO_BROCHURE[x.slug];
   const ph = (x && x.photos) || [];
   const s = ph.map(y => (y && y.src) || y).filter(Boolean);
-  return s[0] || '';
+  /* fiche en vidéo sans photo (open bars, bar à shots, sangria…) : l'image d'aperçu de la vidéo (Jean-Luc, 2026-11-28) */
+  return s[0] || (x && x.video && x.video.poster) || '';
 };
 
 /* ---------------- contenu ---------------- */
@@ -413,14 +417,24 @@ function html(c, opts = {}) {
   grille(GRILLES.indisp1); grille(GRILLES.indisp2); grille(GRILLES.personnel); grille(GRILLES.son); grille(GRILLES.live); grille(GRILLES.surprendre); grille(GRILLES.jeux);
 
   /* lieux */
-  /* bandeau + renvoi vers le moteur de recherche des lieux (Jean-Luc, 2026-11-28). L'adresse se change sans toucher au code :
-     variable BROCHURE_LIEUX_URL (par ex. la recherche de Je Privatise plus tard), sinon la page Lieux du site. */
-  const lieux = c.lieux.filter(vis).filter(l => (l.photos || []).length).slice(0, 3);
+  /* page Lieux (Jean-Luc, 2026-11-28) : aucun lieu nommé, un texte qui donne envie, 4 photos d'ambiance (péniche, loft, lieu atypique,
+     château) qui ouvrent chacune sa fiche, et surtout le QR code du moteur de recherche. L'adresse du moteur se change sans toucher
+     au code : variable BROCHURE_LIEUX_URL (par ex. Je Privatise plus tard), sinon la page Lieux du site. */
   const rechLieux = /^https?:\/\//.test(opts.lieuxUrl || '') ? opts.lieuxUrl : lien('lieux');
-  ajoute(n => `<section class="pg grille g3 avec-bandeau" id="p${n}"><div class="g-bandeau">${photo('/site/c/lieux-bandeau.webp', 'Lieu de réception')}</div><div class="pg-in">
-<header class="g-h"><div><p class="eyebrow">Lieux de réception</p><h2>Le lieu de votre événement</h2><p class="intro">Loft, péniche, salle de mariage, domaine ou rooftop : trouvez le lieu idéal grâce à notre recherche multicritère en ligne (localisation, type de lieu, nombre d’invités, type d’événement), puis confiez-nous le traiteur et les prestations.</p></div></header>
-${lieux.length ? `<div class="cartes">${lieux.map(l => `<article class="carte"><div class="carte-ph">${photo(photoDe(l), l.nom)}${qr(l.slug, 's', '')}</div><div class="carte-b"><h3><a href="${esc(lien(l.slug))}">${esc(l.nom)}</a></h3><p>${esc(court([l.capacite ? `Jusqu’à ${l.capacite} personnes.` : '', l.resume || l.description || ''].filter(Boolean).join(' '), 140))}</p><a class="voir" href="${esc(lien(l.slug))}">Voir le lieu ↗</a></div></article>`).join('')}</div>` : ''}
-</div><div class="form-bas"><a class="qr qr-l" href="${esc(rechLieux)}">${qrSvg(rechLieux)}</a><div class="form-bas-t"><b>Trouvez le lieu qui correspondra à votre demande</b><span>Scannez ce QR code ou cliquez : vous arrivez sur notre moteur de recherche des lieux, avec la localisation, le type de lieu, le nombre d’invités et le type d’événement.</span><a href="${esc(rechLieux)}">Rechercher un lieu →</a></div></div>${pied(n)}</section>`, 'Nos lieux de réception');
+  const avecPhoto = c.lieux.filter(vis).filter(l => photoDe(l));
+  const prisL = new Set();
+  /* les plus belles photos d'abord (choisies le 2026-11-28), sinon le premier lieu du bon genre */
+  const choixL = [['Péniche', 'peniche-notre-dame-de-paris', /p[ée]niche|bateau|yacht/i], ['Loft', 'le-loft-montmartre', /loft/i],
+    ['Lieu atypique', 'le-petit-paris-cache', /atypique|cach[ée]|rooftop|appartement|salle/i], ['Château & demeure', 'manoir-celle-saint-cloud', /ch[âa]teau|manoir|demeure|domaine|jardin/i]]
+    .map(([t, pref, re]) => { const l = avecPhoto.find(x => x.slug === pref && !prisL.has(x.slug)) || avecPhoto.find(x => !prisL.has(x.slug) && re.test([x.slug, x.nom, x.type].join(' '))); if (l) prisL.add(l.slug); return l ? [t, l] : null; }).filter(Boolean);
+  ajoute(n => `<section class="pg lieux-pg" id="p${n}"><div class="pg-in">
+<p class="eyebrow">Lieux de réception</p><h2>Le lieu de votre événement</h2>
+<div class="lieux-txt"><p class="lead">Un lieu à la hauteur de votre événement : c’est souvent le cadre qui fait la moitié du souvenir.</p>
+<p>Péniche amarrée sur la Seine, loft baigné de lumière, appartement avec terrasse, lieu atypique qui surprend vos invités ou château au milieu des arbres : pour un anniversaire, un mariage, un séminaire ou une soirée d’entreprise, chaque réception mérite son décor. Depuis des années, nous livrons et servons nos réceptions dans des lieux d’Île-de-France que nous connaissons bien, avec leurs accès, leurs cuisines et leurs petites contraintes.</p>
+<p>Pour trouver le vôtre, nous avons créé un <strong>moteur de recherche des lieux</strong> : indiquez la localisation, le nombre d’invités, le type de lieu et le type d’événement, et découvrez en quelques secondes les lieux qui vous correspondent, avec leurs photos, leur capacité et leurs équipements.</p>
+<p>Vous avez trouvé ? Ajoutez le lieu à votre sélection avec le traiteur, les boissons, le personnel et les animations : vous recevez <strong>un seul devis</strong>, et un seul interlocuteur s’occupe de tout, de la visite jusqu’au jour J.</p></div>
+${choixL.length ? `<div class="lieux-mos">${choixL.map(([t, l]) => `<a href="${esc(lien(l.slug))}">${photo(photoDe(l), t)}<span>${esc(t)}</span></a>`).join('')}</div>` : ''}
+</div><div class="form-bas lieux-cta"><a class="qr qr-l" href="${esc(rechLieux)}">${qrSvg(rechLieux)}</a><div class="form-bas-t"><b>Trouvez le lieu qui correspondra à votre demande</b><span>Scannez ce QR code avec l’appareil photo de votre téléphone, ou cliquez dessus : vous arrivez directement sur notre moteur de recherche des lieux.</span><a href="${esc(rechLieux)}">Rechercher un lieu →</a></div></div>${pied(n)}</section>`, 'Nos lieux de réception');
 
   /* commander & livraison */
   ajoute(n => `<section class="pg cmd" id="p${n}"><div class="pg-in">

@@ -234,3 +234,22 @@ h2 { font-size: 27pt; }
 .dos-m { position: absolute; bottom: 12mm; left: 20mm; right: 20mm; font-size: 7.4pt; color: rgba(246, 241, 232, .6); margin: 0; }
 .fdm-zone .fdm a { padding: 1.1mm 0; }
 .fdm-zone .fdm i { display: inline; margin-left: 1.5mm; }
+
+/* page Lieux : texte, 4 photos d'ambiance, moteur de recherche (Jean-Luc, 2026-11-28) */
+.lieux-txt { margin-top: 4mm; font-size: 9.6pt; line-height: 1.55; }
+.lieux-txt p { margin: 0 0 2.4mm; }
+.lieux-txt .lead { font-family: var(--serif); font-style: italic; font-size: 13.5pt; color: var(--vert); line-height: 1.3; margin-bottom: 3mm; }
+.lieux-txt strong { color: var(--vert); font-weight: 600; }
+.lieux-mos { display: grid; grid-template-columns: 1fr 1fr; gap: 3mm; margin-top: 4mm; }
+.lieux-mos a { position: relative; display: block; height: 47mm; overflow: hidden; border-radius: 2.5mm; }
+.lieux-mos img { width: 100%; height: 100%; object-fit: cover; }
+.lieux-mos span { position: absolute; left: 2.5mm; bottom: 2.5mm; background: rgba(29, 59, 47, .82); color: #fff; font-size: 7.4pt; letter-spacing: .12em; text-transform: uppercase; padding: 1mm 2.4mm; border-radius: 999px; }
+.lieux-cta { background: var(--vert); }
+.lieux-cta .form-bas-t, .lieux-cta .form-bas-t b { color: #fff; }
+.lieux-cta .form-bas-t a { color: var(--or-2); }
+.lieux-cta .qr .qr-svg { border-color: var(--or); }
+@media screen and (prefers-reduced-motion: no-preference) {
+  .lieux-mos img { animation: lieux-zoom 14s ease-in-out infinite alternate; }
+  .lieux-mos a:nth-child(2) img { animation-delay: -3.5s; } .lieux-mos a:nth-child(3) img { animation-delay: -7s; } .lieux-mos a:nth-child(4) img { animation-delay: -10.5s; }
+}
+@keyframes lieux-zoom { from { transform: scale(1); } to { transform: scale(1.12); } }
