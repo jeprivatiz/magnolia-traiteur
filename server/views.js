@@ -559,6 +559,7 @@ const LANDINGS = {
     avisTitre: 'Ils ont voyagé aux Antilles avec nous',
     equipe: {
       video: '/site/v/antillais-boucle.mp4', poster: '/site/v/antillais-boucle.jpg',
+      surtitre: 'Notre maison antillaise',
       titre: 'Une équipe dédiée à la cuisine des îles',
       texte: ['Notre département « Le Traiteur Antillais » cuisine pour vous accras, boudins, colombos, fricassées et douceurs au coco, avec les recettes et les épices des Antilles.', 'Nos camions livrent 7 jours sur 7 sur Paris et toute l’Île-de-France ; nos serveurs installent le buffet, le réchauffent et le servent si vous le souhaitez.'],
       points: ['Livraison et installation du buffet', 'Serveurs et maîtres d’hôtel sur demande', 'Chafing-dish pour servir chaud', 'Devis sous 24 h, sans paiement en ligne'],
@@ -572,6 +573,53 @@ const LANDINGS = {
       ['/site/c/antilles-menus/colombo.jpg.webp', 'Colombo de poulet'],
     ],
     fin: 'Prêt à faire voyager vos invités ?',
+  },
+  /* même présentation pour le chinois et le libanais (Jean-Luc, 2026-11-28) ; fournisseurs jamais nommés */
+  'buffet-chinois': {
+    surtitre: 'Traiteur chinois · par Magnolia Traiteur',
+    signature: 'Les saveurs de la Chine à votre table',
+    defile: ['Plus de 700 prestations par an', '★★★★★ 4,9/5 sur Google', '{avis} avis clients vérifiés', 'Votre traiteur chinois sur Paris et l’Île-de-France', 'Nems, bouchées vapeur, wok parfumé', 'Livraison 7 j/7', 'Anniversaires · baptêmes · séminaires · Nouvel An chinois'],
+    avis: ['mt_44310', 'mt_51604', 'mt_59271', 'mt_56173', 'mt_53738', 'mt_53558'],
+    avisTitre: 'Ils ont goûté nos saveurs de Chine',
+    equipe: {
+      video: '/site/v/chinois/buffet-chafing-plats.mp4', poster: '/site/v/chinois/buffet-chafing-plats.jpg', format: 'paysage',
+      surtitre: 'Servi chaud, chez vous',
+      titre: 'Un buffet chinois comme au restaurant',
+      texte: ['Bouchées vapeur, nems croustillants, poulet aux noix de cajou, porc laqué, nouilles sautées et riz : chacun compose son assiette, comme au restaurant.', 'Nous livrons 7 jours sur 7 sur Paris et toute l’Île-de-France ; nos serveurs installent le buffet, le gardent au chaud et le servent si vous le souhaitez.'],
+      points: ['Livraison et installation du buffet', 'Chafing-dish pour servir chaud', 'Serveurs et maîtres d’hôtel sur demande', 'Devis sous 24 h, sans paiement en ligne'],
+    },
+    insta: [
+      ['/site/c/chinois-menus/buffet-chafing-video.webp', 'Buffet chinois en chafing-dish'],
+      ['/site/c/chinois-menus/ha-kao.webp.webp', 'Ha kao, bouchées vapeur aux crevettes'],
+      ['/site/c/chinois-menus/nems-crevettes.webp.webp', 'Nems aux crevettes'],
+      ['/site/c/chinois-menus/brochettes-yakitori.webp.webp', 'Brochettes yakitori'],
+      ['/site/c/chinois-menus/raviolis-crevettes.webp.webp', 'Raviolis aux crevettes en panier vapeur'],
+      ['/site/c/chinois-menus/perles-coco.webp.webp', 'Perles de coco'],
+    ],
+    fin: 'Prêt à faire voyager vos invités ?',
+  },
+  'buffet-libanais': {
+    surtitre: 'Traiteur libanais · par Magnolia Traiteur',
+    signature: 'La générosité libanaise à votre table',
+    defile: ['Plus de 700 prestations par an', '★★★★★ 4,9/5 sur Google', '{avis} avis clients vérifiés', 'Votre traiteur libanais sur Paris et l’Île-de-France', 'Mezzés, grillades et douceurs orientales', 'Livraison 7 j/7', 'Mariages · anniversaires · baptêmes · entreprises'],
+    avis: ['mt_56616', 'mt_54332', 'mt_43443', 'mt_26919', 'mt_53782', 'mt_59271'],
+    avisTitre: 'Ils ont partagé nos mezzés',
+    equipe: {
+      video: '/site/v/libanais-boucle.mp4', poster: '/site/v/libanais-boucle.jpg',
+      surtitre: 'L’art du partage',
+      titre: 'Des mezzés à partager, comme au Liban',
+      texte: ['Houmous, moutabal, taboulé, falafels, feuilles de vigne, puis chich taouk, kefta et chawarma : une table colorée où chacun se sert et partage.', 'Nous livrons 7 jours sur 7 sur Paris et toute l’Île-de-France ; nos serveurs dressent le buffet et le servent si vous le souhaitez.'],
+      points: ['Livraison et installation du buffet', 'Végétariens et vegans faciles à servir', 'Serveurs et maîtres d’hôtel sur demande', 'Devis sous 24 h, sans paiement en ligne'],
+    },
+    insta: [
+      ['/site/c/libanais-produits/houmous-huile-video.webp', 'Houmous arrosé d’huile d’olive'],
+      ['/site/c/libanais-mezzes.webp.webp', 'Table de mezzés libanais'],
+      ['/site/c/libanais-produits/taboule.webp.webp', 'Taboulé'],
+      ['/site/c/libanais-produits/falafel.webp.webp', 'Falafels'],
+      ['/site/c/libanais-produits/taouk.webp.webp', 'Chich taouk'],
+      ['/site/c/libanais-produits/baklawa.webp.webp', 'Baklawas'],
+    ],
+    fin: 'Prêt à régaler vos invités ?',
   },
 };
 function pageLanding(c, r, x) {
@@ -601,8 +649,8 @@ function pageLanding(c, r, x) {
     <div class="lp-av">${avis.map(a => `<figure class="ent-q"><p class="stars" aria-label="${a.note || 5} sur 5">${'★'.repeat(a.note || 5)}</p>${a.titre ? `<h3>${esc(titreAvis(a.titre))}</h3>` : ''}<blockquote>« ${esc(trunc(String(a.texte).replace(/\s*\n+\s*/g, ' ').replace(/\s*Avis (du )?client.*$|\s*Avis reçu.*$/i, ''), 240))} »</blockquote><figcaption>${esc(a.auteur || (a.lieu ? a.lieu.charAt(0).toUpperCase() + a.lieu.slice(1).toLowerCase() : 'Client Magnolia'))}${a.date ? `<small>${esc(a.date)}</small>` : ''}</figcaption></figure>`).join('')}</div>
     <p class="center lp-avis-tous"><a class="lnk" href="/temoignages">Lire tous nos avis clients ${icon.arrow}</a></p></div></section>` : '';
   const E = L.equipe;
-  const equipe = E ? `<section class="wrap lp-eq"><div class="lp-eq-v"><video src="${esc(E.video)}" poster="${esc(E.poster)}" muted loop playsinline autoplay preload="metadata" aria-hidden="true" data-autoplay></video></div>
-    <div class="lp-eq-t"><p class="eyebrow">Notre maison antillaise</p><h2>${esc(E.titre)}</h2>${E.texte.map(t => `<p>${esc(t)}</p>`).join('')}<ul class="ent-ok">${E.points.map(t => `<li>${esc(t)}</li>`).join('')}</ul>
+  const equipe = E ? `<section class="wrap lp-eq${E.format === 'paysage' ? ' paysage' : ''}"><div class="lp-eq-v"><video src="${esc(E.video)}" poster="${esc(E.poster)}" muted loop playsinline autoplay preload="metadata" aria-hidden="true" data-autoplay></video></div>
+    <div class="lp-eq-t"><p class="eyebrow">${esc(E.surtitre || '')}</p><h2>${esc(E.titre)}</h2>${E.texte.map(t => `<p>${esc(t)}</p>`).join('')}<ul class="ent-ok">${E.points.map(t => `<li>${esc(t)}</li>`).join('')}</ul>
     <div class="row"><a class="btn btn-vert" href="#nos-buffets">Composer mon buffet</a><a class="lnk" href="tel:${esc(tel)}">ou appelez le ${esc(R.telephone || '')}</a></div></div></section>` : '';
   const insta = R.instagram && L.insta?.length ? `<section class="wrap lp-ig"><a class="lp-ig-h" href="${esc(R.instagram)}" target="_blank" rel="noopener">${igCouleur('iglp')}<span><b>${esc(igCompte(R.instagram))}</b><small>Nos buffets, nos équipes, vos fêtes : suivez-nous sur Instagram</small></span><span class="btn btn-line">Suivre</span></a>
     <div class="lp-ig-g">${L.insta.map(([src, alt]) => `<a href="${esc(R.instagram)}" target="_blank" rel="noopener" aria-label="${esc(alt)} · Instagram">${img(src, alt)}</a>`).join('')}</div></section>` : '';
