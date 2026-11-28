@@ -113,15 +113,14 @@ const FRANCAIS = [
       ['3 pièces sucrées', 'Macarons, douceurs pâtissières et petits fours : citron, chocolat, vanille, praliné, fruits et autres parfums gourmands.'],
       ['Composez votre réception', 'Complétez avec des plateaux à partager ou une animation culinaire. Pack traiteur et personnel de service en option.']],
     vignettes: ['plateau-de-80-mini-clubs', 'petits-fours-sucres'] },
-  { slug: 'cocktail-premium-magnolia', tags: ['22 pièces par personne', '16 salées · 6 sucrées', '2 huîtres par personne'], accroche: 'Des bouchées raffinées, pour une réception d’exception.',
-    chapo: 'Un assortiment sélectionné pour vous : canapés, mini-pièces froides et chaudes, huîtres de notre poissonnier et une grande finale chocolatée.',
+  { slug: 'cocktail-premium-magnolia', tags: ['22 pièces par personne', '16 salées · 6 sucrées', 'Dès 10 personnes'], accroche: 'Des bouchées raffinées, pour une réception d’exception.',
+    chapo: 'Un assortiment sélectionné pour vous : canapés raffinés, mini-pièces froides et chaudes, et une grande finale chocolatée.',
     compo: [['Canapés saveurs d’évasion', 'Saumon fumé, tzatziki, pavot et blini · Coppa, basilic et cake aux olives · Chèvre et figue rôtie · Foie gras, chutney mangue-abricot et brioche perdue · Délice de saumon et œufs de truite · Crevette paprika sur pain aux graines.'],
       ['Canapés végétariens', 'Burger coriandre-yuzu, teriyaki et sésame · Sandwich légumes au pain vert · Financier tomate, ricotta, mozzarella · Millefeuille de légumes confits.'],
       ['Mini-clubs, wraps & brochettes', 'Clubs saumon, comté, chèvre-pesto, poulet rôti-moutarde · Wraps chèvre-légumes, saumon-ciboulette, poulet-poivrons, pastrami · Brochettes tomate confite et mozzarella.'],
       ['Mini-pièces chaudes', 'Mini-pita au poulet épicé · Mini-croque-monsieur, crème de champignons et truffe noire · Mini-black burger au bœuf Charolais et cheddar.'],
-      ['Les huîtres de Marc Auguet', '2 huîtres Pleine Mer par personne, présentées sur un grand plateau et son lit de glace pilée.'],
       ['6 pièces sucrées', 'Macarons vanille, pistache, café, chocolat, framboise, citron · Douceurs pâtissières · Élégance et chocolat : tartelette chocolat-café, brownie, mini-éclair, entremets praliné-gianduja · Mini-cœurs fondants au chocolat.']],
-    vignettes: ['huitres-pleine-mer', 'macarons-36-pieces'] },
+    vignettes: ['/site/c/chef-dressage-assiette.webp', 'macarons-36-pieces'] },
   { slug: 'buffet-des-traditions', tags: ['3 salades au choix', 'Charcuteries & fromages', '5 pièces sucrées'], accroche: 'Le goût des traditions, le plaisir de recevoir.',
     chapo: 'De l’entrée au dessert, retrouvez les saveurs des grandes tablées : un buffet généreux et convivial, à partager avec vos invités.',
     compo: [['3 salades au choix', 'Taboulé au poulet rôti · Salade grecque, feta et olives Kalamata · Mini-penne à l’italienne · Salade niçoise au thon · Piémontaise · Pommes de terre au thon · Tagliatelles aux deux saumons. Servies en saladiers avec leurs couverts.'],
@@ -213,11 +212,21 @@ const MONDE = [
     vignettes: ['plateau-japonais-75-pieces', 'chef-sushi-a-domicile'] },
 ];
 
+const REPAS = { slug: 'repas-servi-a-table-elabore-par-le-chef', tags: ['Menu composé avec le chef', 'Dès 20 personnes'], accroche: 'Un vrai repas de chef, servi à l’assiette.',
+  chapo: 'Un repas servi à table, composé avec le chef selon vos envies et les produits de saison : cuisine de marché, avec autant que possible des produits d’Île-de-France. Le menu se construit lors d’un échange entre vous, le chef et votre conseiller.',
+  compo: [['Entrées', 'Deux ou trois entrées différentes au maximum par réception, définies avec le chef.'],
+    ['Plat de résistance', 'Un ou deux plats au maximum, définis avec le chef, pour un service simultané de tous les convives.'],
+    ['Plateau de fromages AOP', 'Brie de Meaux, Comté affiné, Saint-Nectaire, Fourme d’Ambert, Crottin de Chavignol, avec raisin frais, baguettes et petits pains variés : une assiette par table.'],
+    ['Dessert', 'Un ou deux desserts différents au maximum, définis avec le chef pâtissier.'],
+    ['Boissons', 'Softs à discrétion (eaux plates et gazeuses, Coca-Cola, Coca-Cola Zéro), café et thé en fin de repas.'],
+    ['Compris dans la prestation', 'Le chef, les nappages, les assiettes, les couverts, les serviettes et la verrerie. Personnel de service en option.']],
+  vignettes: ['souris-d-agneau-confite', 'plateau-de-fromages'] };
+
 const GRILLES = {
   entrees: { eyebrow: 'La carte Magnolia', titre: 'Nos entrées', intro: 'Ouvrez votre repas avec nos entrées fraîches et gourmandes. Entre terre et mer, des saveurs délicates pour régaler vos invités dès la première bouchée. 5 portions minimum du même choix, commande 72 h à l’avance.',
     cle: 'carte-magnolia', items: ['carpaccio-de-tomates', 'tartare-de-noix-de-saint-jacques', 'tartare-de-saumon', 'carpaccio-de-boeuf', 'carpaccio-de-thon', 'foie-gras-et-douceur-de-figues', 'salade-de-jeunes-pousses-aux-gambas', 'le-trio-affine', 'menu-enfant-3-a-12-ans'] },
-  desserts: { eyebrow: 'La carte Magnolia', titre: 'Nos desserts & le repas servi à table', intro: 'Six desserts qui peuvent varier selon la saison, l’humeur du chef et surtout vos désirs. Pour les repas servis à table : un plat unique pour tous les convives, avec jusqu’à deux accompagnements.',
-    cle: 'carte-magnolia', items: ['paris-brest-praline', 'millefeuille-a-la-creme', 'opera-chocolat-cafe', 'entremets-chocolat-praline', 'douceur-vanille-passion', 'entremets-poire-caramel', 'repas-servi-a-table-elabore-par-le-chef'] },
+  desserts: { eyebrow: 'La carte Magnolia', titre: 'Nos desserts', intro: 'Six desserts qui peuvent varier selon la saison, l’humeur du chef et surtout vos désirs. 5 portions minimum du même choix.',
+    cle: 'carte-magnolia', items: ['paris-brest-praline', 'millefeuille-a-la-creme', 'opera-chocolat-cafe', 'entremets-chocolat-praline', 'douceur-vanille-passion', 'entremets-poire-caramel'] },
   coffrets: { eyebrow: 'Coffrets & plateaux', titre: 'Nos coffrets gourmands', intro: 'Faites voyager vos invités avec nos coffrets aux saveurs du monde, pour 8 à 10 personnes. À partager, ils sont le complément idéal de vos apéritifs et de vos buffets.',
     cle: 'coffrets-plateaux', items: ['le-coffret-antillais-saveurs-pays', 'coffret-italien-mamma-mia', 'coffret-libanais-du-chef-leon', 'coffret-chinois-aux-neuf-saveurs', 'coffret-crudites-bio-du-jardin', 'coffret-fromages-de-nos-regions', 'coffret-fruits-frais'] },
   plateaux: { eyebrow: 'Coffrets & plateaux', titre: 'Nos plateaux à partager', intro: 'Des plateaux généreux pour réunir vos invités autour de bouchées gourmandes : à l’apéritif, en cocktail ou au buffet, ils donnent à chaque réception le goût de la convivialité.',
@@ -355,6 +364,8 @@ function html(c, opts = {}) {
 <div class="gammes">${gammes.map(([t, L]) => { const ps = L.map(P).filter(Boolean); return `<div class="gamme"><div class="gamme-h"><h3>${esc(t)}</h3>${qr(ps[0] ? ps[0].slug : 'carte-magnolia', 's', 'Voir les prix')}</div><ul>${ps.map(p => `<li>${photo(photoDe(p), p.titre)}<a href="${esc(lien(p.slug))}">${esc(p.titre)}</a></li>`).join('')}</ul></div>`; }).join('')}</div>
 <div class="accomp"><h3 class="titre-or">Nos accompagnements, compris dans le prix du plat</h3><p>${accomp.map(esc).join(' · ')}</p><p class="petit">Pour les repas servis à table : un plat unique pour tous les convives, avec jusqu’à deux accompagnements. Des adaptations pour les régimes particuliers peuvent être prévues dans votre devis.</p></div>
 </div>${pied(n)}</section>`, 'La carte Magnolia : nos plats');
+  /* le repas servi à table a sa propre page, avec le salé, avant les desserts (Jean-Luc, 2026-11-28) */
+  formule(REPAS, 'La carte Magnolia');
   grille(GRILLES.desserts);
 
   /* ---------- chapitre 2 : saveurs du monde ---------- */
@@ -380,7 +391,7 @@ function html(c, opts = {}) {
   }
 
   /* ---------- chapitre 3 : coffrets, boissons, petits-déjeuners ---------- */
-  ouverture('03', 'Coffrets, boissons & petits-déjeuners', 'Des coffrets à partager, des plateaux généreux, notre cave et nos open bars, et de quoi bien commencer la journée.', vignette('le-coffret-antillais-saveurs-pays') || '/site/c/cocktail7-photos/mini-clubs.webp.webp', 'coffrets-plateaux', ['Nos coffrets gourmands', 'Nos plateaux à partager', 'La cave de Magnolia', 'Nos petits-déjeuners']);
+  ouverture('03', 'Coffrets, boissons & petits-déjeuners', 'Des coffrets à partager, des plateaux généreux, notre cave et nos open bars, et de quoi bien commencer la journée.', vignette('le-coffret-antillais-saveurs-pays') || '/site/c/coffret-bois-9-cases.webp', 'coffrets-plateaux', ['Nos coffrets gourmands', 'Nos plateaux à partager', 'La cave de Magnolia', 'Nos petits-déjeuners']);
   grille(GRILLES.coffrets); grille(GRILLES.plateaux); grille(GRILLES.boissons); grille(GRILLES.petitsDej);
 
   /* ---------- chapitre 4 : animations & douceurs ---------- */
@@ -427,9 +438,24 @@ function html(c, opts = {}) {
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/brochure.css?v=${opts.v || ''}"></head>
-<body class="brochure">${opts.barre === false ? '' : `<div class="b-barre"><span>La brochure Magnolia Traiteur · ${pages.length} pages</span>${opts.pdf ? `<a class="b-btn" href="${esc(opts.pdf)}" download>Télécharger le PDF</a>` : ''}<button type="button" class="b-btn" onclick="window.print()">Imprimer</button></div>`}
+<body class="brochure">${opts.barre === false ? '' : `<div class="b-barre"><a class="b-ret" href="/">← Le site</a><span>La brochure Magnolia Traiteur · ${pages.length} pages</span>${opts.pdf ? `<a class="b-btn" href="${esc(opts.pdf)}" download>Télécharger le PDF</a>` : ''}<button type="button" class="b-btn" onclick="window.print()">Imprimer</button></div>`}
 ${corps}
+${opts.barre === false ? '' : `<script>
+/* Retour à la même page de la brochure après avoir ouvert une fiche (Jean-Luc, 2026-11-28) :
+   la position est retenue en continu, et rétablie quand on revient en arrière (iPhone et ordinateur). */
+(function () {
+  var K = 'mg_brochure_y';
+  function lire() { try { return +sessionStorage.getItem(K) || 0; } catch (e) { return 0; } }
+  function noter() { try { sessionStorage.setItem(K, String(window.scrollY || window.pageYOffset || 0)); } catch (e) {} }
+  var t; window.addEventListener('scroll', function () { clearTimeout(t); t = setTimeout(noter, 120); }, { passive: true });
+  document.addEventListener('click', function (e) { if (e.target.closest && e.target.closest('a')) noter(); }, true);
+  window.addEventListener('pagehide', noter);
+  function remettre() { var y = lire(); if (y > 0 && Math.abs((window.scrollY || 0) - y) > 40 && !location.hash) window.scrollTo(0, y); }
+  window.addEventListener('pageshow', function () { remettre(); setTimeout(remettre, 300); });
+  window.addEventListener('load', function () { setTimeout(remettre, 50); });
+})();
+</script>`}
 </body></html>`;
 }
 
-module.exports = { html, cible, qrSvg, sansPrix, court, FRANCAIS, MONDE, GRILLES };
+module.exports = { html, cible, qrSvg, sansPrix, court, FRANCAIS, MONDE, GRILLES, REPAS };

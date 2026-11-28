@@ -410,6 +410,42 @@ async function createApp(opts = {}) {
     }
     await store.set('_migr/enceinteL1', { at: new Date().toISOString(), cree: !deja });
   }
+  /* une seule fois (Jean-Luc, 2026-11-28) : la photo des sandwichs club colorés (mini-clubs) est remplacée PARTOUT
+     (fiches, rubriques, réglages du site) par sa photo du coffret bois 9 cases, recadrée sans le logo */
+  if (!(await store.get('_migr/coffretPartout'))) {
+    const ANCIENNE = '/site/c/cocktail7-photos/mini-clubs.webp.webp', NOUVELLE = '/site/c/coffret-bois-9-cases.webp';
+    const changes = [];
+    for (const parent of ['produits', 'rubriques', 'site', 'lieux']) {
+      for (const { id, data } of await store.list(parent)) {
+        const j = JSON.stringify(data || null);
+        if (!j.includes(ANCIENNE)) continue;
+        let x = JSON.parse(j.split(ANCIENNE).join(NOUVELLE));
+        /* une fiche ne garde pas deux fois la même photo */
+        if (x && Array.isArray(x.photos)) { const vu = new Set(); x.photos = x.photos.filter(p => { const k = (p && p.src) || p; if (vu.has(k)) return false; vu.add(k); return true; }); }
+        await store.set(parent + '/' + id, x); changes.push(parent + '/' + id);
+      }
+    }
+    log.info && log.info('Photo coffret mise à la place des mini-clubs : ' + changes.join(', '));
+    await store.set('_migr/coffretPartout', { at: new Date().toISOString(), changes });
+  }
+  /* une seule fois (Jean-Luc, 2026-11-28) : le Cocktail Premium Magnolia ne comprend PAS d'huîtres : textes et photos d'huîtres retirés */
+  if (!(await store.get('_migr/premiumSansHuitres'))) {
+    const p = await store.get('produits/cocktail-premium-magnolia');
+    if (p) {
+      const huitre = /hu[iî]tres?|oyster/i;
+      const nettoie = t => typeof t !== 'string' || !huitre.test(t) ? t : t
+        .replace(/\s*(?:,|et)\s+(?:les|des|de)?\s*hu[iî]tres[^.,;\n]*/gi, '')
+        .split(/(?<=[.!?])\s+/).filter(ph => !huitre.test(ph)).join(' ').trim();
+      const y = { ...p };
+      for (const k of ['extrait', 'sousPhoto', 'seoDescription', 'seoTitre', 'accroche']) if (typeof y[k] === 'string') y[k] = nettoie(y[k]);
+      if (Array.isArray(y.description)) y.description = y.description.map(nettoie).filter(Boolean);
+      if (Array.isArray(y.details)) y.details = y.details.map(nettoie).filter(Boolean);
+      if (Array.isArray(y.sections)) y.sections = y.sections.filter(sc => !huitre.test(sc.titre || '')).map(sc => ({ ...sc, items: (sc.items || []).filter(i => !huitre.test(typeof i === 'string' ? i : JSON.stringify(i))) }));
+      if (Array.isArray(y.photos)) y.photos = y.photos.filter(ph => !huitre.test(((ph && ph.src) || '') + ' ' + ((ph && ph.alt) || '')));
+      if (JSON.stringify(y) !== JSON.stringify(p)) await store.set('produits/cocktail-premium-magnolia', y);
+    }
+    await store.set('_migr/premiumSansHuitres', { at: new Date().toISOString() });
+  }
 
   /* ---------- titres et descriptions « dans Google » (Jean-Luc, 2026-11-24) ----------
      À chaque démarrage : les cases vides des produits, rubriques et spécialités sont remplies (jamais un texte tapé à la main).

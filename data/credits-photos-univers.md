@@ -326,3 +326,5 @@ Photos regardées une à une (vraies photos, sans texte ni logo), licence Pexels
 | Flûtes à champagne | public/site/c/materiel/flutes-a-champagne.webp (recadrée) | https://www.pexels.com/photo/18573171/ | Pexels |
 | Verres tumbler | public/site/c/materiel/verres-tumbler-1.webp, verres-tumbler-2.webp | photos fournies par Jean-Luc (son tumbler) | Magnolia |
 - Vignette d'accueil La cave de Magnolia (public/site/v/accueil/boissons.mp4) : champagne servi dans une flûte au bar, extrait recadré de la vidéo Pexels 7608907 (licence Pexels), 2026-11-27.
+| Brochure · Cocktail Premium Magnolia (chef qui dresse une assiette à la pince, à la place des huîtres) | https://www.pexels.com/photo/fine-dining-experience-delicate-food-plating-30507463/ | 28/11/2026 (Jean-Luc) |
+| Coffret bois 9 cases (partout à la place des sandwichs club) | Photo de Magnolia Traiteur (Instagram), recadrée sans le logo ni les points/flèche Instagram | 28/11/2026 (Jean-Luc) |
