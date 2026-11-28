@@ -554,6 +554,8 @@ const LANDINGS = {
   'buffet-antillais': {
     surtitre: 'Traiteur antillais · par Magnolia Traiteur',
     signature: 'Les Antilles s’invitent à votre table',
+    /* vidéos jouées à la suite de celle du bandeau (réglage back-office), en fondu, puis retour au début (Jean-Luc 2026-11-28 : mariage antillais en 2e) */
+    suite: [['/site/v/bandeaux/mariage-antillais.mp4', '/site/v/bandeaux/mariage-antillais.jpg']],
     defile: ['Plus de 700 prestations par an', '★★★★★ 4,9/5 sur Google', '{avis} avis clients vérifiés', 'Le spécialiste de la cuisine antillaise sur Paris et l’Île-de-France', 'Accras, boudins, colombo : la vraie cuisine des îles', 'Livraison 7 j/7', 'Mariages · anniversaires · baptêmes · entreprises'],
     /* avis du site actuel qui parlent du buffet antillais (ids mt_ = data/avis-magnolia.json) */
     avis: ['mt_26884', 'mt_24710', 'mt_51780', 'mt_28562', 'mt_27254', 'mt_57508'],
@@ -776,7 +778,7 @@ function pageLanding(c, r, x) {
   const gBouton = (cls = '') => `<a class="g-badge ${cls}" href="${esc(gUrl)}" target="_blank" rel="noopener">${gLogo}<span class="g-n">${esc(G.note || '4,9')}</span><span class="g-s"><i aria-hidden="true">★★★★★</i><small>${G.nombre ? `${esc(G.nombre)} avis Google` : 'Avis Google'}</small></span><span class="g-go">Lire les avis ${icon.arrow}</span></a>`;
   const B = { photo: x.bandeauPhoto || x.photo, video: x.bandeauVideo ?? x.video ?? '', poster: x.bandeauPoster || '', position: x.bandeauPosition || '' };
   const media = B.video
-    ? `<video src="${esc(B.video)}" poster="${esc(B.poster || B.photo || '')}"${B.position ? ` style="object-position:${esc(B.position)}"` : ''} autoplay muted loop playsinline preload="metadata" aria-hidden="true" data-autoplay></video>`
+    ? `<video src="${esc(B.video)}" poster="${esc(B.poster || B.photo || '')}"${B.position ? ` style="object-position:${esc(B.position)}"` : ''} autoplay muted${L.suite?.length ? '' : ' loop'} playsinline preload="metadata" aria-hidden="true" data-autoplay></video>${(L.suite || []).map(([v, p]) => `<video class="lp-suite" src="${esc(v)}" poster="${esc(p || '')}" muted playsinline preload="metadata" aria-hidden="true" data-suite></video>`).join('')}`
     : img(B.photo, '', '', 'fetchpriority="high"').replace(' loading="lazy"', '');
   const hero = `<section class="phero land lp-hero${kb(c, B.video ? '' : B.photo, x.slug)}">${media}<div class="phero-c wrap">
     <p class="lp-sur">${esc(L.surtitre)}</p><h1>${titreLignes(titreX)}</h1>${L.signature ? `<p class="phero-sig">${esc(L.signature)}</p>` : ''}<p class="lead">${esc(chapoX)}</p>

@@ -737,11 +737,25 @@ function bandeauCookies() {
 
 /* pages d'arrivée : vidéo du bandeau, avis « voir plus », clic sur un logo client → son avis */
 (() => {
-  document.querySelectorAll('.phero.land video').forEach(v => {
+  /* bandeau à plusieurs vidéos : chacune se lance quand la précédente finit, en fondu, puis on revient à la première */
+  document.querySelectorAll('.phero.land').forEach(h => {
+    const vs = [...h.querySelectorAll(':scope > video')];
+    if (vs.length < 2 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    let i = 0;
+    vs.forEach((v, k) => {
+      v.loop = false; v.dataset.chaine = '1';
+      v.addEventListener('ended', () => {
+        i = (k + 1) % vs.length; const n = vs[i];
+        n.currentTime = 0; const p = n.play(); if (p) p.catch(() => {});
+        vs.forEach((x, j) => { if (j > 0) x.classList.toggle('on', j === i); });
+      });
+    });
+  });
+  document.querySelectorAll('.phero.land video:not([data-suite])').forEach(v => {
     const go = () => { const p = v.play(); if (p) p.catch(() => {}); };
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { v.removeAttribute('autoplay'); return; }
     go(); document.addEventListener('visibilitychange', () => { if (!document.hidden) go(); });
-    v.addEventListener('ended', () => { v.currentTime = 0; go(); }); /* boucle garantie, même si un navigateur ignore loop */
+    if (!v.dataset.chaine) v.addEventListener('ended', () => { v.currentTime = 0; go(); }); /* boucle garantie, même si un navigateur ignore loop */
   });
   const plus = document.querySelector('[data-avis-plus]');
   const montrer = el => { if (el && el.hidden) el.hidden = false; };
