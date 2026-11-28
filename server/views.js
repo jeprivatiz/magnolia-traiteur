@@ -621,6 +621,118 @@ const LANDINGS = {
     ],
     fin: 'Prêt à régaler vos invités ?',
   },
+  /* toutes les autres spécialités (Jean-Luc, 2026-11-28) : photos Instagram prises automatiquement dans les fiches de la page (instaAuto) */
+  'paella-party': {
+    surtitre: 'Traiteur paëlla · par Magnolia Traiteur',
+    signature: 'Le soleil de l’Espagne à votre table',
+    defile: ['Plus de 700 prestations par an', '★★★★★ 4,9/5 sur Google', '{avis} avis clients vérifiés', 'Votre traiteur paëlla sur Paris et l’Île-de-France', 'Paëlla mijotée devant vos invités', 'Livraison 7 j/7', 'Anniversaires · mariages · fêtes d’été · entreprises'],
+    avis: ['mt_59319', 'mt_46691', 'mt_45477', 'mt_51410', 'mt_59295', 'mt_53738'],
+    avisTitre: 'Ils se sont régalés de notre paëlla',
+    equipe: {
+      photo: '/site/c/paella-royale/client-1.webp.webp',
+      surtitre: 'Cuite devant vos invités',
+      titre: 'Une paëlla géante, cuite sur place',
+      texte: ['Safran, fruits de mer, poulet et chorizo : notre cuisinier prépare la paëlla dans une grande poêle, devant vos invités, et la sert bien chaude.', 'Nous livrons 7 jours sur 7 sur Paris et toute l’Île-de-France ; nos serveurs installent le buffet et le servent si vous le souhaitez.'],
+      points: ['Livraison et installation du buffet', 'Serveurs et maîtres d’hôtel sur demande', 'Végétariens et allergies : dites-le-nous', 'Devis sous 24 h, sans paiement en ligne'],
+    },
+    insta: [
+      ['/site/c/paella-royale/client-1.webp.webp', 'Paëlla royale'],
+      ['/site/c/paella-mer/client-1.webp.webp', 'Paëlla aux fruits de mer'],
+      ['/site/c/paella-royale/client-2.webp.webp', 'Paëlla royale servie chez un client'],
+      ['/site/c/paella-mer/client-2.webp.webp', 'Paëlla aux fruits de mer'],
+      ['/site/c/paella-royale/client-3.webp.webp', 'Paëlla géante'],
+      ['/site/c/paella-mer/client-3.webp.webp', 'Paëlla aux fruits de mer'],
+    ],
+    fin: 'Prêt à régaler vos invités ?',
+  },
+  'buffet-africain': {
+    surtitre: 'Traiteur africain · par Magnolia Traiteur',
+    signature: 'La chaleur de l’Afrique à votre table',
+    defile: ['Plus de 700 prestations par an', '★★★★★ 4,9/5 sur Google', '{avis} avis clients vérifiés', 'Votre traiteur africain sur Paris et l’Île-de-France', 'Mafé, yassa, alloco, attiéké', 'Livraison 7 j/7', 'Mariages · baptêmes · anniversaires · entreprises'],
+    avis: ['mt_51616', 'mt_59271', 'mt_56173', 'mt_53738', 'mt_53558', 'mt_55632'],
+    avisTitre: 'Ils ont goûté notre cuisine africaine',
+    equipe: {
+      photo: '/site/c/africain-boutique/buffet-africain.webp.webp',
+      surtitre: 'Généreux et épicé',
+      titre: 'Une cuisine africaine qui réchauffe le cœur',
+      texte: ['Mafé, yassa, poulet braisé, kedjenou, alloco et attiéké : des plats mijotés, parfumés et généreux, à partager en famille ou entre collègues.', 'Nous livrons 7 jours sur 7 sur Paris et toute l’Île-de-France ; nos serveurs installent le buffet et le servent si vous le souhaitez.'],
+      points: ['Livraison et installation du buffet', 'Serveurs et maîtres d’hôtel sur demande', 'Végétariens et allergies : dites-le-nous', 'Devis sous 24 h, sans paiement en ligne'],
+    },
+    fin: 'Prêt à faire voyager vos invités ?',
+  },
+  'couscous-party': {
+    surtitre: 'Traiteur couscous · par Magnolia Traiteur',
+    signature: 'L’hospitalité du Maghreb à votre table',
+    defile: ['Plus de 700 prestations par an', '★★★★★ 4,9/5 sur Google', '{avis} avis clients vérifiés', 'Votre traiteur couscous sur Paris et l’Île-de-France', 'Couscous royal, tajines et pâtisseries', 'Livraison 7 j/7', 'Anniversaires · cousinades · fêtes · entreprises'],
+    avis: ['mt_56035', 'mt_53702', 'mt_49826', 'mt_23021', 'mt_40713', 'mt_44947'],
+    avisTitre: 'Ils ont adoré notre couscous',
+    equipe: {
+      photo: '/site/c/couscous-menus/couscous-royal-sans-logo-20261106.webp.webp',
+      surtitre: 'Le plat du partage',
+      titre: 'Un couscous comme à la maison',
+      texte: ['Semoule fine, légumes fondants, bouillon parfumé, merguez, poulet et agneau : un plat généreux qui rassemble toute la table.', 'Nous livrons 7 jours sur 7 sur Paris et toute l’Île-de-France ; nos serveurs installent le buffet et le servent si vous le souhaitez.'],
+      points: ['Livraison et installation du buffet', 'Serveurs et maîtres d’hôtel sur demande', 'Végétariens et allergies : dites-le-nous', 'Devis sous 24 h, sans paiement en ligne'],
+    },
+    insta: [
+      ['/site/c/couscous-menus/couscous-royal-sans-logo-20261106.webp.webp', 'Couscous royal'],
+      ['/site/v/bandeaux/couscous-party.jpg', 'Tajine de légumes fumant'],
+      ['/site/c/couscous-menus/couscous-vegetarien-sans-logo-20261106.webp.webp', 'Couscous végétarien'],
+    ],
+    fin: 'Prêt à régaler vos invités ?',
+  },
+  'buffet-italien': {
+    surtitre: 'Traiteur italien · par Magnolia Traiteur',
+    signature: 'La dolce vita à votre table',
+    defile: ['Plus de 700 prestations par an', '★★★★★ 4,9/5 sur Google', '{avis} avis clients vérifiés', 'Votre traiteur italien sur Paris et l’Île-de-France', 'Antipasti, lasagnes, burrata', 'Livraison 7 j/7', 'Anniversaires · mariages · séminaires · entreprises'],
+    avis: ['mt_46181', 'mt_39801', 'mt_39762', 'mt_50859', 'mt_59271', 'mt_56173'],
+    avisTitre: 'Ils ont savouré notre Italie',
+    equipe: {
+      video: '/site/v/animations/pates-flambees.mp4', poster: '/site/v/animations/pates-flambees.jpg', format: 'paysage',
+      surtitre: 'Buon appetito',
+      titre: 'Toute l’Italie sur un buffet',
+      texte: ['Antipasti, charcuterie, mozzarella et tomates, lasagnes, pâtes et douceurs : les saveurs italiennes que tout le monde aime, à partager.', 'Nous livrons 7 jours sur 7 sur Paris et toute l’Île-de-France ; nos serveurs installent le buffet et le servent si vous le souhaitez.'],
+      points: ['Livraison et installation du buffet', 'Serveurs et maîtres d’hôtel sur demande', 'Végétariens et allergies : dites-le-nous', 'Devis sous 24 h, sans paiement en ligne'],
+    },
+    insta: [
+      ['/site/c/italien22-produits/buffet-menu.webp.webp', 'Buffet italien'],
+      ['/site/c/burrata-client-20261101.webp.webp', 'Burrata'],
+      ['/site/c/italien22-produits/belle-toscane-sans-logo-20261106.webp.webp', 'Plateau de la belle Toscane'],
+      ['/site/c/bar-a-pates-chef.webp', 'Bar à pâtes'],
+      ['/site/c/italien22-produits/mini-pennes.webp.webp', 'Mini pennes'],
+      ['/site/c/pates44-nouveau.jpg.webp', 'Pâtes fraîches'],
+    ],
+    fin: 'Prêt à faire voyager vos invités ?',
+  },
+  'buffet-indien': {
+    surtitre: 'Traiteur indien · par Magnolia Traiteur',
+    signature: 'Les épices de l’Inde à votre table',
+    defile: ['Plus de 700 prestations par an', '★★★★★ 4,9/5 sur Google', '{avis} avis clients vérifiés', 'Votre traiteur indien sur Paris et l’Île-de-France', 'Tandoori, tikka massala, naans et biryani', 'Livraison 7 j/7', 'Mariages · anniversaires · séminaires · entreprises'],
+    avis: ['mt_49756', 'mt_59271', 'mt_56173', 'mt_53738', 'mt_53558', 'mt_56169'],
+    avisTitre: 'Ce que nos clients disent de nous',
+    equipe: {
+      photo: '/site/c/indien-menus/chicken-tandoori.webp.webp',
+      surtitre: 'Épicé, parfumé, coloré',
+      titre: 'Un voyage en Inde, sans quitter la table',
+      texte: ['Samoussas et pakoras, poulet tandoori, tikka massala, curry d’agneau, riz basmati et naans, puis lassi et gulab jamun : un buffet aux mille parfums.', 'Nous livrons 7 jours sur 7 sur Paris et toute l’Île-de-France ; nos serveurs installent le buffet et le servent si vous le souhaitez.'],
+      points: ['Livraison et installation du buffet', 'Serveurs et maîtres d’hôtel sur demande', 'Végétariens et allergies : dites-le-nous', 'Devis sous 24 h, sans paiement en ligne'],
+    },
+    fin: 'Prêt à faire voyager vos invités ?',
+  },
+  'specialites-japonaises': {
+    surtitre: 'Traiteur japonais · par Magnolia Traiteur',
+    signature: 'Le Japon à votre table',
+    defile: ['Plus de 700 prestations par an', '★★★★★ 4,9/5 sur Google', '{avis} avis clients vérifiés', 'Votre traiteur japonais sur Paris et l’Île-de-France', 'Sushis, makis et plateaux à partager', 'Livraison 7 j/7', 'Cocktails · anniversaires · séminaires · entreprises'],
+    avis: ['mt_59271', 'mt_56173', 'mt_53738', 'mt_53558', 'mt_56169', 'mt_55207'],
+    avisTitre: 'Ce que nos clients disent de nous',
+    equipe: {
+      video: '/site/v/animations/sushi.mp4', poster: '/site/v/animations/sushi.jpg', format: 'paysage',
+      surtitre: 'Préparé avec précision',
+      titre: 'Sushis et makis, faits avec soin',
+      texte: ['Sushis, makis, california rolls et sashimis : des bouchées fines et colorées, en plateaux à partager ou préparées devant vos invités par un sushiman.', 'Nous livrons 7 jours sur 7 sur Paris et toute l’Île-de-France ; nos serveurs installent le buffet et le servent si vous le souhaitez.'],
+      points: ['Livraison et installation du buffet', 'Serveurs et maîtres d’hôtel sur demande', 'Végétariens et allergies : dites-le-nous', 'Devis sous 24 h, sans paiement en ligne'],
+    },
+    fin: 'Prêt à faire voyager vos invités ?',
+  },
 };
 function pageLanding(c, r, x) {
   const L = LANDINGS[x.slug], R = c.reglages, G = R.avisGoogle || {};
@@ -628,6 +740,7 @@ function pageLanding(c, r, x) {
   const liste = prodsDeSous(c, r, x.slug).slice().sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
   const tous = RANGEMENTS.map(([k, t]) => [k, (x.titresSections || {})[k] || t, liste.filter(p => rangementDe(p) === k)]).filter(b => b[2].length);
   const buffets = tous.find(b => b[0] === 'buffets');
+  const ancre = buffets ? '#nos-buffets' : '#prestations', voirTxt = buffets ? 'Voir nos buffets' : 'Voir nos propositions';
   const blocs = tous.filter(b => b[0] !== 'buffets');
   const gUrl = G.url || '/temoignages';
   const gLogo = '<svg class="g-logo" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3l5.7-5.7C34 6 29.3 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3l5.7-5.7C34 6 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>';
@@ -638,7 +751,7 @@ function pageLanding(c, r, x) {
     : img(B.photo, '', '', 'fetchpriority="high"').replace(' loading="lazy"', '');
   const hero = `<section class="phero land lp-hero${kb(c, B.video ? '' : B.photo, x.slug)}">${media}<div class="phero-c wrap">
     <p class="lp-sur">${esc(L.surtitre)}</p><h1>${titreLignes(speTitre(x))}</h1>${L.signature ? `<p class="phero-sig">${esc(L.signature)}</p>` : ''}<p class="lead">${esc(speChapo(x))}</p>
-    <div class="row land-cta"><a class="btn btn-or" href="#nos-buffets">Voir nos buffets</a><a class="btn btn-ghost-light" href="tel:${esc(tel)}">${icon.phone}<span>${esc(R.telephone || '')}</span></a></div>
+    <div class="row land-cta"><a class="btn btn-or" href="${ancre}">${voirTxt}</a><a class="btn btn-ghost-light" href="tel:${esc(tel)}">${icon.phone}<span>${esc(R.telephone || '')}</span></a></div>
     <div class="lp-conf">${gBouton('clair')}<p class="lp-livr">Livraison 7 j/7 sur Paris et toute l’Île-de-France</p></div></div></section>`;
   const defile = `<div class="marquee lp-defile" aria-label="${esc(L.defile.join(' · ').replace('{avis}', nbAvisSite(c)))}"><div class="marquee-t">${[0, 1].map(k => L.defile.map(t => t.replace('{avis}', nbAvisSite(c).replace(/^p/, 'P'))).map(t => `<span${k ? ' aria-hidden="true"' : ''}>${esc(t)}<i>✳</i></span>`).join('')).join('')}</div></div>`;
   const bloc = ([k, t, P], extra = '') => `<div class="spe-bloc" id="${k === 'buffets' ? 'nos-buffets' : k}"${extra}><h2>${esc(t)}</h2><p class="count">${P.length} prestation${P.length > 1 ? 's' : ''} · tarifs TTC</p><div class="cards grid${k === 'buffets' ? ' kb-anim' : ''}">${P.map(p => card(p, c, { rubNom: false })).join('')}</div>${extra && rubmActif(blocs) ? rubmRetour(true) : ''}</div>`;
@@ -649,17 +762,19 @@ function pageLanding(c, r, x) {
     <div class="lp-av">${avis.map(a => `<figure class="ent-q"><p class="stars" aria-label="${a.note || 5} sur 5">${'★'.repeat(a.note || 5)}</p>${a.titre ? `<h3>${esc(titreAvis(a.titre))}</h3>` : ''}<blockquote>« ${esc(trunc(String(a.texte).replace(/\s*\n+\s*/g, ' ').replace(/\s*Avis (du )?client.*$|\s*Avis reçu.*$/i, ''), 240))} »</blockquote><figcaption>${esc(a.auteur || (a.lieu ? a.lieu.charAt(0).toUpperCase() + a.lieu.slice(1).toLowerCase() : 'Client Magnolia'))}${a.date ? `<small>${esc(a.date)}</small>` : ''}</figcaption></figure>`).join('')}</div>
     <p class="center lp-avis-tous"><a class="lnk" href="/temoignages">Lire tous nos avis clients ${icon.arrow}</a></p></div></section>` : '';
   const E = L.equipe;
-  const equipe = E ? `<section class="wrap lp-eq${E.format === 'paysage' ? ' paysage' : ''}"><div class="lp-eq-v"><video src="${esc(E.video)}" poster="${esc(E.poster)}" muted loop playsinline autoplay preload="metadata" aria-hidden="true" data-autoplay></video></div>
+  const equipe = E ? `<section class="wrap lp-eq${E.format === 'paysage' ? ' paysage' : ''}"><div class="lp-eq-v">${E.video ? `<video src="${esc(E.video)}" poster="${esc(E.poster)}" muted loop playsinline autoplay preload="metadata" aria-hidden="true" data-autoplay></video>` : img(E.photo, E.titre)}</div>
     <div class="lp-eq-t"><p class="eyebrow">${esc(E.surtitre || '')}</p><h2>${esc(E.titre)}</h2>${E.texte.map(t => `<p>${esc(t)}</p>`).join('')}<ul class="ent-ok">${E.points.map(t => `<li>${esc(t)}</li>`).join('')}</ul>
-    <div class="row"><a class="btn btn-vert" href="#nos-buffets">Composer mon buffet</a><a class="lnk" href="tel:${esc(tel)}">ou appelez le ${esc(R.telephone || '')}</a></div></div></section>` : '';
-  const insta = R.instagram && L.insta?.length ? `<section class="wrap lp-ig"><a class="lp-ig-h" href="${esc(R.instagram)}" target="_blank" rel="noopener">${igCouleur('iglp')}<span><b>${esc(igCompte(R.instagram))}</b><small>Nos buffets, nos équipes, vos fêtes : suivez-nous sur Instagram</small></span><span class="btn btn-line">Suivre</span></a>
-    <div class="lp-ig-g">${L.insta.map(([src, alt]) => `<a href="${esc(R.instagram)}" target="_blank" rel="noopener" aria-label="${esc(alt)} · Instagram">${img(src, alt)}</a>`).join('')}</div></section>` : '';
+    <div class="row"><a class="btn btn-vert" href="${ancre}">${buffets ? 'Composer mon buffet' : 'Voir nos propositions'}</a><a class="lnk" href="tel:${esc(tel)}">ou appelez le ${esc(R.telephone || '')}</a></div></div></section>` : '';
+  /* photos Instagram : liste choisie, sinon les premières vraies photos des fiches de la page (une par fiche, sans image d'attente) */
+  const instaL = L.insta?.length ? L.insta : liste.map(p => [p.photos?.find(ph => ph?.src && /^\/site\//.test(ph.src) && !/photo-a-venir|\.svg/.test(ph.src))?.src, p.titre]).filter(([s]) => s).filter((v, i, a) => a.findIndex(w => w[0] === v[0]) === i).slice(0, 6);
+  const insta = R.instagram && instaL.length >= 3 ? `<section class="wrap lp-ig"><a class="lp-ig-h" href="${esc(R.instagram)}" target="_blank" rel="noopener">${igCouleur('iglp')}<span><b>${esc(igCompte(R.instagram))}</b><small>Nos buffets, nos équipes, vos fêtes : suivez-nous sur Instagram</small></span><span class="btn btn-line">Suivre</span></a>
+    <div class="lp-ig-g${instaL.length < 6 ? ' n3' : ''}">${instaL.map(([src, alt]) => `<a href="${esc(R.instagram)}" target="_blank" rel="noopener" aria-label="${esc(alt)} · Instagram">${img(src, alt)}</a>`).join('')}</div></section>` : '';
   const body = `${hero}${defile}
 <section class="wrap shop spe-sections lp-top">${x.introTexte ? `<div class="spe-intro">${x.introTitre ? `<h2>${esc(x.introTitre)}</h2>` : ''}${String(x.introTexte).split(/\n+/).map(l => l.trim()).filter(Boolean).map(l => `<p>${esc(l)}</p>`).join('')}</div>` : ''}${buffets ? bloc(buffets) : ''}</section>
 ${avisHtml}${equipe}${insta}
 ${blocs.length ? `<section class="wrap shop spe-sections" id="prestations"${rubmActif(blocs) ? ' data-rubm' : ''}><div class="shop-bar lp-unite-h"><p class="eyebrow">À la carte</p><h2>Composez votre menu à l’unité</h2>${rubmActif(blocs) ? rubmRetour() : ''}</div>
   ${rubmTuiles(blocs)}${blocs.map(b => bloc(b, ' data-rubm-bloc')).join('')}</section>` : ''}
-<section class="cta wrap lp-fin"><h2>${esc(L.fin)}</h2><div class="row"><a class="btn btn-vert" href="#nos-buffets">Voir nos buffets</a><a class="lnk" href="tel:${esc(tel)}">ou appelez le ${esc(R.telephone || '')}</a></div>${gBouton()}<p class="lp-autres"><a class="lnk" href="/${esc(r.slug)}">Découvrir nos autres saveurs du monde ${icon.arrow}</a></p></section>`;
+<section class="cta wrap lp-fin"><h2>${esc(L.fin)}</h2><div class="row"><a class="btn btn-vert" href="${ancre}">${voirTxt}</a><a class="lnk" href="tel:${esc(tel)}">ou appelez le ${esc(R.telephone || '')}</a></div>${gBouton()}<p class="lp-autres"><a class="lnk" href="/${esc(r.slug)}">Découvrir nos autres saveurs du monde ${icon.arrow}</a></p></section>`;
   return layout(c, { title: x.seoTitre || speTitre(x), description: x.seoDescription || speChapo(x), body, path: `/${r.slug}/${x.slug}`, image: x.bandeauPhoto || x.photo, bodyClass: 'page-lp' });
 }
 
