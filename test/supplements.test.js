@@ -22,3 +22,10 @@ test('devis préparé par l’IA : parts de coq roussi lues dans la note', () =>
   assert.deepStrictEqual(D.choixDepuisNote('Coq roussi pour tout le monde', p, 30), { plats: ['coq-roussi:30'] });
   assert.deepStrictEqual(D.choixDepuisNote('colombo de poulet', p, 30), {});
 });
+
+test('christophines : + 3 € TTC par personne sur le prix de la formule', () => {
+  const f = { slug: 'buffet-antillais-plat-seul', prixCents: 1990, groupes: [{ id: 'acc', options: [{ id: 'riz', label: 'Riz nature', supCents: 0 }, { id: 'chr', label: 'Gratin de christophines', supCents: 300 }] }] };
+  const e = D.estimerLigne({ qte: 20, choix: { acc: ['riz', 'chr'] } }, f);
+  assert.strictEqual(e.supCents, 300);
+  assert.strictEqual(e.totalCents, (1990 + 300) * 20);
+});

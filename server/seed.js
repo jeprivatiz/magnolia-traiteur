@@ -1143,6 +1143,20 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('site/reglages', { ...(await store.get('site/reglages')), coqRoussiSupp: true });
   }
 
+  /* Christophines + 3 € TTC (Jean-Luc, 2026-11-28) : dans les formules du Buffet antillais, choisir le gratin de christophines
+     ajoute 3 € TTC par personne au prix de la formule (même mécanisme que les autres options à supplément).
+     Une fois ; modifiable ensuite dans la fiche (« Gratin de christophines | 3 » dans « Choix proposés au client »). */
+  const RChr = await store.get('site/reglages');
+  if (RChr && !RChr.christophineSupp) {
+    for (const { id, data: p } of await store.list('produits')) {
+      if (!/^buffet-antillais/.test(p.slug || id) || !(p.groupes || []).length) continue;
+      let ok = false;
+      const groupes = p.groupes.map(g => ({ ...g, options: (g.options || []).map(o => /christophine/i.test(String(o.label || '')) && !o.supCents ? (ok = true, { ...o, supCents: 300 }) : o) }));
+      if (ok) await store.set('produits/' + id, { ...p, groupes });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), christophineSupp: true });
+  }
+
   /* Buffet des traditions (Jean-Luc, 2026-11-26) : le client choisit exactement 3 salades parmi celles de la description ;
      le cake, le plateau de charcuteries, le plateau de fromages et le dessert sont affichés « compris dans la formule » (rien à choisir).
      Une fois, seulement si la fiche n'a pas encore de choix ; modifiable ensuite dans « Choix proposés au client ». */
