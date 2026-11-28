@@ -510,6 +510,7 @@ function specialite(c, r, x) {
   const chips = `<div class="chips scroll-x spe-chips">${S.map(y => `<a class="chip${x && y.slug === x.slug ? ' on' : ''}" href="/${esc(r.slug)}/${esc(y.slug)}">${esc(y.nom)}</a>`).join('')}${(() => { const m = r.slug === 'saveurs-du-monde' && c.rubriques.find(z => z.slug === 'grand-large' && z.statut !== 'masque'); return m ? `<a class="chip" href="/${esc(m.slug)}">${esc(m.nom)}</a>` : ''; })()}<a class="chip${!x ? ' on' : ''}" href="/${esc(r.slug)}/tout">Tout</a></div>`;
   const fil = [['La boutique', '/boutique'], [r.nom, '/' + r.slug], [x ? x.nom : 'Tout']];
   const hero = x ? bandeauHtml(c, { photo: x.bandeauPhoto || x.photo, video: x.bandeauVideo ?? x.video ?? '', poster: x.bandeauPoster || '', position: x.bandeauPosition || '', titre: speTitre(x), chapo: speChapo(x), bouton: x.bouton || 'Voir les propositions', ancre: '#prestations' }, fil) : '';
+  if (x && x.parSections && LANDINGS[x.slug] && x.landing !== false) return pageLanding(c, r, x);
   if (x && x.parSections) return pageSections(c, r, x, chips, hero);
   return boutique(c, { intro: x ? { titre: x.introTitre, texte: x.introTexte } : { titre: r.introTitre, texte: r.introTexte }, rub: r.slug, titre: x ? speTitre(x) : r.nom, chapo: x ? speChapo(x) : r.chapo, photo: x ? (x.bandeauPhoto || x.photo) : (r.photoAccueil || r.photo), path: `/${r.slug}/${x ? x.slug : 'tout'}`, liste, fil, chips, hero, seo: x ? { title: x.seoTitre || speTitre(x), description: x.seoDescription || speChapo(x) } : null });
 }
@@ -540,6 +541,76 @@ function pageSections(c, r, x, chips, hero) {
   ${rubmTuiles(blocs)}${blocs.map(([k, t, L]) => `<div class="spe-bloc" id="${k}" data-rubm-bloc><h2>${esc(t)}</h2><p class="count">${L.length} prestation${L.length > 1 ? 's' : ''} · tarifs TTC</p><div class="cards grid${k === 'buffets' ? ' kb-anim' : ''}">${L.map(p => card(p, c, { rubNom: false })).join('')}</div>${rubmActif(blocs) ? rubmRetour(true) : ''}</div>`).join('')}
 </section>`;
   return layout(c, { title: x.seoTitre || speTitre(x), description: x.seoDescription || speChapo(x), body, path: `/${r.slug}/${x.slug}`, image: x.bandeauPhoto || x.photo });
+}
+
+/* ---------- spécialité en « page d'arrivée » Google Ads (Jean-Luc, 2026-11-28 : essai sur l'antillais avant les autres) ----------
+   Grand bandeau vidéo, bande défilante chaleureuse, bouton Avis Google, nos buffets tout de suite, avis clients
+   de la spécialité, l'équipe en vidéo, Instagram, puis les produits à l'unité (structure habituelle).
+   Désactivable par spécialité : champ `landing: false`. Pour l'étendre : ajouter une entrée à LANDINGS. */
+const LANDINGS = {
+  'buffet-antillais': {
+    surtitre: 'Traiteur antillais · par Magnolia Traiteur',
+    signature: 'Les Antilles s’invitent à votre table',
+    defile: ['Plus de 700 prestations par an', 'Le spécialiste de la cuisine antillaise sur Paris et l’Île-de-France', '★★★★★ 4,9/5 sur Google', 'Accras, boudins, colombo : la vraie cuisine des îles', 'Livraison 7 j/7', 'Mariages · anniversaires · baptêmes · entreprises'],
+    /* avis du site actuel qui parlent du buffet antillais (ids mt_ = data/avis-magnolia.json) */
+    avis: ['mt_26884', 'mt_24710', 'mt_51780', 'mt_28562', 'mt_27254', 'mt_57508'],
+    avisTitre: 'Ils ont voyagé aux Antilles avec nous',
+    equipe: {
+      video: '/site/v/antillais-boucle.mp4', poster: '/site/v/antillais-boucle.jpg',
+      titre: 'Une équipe dédiée à la cuisine des îles',
+      texte: ['Notre département « Le Traiteur Antillais » cuisine pour vous accras, boudins, colombos, fricassées et douceurs au coco, avec les recettes et les épices des Antilles.', 'Nos camions livrent 7 jours sur 7 sur Paris et toute l’Île-de-France ; nos serveurs installent le buffet, le réchauffent et le servent si vous le souhaitez.'],
+      points: ['Livraison et installation du buffet', 'Serveurs et maîtres d’hôtel sur demande', 'Chafing-dish pour servir chaud', 'Devis sous 24 h, sans paiement en ligne'],
+    },
+    insta: [
+      ['/site/c/antilles-menus/buffet-equipe-colombo-20261103-sans-logo-20261106.webp.webp', 'Notre équipe devant un buffet antillais'],
+      ['/site/c/antilles-menus/accras-client-20261101.webp.webp', 'Accras de morue'],
+      ['/site/c/antilles-menus/buffet-complet.jpg.webp', 'Buffet antillais en chafing-dish'],
+      ['/site/c/antilles-menus/dombres-crevettes-client-20261101.webp.webp', 'Dombrés aux crevettes'],
+      ['/site/flotte/camion-traiteur-antillais.jpg', 'Livraison du Traiteur Antillais'],
+      ['/site/c/antilles-menus/colombo.jpg.webp', 'Colombo de poulet'],
+    ],
+    fin: 'Prêt à faire voyager vos invités ?',
+  },
+};
+function pageLanding(c, r, x) {
+  const L = LANDINGS[x.slug], R = c.reglages, G = R.avisGoogle || {};
+  const tel = (R.telephone || '').replace(/\s/g, '');
+  const liste = prodsDeSous(c, r, x.slug).slice().sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
+  const tous = RANGEMENTS.map(([k, t]) => [k, (x.titresSections || {})[k] || t, liste.filter(p => rangementDe(p) === k)]).filter(b => b[2].length);
+  const buffets = tous.find(b => b[0] === 'buffets');
+  const blocs = tous.filter(b => b[0] !== 'buffets');
+  const gUrl = G.url || '/temoignages';
+  const gLogo = '<svg class="g-logo" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3l5.7-5.7C34 6 29.3 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3l5.7-5.7C34 6 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>';
+  const gBouton = (cls = '') => `<a class="g-badge ${cls}" href="${esc(gUrl)}" target="_blank" rel="noopener">${gLogo}<span class="g-n">${esc(G.note || '4,9')}</span><span class="g-s"><i aria-hidden="true">★★★★★</i><small>${G.nombre ? `${esc(G.nombre)} avis Google` : 'Avis Google'}</small></span><span class="g-go">Lire les avis ${icon.arrow}</span></a>`;
+  const B = { photo: x.bandeauPhoto || x.photo, video: x.bandeauVideo ?? x.video ?? '', poster: x.bandeauPoster || '', position: x.bandeauPosition || '' };
+  const media = B.video
+    ? `<video src="${esc(B.video)}" poster="${esc(B.poster || B.photo || '')}"${B.position ? ` style="object-position:${esc(B.position)}"` : ''} autoplay muted loop playsinline preload="metadata" aria-hidden="true" data-autoplay></video>`
+    : img(B.photo, '', '', 'fetchpriority="high"').replace(' loading="lazy"', '');
+  const hero = `<section class="phero land lp-hero${kb(c, B.video ? '' : B.photo, x.slug)}">${media}<div class="phero-c wrap">
+    <p class="lp-sur">${esc(L.surtitre)}</p><h1>${titreLignes(speTitre(x))}</h1>${L.signature ? `<p class="phero-sig">${esc(L.signature)}</p>` : ''}<p class="lead">${esc(speChapo(x))}</p>
+    <div class="row land-cta"><a class="btn btn-or" href="#nos-buffets">Voir nos buffets</a><a class="btn btn-ghost-light" href="tel:${esc(tel)}">${icon.phone}<span>${esc(R.telephone || '')}</span></a></div>
+    <div class="lp-conf">${gBouton('clair')}<p class="lp-livr">Livraison 7 j/7 sur Paris et toute l’Île-de-France</p></div></div></section>`;
+  const defile = `<div class="marquee lp-defile" aria-label="${esc(L.defile.join(' · '))}"><div class="marquee-t">${[0, 1].map(k => L.defile.map(t => `<span${k ? ' aria-hidden="true"' : ''}>${esc(t)}<i>✳</i></span>`).join('')).join('')}</div></div>`;
+  const bloc = ([k, t, P], extra = '') => `<div class="spe-bloc" id="${k === 'buffets' ? 'nos-buffets' : k}"${extra}><h2>${esc(t)}</h2><p class="count">${P.length} prestation${P.length > 1 ? 's' : ''} · tarifs TTC</p><div class="cards grid${k === 'buffets' ? ' kb-anim' : ''}">${P.map(p => card(p, c, { rubNom: false })).join('')}</div>${extra && rubmActif(blocs) ? rubmRetour(true) : ''}</div>`;
+  const avis = (L.avis || []).map(id => c.avis.find(a => a.id === id && a.statut !== 'masque')).filter(Boolean);
+  const titreAvis = t => { t = t === t.toUpperCase() ? t.charAt(0) + t.slice(1).toLowerCase() : t; return t.charAt(0).toUpperCase() + t.slice(1); };
+  const avisHtml = avis.length ? `<section class="lp-avis band-creme" id="avis"><div class="wrap">
+    <div class="lp-avis-h"><div><p class="eyebrow">Avis clients</p><h2>${esc(L.avisTitre)}</h2></div>${gBouton()}</div>
+    <div class="lp-av">${avis.map(a => `<figure class="ent-q"><p class="stars" aria-label="${a.note || 5} sur 5">${'★'.repeat(a.note || 5)}</p>${a.titre ? `<h3>${esc(titreAvis(a.titre))}</h3>` : ''}<blockquote>« ${esc(trunc(String(a.texte).replace(/\s*\n+\s*/g, ' ').replace(/\s*Avis (du )?client.*$|\s*Avis reçu.*$/i, ''), 240))} »</blockquote><figcaption>${esc(a.auteur || (a.lieu ? a.lieu.charAt(0).toUpperCase() + a.lieu.slice(1).toLowerCase() : 'Client Magnolia'))}${a.date ? `<small>${esc(a.date)}</small>` : ''}</figcaption></figure>`).join('')}</div>
+    <p class="center lp-avis-tous"><a class="lnk" href="/temoignages">Lire tous nos avis clients ${icon.arrow}</a></p></div></section>` : '';
+  const E = L.equipe;
+  const equipe = E ? `<section class="wrap lp-eq"><div class="lp-eq-v"><video src="${esc(E.video)}" poster="${esc(E.poster)}" muted loop playsinline autoplay preload="metadata" aria-hidden="true" data-autoplay></video></div>
+    <div class="lp-eq-t"><p class="eyebrow">Notre maison antillaise</p><h2>${esc(E.titre)}</h2>${E.texte.map(t => `<p>${esc(t)}</p>`).join('')}<ul class="ent-ok">${E.points.map(t => `<li>${esc(t)}</li>`).join('')}</ul>
+    <div class="row"><a class="btn btn-vert" href="#nos-buffets">Composer mon buffet</a><a class="lnk" href="tel:${esc(tel)}">ou appelez le ${esc(R.telephone || '')}</a></div></div></section>` : '';
+  const insta = R.instagram && L.insta?.length ? `<section class="wrap lp-ig"><a class="lp-ig-h" href="${esc(R.instagram)}" target="_blank" rel="noopener">${igCouleur('iglp')}<span><b>${esc(igCompte(R.instagram))}</b><small>Nos buffets, nos équipes, vos fêtes : suivez-nous sur Instagram</small></span><span class="btn btn-line">Suivre</span></a>
+    <div class="lp-ig-g">${L.insta.map(([src, alt]) => `<a href="${esc(R.instagram)}" target="_blank" rel="noopener" aria-label="${esc(alt)} · Instagram">${img(src, alt)}</a>`).join('')}</div></section>` : '';
+  const body = `${hero}${defile}
+<section class="wrap shop spe-sections lp-top">${x.introTexte ? `<div class="spe-intro">${x.introTitre ? `<h2>${esc(x.introTitre)}</h2>` : ''}${String(x.introTexte).split(/\n+/).map(l => l.trim()).filter(Boolean).map(l => `<p>${esc(l)}</p>`).join('')}</div>` : ''}${buffets ? bloc(buffets) : ''}</section>
+${avisHtml}${equipe}${insta}
+${blocs.length ? `<section class="wrap shop spe-sections" id="prestations"${rubmActif(blocs) ? ' data-rubm' : ''}><div class="shop-bar lp-unite-h"><p class="eyebrow">À la carte</p><h2>Composez votre menu à l’unité</h2>${rubmActif(blocs) ? rubmRetour() : ''}</div>
+  ${rubmTuiles(blocs)}${blocs.map(b => bloc(b, ' data-rubm-bloc')).join('')}</section>` : ''}
+<section class="cta wrap lp-fin"><h2>${esc(L.fin)}</h2><div class="row"><a class="btn btn-vert" href="#nos-buffets">Voir nos buffets</a><a class="lnk" href="tel:${esc(tel)}">ou appelez le ${esc(R.telephone || '')}</a></div>${gBouton()}<p class="lp-autres"><a class="lnk" href="/${esc(r.slug)}">Découvrir nos autres saveurs du monde ${icon.arrow}</a></p></section>`;
+  return layout(c, { title: x.seoTitre || speTitre(x), description: x.seoDescription || speChapo(x), body, path: `/${r.slug}/${x.slug}`, image: x.bandeauPhoto || x.photo, bodyClass: 'page-lp' });
 }
 
 function crumbs(list) {

@@ -1690,3 +1690,73 @@ h1 .formule { font-size: .5em; margin-top: .45em; }
 .duo-b a { flex: 1; text-align: center; padding: 6px 4px; border-radius: 999px; background: var(--or, #c9a45c); color: #1d2a22; font-size: .8rem; font-weight: 600; text-decoration: none; white-space: nowrap; }
 .duo-b a:hover { background: #fff; }
 @media (max-width: 640px) { .duo-b a { font-size: .72rem; padding: 5px 2px; } }
+
+/* ---------- spécialité en page d'arrivée Google Ads (essai : Buffet antillais, 2026-11-28) ---------- */
+.lp-hero.phero.land { min-height: clamp(520px, 88vh, 820px); }
+.lp-hero.phero.land::after { background: linear-gradient(180deg, rgba(8, 12, 10, .35) 0%, rgba(8, 12, 10, .25) 35%, rgba(8, 12, 10, .85) 100%); }
+.lp-hero.phero.land h1 { font-size: clamp(2.8rem, 7vw, 5.4rem); margin-bottom: 6px; }
+.lp-sur { margin: 0 0 12px; display: inline-block; padding: 6px 14px; border-radius: 999px; background: rgba(255, 255, 255, .14); border: 1px solid rgba(255, 255, 255, .35); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); font-size: .78rem; letter-spacing: .14em; text-transform: uppercase; color: #fff; }
+.lp-conf { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 22px; margin-top: 22px; }
+.lp-livr { margin: 0; font-size: .92rem; color: rgba(255, 255, 255, .92); }
+.lp-livr::before { content: '🚚 '; }
+.g-badge { display: inline-flex; align-items: center; gap: 10px; padding: 9px 16px 9px 12px; border-radius: 999px; background: #fff; color: #202124; text-decoration: none; box-shadow: 0 8px 24px rgba(0, 0, 0, .18); transition: transform .2s, box-shadow .2s; font-family: var(--sans); }
+.g-badge:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(0, 0, 0, .24); }
+.g-logo { width: 26px; height: 26px; flex: none; }
+.g-n { font-size: 1.55rem; font-weight: 600; line-height: 1; }
+.g-s { display: flex; flex-direction: column; line-height: 1.1; }
+.g-s i { font-style: normal; color: #fbbc04; letter-spacing: .06em; font-size: 1rem; }
+.g-s small { font-size: .74rem; color: #5f6368; }
+.g-go { display: inline-flex; align-items: center; gap: 4px; margin-left: 4px; padding-left: 12px; border-left: 1px solid #e3e3e3; font-size: .8rem; font-weight: 500; color: #1a73e8; }
+.g-go svg { width: 14px; height: 14px; }
+.lp-defile { background: linear-gradient(90deg, #c9772b, #e0a03a 50%, #c9772b); color: #fff; padding: 14px 0; }
+.lp-defile .marquee-t { animation-duration: 45s; }
+.lp-defile .marquee-t span { font-size: 1.35rem; }
+.lp-defile .marquee-t i { color: #1d3b2f; }
+.lp-top { margin-top: 44px; }
+.lp-top .spe-bloc h2, .lp-unite-h h2 { font-size: clamp(2rem, 4vw, 2.8rem); }
+.lp-avis { padding: 64px 0; margin: 40px 0 0; }
+.lp-avis-h { display: flex; justify-content: space-between; align-items: flex-end; gap: 18px; flex-wrap: wrap; margin-bottom: 26px; }
+.lp-avis-h h2 { margin: 0; font-size: clamp(1.9rem, 3.6vw, 2.6rem); }
+.lp-av { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+.lp-av .ent-q { background: var(--carte); box-shadow: var(--ombre); }
+.lp-avis-tous { margin: 26px 0 0; }
+.lp-eq { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 48px; align-items: center; margin-top: 70px; margin-bottom: 70px; }
+.lp-eq-v { border-radius: 22px; overflow: hidden; aspect-ratio: 4 / 5; box-shadow: 0 24px 50px rgba(20, 30, 25, .22); background: #2a332e; }
+.lp-eq-v video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.lp-eq-t h2 { font-size: clamp(1.9rem, 3.6vw, 2.7rem); margin: 0 0 14px; }
+.lp-eq-t p { color: var(--gris); }
+.lp-ig { margin-bottom: 70px; }
+.lp-ig-h { display: flex; align-items: center; gap: 14px; text-decoration: none; color: inherit; margin-bottom: 18px; }
+.lp-ig-h .ig-logo { width: 52px; height: 52px; flex: none; }
+.lp-ig-h > span:nth-child(2) { flex: 1; display: flex; flex-direction: column; }
+.lp-ig-h b { font-family: var(--serif); font-size: 1.6rem; font-weight: 500; }
+.lp-ig-h small { color: var(--gris); font-size: .92rem; }
+.lp-ig-g { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+.lp-ig-g a { aspect-ratio: 1; overflow: hidden; border-radius: 10px; display: block; }
+.lp-ig-g img { width: 100%; height: 100%; object-fit: cover; transition: transform .5s; }
+.lp-ig-g a:hover img { transform: scale(1.06); }
+.lp-unite-h.shop-bar { position: static; border: 0; background: none; padding: 0; margin-bottom: 4px; }
+.lp-unite-h h2 { margin: 0 0 6px; }
+.lp-fin .g-badge { margin-top: 22px; }
+.lp-autres { margin: 18px 0 0; }
+@media (max-width: 900px) {
+  .lp-hero.phero.land { min-height: 74svh; }
+  .lp-hero.phero.land .phero-c { padding-top: 70px; padding-bottom: 24px; }
+  .lp-livr { order: -1; font-size: .85rem; }
+  .lp-sur { font-size: .64rem; letter-spacing: .1em; padding: 5px 11px; white-space: nowrap; }
+  .lp-hero.phero.land h1 { font-size: 2.9rem; }
+  .lp-hero .land-cta .btn { flex: 1 1 auto; justify-content: center; }
+  .lp-conf { margin-top: 18px; gap: 10px; }
+  .g-badge { padding: 8px 12px 8px 10px; gap: 8px; }
+  .g-n { font-size: 1.35rem; }
+  .lp-defile .marquee-t span { font-size: 1.15rem; padding: 0 14px; gap: 28px; }
+  .lp-top { margin-top: 30px; }
+  .lp-avis { padding: 44px 0; }
+  .lp-av { display: grid; grid-auto-flow: column; grid-template-columns: none; grid-auto-columns: 86%; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 8px; }
+  .lp-av .ent-q { scroll-snap-align: start; }
+  .lp-eq { grid-template-columns: 1fr; gap: 24px; margin: 48px auto; }
+  .lp-eq-v { aspect-ratio: 4 / 5; max-height: 70svh; }
+  .lp-ig-g { grid-template-columns: repeat(3, 1fr); gap: 4px; }
+  .lp-ig-h b { font-size: 1.3rem; }
+  .lp-ig-h .btn { display: none; }
+}
