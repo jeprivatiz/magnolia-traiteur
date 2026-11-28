@@ -11,6 +11,7 @@ const FIN = '2027-01-05';
 const vente = c => Math.ceil(c * 13 / 100) * 10;
 
 const DEUX_SEMAINES = 'À commander au moins 15 jours avant votre fête';
+const LIQUEUR = 'Une liqueur antillaise douce au fruit de la passion, en bouteille d’un litre. À consommer avec modération.';
 const PIECES = 'Par 10 pièces minimum. ' + DEUX_SEMAINES;
 
 /* [slug, section, titre, achat (centimes), unité, minimum, texte du minimum, accroche, lignes « sous le prix », tva, options] */
@@ -97,11 +98,11 @@ const PRODUITS = [
   ['chocolat-antillais', 'divers', 'Chocolat antillais', 900, 'litre', 1, null,
     'Le chocolat chaud épais des Antilles, parfumé à la cannelle, à la muscade et au zeste de citron vert.', null, 10,
     [{ id: 'lait', titre: 'Lait', radio: true, max: 1, exact: true, options: [['classique', 'Classique', 0], ['sans-lactose', 'Sans lactose', 200]] }]],
-  ['punch-coco-noel', 'divers', 'Punch coco', 2000, 'bouteille', 1, null, 'Le punch crémeux à la noix de coco, incontournable des fêtes antillaises. À consommer avec modération.', null, 20],
-  ['punch-ananas-noel', 'divers', 'Punch ananas', 2200, 'bouteille', 1, null, 'Un punch fruité à l’ananas, doux et parfumé. À consommer avec modération.', null, 20],
-  ['punch-orange-gingembre-noel', 'divers', 'Punch orange et gingembre', 2000, 'bouteille', 1, null, 'Un punch à l’orange relevé de gingembre. À consommer avec modération.', null, 20],
-  ['punch-passion-noel', 'divers', 'Punch fruit de la passion', 2500, 'bouteille', 1, null, 'Un punch acidulé au fruit de la passion. À consommer avec modération.', null, 20],
-  ['liqueur-antillaise-noel', 'divers', 'Liqueur antillaise · 1 litre', 1800, 'bouteille', 1, null, 'Une liqueur maison des Antilles, en bouteille d’un litre. À consommer avec modération.', null, 20],
+  ['punch-coco-noel', 'divers', 'Punch coco · 1 litre', 2000, 'bouteille', 1, null, 'Le punch crémeux à la noix de coco, incontournable des fêtes antillaises. À consommer avec modération.', null, 20],
+  ['punch-ananas-noel', 'divers', 'Punch ananas · 1 litre', 2200, 'bouteille', 1, null, 'Un punch fruité à l’ananas, doux et parfumé. À consommer avec modération.', null, 20],
+  ['punch-orange-gingembre-noel', 'divers', 'Punch orange et gingembre · 1 litre', 2000, 'bouteille', 1, null, 'Un punch à l’orange relevé de gingembre. À consommer avec modération.', null, 20],
+  ['punch-passion-noel', 'divers', 'Punch fruit de la passion · 1 litre', 2500, 'bouteille', 1, null, 'Un punch acidulé au fruit de la passion. À consommer avec modération.', null, 20],
+  ['liqueur-antillaise-noel', 'divers', 'Liqueur au fruit de la passion · 1 litre', 1800, 'bouteille', 1, null, LIQUEUR, null, 20],
   ['planteur-noel', 'divers', 'Planteur · 1 litre', 1800, 'bouteille', 1, null, 'Le planteur aux jus de fruits exotiques et au rhum, en bouteille d’un litre. À consommer avec modération.', null, 20],
 ];
 
@@ -170,6 +171,19 @@ function fiche([slug, rangement, titre, achat, unite, min, minimumTexte, extrait
 async function initNoel(store) {
   await creerNoel(store);
   await photosNoel(store);
+  await punchsUnLitre(store);
+}
+/* une seule fois (Jean-Luc, 2026-11-28) : les punchs sont vendus en bouteille de 1 litre ; titre complété s'il n'a pas été retouché */
+async function punchsUnLitre(store) {
+  if (await store.get('_migr/menuNoelPunch1L')) return;
+  for (const slug of ['punch-coco-noel', 'punch-ananas-noel', 'punch-orange-gingembre-noel', 'punch-passion-noel']) {
+    const p = await store.get('produits/' + slug);
+    if (p && !/litre/i.test(p.titre || '')) await store.set('produits/' + slug, { ...p, titre: p.titre + ' · 1 litre', minimumTexte: p.minimumTexte || 'Bouteille de 1 litre' });
+  }
+  /* liqueur : parfum fruit de la passion (Jean-Luc, 2026-11-28) */
+  const l = await store.get('produits/liqueur-antillaise-noel');
+  if (l && l.titre === 'Liqueur antillaise · 1 litre') await store.set('produits/liqueur-antillaise-noel', { ...l, titre: 'Liqueur au fruit de la passion · 1 litre', extrait: LIQUEUR, description: [LIQUEUR], seoTitre: null, seoAuto: null });
+  await store.set('_migr/menuNoelPunch1L', { at: new Date().toISOString() });
 }
 async function creerNoel(store) {
   if (await store.get('_migr/menuNoel1')) return;
