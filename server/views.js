@@ -928,7 +928,8 @@ function livraison(c) {
    marquée « Entreprise » (POST /api/demandes, entreprise: true). */
 const BESOINS_ENT = [
   ['Petit-déjeuner & réunion', 'Accueil café, viennoiseries, pause du matin', '/petits-dejeuners'],
-  ['Plateaux repas & coffrets', 'Déjeuners de travail, livrés prêts à servir', '/coffrets-plateaux'],
+  /* photo fixe choisie par Jean-Luc (2026-11-28) : son coffret bois 9 cases, recadré sans le logo ni les points Instagram */
+  ['Plateaux repas & coffrets', 'Déjeuners de travail, livrés prêts à servir', '/coffrets-plateaux', '/site/c/entreprises/coffret-bois-9-cases.webp'],
   ['Cocktail d’entreprise', 'Pièces salées et sucrées, debout ou en buffet', '/cocktails-buffets'],
   ['Séminaire & buffets du monde', 'Dix traiteurs, une seule maison', '/saveurs-du-monde'],
   ['Pot de départ & inauguration', 'Animations culinaires cuisinées devant vos invités', '/animations-salees'],
@@ -963,10 +964,10 @@ function entreprises(c) {
   const R = c.reglages, B = bandeauDe(c, 'entreprises'), A = R.accueil || {};
   const fiches = ((R.bandeaux?.entreprises?.fiches || []).length ? R.bandeaux.entreprises.fiches : FICHES_ENT).map(s => c.bySlug.get(s)).filter(p => p && p.statut !== 'masque');
   const rubVue = new Set(c.rubriques.filter(r => r.statut !== 'masque').map(r => '/' + r.slug).concat('/lieux'));
-  const tuiles = BESOINS_ENT.filter(([, , href]) => rubVue.has(href)).map(([t, sous, href]) => {
+  const tuiles = BESOINS_ENT.filter(([, , href]) => rubVue.has(href)).map(([t, sous, href, photo]) => {
     const r = c.rubriques.find(x => '/' + x.slug === href);
-    const v = videoAccueil(href === '/lieux' ? 'lieux' : r?.slug, r);
-    const ph = href === '/lieux' ? c.lieux[0]?.photos?.[0] : (r?.photoAccueil || r?.photo || r?.bandeauPhoto);
+    const v = photo ? '' : videoAccueil(href === '/lieux' ? 'lieux' : r?.slug, r);
+    const ph = photo || (href === '/lieux' ? c.lieux[0]?.photos?.[0] : (r?.photoAccueil || r?.photo || r?.bandeauPhoto));
     return `<a class="tile" href="${esc(href)}">${v || img(ph, '')}<span class="tile-t"><b>${esc(t)}</b><small>${esc(sous)}</small></span></a>`;
   }).join('');
   const tel = (R.telephone || '').replace(/\s/g, '');

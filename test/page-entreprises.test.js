@@ -22,7 +22,7 @@ test('page Entreprises et demande entreprise', async () => {
   try {
     const pg = await call('/entreprises');
     assert.equal(pg.status, 200);
-    for (const t of ['Traiteur pour les entreprises', 'Chorus Pro', 'Livraison 7 j/7', 'interlocuteur dédié', 'data-entreprise', 'href="/petits-dejeuners"', 'href="/boissons"', 'href="/lieux"', 'FAQPage']) assert.ok(pg.j.includes(t), t);
+    for (const t of ['Traiteur pour les entreprises', 'Chorus Pro', 'Livraison 7 j/7', 'interlocuteur dédié', 'data-entreprise', 'href="/petits-dejeuners"', 'href="/boissons"', 'href="/lieux"', 'FAQPage', 'coffret-bois-9-cases.webp']) assert.ok(pg.j.includes(t), t);
     assert.ok((await call('/')).j.includes('href="/entreprises"'), 'lien depuis l’accueil et le menu');
     assert.equal((await call('/traiteur-entreprise')).loc, '/entreprises');
 
