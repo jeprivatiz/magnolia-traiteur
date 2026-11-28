@@ -112,11 +112,13 @@ ${schema ? `<script type="application/ld+json">${JSON.stringify(schema).replace(
 <body class="${bodyClass}"${adsConv(R)}>
 <a class="skip" href="#contenu">Aller au contenu</a>
 <header class="top" data-top>
+  <div class="top-bar"><div class="top-bar-in"><span class="top-bar-l">Livraison 7 j/7 sur Paris et toute l’Île-de-France</span>
+    <a class="top-broch" href="/telecharger-la-brochure" target="_blank" rel="noopener">${icon.doc}<span>Télécharger notre brochure</span></a>
+    <a class="top-tel" href="tel:${esc((R.telephone || '').replace(/\s/g, ''))}">${icon.phone}<span>${esc(R.telephone)}</span></a></div></div>
   <div class="top-in">
     <button class="burger" type="button" aria-label="Ouvrir le menu" data-open-menu>${icon.menu}</button>
     <a class="brand" href="/" aria-label="${esc(R.nom)}, accueil">${MONO}<span class="brand-txt">Magnolia<small>${esc(R.sousNom || 'Traiteur · Événementiel')}</small></span></a>
     <nav class="nav" aria-label="Principal">
-      <a class="nav-l nav-broch" href="/telecharger-la-brochure" target="_blank" rel="noopener" title="Télécharger notre brochure (PDF à imprimer)">${icon.doc}<span>Brochure</span></a>
       <button type="button" class="nav-l" data-open-search>${icon.search}<span>Rechercher</span></button>
       <a class="nav-l" href="/boutique">La boutique</a>
       <a class="nav-l" href="/entreprises">Entreprises</a>
