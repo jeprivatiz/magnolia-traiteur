@@ -1810,6 +1810,15 @@ async function initSousRubriques(store, { log = console } = {}) {
       await store.set('rubriques/cocktails-buffets', { ...cb, bandeauVideo: '/site/v/bandeaux/cocktails-buffets-2.mp4', bandeauPoster: '/site/v/bandeaux/cocktails-buffets-2.jpg' });
     await store.set('site/reglages', { ...(await store.get('site/reglages')), bandeauxVideos4: true });
   }
+  /* Cocktails & buffets (Jean-Luc, 2026-11-28) : comme la page Entreprises, seulement la scène de soirée (smokings),
+     en boucle sans coupure ; la 1re scène (4 invités devant le buffet) est retirée. Une fois, si le bandeau n'a pas été changé. */
+  const RBs = await store.get('site/reglages');
+  if (RBs && !RBs.bandeauxVideos5) {
+    const cb = await store.get('rubriques/cocktails-buffets');
+    if (cb && (!cb.bandeauVideo || cb.bandeauVideo === '/site/v/bandeaux/cocktails-buffets-2.mp4'))
+      await store.set('rubriques/cocktails-buffets', { ...cb, bandeauVideo: '/site/v/entreprises/soiree.mp4', bandeauPoster: '/site/v/entreprises/soiree.jpg' });
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), bandeauxVideos5: true });
+  }
   /* Stand à burgers (Jean-Luc, 2026-11-25) : on doit vraiment voir le burger, sur une plaque à snacker, pain posé sur
      la viande : burgers coiffés de leur pain sur la plaque (Pexels 37284846), puis le chef pose le steak au cheddar
      sur le pain (Pexels 32092904). Une fois, seulement si la fiche a encore l'ancienne vidéo. */
