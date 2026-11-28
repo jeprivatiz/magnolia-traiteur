@@ -1789,6 +1789,20 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('site/reglages', { ...(await store.get('site/reglages')), fruitsDeMerBlanc2: true });
   }
 
+  /* Photos de Jean-Luc (2026-11-28) : crevettes roses BIO de Madagascar (6 crevettes, citron et radis, fond blanc)
+     et langoustines cuites (fond blanc, cadrage plus serré). Une fois, seulement sur les fiches qui ont encore l'ancienne photo. */
+  const RFm3 = await store.get('site/reglages');
+  if (RFm3 && !RFm3.fruitsDeMerBlanc3) {
+    const B = '/site/c/seafood30/blanc/';
+    const v3 = { [B + 'crevettes-roses.webp']: B + 'crevettes-roses-v3.webp', [B + 'crevettes-roses-v2.webp']: B + 'crevettes-roses-v3.webp', [B + 'langoustines.webp']: B + 'langoustines-v2.webp' };
+    for (const { id, data: pr } of await store.list('produits')) {
+      const avant = pr.photos || [];
+      const ph = avant.map(x => v3[x.src] ? { ...x, src: v3[x.src] } : x);
+      if (JSON.stringify(ph) !== JSON.stringify(avant)) await store.set('produits/' + id, { ...pr, photos: ph });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), fruitsDeMerBlanc3: true });
+  }
+
   /* page Zone de livraison (Jean-Luc, 2026-11-22) : départ exact avenue de Norvège et livraison offerte dès 700 € TTC.
      Posé une fois : modifiable ensuite dans le back-office (Réglages > Tarifs communs). */
   const RL = await store.get('site/reglages');
