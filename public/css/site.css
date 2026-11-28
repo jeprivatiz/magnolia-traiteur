@@ -88,7 +88,7 @@ section { margin: clamp(56px, 8vw, 110px) auto; }
 .badge { background: var(--or); color: #fff; border-radius: 999px; min-width: 20px; height: 20px; font-size: .7rem; display: inline-grid; place-items: center; padding: 0 6px; letter-spacing: 0; }
 .burger { display: none; background: none; border: 0; color: inherit; padding: 8px; cursor: pointer; }
 .nav-l, .nav-sel { white-space: nowrap; }
-@media (max-width: 1500px) and (min-width: 1081px) {
+@media (max-width: 1680px) and (min-width: 1081px) {
   .nav { gap: 0; }
   .nav-l { padding: 10px 8px; letter-spacing: .08em; }
   .nav-l[data-open-search] span, .nav-l[href="/espace-client"] span { display: none; }
@@ -1629,7 +1629,7 @@ h1 .formule { font-size: .5em; margin-top: .45em; }
 .ent-faq details[open] summary::after { transform: translateY(-50%) rotate(45deg); }
 .ent-faq details p { margin: 0 0 18px; color: var(--gris); }
 /* 6 liens dans le menu depuis l'ajout de « Entreprises » : menu resserré jusqu'à 1520 px */
-@media (max-width: 1520px) and (min-width: 1361px) {
+@media (max-width: 1680px) and (min-width: 1361px) {
   .nav { gap: 0; }
   .nav-l { padding: 10px 9px; letter-spacing: .1em; }
   .nav-l[data-open-search] span, .nav-l[href="/espace-client"] span { display: none; }
