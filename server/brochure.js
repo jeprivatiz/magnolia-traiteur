@@ -74,6 +74,7 @@ const photoDe = x => {
 
 /* ---------------- contenu ---------------- */
 /* chaque page : { t: type, … }. Les fiches sont désignées par leur adresse (slug). */
+/* petites photos du bas de page = ce que contient la formule, plus de photos de plateaux (Jean-Luc, 2026-11-28) */
 const FRANCAIS = [
   { slug: 'grand-cocktail-magnolia', tags: ['22 pièces par personne', '16 salées · 6 sucrées', 'Dès 15 personnes'], accroche: 'Un cocktail généreux, une réception qui vous ressemble.',
     chapo: 'Pour vos cocktails déjeunatoires ou dînatoires : des bouchées raffinées, des saveurs variées et une finale sucrée, du premier canapé au dernier petit four.',
@@ -84,7 +85,7 @@ const FRANCAIS = [
       ['Mini-clubs, wraps & moricettes', 'Clubs saumon fumé-aneth, comté-beurre aux noix, pesto-tomate · Wraps chèvre-légumes du soleil, saumon-ciboulette, poulet-poivrons, pastrami-moutarde · Moricettes tomate-mozzarella, saumon fumé, jambon sec ou coppa.'],
       ['Mini-brochettes & verrines', 'Figue, comté, tomate marinée · Olive Kalamon, mozzarella à la pistache · Serrano, chèvre aux cranberries, ananas · Verrines pesto-parmesan, tartare tomate-thon, guacamole et cocktail de crevettes.'],
       ['6 pièces sucrées', 'Mini macarons (vanille, pistache, café, framboise, citron, chocolat) · Crumble citron, moelleux noisette-praliné, financier citron vert-coco-framboise, chou vanille, amande-poire · Petits fours artistiques et verrines sucrées.']],
-    vignettes: ['plateau-de-80-mini-clubs', 'macarons-36-pieces'] },
+    vignettes: ['/site/c/brochure/canapes-verrines.webp', 'macarons-36-pieces'] },
   { slug: 'cocktail-street-food', tags: ['17 pièces par personne', '12 salées · 5 sucrées', 'Dès 10 personnes'], accroche: 'L’esprit street food, le plaisir de partager.',
     chapo: 'Des incontournables de la street food, des bouchées chaudes et une finale sucrée : partagez un cocktail convivial et généreux.',
     compo: [['Mini-burgers gourmands', 'Pain brioché au sésame, bœuf français, cheddar, sauce ketchup aux oignons et cornichons.'],
@@ -96,7 +97,7 @@ const FRANCAIS = [
       ['Mini nems croustillants', 'Farce de légumes, viande, poulet ou crevette, dans l’esprit de la tradition vietnamienne.'],
       ['5 pièces sucrées', 'Éclairs vanille, tartelettes cacao-fraise et citron, entremets nougat, fondants au chocolat, moelleux pistache-abricot et coco, croquants chocolat-passion.'],
       ['Ou un grand gâteau d’anniversaire', 'À la place des petits fours : fraisier, framboisier, entremets chocolat ou opéra, de 16 à 40 parts, avec bougies et prénom.']],
-    vignettes: ['plateau-de-20-mini-cheeseburgers', 'plateau-de-48-mini-wraps'] },
+    vignettes: ['/site/c/brochure/nems.webp', '/site/c/brochure/empanadas.webp'] },
   { slug: 'petit-cocktail-festif', tags: ['13 pièces salées par personne', 'Dès 10 personnes'], accroche: 'Le plaisir du salé, à vous de choisir le dessert.',
     chapo: 'Un cocktail convivial et gourmand pour recevoir en toute simplicité : un assortiment salé à partager, et vous composez vous-même votre finale sucrée.',
     compo: [['Canapés saveurs régionales', 'Camembert de Normandie, pomme et pistache sur pain au malt · Saumon fumé, crème citronnée sur blini de blé noir · Tomate, poivrons marinés et basilic sur ciabatta · Flammekueche sur bretzel · Poivron au piment d’Espelette et noix de jambon.'],
@@ -107,7 +108,7 @@ const FRANCAIS = [
       ['Krokini caprese', 'Pain de mie grillé, tomate fraîche et confite, mozzarella : une bouchée aux accents italiens.'],
       ['À vous de choisir le dessert', 'Formule entièrement salée : prévoyez votre dessert ou votre gâteau d’anniversaire, ou complétez avec nos plateaux de charcuteries et de fromages.'],
       ['Une réception facile à organiser', 'Plateaux livrés en boîtes traiteur, dans des sacs isothermes : il ne reste qu’à les disposer. Personnel de service et pack traiteur en option.']],
-    vignettes: ['plateau-de-80-mini-clubs', 'plateau-de-48-mini-wraps'] },
+    vignettes: ['/site/c/brochure/mini-brochettes-plateau.webp', '/site/c/brochure/brochettes-tomate-mozzarella.webp'] },
   { slug: 'cocktail-corporate-magnolia', tags: ['15 pièces par personne', '12 salées · 3 sucrées'], accroche: 'L’équilibre du salé et du sucré, pour des instants à partager.',
     chapo: 'Des bouchées variées pour ouvrir l’appétit, des mini-pièces à partager et une touche sucrée pour terminer : réunissez vos invités autour d’un cocktail convivial.',
     compo: [['Canapés saveurs gourmets', 'Foie de canard, framboise et amande · Crevette et fromage aux herbes · Comté et pastrami · Saint-Jacques au pesto · Saumon citronné.'],
@@ -117,7 +118,7 @@ const FRANCAIS = [
       ['Mini-brochettes', 'Comté et figue · Mozzarella à la pistache · Serrano, chèvre et ananas · Tomate confite et mozzarella.'],
       ['3 pièces sucrées', 'Macarons, douceurs pâtissières et petits fours : citron, chocolat, vanille, praliné, fruits et autres parfums gourmands.'],
       ['Composez votre réception', 'Complétez avec des plateaux à partager ou une animation culinaire. Pack traiteur et personnel de service en option.']],
-    vignettes: ['plateau-de-80-mini-clubs', 'petits-fours-sucres'] },
+    vignettes: ['/site/c/brochure/brochettes-tomate-mozzarella.webp', 'petits-fours-sucres'] },
   { slug: 'cocktail-premium-magnolia', tags: ['22 pièces par personne', '16 salées · 6 sucrées', 'Dès 10 personnes'], accroche: 'Des bouchées raffinées, pour une réception d’exception.',
     chapo: 'Un assortiment sélectionné pour vous : canapés raffinés, mini-pièces froides et chaudes, et une grande finale chocolatée.',
     compo: [['Canapés saveurs d’évasion', 'Saumon fumé, tzatziki, pavot et blini · Coppa, basilic et cake aux olives · Chèvre et figue rôtie · Foie gras, chutney mangue-abricot et brioche perdue · Délice de saumon et œufs de truite · Crevette paprika sur pain aux graines.'],
@@ -133,7 +134,7 @@ const FRANCAIS = [
       ['Plateaux de charcuteries', 'Jambon à l’ancienne Label Rouge, jambon cru de Parme, pavé au poivre, rôti de porc, mousse de canard au porto, coppa Label Rouge, rôti de bœuf, avec condiments et baguette artisanale.'],
       ['Plateaux de fromages', 'Comté 20 mois AOP, Saint-Nectaire fermier AOP, Roquefort AOP, Brie de Meaux, Selles-sur-Cher AOP, servis avec du pain frais.'],
       ['5 pièces sucrées', 'Mini macarons et petits fours : éclairs vanille, tartelettes cacao-fraise et citron, fondants au chocolat · Douceurs pâtissières et verrines à la mousse de fruits.']],
-    vignettes: ['plateau-de-charcuteries', 'plateau-de-fromages'] },
+    vignettes: ['/site/c/brochure/salade-taboule.webp', '/site/c/plateau-charcuteries.webp'] },
   { slug: 'petit-cocktail-aperitif', tags: ['7 pièces par personne', '5 salées · 2 sucrées'], accroche: 'La convivialité, dès les premières bouchées.',
     chapo: 'Un assortiment salé et sucré pour ouvrir la réception : canapés, mini-clubs, wraps et petites douceurs à savourer ensemble.',
     compo: [['Canapés saveurs régionales', 'Camembert de Normandie et pomme sur pain au malt · Saumon fumé et crème citronnée sur blini · Tomate, poivrons marinés et basilic · Flammekueche sur bretzel · Poivron au piment d’Espelette.'],
@@ -142,7 +143,7 @@ const FRANCAIS = [
       ['Mini-brochettes', 'Tomate confite et mozzarella : une bouchée fraîche pour compléter l’apéritif.'],
       ['2 pièces sucrées', 'Crumble citron · Moelleux noisette-praliné · Financier citron vert, coco et framboise · Chou vanille · Amande-poire · Biscuit vanille-mangue.'],
       ['À compléter selon vos envies', 'Une formule légère pour commencer la réception : ajoutez des amuse-bouches ou des plateaux de charcuteries et de fromages.']],
-    vignettes: ['plateau-de-48-mini-wraps', 'petits-fours-sucres'] },
+    vignettes: ['/site/c/brochure/canapes-verrines.webp', 'petits-fours-sucres'] },
 ];
 
 const MONDE = [

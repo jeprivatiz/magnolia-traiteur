@@ -451,6 +451,36 @@ async function createApp(opts = {}) {
     log.info && log.info('Photo coffret mise à la place des mini-clubs : ' + changes.join(', '));
     await store.set('_migr/coffretPartout', { at: new Date().toISOString(), changes });
   }
+  /* une seule fois (Jean-Luc, 2026-11-28) : les plateaux à partager avaient tous la même photo (le coffret, mis à la place
+     de l'ancienne photo provisoire) et la même phrase. Chaque plateau reçoit sa photo et sa description ; un texte tapé
+     au back-office (différent de la phrase commune) n'est jamais remplacé. Les coffrets gardent la photo du coffret. */
+  if (!(await store.get('_migr/plateauxPropres'))) {
+    const COMMUN = /^Wraps, fromages, charcuteries, clubs, sushis et saveurs antillaises\.?$/;
+    const P = {
+      'plateau-de-80-mini-clubs': ['/site/c/africain-boutique/plateau-de-mini-club-sandwichs-1.webp.webp', 'Plateau de mini clubs sandwichs triangles sur pique',
+        '80 mini clubs sandwichs en triangles, sur pain de mie nature, complet et paprika : saumon fumé et aneth, comté et beurre aux noix, fromage frais au pesto et tomate.'],
+      'plateau-de-48-mini-wraps': ['/site/c/africain-boutique/plateau-de-mini-wraps-1.webp.webp', 'Plateau de mini wraps roulés sur pique',
+        '48 mini wraps roulés et piqués : chèvre et légumes du soleil, saumon fumé et ciboulette, poulet et poivrons, pastrami et moutarde à l’ancienne.'],
+      'plateau-de-20-mini-bokits': ['/site/c/antilles-unit/produit-25.webp.webp', 'Mini bokits dorés et garnis',
+        '20 mini bokits, le petit pain frit des Antilles, dorés et garnis de poulet, de bœuf ou de morue : une bouchée généreuse pour vos cocktails.'],
+      'plateau-de-charcuteries': ['/site/c/plateau-charcuteries.webp', 'Plateau de charcuteries sur planche en bois',
+        'Un grand plateau de charcuteries tranchées : jambon cru, jambon blanc, saucisson, coppa et rosette, avec cornichons et pain frais.'],
+      'plateau-de-75-sushis': ['/site/c/japon-buffet-sushi.webp', 'Plateau de sushis et makis',
+        '75 pièces de sushis, makis et californias, avec baguettes, sauce soja et wasabi.'],
+    };
+    for (const [slug, [src, alt, texte]] of Object.entries(P)) {
+      const x = await store.get('produits/' + slug);
+      if (!x) continue;
+      const y = { ...x };
+      const ph = (x.photos || []).filter(p => !/coffret-bois-9-cases/.test((p && p.src) || ''));
+      if ((x.photos || []).length !== ph.length || !ph.length) y.photos = [{ src, alt }, ...ph.filter(p => p && p.src !== src)];
+      if (!x.extrait || COMMUN.test(x.extrait)) y.extrait = texte;
+      if (Array.isArray(x.description) && x.description.some(t => COMMUN.test(t))) y.description = x.description.map(t => COMMUN.test(t) ? texte : t);
+      else if (!x.description || !x.description.length) y.description = [texte];
+      if (JSON.stringify(y) !== JSON.stringify(x)) await store.set('produits/' + slug, y);
+    }
+    await store.set('_migr/plateauxPropres', { at: new Date().toISOString() });
+  }
   /* une seule fois (Jean-Luc, 2026-11-28) : la fiche Barman avait une photo qui ne s'affichait pas (lien Pexels externe) →
      même photo, gardée sur le site ; et les deux forfaits DJ ont chacun leur photo (le 7 h en prenait la même que le 4 h) */
   if (!(await store.get('_migr/barmanDjPhotos'))) {
