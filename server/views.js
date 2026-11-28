@@ -363,7 +363,7 @@ const BANDEAUX_DEFAUT = {
   lieux: { photo: '/site/v/lieux-ambiances.jpg', video: '', titre: 'Lieux de réception', chapo: 'Lofts, péniches, demeures et salons à privatiser. Associez votre lieu et votre traiteur dans une seule demande.', bouton: 'Voir les lieux', ancre: '#lieux' },
   temoignages: { photo: '/site/v/temoignages-table.jpg', video: '/site/v/temoignages-table.mp4', titre: 'Avis clients', chapo: 'Mariages, anniversaires, séminaires, fêtes de famille : ils nous ont confié leur événement et le racontent.', bouton: 'Lire les avis', ancre: '#avis' },
   /* page d'arrivée des entreprises (publicité Google Ads « traiteur entreprise », Jean-Luc 2026-11-28) */
-  entreprises: { photo: '/site/v/bandeaux/cocktails-buffets-2.jpg', video: '/site/v/bandeaux/cocktails-buffets-2.mp4', titre: 'Magnolia\nle traiteur des entreprises', chapo: 'Petits-déjeuners, plateaux repas, cocktails, séminaires et soirées d’entreprise : un seul interlocuteur pour tout votre événement, du café d’accueil au dernier verre.', bouton: 'Recevoir mon devis sous 24 h', ancre: '#devis-entreprise',
+  entreprises: { photo: '/site/v/bandeaux/cocktails-buffets-2.jpg', video: '/site/v/bandeaux/cocktails-buffets-2.mp4', titre: 'Magnolia Traiteur\nle partenaire des entreprises', chapo: 'Petits-déjeuners, plateaux repas, cocktails, séminaires et soirées d’entreprise : un seul interlocuteur pour tout votre événement, du café d’accueil au dernier verre.', bouton: 'Recevoir mon devis sous 24 h', ancre: '#devis-entreprise',
     fiches: ['cocktail-corporate-magnolia', 'petit-dejeuner-classique', 'pause-cafe', 'coffret-italien-mamma-mia', 'plateau-japonais-38-pieces', 'grand-cocktail-magnolia', 'repas-servi-a-table-elabore-par-le-chef', 'open-bar-vins-et-champagnes'],
     introTitre: 'Tout ce dont votre entreprise a besoin, au même endroit', introTexte: 'Réunion du matin, déjeuner de travail, séminaire, inauguration, pot de départ ou soirée de fin d’année : choisissez votre besoin ci-dessous, vous arrivez directement sur nos propositions, avec leurs prix TTC. Vous pouvez aussi nous décrire votre projet en quelques lignes : un conseiller vous envoie votre devis sous 24 h, au nom de votre société.' },
   maison: { photo: '/site/c/personnel80-client-20261102.webp.webp', video: '', titre: 'La maison Magnolia', chapo: 'Votre événement commence ici.', bouton: 'Découvrir nos propositions', ancre: '/boutique' },
@@ -379,7 +379,7 @@ function bandeau(c, cle, { fil, titre } = {}) {
   const B = bandeauDe(c, cle);
   return bandeauHtml(c, { ...B, titre: titre || B.titre }, fil);
 }
-/* titre de bandeau sur deux lignes : retour à la ligne ou « | » (ex. « Magnolia | le traiteur des entreprises ») */
+/* titre de bandeau sur deux lignes : retour à la ligne ou « | » (ex. « Magnolia Traiteur | le partenaire des entreprises ») */
 const titreParts = t => String(t || '').split(/\s*(?:\n|\|)\s*/).filter(Boolean);
 const titreSimple = t => titreParts(t).join(', ');
 const titreLignes = t => { const [a, ...r] = titreParts(t); return r.length ? `${esc(a)}<span class="h1-l2">${esc(r.join(' '))}</span>` : esc(a || ''); };
@@ -968,6 +968,8 @@ const FAQ_ENT = [
   ['Pouvez-vous fournir le personnel et le matériel ?', 'Oui : maîtres d’hôtel, serveurs, barmen, mange-debout, nappage, vaisselle et buffets. Nous installons et nous reprenons tout après l’événement.'],
 ];
 function entreprises(c) {
+  /* anciens titres remplacés par le titre du moment, même s'ils restent enregistrés (Jean-Luc, 2026-11-28 : « Magnolia Traiteur » / « le partenaire des entreprises ») */
+  const ANCIENS_TITRES_ENT = new Set(['Traiteur pour les entreprises', 'Magnolia|le traiteur des entreprises']);
   const R = c.reglages, B = bandeauDe(c, 'entreprises'), A = R.accueil || {};
   /* le plateau de mini-clubs (photo du coffret depuis la brochure) devient le Coffret italien (Jean-Luc, 2026-11-28) */
   const fiches = ((R.bandeaux?.entreprises?.fiches || []).length ? R.bandeaux.entreprises.fiches : FICHES_ENT).map(s => s === 'plateau-de-80-mini-clubs' ? 'coffret-italien-mamma-mia' : s).map(s => c.bySlug.get(s)).filter(p => p && p.statut !== 'masque');
@@ -992,7 +994,7 @@ function entreprises(c) {
   const avisEnt = AVIS_ENT.map(re => c.avis.find(a => a.statut !== 'masque' && re.test(a.texte || ''))).filter(Boolean).slice(0, 3);
   const titreAvis = t => t === t.toUpperCase() ? t.charAt(0) + t.slice(1).toLowerCase() : t;
   const chiffres = (A.chiffres || []).filter(x => x.valeur).map(x => `<div><b>${esc(x.valeur)}</b>${/\/\s*5\s*$/.test(x.valeur || '') ? '<i class="etoiles" aria-hidden="true">★★★★★</i>' : ''}<span>${esc(x.label === 'prestations en ligne, prix TTC' ? 'prestations en ligne' : x.label)}</span></div>`).join('');
-  const body = `${bandeauHtml(c, { ...B, titre: B.titre === 'Traiteur pour les entreprises' ? BANDEAUX_DEFAUT.entreprises.titre : B.titre }, [['Traiteur pour les entreprises']])}
+  const body = `${bandeauHtml(c, { ...B, titre: ANCIENS_TITRES_ENT.has(String(B.titre || '').replace(/\s*[|\n]\s*/g, '|').trim()) ? BANDEAUX_DEFAUT.entreprises.titre : B.titre }, [['Traiteur pour les entreprises']])}
 ${bandeLogos(c, { lien: true, titre: 'Ils nous confient leurs événements d’entreprise' })}
 <section class="wrap ent-intro">${introHtml(B.introTitre, B.introTexte)}</section>
 <section class="wrap" id="besoins"><div class="sec-h"><div><p class="eyebrow">Vos besoins</p><h2>Que préparez-vous ?</h2></div><p>Un clic sur votre besoin : vous arrivez sur nos propositions, avec photos, compositions et prix TTC.</p></div>

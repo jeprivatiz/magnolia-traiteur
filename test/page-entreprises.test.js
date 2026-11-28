@@ -22,7 +22,7 @@ test('page Entreprises et demande entreprise', async () => {
   try {
     const pg = await call('/entreprises');
     assert.equal(pg.status, 200);
-    for (const t of ['Traiteur pour les entreprises', 'Chorus Pro', 'Livraison 7 j/7', 'interlocuteur dédié', 'data-entreprise', 'href="/petits-dejeuners"', 'href="/boissons"', 'href="/lieux"', 'FAQPage', 'coffret-bois-9-cases.webp', 'Magnolia<span class="h1-l2">le traiteur des entreprises</span>', 'soiree-champagne.webp', 'tile-duo', 'href="/douceurs"', 'cave.mp4', 'mange-debout.webp', 'coffret-italien-mamma-mia', 'Charcuteries italiennes, fromages, arancini']) assert.ok(pg.j.includes(t), t);
+    for (const t of ['Traiteur pour les entreprises', 'Chorus Pro', 'Livraison 7 j/7', 'interlocuteur dédié', 'data-entreprise', 'href="/petits-dejeuners"', 'href="/boissons"', 'href="/lieux"', 'FAQPage', 'coffret-bois-9-cases.webp', 'Magnolia Traiteur<span class="h1-l2">le partenaire des entreprises</span>', 'soiree-champagne.webp', 'tile-duo', 'href="/douceurs"', 'cave.mp4', 'mange-debout.webp', 'coffret-italien-mamma-mia', 'Charcuteries italiennes, fromages, arancini']) assert.ok(pg.j.includes(t), t);
     assert.ok((await call('/')).j.includes('href="/entreprises"'), 'lien depuis l’accueil et le menu');
     assert.equal((await call('/traiteur-entreprise')).loc, '/entreprises');
 
