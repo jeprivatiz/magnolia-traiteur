@@ -270,12 +270,14 @@ function bandeLogos(c, { lien = false, titre = '' } = {}) {
   }).join('')).join('')}</div></div></section>`;
 }
 
+/* nombre d'avis clients publiés sur le site (recueillis par Magnolia, pas Google), arrondi : 693 → « plus de 650 » (Jean-Luc, 2026-11-28) */
+const nbAvisSite = c => { const n = (c.avis || []).filter(a => a.statut !== 'masque').length; return n >= 100 ? `plus de ${Math.floor(n / 50) * 50}` : String(n); };
 function avisBloc(c) {
   const R = c.reglages, a = c.avis.filter(x => x.statut === 'vedette').slice(0, 3);
   const g = R.avisGoogle || {};
   return `<section class="avis band-creme"><div class="wrap avis-in">
     <div class="avis-note"><p class="eyebrow">Avis clients</p><p class="note">${esc(g.note || '4,9')}<small>/5</small></p><p class="stars" aria-label="5 étoiles">★★★★★</p>
-    <p>${esc(g.nombre || '')} avis clients : mariages, anniversaires et réceptions d’entreprise.</p>
+    <p>${esc(nbAvisSite(c).replace(/^p/, 'P'))} avis clients vérifiés : mariages, anniversaires et réceptions d’entreprise.</p>
     <p class="row"><a class="btn btn-line" href="${esc(g.url || '#')}" rel="noopener">Lire nos avis Google</a><a class="lnk" href="/temoignages">Tous les témoignages ${icon.arrow}</a></p></div>
     <div class="avis-l">${a.map((x, i) => `<figure class="quote${i === 0 ? ' big' : ''}"><blockquote>« ${esc(trunc(x.texte, i === 0 ? 320 : 180))} »</blockquote><figcaption>${esc(x.auteur)}</figcaption></figure>`).join('')}</div>
   </div>
@@ -313,7 +315,7 @@ function home(c) {
         <div class="pave-u-l">${universListe(c).map(u => `<label><input type="checkbox" name="u" value="${esc(u.slug)}">${img(u.photo, '')}<span>${esc(u.nom)}</span></label>`).join('')}</div></details>
       <button class="btn btn-or">Composer ${icon.arrow}</button>
     </form>
-    <a class="hero-g" href="${esc(R.avisGoogle?.url || '#')}" rel="noopener"><span class="stars">★★★★★</span> ${esc(R.avisGoogle?.note || '')}/5 sur Google · ${esc(R.avisGoogle?.nombre || '')} avis</a>
+    <a class="hero-g" href="${esc(R.avisGoogle?.url || '#')}" rel="noopener"><span class="stars">★★★★★</span> ${esc(R.avisGoogle?.note || '4,9')}/5 sur Google${R.avisGoogle?.nombre ? ` · ${esc(R.avisGoogle.nombre)} avis` : ''}</a>
   </div>
   <div class="hero-dots" aria-hidden="true">${vids.map((_, i) => `<i data-dot="${i}"></i>`).join('')}</div>
 </section>
@@ -551,7 +553,7 @@ const LANDINGS = {
   'buffet-antillais': {
     surtitre: 'Traiteur antillais · par Magnolia Traiteur',
     signature: 'Les Antilles s’invitent à votre table',
-    defile: ['Plus de 700 prestations par an', 'Le spécialiste de la cuisine antillaise sur Paris et l’Île-de-France', '★★★★★ 4,9/5 sur Google', 'Accras, boudins, colombo : la vraie cuisine des îles', 'Livraison 7 j/7', 'Mariages · anniversaires · baptêmes · entreprises'],
+    defile: ['Plus de 700 prestations par an', '★★★★★ 4,9/5 sur Google', '{avis} avis clients vérifiés', 'Le spécialiste de la cuisine antillaise sur Paris et l’Île-de-France', 'Accras, boudins, colombo : la vraie cuisine des îles', 'Livraison 7 j/7', 'Mariages · anniversaires · baptêmes · entreprises'],
     /* avis du site actuel qui parlent du buffet antillais (ids mt_ = data/avis-magnolia.json) */
     avis: ['mt_26884', 'mt_24710', 'mt_51780', 'mt_28562', 'mt_27254', 'mt_57508'],
     avisTitre: 'Ils ont voyagé aux Antilles avec nous',
@@ -590,7 +592,7 @@ function pageLanding(c, r, x) {
     <p class="lp-sur">${esc(L.surtitre)}</p><h1>${titreLignes(speTitre(x))}</h1>${L.signature ? `<p class="phero-sig">${esc(L.signature)}</p>` : ''}<p class="lead">${esc(speChapo(x))}</p>
     <div class="row land-cta"><a class="btn btn-or" href="#nos-buffets">Voir nos buffets</a><a class="btn btn-ghost-light" href="tel:${esc(tel)}">${icon.phone}<span>${esc(R.telephone || '')}</span></a></div>
     <div class="lp-conf">${gBouton('clair')}<p class="lp-livr">Livraison 7 j/7 sur Paris et toute l’Île-de-France</p></div></div></section>`;
-  const defile = `<div class="marquee lp-defile" aria-label="${esc(L.defile.join(' · '))}"><div class="marquee-t">${[0, 1].map(k => L.defile.map(t => `<span${k ? ' aria-hidden="true"' : ''}>${esc(t)}<i>✳</i></span>`).join('')).join('')}</div></div>`;
+  const defile = `<div class="marquee lp-defile" aria-label="${esc(L.defile.join(' · ').replace('{avis}', nbAvisSite(c)))}"><div class="marquee-t">${[0, 1].map(k => L.defile.map(t => t.replace('{avis}', nbAvisSite(c).replace(/^p/, 'P'))).map(t => `<span${k ? ' aria-hidden="true"' : ''}>${esc(t)}<i>✳</i></span>`).join('')).join('')}</div></div>`;
   const bloc = ([k, t, P], extra = '') => `<div class="spe-bloc" id="${k === 'buffets' ? 'nos-buffets' : k}"${extra}><h2>${esc(t)}</h2><p class="count">${P.length} prestation${P.length > 1 ? 's' : ''} · tarifs TTC</p><div class="cards grid${k === 'buffets' ? ' kb-anim' : ''}">${P.map(p => card(p, c, { rubNom: false })).join('')}</div>${extra && rubmActif(blocs) ? rubmRetour(true) : ''}</div>`;
   const avis = (L.avis || []).map(id => c.avis.find(a => a.id === id && a.statut !== 'masque')).filter(Boolean);
   const titreAvis = t => { t = t === t.toUpperCase() ? t.charAt(0) + t.slice(1).toLowerCase() : t; return t.charAt(0).toUpperCase() + t.slice(1); };
