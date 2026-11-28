@@ -12,7 +12,14 @@ const surTitre = a => [a.typeEvenement || (a.specialite ? '' : CATEGORIES[a.cate
 const href = a => '/blog/' + a.slug;
 /* reportages du blog général : sans ceux des spécialités, réservés au bas de leur page (Jean-Luc, 2026-11-28) */
 const general = c => (c.blog || []).filter(a => !a.specialite);
-const speDe = (c, a) => a.specialite ? (c.rubriques.find(r => r.slug === 'saveurs-du-monde')?.sous || []).find(x => x.slug === a.specialite) : null;
+/* spécialité d'un reportage : une page de Saveurs du monde, ou une rubrique entière (Cocktails & buffets français) */
+const speDe = (c, a) => {
+  if (!a.specialite) return null;
+  const x = (c.rubriques.find(r => r.slug === 'saveurs-du-monde')?.sous || []).find(y => y.slug === a.specialite);
+  if (x) return { nom: x.nom, href: '/saveurs-du-monde/' + x.slug, parent: ['Saveurs du monde', '/saveurs-du-monde'] };
+  const r = c.rubriques.find(y => y.slug === a.specialite && y.statut !== 'masque');
+  return r ? { nom: r.nom, href: '/' + r.slug, parent: null } : null;
+};
 const NOTE_ILLU = 'Photos d’illustration : prestations Magnolia similaires. Les photos de cet événement arriveront bientôt.';
 const photo = (src, alt = '', attrs = '') => src ? `<img src="${esc(src)}" alt="${esc(alt)}" loading="lazy" decoding="async"${attrs ? ' ' + attrs : ''}>` : '';
 const lecture = a => Math.max(1, Math.round([a.chapo, ...(a.sections || []).map(s => s.titre + ' ' + s.texte)].join(' ').split(/\s+/).length / 220));
@@ -86,13 +93,13 @@ function article(c, a) {
   const rubNom = p => c.rubriques.find(r => r.slug === p.rubrique)?.nom || '';
   const section = (s, i) => s ? `${s.titre ? `<h2>${esc(s.titre)}</h2>` : ''}${paras(s.texte, i === 0 ? 'lettrine' : '')}` : '';
   const meta = [Maj(moisAnnee(a)), a.lieu, a.typeEvenement, `Lecture ${lecture(a)} min`].filter(Boolean);
-  const spe = speDe(c, a), speHref = spe ? `/saveurs-du-monde/${spe.slug}` : '';
+  const spe = speDe(c, a), speHref = spe ? spe.href : '';
   const autres = spe ? (c.blog || []).filter(x => x.slug !== a.slug && x.specialite === a.specialite).slice(0, 3)
     : [...general(c).filter(x => x.slug !== a.slug && x.categorie === a.categorie), ...general(c).filter(x => x.slug !== a.slug && x.categorie !== a.categorie)].slice(0, 3);
   const mosLeg = legendes(mos);
   const body = `<article class="ba">
  <header class="ba-hero${a.chiffres?.length ? '' : ' sans-chiffres'}">${hero ? photo(hero.src, hero.legende || a.titre, 'fetchpriority="high" loading="eager"') : ''}
-  <div class="wrap"><nav class="ba-fil" aria-label="Fil d’Ariane"><a href="/">Accueil</a> · ${spe ? `<a href="/saveurs-du-monde">Saveurs du monde</a> · <a href="${esc(speHref)}">${esc(spe.nom)}</a>` : `<a href="/blog">Nos reportages</a> · <span>${esc(CATEGORIES[a.categorie] || '')}</span>`}</nav>
+  <div class="wrap"><nav class="ba-fil" aria-label="Fil d’Ariane"><a href="/">Accueil</a> · ${spe ? `${spe.parent ? `<a href="${spe.parent[1]}">${esc(spe.parent[0])}</a> · ` : ''}<a href="${esc(speHref)}">${esc(spe.nom)}</a>` : `<a href="/blog">Nos reportages</a> · <span>${esc(CATEGORIES[a.categorie] || '')}</span>`}</nav>
    <h1>${esc(a.titre)}</h1><p class="ba-meta">${meta.map(m => `<span>${esc(m)}</span>`).join('')}</p></div>
  </header>
  ${a.chiffres?.length ? `<div class="ba-chiffres n${a.chiffres.length}">${a.chiffres.map(x => `<div><b>${esc(x.valeur)}</b><small>${esc(x.libelle)}</small></div>`).join('')}</div>` : ''}
@@ -115,7 +122,7 @@ function article(c, a) {
   ${a.tags?.length ? `<div class="ba-tags">${a.tags.map(t => `<span>${esc(t)}</span>`).join('')}</div>` : ''}
   <div class="ba-cta"><p class="eyebrow light">Votre événement</p><h2>${a.categorie === 'maison' ? 'Et si votre prochain événement était signé Magnolia ?' : `Vous préparez ${a.categorie === 'particulier' ? 'une fête' : 'un événement'} comme celui-ci ?`}</h2>
    <p>Dites-nous le nombre d’invités, la date et le lieu : nous vous envoyons votre devis rapidement.</p>
-   <div class="btns"><a class="btn btn-or" href="${spe ? esc(speHref) + '#nos-buffets' : '/boutique'}">${spe ? 'Voir nos buffets' : 'Composer mon événement'}</a><a class="btn btn-ghost-light" href="tel:${esc((R.telephone || '').replace(/\s/g, ''))}">${esc(R.telephone || '')}</a></div></div>
+   <div class="btns"><a class="btn btn-or" href="${spe ? esc(speHref) + (spe.parent ? '#nos-buffets' : '#prestations') : '/boutique'}">${spe ? (spe.parent ? 'Voir nos buffets' : 'Voir nos formules') : 'Composer mon événement'}</a><a class="btn btn-ghost-light" href="tel:${esc((R.telephone || '').replace(/\s/g, ''))}">${esc(R.telephone || '')}</a></div></div>
  </div>
  ${autres.length ? `<section class="ba-autres"><div class="wrap"><p class="eyebrow">Nos reportages</p><h2>D’autres reportages à découvrir</h2><div class="rep-l n${autres.length}">${autres.map(x => carte(x)).join('')}</div><p class="ba-tous"><a class="lnk" href="${spe ? esc(speHref) : '/blog'}">${spe ? 'Revenir à la page ' + esc(spe.nom) : 'Tous nos reportages'} →</a></p></div></section>` : ''}
 </article>`;
