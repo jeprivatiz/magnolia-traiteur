@@ -3541,14 +3541,14 @@ Réponds uniquement en JSON : {${sms ? '' : '"sujet": "...", '}"texte": "..."}`;
   };
   app.get('/brochure', wrap(async (req, res) => {
     const c = await cat.get();
-    const pdf = fs.existsSync(PDF_BROCHURE) ? '/telecharger-la-brochure' : '';
+    const pdf = fs.existsSync(PDF_BROCHURE) ? '/telecharger-la-brochure?v=' + views.V : '';
     res.set('X-Robots-Tag', 'noindex').set('Cache-Control', 'no-store').type('html')
       .send(BROCHURE.html(c, { base: baseBrochure(req), v: views.V, pdf, barre: !('impression' in req.query) }));
   }));
   app.get('/b/:cle', wrap(async (req, res) => { res.set('Cache-Control', 'no-store').redirect(302, BROCHURE.cible(await cat.get(), req.params.cle)); }));
   app.get(['/telecharger-la-brochure', '/brochure.pdf'], (req, res) => {
     if (!fs.existsSync(PDF_BROCHURE)) return res.redirect(302, '/brochure');
-    res.set('Cache-Control', 'no-cache').set('X-Robots-Tag', 'noindex');
+    res.set('Cache-Control', 'no-store, max-age=0').set('X-Robots-Tag', 'noindex'); /* jamais l'ancienne version : le lien du menu change aussi à chaque mise en ligne (?v=) */
     res.set('Content-Disposition', 'inline; filename="Brochure-Magnolia-Traiteur.pdf"');
     res.type('application/pdf').sendFile(PDF_BROCHURE);
   });
