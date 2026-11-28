@@ -123,6 +123,20 @@ const PHOTOS = {
   'mont-blanc-coco-passion': [U('produit-37.webp.webp')], 'mont-blanc-coco-noel': [U('produit-37.webp.webp')],
 };
 
+/* photos libres Pexels (Jean-Luc, 2026-11-28 : « des photos sur les bûches et les produits ») ; sources : data/credits-photos-noel.md */
+const PX = id => `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&w=1600`;
+const PHOTOS_LIBRES = {
+  'buche-coco-passion': [12777807, 5702931],
+  'jambon-noel-entier-os': [14007234, 15362097], 'jambon-noel-plateau-10': [9670690, 15362097], 'jambon-noel-plateau-5': [9670692, 15362097],
+  'gigot-agneau-entier-noel': [36984986, 36984985], 'epaule-agneau-confite-noel': [36984985],
+  'gambas-curry-coco-noel': [10718120, 17591565],
+  'chocolat-antillais': [6208116], 'pain-au-beurre-noel': [7568494], 'coffret-festif-antillais-gourmand': [7568494, 6208116],
+  'punch-coco-noel': [7791891], 'punch-ananas-noel': [20205971], 'punch-orange-gingembre-noel': [4443464], 'punch-passion-noel': [6895933],
+  'liqueur-antillaise-noel': [22234051], 'planteur-noel': [32435283],
+  'verrine-saumon-tzatziki-noel': [18238323], 'bun-boeuf-effiloche-fromage': [32689260], 'bun-poulet-cajun': [6166370], 'finger-creme-saumon': [27741997],
+  'navette-poulet-fume': [32892670, 12689175], 'navette-jambon-noel': [32892670, 12689175], 'navette-saumon-fume': [12689175, 32892670], 'navette-beurre-morue': [12689175, 32892670],
+};
+
 const RUBRIQUE = {
   slug: SLUG, nom: 'Menu de Noël antillais', titrePage: 'Menu de Noël antillais',
   chapo: 'Bokits, pâtés salés, jambon de Noël, bûche coco-passion et punchs : toute la carte des fêtes, à commander jusqu’au 1er janvier.',
@@ -154,6 +168,10 @@ function fiche([slug, rangement, titre, achat, unite, min, minimumTexte, extrait
 
 /* une seule fois : crée la rubrique et les fiches (jamais réécrites ensuite : Jean-Luc les modifie dans le back-office) */
 async function initNoel(store) {
+  await creerNoel(store);
+  await photosNoel(store);
+}
+async function creerNoel(store) {
   if (await store.get('_migr/menuNoel1')) return;
   if (!(await store.get('rubriques/' + SLUG))) await store.set('rubriques/' + SLUG, { ...RUBRIQUE });
   let n = 0;
@@ -162,6 +180,19 @@ async function initNoel(store) {
     await store.set('produits/' + x[0], fiche(x, i)); n++;
   }
   await store.set('_migr/menuNoel1', { at: new Date().toISOString(), fiches: n });
+}
+/* une seule fois : ajoute les photos libres aux fiches (après les photos Magnolia déjà posées, sans doublon) */
+async function photosNoel(store) {
+  if (await store.get('_migr/menuNoelPhotos1')) return;
+  let n = 0;
+  for (const [slug, ids] of Object.entries(PHOTOS_LIBRES)) {
+    const p = await store.get('produits/' + slug); if (!p) continue;
+    const deja = new Set((p.photos || []).map(x => x.src));
+    const plus = ids.map(PX).filter(src => !deja.has(src)).map(src => ({ src, alt: p.titre }));
+    if (!plus.length) continue;
+    await store.set('produits/' + slug, { ...p, photos: [...(p.photos || []), ...plus] }); n++;
+  }
+  await store.set('_migr/menuNoelPhotos1', { at: new Date().toISOString(), fiches: n });
 }
 
 /* fin d'une offre de saison : « 2027-01-05 » = le 5 janvier 2027 à minuit, heure de Paris */
@@ -175,4 +206,4 @@ function prochaineFin(listes, now = Date.now()) {
   return t;
 }
 
-module.exports = { SLUG, FIN, PRODUITS, RUBRIQUE, vente, initNoel, finAtteinte, prochaineFin };
+module.exports = { SLUG, FIN, PRODUITS, RUBRIQUE, PHOTOS_LIBRES, vente, initNoel, finAtteinte, prochaineFin };
