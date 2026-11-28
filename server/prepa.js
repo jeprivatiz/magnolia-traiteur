@@ -112,8 +112,25 @@ function listesPrepa(produits = []) {
   const tailles = uniq(produits.filter(p => p && /nappe|nappage/i.test(p.titre || '')).map(p => (/(\d+\s*[×x]\s*\d+\s*cm|[ØO]\s*\d+\s*cm)/i.exec(p.titre || '') || [])[1]).filter(Boolean).map(x => x.replace(/\s*[×x]\s*/, ' × ').replace(/\s+cm/, ' cm')));
   return { softs, materiel, nappes: tailles.length ? tailles : ['170 × 250 cm'], nappesCouleurs: NAPPES_COULEURS, nappesTypes: NAPPES_TYPES };
 }
+/* accompagnement à rajouter sur une ligne (Jean-Luc, 2026-11-28 : coq au vin sans accompagnement) : accompagnements de la même spécialité,
+   puis ceux de la carte Magnolia et tous les autres « à l'unité » */
+const ACC_G = 'Accompagnement à rajouter';
+const ACC_CARTE = ['Pommes de terre grenaille rôties', 'Gratin dauphinois', 'Purée maison', 'Écrasé de pommes de terre', 'Haricots verts', 'Carottes glacées', 'Champignons poêlés', 'Légumes rôtis', 'Légumes de saison', 'Fondue de poireaux', 'Riz basmati', 'Riz pilaf', 'Risotto aux légumes', 'Tagliatelles fraîches', 'Jeunes pousses', 'Roquette, parmesan et tomates cerises'];
+function accompsPour(lignes = [], produits = [], bySlug = new Map()) {
+  const nom = p => String(p.titre || '').replace(/\*\*/g, '').trim();
+  const acc = produits.filter(p => p && !p.fusionneDans && p.rangement === 'accompagnements');
+  const tous = [...new Set([...ACC_CARTE, ...acc.map(nom)])].sort((a, b) => a.localeCompare(b, 'fr'));
+  const par = {}, plats = [];
+  for (const l of lignes) {
+    const p = l?.produit && bySlug.get(l.produit); if (!p || plats.includes(l.produit) || p.rangement !== 'plats') continue;
+    plats.push(l.produit);
+    const memes = p.rubrique === 'carte-magnolia' ? ACC_CARTE : [...new Set(acc.filter(a => a.sous && a.sous === p.sous).map(nom))].sort((a, b) => a.localeCompare(b, 'fr'));
+    if (memes.length) par[l.produit] = memes;
+  }
+  return { tous, par, plats };
+}
 /* « Quantité à préparer » remplie d'après les choix (Jean-Luc, 2026-11-27) : total par groupe, « 60 entrées · 30 plats · 30 desserts » ; même règle dans admin.js (pcQteAuto) */
-const qteAuto = l => { if (l.liste === 'kit') return ''; const it = (l.items || []).filter(x => x.nom && +x.n > 0); if (!it.length) return ''; const g = new Map(); for (const x of it) { const k = x.groupe || ({ softs: 'softs', materiel: 'articles', nappes: 'nappes' })[l.liste] || 'pièces'; g.set(k, (g.get(k) || 0) + (+x.n)); } return [...g].map(([k, n]) => `${n} ${String(k).toLowerCase()}`).join(' · '); };
+const qteAuto = l => { if (l.liste === 'kit') return ''; const it = (l.items || []).filter(x => x.nom && +x.n > 0 && x.groupe !== ACC_G); if (!it.length) return ''; const g = new Map(); for (const x of it) { const k = x.groupe || ({ softs: 'softs', materiel: 'articles', nappes: 'nappes' })[l.liste] || 'pièces'; g.set(k, (g.get(k) || 0) + (+x.n)); } return [...g].map(([k, n]) => `${n} ${String(k).toLowerCase()}`).join(' · '); };
 const nomItem = x => [x.nom, x.couleur && 'nappe ' + x.couleur.toLowerCase(), x.type && x.type.toLowerCase()].filter(Boolean).join(' · ');
 const itemsTexte = l => (l.items || []).filter(x => x.nom).map(x => `${x.n !== '' && x.n != null ? x.n + ' × ' : ''}${nomItem(x)}`);
 
@@ -409,4 +426,4 @@ ${consigne ? 'Consigne de la personne qui envoie (prioritaire) : ' + consigne + 
 Réponds uniquement en JSON : {${sms ? '' : '"sujet": "...", '}"texte": "..."}`;
 }
 
-module.exports = { horairesVus, ROLE_RECUP, ROLES_MSG, aRecuperer, completerLignes, itemsNappe, qteAuto, choixProduit, choixProduits, NOM_ROLE, modeleMessage, promptMessage, infosRole, LISTES, listesPrepa, compoDe, listeDe, itemsTexte, ROLES, HORAIRES, bonDepuis, lignesDepuisDevis, nettoyer, documentHtml, emailHtml, messageDefaut, smsTexte, titreBon, dateCourte, allergenesDe };
+module.exports = { ACC_G, accompsPour, horairesVus, ROLE_RECUP, ROLES_MSG, aRecuperer, completerLignes, itemsNappe, qteAuto, choixProduit, choixProduits, NOM_ROLE, modeleMessage, promptMessage, infosRole, LISTES, listesPrepa, compoDe, listeDe, itemsTexte, ROLES, HORAIRES, bonDepuis, lignesDepuisDevis, nettoyer, documentHtml, emailHtml, messageDefaut, smsTexte, titreBon, dateCourte, allergenesDe };

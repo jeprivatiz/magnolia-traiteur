@@ -494,6 +494,11 @@
   };
 
   const pcOpts = P => { const g = {}; P.forEach((p, i) => (g[p.groupe] = g[p.groupe] || []).push(`<option value="${i}">${esc(p.nom)}${(p.metiers || []).length ? ' · ' + esc(p.metiers.join(', ')) : ''}</option>`)); return Object.entries(g).map(([k, v]) => `<optgroup label="${esc(k)}">${v.join('')}</optgroup>`).join(''); };
+  /* boutons d'envoi d'un cadre (Jean-Luc, 2026-11-28 : « SMS au groupe, de qui on parle ? ») : on dit à qui, combien, grisés s'il n'y a personne */
+  const PC_DEST = { regisseurs: ['aux régisseurs', 'au régisseur'], livreurs: ['aux livreurs', 'au livreur'], personnel: ['au personnel', 'au personnel'], recuperateurs: ['aux personnes de la récupération', 'à la personne de la récupération'] };
+  const pcMsgBtns = (b, k) => { const n = (b[k] || []).length, d = (PC_DEST[k] || ['au groupe', 'au groupe'])[n === 1 ? 1 : 0], dis = n ? '' : ' disabled title="Ajoutez d’abord une personne dans ce cadre"', nb = n ? ` <span class="pc-rbn">${n}</span>` : '';
+    return `<button type="button" class="btn sm pc-sms" data-pcmsg="${k}:sms"${dis}>💬 SMS ${d}${nb}</button><button type="button" class="btn sm ghost" data-pcmsg="${k}:email"${dis}>✉ E-mail ${d}${nb}</button>${n ? '' : '<small class="muted pc-rbv">Ajoutez une personne pour pouvoir lui écrire.</small>'}`; };
+  const pcMajRole = k => { const B = PC.x.bon, c = $(`[data-chips="${k}"]`), r = $(`[data-pcrbtn="${k}"]`); if (c) c.innerHTML = pcChips(B, k); if (r) r.innerHTML = pcMsgBtns(B, k); };
   const pcChips = (b, k) => (b[k] || []).length ? b[k].map((p, i) => `<span class="pc-chip"><b>${esc(p.nom)}</b>${p.tel ? ` <small>${esc(p.tel)}</small>` : ''}<button type="button" data-pcrm="${k}:${i}" aria-label="Retirer ${esc(p.nom)}">×</button></span>`).join('') : '<span class="muted sm">Personne pour le moment.</span>';
   /* pluriel de l'unité (même règle que server/prepa.js nomUnite) : « 3 nappes », « 2 plateaux », « 2 lots de 6 » */
   const pcUnite = (q, u) => { u = String(u ?? '').trim(); if (!u || !(Math.abs(+String(q).replace(',', '.')) >= 2)) return u; const m = /^(\S+)(.*)$/.exec(u); const w = m[1]; if (/^(km|kg|g|l|cl|ml|m|cm|h|min|lot\b)$/i.test(w) && w !== 'lot') return u; if (/[sxz]$/i.test(w) || /[^\p{L}]/u.test(w)) return u; return (/(eau|au|eu)$/i.test(w) ? w + 'x' : w + 's') + m[2]; };
@@ -501,10 +506,22 @@
   /* détail d'une ligne (Jean-Luc, 2026-11-27) : choix du client (entrées, plats, desserts) avec leur nombre, softs ou matériel en liste déroulante + nombre */
   const PC_LIB = { compo: 'Choix du client · nombre de chaque', softs: 'Softs · nombre de chaque', materiel: 'Matériel · nombre de chaque', nappes: 'Nappes · taille, couleur, extensible ou non, nombre', kit: '🧰 Composants du pack · quantité de chaque (modifiable)' };
   const pcSel = (k, v, L, lab) => `<select data-it="${k}" aria-label="${lab}">${v && !L.includes(v) ? `<option selected>${esc(v)}</option>` : ''}${v ? '' : `<option value="">${lab}…</option>`}${L.map(o => `<option${o === v ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
+  /* « ➕ Accompagnement à rajouter » sur les plats (Jean-Luc, 2026-11-28) : liste des accompagnements de la spécialité, puis tous */
+  function pcAccBloc(l, i) {
+    const AG = PC.x?.accG; if (!AG || !l.produit || (l.liste && l.liste !== 'compo')) return '';
+    const it = l.items || [], A = PC.x.accomps || {};
+    if (!(A.plats || []).includes(l.produit) && !it.some(x => x.groupe === AG)) return '';
+    const memes = (A.par || {})[l.produit] || [], autres = (A.tous || []).filter(o => !memes.includes(o));
+    const r = it.map((x, j) => [x, j]).filter(([x]) => x.groupe === AG);
+    const opt = L => L.map(o => `<option>${esc(o)}</option>`).join('');
+    return `<div class="pc-itgb pc-acc">${r.length ? `<span class="pc-itg">${esc(AG)}</span>` : ''}${r.map(([x, j]) => `<div class="pc-itr" data-j="${j}"><input data-it="nom" value="${esc(x.nom)}" aria-label="Accompagnement"><input data-it="n" type="number" min="0" step="any" inputmode="decimal" value="${esc(x.n ?? '')}" placeholder="Nb" aria-label="Nombre"><button type="button" class="pc-itx" data-itrm="${i}:${j}" aria-label="Retirer">×</button></div>`).join('')}
+      <select class="pc-itaddg pc-accsel" data-itaddg="${i}" data-g="${esc(AG)}" aria-label="Ajouter un accompagnement"><option value="">➕ Accompagnement à rajouter…</option>${memes.length ? `<optgroup label="De cette spécialité">${opt(memes)}</optgroup><optgroup label="Tous les accompagnements">${opt(autres)}</optgroup>` : opt(autres)}<option value="__libre">✏ Autre (à taper)</option></select></div>`;
+  }
   function pcItemsHtml(l, i) {
-    const it = l.items || []; if (!l.liste && !it.length && !(PC.x?.choix || {})[l.produit]) return '';
+    const AG = PC.x?.accG, acc = pcAccBloc(l, i);
+    const it = l.items || []; if (!l.liste && !it.filter(x => x.groupe !== AG).length && !(PC.x?.choix || {})[l.produit]) return acc ? `<div class="pc-it">${acc}</div>` : '';
     const L = (PC.x?.listes || {})[l.liste] || [];
-    const tot = {}; for (const x of it) if (x.groupe) tot[x.groupe] = (tot[x.groupe] || 0) + (+x.n || 0);
+    const tot = {}; for (const x of it) if (x.groupe && x.groupe !== AG) tot[x.groupe] = (tot[x.groupe] || 0) + (+x.n || 0);
     if (l.liste === 'nappes') {
       const LX = PC.x?.listes || {};
       const rowsN = it.map((x, j) => `<div class="pc-itr pc-itn" data-j="${j}">${x.libre ? `<input data-it="nom" value="${esc(x.nom)}" placeholder="Taille, ex. 240 × 300 cm" aria-label="Taille">` : pcSel('nom', x.nom, L, 'Taille')}${pcSel('couleur', x.couleur || '', LX.nappesCouleurs || [], 'Couleur')}${pcSel('type', x.type || '', LX.nappesTypes || [], 'Extensible ?')}<input data-it="n" type="number" min="0" step="any" inputmode="decimal" value="${esc(x.n ?? '')}" placeholder="Nb" aria-label="Nombre"><button type="button" class="pc-itx" data-itrm="${i}:${j}" aria-label="Retirer">×</button></div>`).join('');
@@ -520,12 +537,12 @@
         const n = r.reduce((t, [x]) => t + (+x.n || 0), 0);
         return `<div class="pc-itgb"><span class="pc-itg">${esc(g.groupe)}${n ? ` <small>· ${n} au total</small>` : ''}</span>${r.map(([x, j]) => ligne(x, j, g.options)).join('')}<select class="pc-itaddg" data-itaddg="${i}" data-g="${esc(g.groupe)}" aria-label="Ajouter ${esc(g.groupe)}"><option value="">➕ ${esc(g.groupe)} : ajouter…</option>${g.options.map(o => `<option>${esc(o)}</option>`).join('')}</select></div>`;
       }).join('');
-      const autres = it.map((x, j) => [x, j]).filter(([x]) => !noms.includes(x.groupe));
-      return `<div class="pc-it"><small class="pc-ith">Choix du client · une liste par groupe, nombre de chaque</small>${blocs}${autres.length ? `<div class="pc-itgb"><span class="pc-itg">Autres</span>${autres.map(([x, j]) => ligne(x, j, [])).join('')}</div>` : ''}<div class="pc-itadd"><button type="button" class="btn ghost sm" data-itlibre="${i}">✏ Autre (à taper)</button></div></div>`;
+      const autres = it.map((x, j) => [x, j]).filter(([x]) => !noms.includes(x.groupe) && x.groupe !== AG);
+      return `<div class="pc-it"><small class="pc-ith">Choix du client · une liste par groupe, nombre de chaque</small>${blocs}${autres.length ? `<div class="pc-itgb"><span class="pc-itg">Autres</span>${autres.map(([x, j]) => ligne(x, j, [])).join('')}</div>` : ''}${acc}<div class="pc-itadd"><button type="button" class="btn ghost sm" data-itlibre="${i}">✏ Autre (à taper)</button></div></div>`;
     }
-    const rows = it.map((x, j) => `<div class="pc-itr" data-j="${j}">${x.groupe && x.groupe !== it[j - 1]?.groupe ? `<span class="pc-itg">${esc(x.groupe)}</span>` : ''}${L.length && (!x.nom || L.includes(x.nom)) && !x.libre ? `<select data-it="nom" aria-label="Choix">${x.nom ? '' : '<option value="">— Choisir —</option>'}${L.map(o => `<option${o === x.nom ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select>` : `<input data-it="nom" value="${esc(x.nom)}" placeholder="${l.liste === 'materiel' ? 'ex. Plateaux inox' : l.liste === 'softs' ? 'ex. Orangina 33 cl' : l.liste === 'kit' ? 'ex. Torchons' : 'ex. Colombo de poulet'}" aria-label="Nom">`}<input data-it="n" type="number" min="0" step="any" inputmode="decimal" value="${esc(x.n ?? '')}" placeholder="Nb" aria-label="Nombre"><button type="button" class="pc-itx" data-itrm="${i}:${j}" aria-label="Retirer">×</button></div>`).join('');
+    const rows = it.map((x, j) => x.groupe === AG ? '' : `<div class="pc-itr" data-j="${j}">${x.groupe && x.groupe !== it[j - 1]?.groupe ? `<span class="pc-itg">${esc(x.groupe)}</span>` : ''}${L.length && (!x.nom || L.includes(x.nom)) && !x.libre ? `<select data-it="nom" aria-label="Choix">${x.nom ? '' : '<option value="">— Choisir —</option>'}${L.map(o => `<option${o === x.nom ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select>` : `<input data-it="nom" value="${esc(x.nom)}" placeholder="${l.liste === 'materiel' ? 'ex. Plateaux inox' : l.liste === 'softs' ? 'ex. Orangina 33 cl' : l.liste === 'kit' ? 'ex. Torchons' : 'ex. Colombo de poulet'}" aria-label="Nom">`}<input data-it="n" type="number" min="0" step="any" inputmode="decimal" value="${esc(x.n ?? '')}" placeholder="Nb" aria-label="Nombre"><button type="button" class="pc-itx" data-itrm="${i}:${j}" aria-label="Retirer">×</button></div>`).join('');
     const sous = Object.keys(tot).length > 1 || Object.values(tot).some(v => v) ? `<small class="pc-ittot">${Object.entries(tot).map(([g, n]) => `${esc(g)} : <b>${n}</b>`).join(' · ')}</small>` : '';
-    return `<div class="pc-it"><small class="pc-ith">${esc(PC_LIB[l.liste] || PC_LIB.compo)}</small>${rows}${sous}<div class="pc-itadd">${L.length ? `<select data-itadd="${i}" aria-label="Ajouter"><option value="">➕ Ajouter ${l.liste === 'softs' ? 'un soft' : 'du matériel'}…</option>${L.map(o => `<option>${esc(o)}</option>`).join('')}</select>` : ''}<button type="button" class="btn ghost sm" data-itlibre="${i}">✏ ${L.length ? 'Autre (à taper)' : l.liste === 'kit' ? 'Ajouter un composant' : 'Ajouter un choix'}</button></div></div>`;
+    return `<div class="pc-it"><small class="pc-ith">${esc(PC_LIB[l.liste] || PC_LIB.compo)}</small>${rows}${sous}${acc}<div class="pc-itadd">${L.length ? `<select data-itadd="${i}" aria-label="Ajouter"><option value="">➕ Ajouter ${l.liste === 'softs' ? 'un soft' : 'du matériel'}…</option>${L.map(o => `<option>${esc(o)}</option>`).join('')}</select>` : ''}<button type="button" class="btn ghost sm" data-itlibre="${i}">✏ ${L.length ? 'Autre (à taper)' : l.liste === 'kit' ? 'Ajouter un composant' : 'Ajouter un choix'}</button></div></div>`;
   }
   function pcLignesHtml(b) {
     let n = 0;
@@ -561,7 +578,7 @@
     const pcRole = (k, lab) => `<div class="pc-role" data-role="${k}"><h3>${PC_ICO[k] || ''} ${esc(lab)}</h3><div class="pc-chips" data-chips="${k}">${pcChips(b, k)}</div>
           <div class="pc-rech"><input type="search" data-pcrech="${k}" placeholder="🔍 Rechercher : équipe, prestataires…" aria-label="Rechercher une personne : ${esc(lab)}" autocomplete="off"><div class="pc-sugg" data-sugg="${k}" hidden></div></div>
           <div class="pc-libre"><input data-pclibre="${k}" placeholder="ou tapez un nom" aria-label="Nom"><input data-pctel="${k}" type="tel" placeholder="Portable" aria-label="Portable"><button type="button" class="btn ghost sm" data-pcajout="${k}">Ajouter</button></div>
-          <div class="pc-rbtn"><button type="button" class="btn sm pc-sms" data-pcmsg="${k}:sms">💬 SMS au groupe</button><button type="button" class="btn sm ghost" data-pcmsg="${k}:email">✉ E-mail au groupe</button></div>
+          <div class="pc-rbtn" data-pcrbtn="${k}">${pcMsgBtns(b, k)}</div>
           <button type="button" class="pc-hbtn" data-pchist="${k}">🕘 Historique des envois <b>${env.filter(v => v.groupe === k).length}</b></button></div>`;
     const inp = (k, lab, v, at = '') => `<label>${lab}<input data-f="${k}" value="${esc(v ?? '')}"${at}></label>`;
     const env = (b.envois || []).slice().reverse();
@@ -613,7 +630,7 @@
   }
   /* lit l'écran dans PC.x.bon */
   /* « Quantité à préparer » d'après les choix (même règle que server/prepa.js qteAuto) : « 60 entrées · 30 plats » ; tant qu'on ne la tape pas soi-même */
-  const pcQteAuto = l => { const it = (l.items || []).filter(x => x.nom && +x.n > 0); if (!it.length) return ''; const g = new Map(); for (const x of it) { const k = x.groupe || ({ softs: 'softs', materiel: 'articles', nappes: 'nappes' })[l.liste] || 'pièces'; g.set(k, (g.get(k) || 0) + (+x.n)); } return [...g].map(([k, n]) => `${n} ${String(k).toLowerCase()}`).join(' · '); };
+  const pcQteAuto = l => { const it = (l.items || []).filter(x => x.nom && +x.n > 0 && x.groupe !== PC.x?.accG); if (!it.length) return ''; const g = new Map(); for (const x of it) { const k = x.groupe || ({ softs: 'softs', materiel: 'articles', nappes: 'nappes' })[l.liste] || 'pièces'; g.set(k, (g.get(k) || 0) + (+x.n)); } return [...g].map(([k, n]) => `${n} ${String(k).toLowerCase()}`).join(' · '); };
   /* reprise du matériel (Horaires) = jour et heure du bon de récupération : les deux champs restent identiques */
   document.addEventListener('input', e => pcJumeau(e.target), true); document.addEventListener('change', e => pcJumeau(e.target), true);
   function pcJumeau(el) { const k = el?.dataset?.twin; if (!k) return; $$(`[data-twin="${k}"]`).forEach(x => { if (x !== el && x.value !== el.value) { if (x.tagName === 'SELECT' && el.value && ![...x.options].some(o => o.value === el.value)) x.add(new Option(el.value, el.value)); x.value = el.value; } }); }
@@ -664,7 +681,7 @@
     f.addEventListener('submit', e => e.preventDefault());
     /* une personne n'est que dans un seul groupe (Jean-Luc, 2026-11-27 : un livreur n'apparaît jamais dans les régisseurs) */
     const autreGroupe = (k, nom) => k === 'recuperateurs' ? null : (PC.x.roles || []).find(([r]) => r !== k && (b()[r] || []).some(x => x.nom.toLowerCase() === String(nom).toLowerCase()));
-    const ajouter = (k, p) => { if (!p.nom) return; const ag = autreGroupe(k, p.nom); if (ag) { toast(`${p.nom} est déjà dans « ${ag[1]} ». Retirez-le(la) d’abord de ce groupe.`, true); return; } const l = b()[k] = b()[k] || []; if (l.some(x => x.nom.toLowerCase() === p.nom.toLowerCase())) { toast(`${p.nom} est déjà dans la liste.`); return; } l.push(p); $(`[data-chips="${k}"]`).innerHTML = pcChips(b(), k); PC.sale = true; };
+    const ajouter = (k, p) => { if (!p.nom) return; const ag = autreGroupe(k, p.nom); if (ag) { toast(`${p.nom} est déjà dans « ${ag[1]} ». Retirez-le(la) d’abord de ce groupe.`, true); return; } const l = b()[k] = b()[k] || []; if (l.some(x => x.nom.toLowerCase() === p.nom.toLowerCase())) { toast(`${p.nom} est déjà dans la liste.`); return; } l.push(p); pcMajRole(k); PC.sale = true; };
     /* une quantité tapée à la main n'est plus remplacée ; vidée, elle se remplit de nouveau d'après les choix */
     f.addEventListener('input', e => {
       const r = e.target.closest('[data-pclignes] .pc-l'); if (!r) return; const l = b().lignes[+r.dataset.i]; if (!l) return;
@@ -682,7 +699,8 @@
       if (e.target.matches('[data-lr]')) { pcLire(); PC.sale = true; majRecup(); }
       if (e.target.closest('.pc-itr')) pcLire();
       const sg = e.target.closest('[data-itaddg]');
-      if (sg && sg.value !== '') { pcLire(); const l = b().lignes[+sg.dataset.itaddg]; l.items = l.items || []; if (!l.items.some(x => x.groupe === sg.dataset.g && x.nom === sg.value)) l.items.push({ groupe: sg.dataset.g, nom: sg.value, n: Number(l.qteDevis) || '' }); if (!l.liste) l.liste = 'compo'; redessiner(); PC.sale = true; return; }
+      if (sg && sg.value === '__libre') { pcLire(); const l = b().lignes[+sg.dataset.itaddg]; (l.items = l.items || []).push({ groupe: sg.dataset.g, nom: '…', n: Number(l.qteDevis) || '' }); redessiner(); PC.sale = true; const z = $$(`[data-pclignes] .pc-l[data-i="${sg.dataset.itaddg}"] .pc-acc [data-it="nom"]`).pop(); if (z) { z.value = ''; z.focus(); } return; }
+      if (sg && sg.value !== '') { pcLire(); const l = b().lignes[+sg.dataset.itaddg]; l.items = l.items || []; if (!l.items.some(x => x.groupe === sg.dataset.g && x.nom === sg.value)) l.items.push({ groupe: sg.dataset.g, nom: sg.value, n: Number(l.qteDevis) || '' }); if (!l.liste && sg.dataset.g !== PC.x?.accG) l.liste = 'compo'; redessiner(); PC.sale = true; return; }
       const s = e.target.closest('[data-itadd]'); if (!s || s.value === '') return;
       pcLire(); const l = b().lignes[+s.dataset.itadd]; (l.items = l.items || []).push({ nom: s.value, n: '' }); redessiner(); PC.sale = true;
       $(`[data-pclignes] .pc-l[data-i="${s.dataset.itadd}"] .pc-itr:last-of-type [data-it="n"]`)?.focus();
@@ -718,7 +736,7 @@
       const mg = e.target.closest('[data-pcmsg]');
       if (mg) { const [k, c] = mg.dataset.pcmsg.split(':'); if (!(b()[k] || []).length) { toast('Ajoutez d’abord des personnes dans ce groupe.', true); return; } try { await pcSauver(true); pcMessage(id, k, c); } catch (err) { toast(err.message, true); } return; }
       const rm = e.target.closest('[data-pcrm]');
-      if (rm) { const [k, i] = rm.dataset.pcrm.split(':'); b()[k].splice(+i, 1); $(`[data-chips="${k}"]`).innerHTML = pcChips(b(), k); PC.sale = true; return; }
+      if (rm) { const [k, i] = rm.dataset.pcrm.split(':'); b()[k].splice(+i, 1); pcMajRole(k); PC.sale = true; return; }
       const lr = e.target.closest('[data-pclrm]');
       if (lr) { pcLire(); b().lignes.splice(+lr.dataset.pclrm, 1); redessiner(); PC.sale = true; return; }
       const ad = e.target.closest('[data-pcadd]');
