@@ -1,0 +1,25 @@
+name: Temporaire - photos brochure
+
+on:
+  push:
+    branches: [claude/project-thread-wrnmqa]
+    paths:
+      - .github/workflows/tmp-photos.yml
+
+permissions:
+  contents: write
+
+jobs:
+  recuperer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          mkdir -p tmp-photos && cd tmp-photos
+          for id in 8555432 6762286 8761649 8555527 8761556 40542416 14646761 2049234 1485806; do curl -fsSL -A "Mozilla/5.0 (magnolia-recuperation)" -o "$id.jpg" "https://images.pexels.com/photos/$id/pexels-photo-$id.jpeg?auto=compress&cs=tinysrgb&w=2400" || echo "échec $id"; done
+          ls -la
+      - run: |
+          git config user.name "magnolia-bot"
+          git config user.email "magnolia-bot@users.noreply.github.com"
+          git add tmp-photos && git commit -m "tmp photos brochure" && git push
