@@ -329,6 +329,9 @@
     const plur = (u, n) => (n > 1 && u && !/[sx]$/.test(u) && !/ de /.test(u) ? u + 's' : u);
     let html = '';
     if (!P.lieu) html += `<div class="conf-q"><span class="lab">Quantité</span><div class="qty"><button type="button" data-q="-1" aria-label="Moins">−</button><input type="number" name="qte" min="${P.min || 1}" value="${qte0}" inputmode="numeric" aria-label="Quantité"><button type="button" data-q="1" aria-label="Plus">+</button></div><span class="unit" data-unit>${esc(plur(P.unite || '', qte0))}</span></div>${P.min > 1 ? `<p class="small">Minimum : ${P.min} ${esc(plur(P.unite || '', P.min))}</p>` : ''}${propInv ? `<p class="small"><button type="button" class="lnk-inv" data-inv="${propInv}">Mettre ${propInv} ${esc(plur(P.unite || '', propInv))} (vos invités)</button></p>` : ''}`;
+    /* règle de Jean-Luc (2026-11-28) : 1 personne de service pour 25 invités, donnée comme simple indication */
+    const ficheService = /personnel-de-service/.test(P.slug || '');
+    if (ficheService) html += `<p class="conseil-pers" data-conseil-pers>Comptez 1 personne de service pour 25 invités.</p>`;
     if ((P.variantes || []).length) html += `<label class="conf-l">Formule<select name="variante">${P.variantes.map(v => `<option>${esc(v)}</option>`).join('')}</select></label>`;
     for (const g of P.groupes || []) {
       const opts = (g.options || []).map(o => ({ ...o, label: avecPortion(o.label) }));
@@ -339,7 +342,7 @@
         ${g.aide ? `<p class="small">${esc(g.aide)}</p>` : ''}
         ${g.mode === 'quantites' ? `<p class="gstat" data-gstat aria-live="polite"></p><div class="opts-q">${opts.map(o => `<div class="optq" data-optq>${o.photos?.[0] ? `<img src="${esc(o.photos[0])}" alt="" loading="lazy">` : ''}<span>${esc(o.label)}${o.supCents ? `<small class="optq-sup" title="Supplément de ${euros(o.supCents)} TTC par part">+ ${euros(o.supCents)} / part</small>` : ''}<small class="optq-why" data-why></small></span><span class="optq-c"><button type="button" data-om="-1" aria-label="Moins : ${esc(o.label)}">−</button><input type="number" min="0" step="1" inputmode="numeric" value="0" data-oq="${esc(o.id)}" data-lab="${esc(o.label)}" data-sup="${o.supCents || 0}" aria-label="Portions : ${esc(o.label)}"><button type="button" data-om="1" aria-label="Plus : ${esc(o.label)}">+</button></span></div>`).join('')}</div>` : g.radio ? `<div class="opts-r">${opts.map((o, k) => `<label class="opt-r"><input type="radio" name="r_${esc(g.id)}" value="${esc(o.id)}" data-sup="${o.supCents || 0}"${k === 0 ? ' checked' : ''}><span>${esc(o.label)}</span></label>`).join('')}</div>` : `<div class="opts">${opts.map(o => `<label class="opt"><input type="checkbox" value="${esc(o.id)}" data-sup="${o.supCents || 0}">${o.photos?.[0] ? `<img src="${esc(o.photos[0])}" alt="" loading="lazy">` : ''}<span>${esc(o.label)}${o.supCents ? `<small>+ ${euros(o.supCents)}</small>` : ''}${o.supDevis ? '<small>sur devis</small>' : ''}</span></label>`).join('')}</div>`}</fieldset>`;
     }
-    if (R.personnel && T.personnel) html += `<details class="conf-x"><summary>Personnel de service <small>facultatif · ${euros(T.personnel.heureCents)} TTC / heure</small></summary><p class="small">${T.personnel.minHeures} heures minimum par personne. Le personnel s’ajoute sur une ligne à part.</p><div class="f2"><label>Personnes<select name="pers_nb"><option value="0">Aucune</option>${[1, 2, 3, 4, 5, 6, 8, 10].map(n => `<option>${n}</option>`).join('')}</select></label><label>Heures<select name="pers_h">${[4, 5, 6, 7, 8, 9, 10, 12].map(n => `<option>${n}</option>`).join('')}</select></label></div></details>`;
+    if (R.personnel && T.personnel) html += `<details class="conf-x"><summary>Personnel de service <small>facultatif · ${euros(T.personnel.heureCents)} TTC / heure</small></summary><p class="conseil-pers" data-conseil-pers>Comptez 1 personne de service pour 25 invités.</p><p class="small">${T.personnel.minHeures} heures minimum par personne. Le personnel s’ajoute sur une ligne à part.</p><div class="f2"><label>Personnes<select name="pers_nb"><option value="0">Aucune</option>${[1, 2, 3, 4, 5, 6, 8, 10].map(n => `<option>${n}</option>`).join('')}</select></label><label>Heures<select name="pers_h">${[4, 5, 6, 7, 8, 9, 10, 12].map(n => `<option>${n}</option>`).join('')}</select></label></div></details>`;
     if (R.packs && (T.packs || []).length) html += `<details class="conf-x"><summary>Pack traiteur <small>facultatif · vaisselle, nappage</small></summary>${T.packs.map(pk => `<label class="radio"><input type="radio" name="pack" value="${esc(pk.id)}"><span><b>${esc(pk.label)}</b> · ${euros(pk.prixCents)} TTC / pers.<small>${esc(pk.detail)}</small></span></label>`).join('')}<label class="radio"><input type="radio" name="pack" value="" checked><span>Pas de pack</span></label></details>`;
     /* autres propositions choisies dans le back-office pour ce produit (ex. Mobilier pour bar à cocktail) */
     (P.propositions || []).forEach(B => {
@@ -423,6 +426,12 @@
       if (!sp && t) { sp = document.createElement('div'); sp.className = 'conf-supp'; sp.dataset.confSupp = ''; t.closest('.conf-tot').before(sp); }
       if (sp) { sp.hidden = !r.supps.length; sp.innerHTML = r.supps.map(x => `<p><span>Supplément ${esc(x.label.toLowerCase())}<small>${x.n} part${x.n > 1 ? 's' : ''} × ${euros(x.puCents)}</small></span><b>+ ${euros(x.n * x.puCents)}</b></p>`).join(''); }
       const u = $('[data-unit]', form); if (u) u.textContent = plur(P.unite || '', r.qte);
+      /* conseil personnel : sur une fiche « par personne », d'après la quantité ; sur la fiche Personnel de service, d'après les invités indiqués */
+      const cp = $('[data-conseil-pers]', form);
+      if (cp) {
+        const inv = perPers ? r.qte : nbInv, n = Math.max(1, Math.ceil(inv / 25));
+        cp.innerHTML = 'Comptez 1 personne de service pour 25 invités' + (inv ? ` : pour ${inv} invités, <b>${n} personne${n > 1 ? 's' : ''} conseillée${n > 1 ? 's' : ''}</b>.` : '.');
+      }
       $$('[data-prop]', form).forEach(d => d.classList.toggle('on', $('[data-prop-on]', d).checked));
       $$('[data-g]', form).forEach(fs => {
         if ($('[data-oq]', fs)) return portions(fs, r.qte);
