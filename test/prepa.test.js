@@ -186,3 +186,19 @@ test('accompagnement à rajouter : ceux de la spécialité d’abord, et pas com
   assert.ok(r.tous.includes('Riz créole') && r.tous.includes('Gratin dauphinois'));
   assert.equal(P.qteAuto({ items: [{ groupe: P.ACC_G, nom: 'Purée maison', n: 30 }] }), '');
 });
+
+test('tout ce qui est écrit sur le devis devient une ligne à cocher (« il ne faut rien oublier »)', () => {
+  const P = require('../server/prepa');
+  const p = { groupes: [{ titre: 'Vos plats', options: [{ id: 'x', label: 'Colombo de poulet' }, { id: 'y', label: 'Coq roussi' }] }, { titre: 'Vos accompagnements', options: [{ id: 'z', label: 'Riz nature' }] }] };
+  const detail = 'Colombo de poulet × 30, Coq roussi × 22, Riz nature, Gâteau à l’ananas × 28 — Note : sans piment';
+  const L = P.lignesDepuisDevis({ lignes: [{ produit: 'buffet', designation: 'Buffet antillais', detail, qte: 52, unite: 'personne', choix: { vieux: ['inconnu'] } }] }, new Map([['buffet', p]]));
+  const l = L.find(x => x.produit === 'buffet');
+  assert.equal(l.liste, 'compo');
+  assert.deepEqual(l.items.map(x => [x.groupe, x.nom, x.n]), [['Plats', 'Colombo de poulet', 30], ['Plats', 'Coq roussi', 22], ['Accompagnements', 'Riz nature', 52], ['', 'Gâteau à l’ananas', 28]]);
+  assert.equal(l.detail, 'Note : sans piment');
+  // bon déjà enregistré avec le texte en gris : complété à l'ouverture, sans doublon
+  const [v] = P.completerLignes([{ type: 'produit', produit: 'buffet', designation: 'Buffet antillais', qteDevis: 52, detail, liste: 'compo', items: [{ groupe: 'Desserts', nom: 'Flan coco', n: 52 }, { nom: 'Coq roussi', n: 22 }], qtePrepa: '', recup: false }], new Map([['buffet', p]]));
+  assert.deepEqual(v.items.map(x => x.nom), ['Flan coco', 'Coq roussi', 'Colombo de poulet', 'Riz nature', 'Gâteau à l’ananas']);
+  // une simple phrase de description reste telle quelle
+  assert.equal(P.itemsDepuisDetail({ detail: 'Dressé sur notre plateau, avec citrons et pain de seigle' }, {}), null);
+});
