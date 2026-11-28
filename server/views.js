@@ -734,15 +734,42 @@ const LANDINGS = {
     },
     fin: 'Prêt à faire voyager vos invités ?',
   },
+  /* univers entier (pas une spécialité) : Cocktails & buffets français (Jean-Luc, 2026-11-28) ; vidéo du haut = celle du back-office */
+  'cocktails-buffets': {
+    surtitre: 'Traiteur français · par Magnolia Traiteur',
+    signature: 'L’art de recevoir à la française',
+    blocTitre: 'Nos cocktails et buffets',
+    defile: ['Plus de 700 prestations par an', '★★★★★ 4,9/5 sur Google', '{avis} avis clients vérifiés', 'Votre traiteur français sur Paris et l’Île-de-France', 'Canapés, verrines, mini-burgers et petits fours', 'Livraison 7 j/7', 'Anniversaires · mariages · cocktails d’entreprise'],
+    avis: ['mt_44818', 'mt_45461', 'mt_55647', 'mt_45061', 'mt_46233', 'mt_41523'],
+    avisTitre: 'Ils ont trinqué avec nous',
+    equipe: {
+      video: '/site/v/accueil/cocktail.mp4', poster: '/site/v/accueil/cocktail.jpg',
+      surtitre: 'Du cocktail au dîner',
+      titre: 'Des pièces fines pour recevoir avec élégance',
+      texte: ['Canapés, verrines, mini-burgers, plateaux à partager, buffet froid ou chaud, puis mignardises : des bouchées soignées, à la française, pour 10 ou 500 invités.', 'Nous livrons 7 jours sur 7 sur Paris et toute l’Île-de-France ; nos serveurs et maîtres d’hôtel dressent le buffet et servent vos invités si vous le souhaitez.'],
+      points: ['Livraison et installation du buffet', 'Serveurs et maîtres d’hôtel sur demande', 'Végétariens et allergies : dites-le-nous', 'Devis sous 24 h, sans paiement en ligne'],
+    },
+    insta: [
+      ['/site/c/cocktail7-photos/canapes-evasion.webp.webp', 'Canapés du cocktail Magnolia'],
+      ['/site/c/cocktail10-client-20261104.jpg.webp', 'Cocktail servi chez un client'],
+      ['/site/v/accueil/cocktail.jpg', 'Cocktail servi en réception'],
+      ['/site/c/cocktail7-photos/mini-clubs.webp.webp', 'Mini clubs sandwichs'],
+      ['/site/c/page19-burger-poster.jpg.webp', 'Mini-burgers'],
+      ['/site/c/cocktail7-photos/assortiment-sucre.webp.webp', 'Assortiment de petits fours sucrés'],
+    ],
+    fin: 'Prêt à recevoir vos invités ?',
+  },
 };
 function pageLanding(c, r, x) {
+  const rub = x === r; // univers entier en page d'arrivée (ex. Cocktails & buffets français)
   const L = LANDINGS[x.slug], R = c.reglages, G = R.avisGoogle || {};
   const tel = (R.telephone || '').replace(/\s/g, '');
-  const liste = prodsDeSous(c, r, x.slug).slice().sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
-  const tous = RANGEMENTS.map(([k, t]) => [k, (x.titresSections || {})[k] || t, liste.filter(p => rangementDe(p) === k)]).filter(b => b[2].length);
+  const liste = (rub ? (c.byRub.get(r.slug) || []) : prodsDeSous(c, r, x.slug)).slice().sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
+  const tous = rub ? [['buffets', L.blocTitre || 'Nos formules', liste]] : RANGEMENTS.map(([k, t]) => [k, (x.titresSections || {})[k] || t, liste.filter(p => rangementDe(p) === k)]).filter(b => b[2].length);
   const buffets = tous.find(b => b[0] === 'buffets');
-  const ancre = buffets ? '#nos-buffets' : '#prestations', voirTxt = buffets ? 'Voir nos buffets' : 'Voir nos propositions';
+  const ancre = buffets ? '#nos-buffets' : '#prestations', voirTxt = rub ? 'Voir nos formules' : buffets ? 'Voir nos buffets' : 'Voir nos propositions';
   const blocs = tous.filter(b => b[0] !== 'buffets');
+  const titreX = rub ? (r.titrePage || r.nom) : speTitre(x), chapoX = rub ? (r.chapo || r.accroche || '') : speChapo(x);
   const gUrl = G.url || '/temoignages';
   const gLogo = '<svg class="g-logo" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3l5.7-5.7C34 6 29.3 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3l5.7-5.7C34 6 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>';
   const gBouton = (cls = '') => `<a class="g-badge ${cls}" href="${esc(gUrl)}" target="_blank" rel="noopener">${gLogo}<span class="g-n">${esc(G.note || '4,9')}</span><span class="g-s"><i aria-hidden="true">★★★★★</i><small>${G.nombre ? `${esc(G.nombre)} avis Google` : 'Avis Google'}</small></span><span class="g-go">Lire les avis ${icon.arrow}</span></a>`;
@@ -751,7 +778,7 @@ function pageLanding(c, r, x) {
     ? `<video src="${esc(B.video)}" poster="${esc(B.poster || B.photo || '')}"${B.position ? ` style="object-position:${esc(B.position)}"` : ''} autoplay muted loop playsinline preload="metadata" aria-hidden="true" data-autoplay></video>`
     : img(B.photo, '', '', 'fetchpriority="high"').replace(' loading="lazy"', '');
   const hero = `<section class="phero land lp-hero${kb(c, B.video ? '' : B.photo, x.slug)}">${media}<div class="phero-c wrap">
-    <p class="lp-sur">${esc(L.surtitre)}</p><h1>${titreLignes(speTitre(x))}</h1>${L.signature ? `<p class="phero-sig">${esc(L.signature)}</p>` : ''}<p class="lead">${esc(speChapo(x))}</p>
+    <p class="lp-sur">${esc(L.surtitre)}</p><h1>${titreLignes(titreX)}</h1>${L.signature ? `<p class="phero-sig">${esc(L.signature)}</p>` : ''}<p class="lead">${esc(chapoX)}</p>
     <div class="row land-cta"><a class="btn btn-or" href="${ancre}">${voirTxt}</a><a class="btn btn-ghost-light" href="tel:${esc(tel)}">${icon.phone}<span>${esc(R.telephone || '')}</span></a></div>
     <div class="lp-conf">${gBouton('clair')}<p class="lp-livr">Livraison 7 j/7 sur Paris et toute l’Île-de-France</p></div></div></section>`;
   const defile = `<div class="marquee lp-defile" aria-label="${esc(L.defile.join(' · ').replace('{avis}', nbAvisSite(c)))}"><div class="marquee-t">${[0, 1].map(k => L.defile.map(t => t.replace('{avis}', nbAvisSite(c).replace(/^p/, 'P'))).map(t => `<span${k ? ' aria-hidden="true"' : ''}>${esc(t)}<i>✳</i></span>`).join('')).join('')}</div></div>`;
@@ -776,8 +803,8 @@ ${avisHtml}${equipe}${insta}
 ${blocs.length ? `<section class="wrap shop spe-sections" id="prestations"${rubmActif(blocs) ? ' data-rubm' : ''}><div class="shop-bar lp-unite-h"><p class="eyebrow">À la carte</p><h2>Composez votre menu à l’unité</h2>${rubmActif(blocs) ? rubmRetour() : ''}</div>
   ${rubmTuiles(blocs)}${blocs.map(b => bloc(b, ' data-rubm-bloc')).join('')}</section>` : ''}
 ${require('./blog-pages').blocSpecialite(c, x)}
-<section class="cta wrap lp-fin"><h2>${esc(L.fin)}</h2><div class="row"><a class="btn btn-vert" href="${ancre}">${voirTxt}</a><a class="lnk" href="tel:${esc(tel)}">ou appelez le ${esc(R.telephone || '')}</a></div>${gBouton()}<p class="lp-autres"><a class="lnk" href="/${esc(r.slug)}">Découvrir nos autres saveurs du monde ${icon.arrow}</a></p></section>`;
-  return layout(c, { title: x.seoTitre || speTitre(x), description: x.seoDescription || speChapo(x), body, path: `/${r.slug}/${x.slug}`, image: x.bandeauPhoto || x.photo, bodyClass: 'page-lp' });
+<section class="cta wrap lp-fin"><h2>${esc(L.fin)}</h2><div class="row"><a class="btn btn-vert" href="${ancre}">${voirTxt}</a><a class="lnk" href="tel:${esc(tel)}">ou appelez le ${esc(R.telephone || '')}</a></div>${gBouton()}<p class="lp-autres">${rub ? `<a class="lnk" href="/saveurs-du-monde">Découvrir nos saveurs du monde ${icon.arrow}</a>` : `<a class="lnk" href="/${esc(r.slug)}">Découvrir nos autres saveurs du monde ${icon.arrow}</a>`}</p></section>`;
+  return layout(c, { title: x.seoTitre || titreX, description: x.seoDescription || chapoX, body, path: rub ? '/' + r.slug : `/${r.slug}/${x.slug}`, image: x.bandeauPhoto || x.photo, bodyClass: 'page-lp' });
 }
 
 function crumbs(list) {
@@ -1479,4 +1506,4 @@ function facturePage(c, f, t, { apercu = false } = {}) {
 
 module.exports = {
   sousPhotoHtml,
-  sectionsRub, plateau3dHtml, universListe, RANGEMENTS, pageSpecialites, specialite, sousVisibles, layout, home, boutique, produit, lieux, filtrerLieux, lieu, selection, texte, maison, livraison, commander, temoignages, contact, entreprises, EVTS_ENT, PAIEMENTS_ENT, legal, erreur, espaceConnexion, espace, devisPage, lieuxDuDevis, facturePage, textToHtml, V, BANDEAUX_DEFAUT, VIDEOS_ACCUEIL };
+  sectionsRub, plateau3dHtml, LANDINGS, pageLanding, universListe, RANGEMENTS, pageSpecialites, specialite, sousVisibles, layout, home, boutique, produit, lieux, filtrerLieux, lieu, selection, texte, maison, livraison, commander, temoignages, contact, entreprises, EVTS_ENT, PAIEMENTS_ENT, legal, erreur, espaceConnexion, espace, devisPage, lieuxDuDevis, facturePage, textToHtml, V, BANDEAUX_DEFAUT, VIDEOS_ACCUEIL };

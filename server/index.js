@@ -3799,6 +3799,7 @@ Réponds uniquement en JSON : {${sms ? '' : '"sujet": "...", '}"texte": "..."}`;
     if (!r) return next();
     req._masque = r.statut === 'masque';
     if (views.sousVisibles(r).length) return views.pageSpecialites(c, r);
+    if (views.LANDINGS[r.slug] && r.landing !== false) return views.pageLanding(c, r, r); // univers en page d'arrivée (Cocktails & buffets français, 2026-11-28)
     const p3 = r.slug === 'grand-large' && r.plateau3d !== false ? views.plateau3dHtml(c, r, c.byRub.get(r.slug)) : '';
     return views.boutique(c, { apres: BLOGV.blocSpecialite(c, r), intro: { titre: r.introTitre, texte: r.introTexte }, rub: r.slug, titre: r.nom, chapo: r.chapo || r.accroche, photo: r.bandeauPhoto || r.photoAccueil || r.photo, path: '/' + r.slug, liste: c.byRub.get(r.slug), sections: views.sectionsRub(r, c.byRub.get(r.slug)), avant: p3, scripts: p3 ? `<script src="/js/plateau.js?v=${views.V}" defer></script>` : '' });
   }));
