@@ -328,3 +328,5 @@ Photos regardées une à une (vraies photos, sans texte ni logo), licence Pexels
 - Vignette d'accueil La cave de Magnolia (public/site/v/accueil/boissons.mp4) : champagne servi dans une flûte au bar, extrait recadré de la vidéo Pexels 7608907 (licence Pexels), 2026-11-27.
 | Brochure · Cocktail Premium Magnolia (chef qui dresse une assiette à la pince, à la place des huîtres) | https://www.pexels.com/photo/fine-dining-experience-delicate-food-plating-30507463/ | 28/11/2026 (Jean-Luc) |
 | Coffret bois 9 cases (partout à la place des sandwichs club) | Photo de Magnolia Traiteur (Instagram), recadrée sans le logo ni les points/flèche Instagram | 28/11/2026 (Jean-Luc) |
+| Brochure · bandeau Nos desserts (buffet de desserts aux chandeliers) | https://www.pexels.com/photo/elegant-dessert-buffet-with-candelabra-40542416/ | 28/11/2026 (Jean-Luc) |
+| Brochure · ouverture « Votre réception, dans les moindres détails » (soirée d'entreprise, invités qui discutent un verre à la main) | https://www.pexels.com/photo/elegantly-dressed-people-talking-to-each-other-at-a-banquet-6762286/ | 28/11/2026 (Jean-Luc) |
