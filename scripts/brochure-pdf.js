@@ -23,7 +23,7 @@ const path = require('path');
     const out = [];
     document.querySelectorAll('.pg').forEach((pg, i) => {
       const bas = pg.getBoundingClientRect().bottom - pg.getBoundingClientRect().height * 0.03;
-      const pied = pg.querySelector('.form-bas, .pg-f');
+      const pied = pg.querySelector('.form-bas, .som-plus, .pg-f');
       const limite = pied ? pied.getBoundingClientRect().top : bas;
       pg.querySelectorAll('.compo, .cartes, .gammes, .accomp, .fdm, .etapes, .cmd-2, .som-l, .monde-g, .chiffres').forEach(b => {
         if (b.getBoundingClientRect().bottom > limite + 1) out.push(`page ${i + 1} : « ${b.className} » dépasse de ${Math.round(b.getBoundingClientRect().bottom - limite)} px`);

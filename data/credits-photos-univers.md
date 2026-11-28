@@ -330,3 +330,6 @@ Photos regardées une à une (vraies photos, sans texte ni logo), licence Pexels
 | Coffret bois 9 cases (partout à la place des sandwichs club) | Photo de Magnolia Traiteur (Instagram), recadrée sans le logo ni les points/flèche Instagram | 28/11/2026 (Jean-Luc) |
 | Brochure · bandeau Nos desserts (buffet de desserts aux chandeliers) | https://www.pexels.com/photo/elegant-dessert-buffet-with-candelabra-40542416/ | 28/11/2026 (Jean-Luc) |
 | Brochure · ouverture « Votre réception, dans les moindres détails » (soirée d'entreprise, invités qui discutent un verre à la main) | https://www.pexels.com/photo/elegantly-dressed-people-talking-to-each-other-at-a-banquet-6762286/ | 28/11/2026 (Jean-Luc) |
+| Fiche Barman (copie locale, la photo externe ne s'affichait pas dans la brochure) | https://www.pexels.com/photo/5531479/ | 28/11/2026 (Jean-Luc) |
+| DJ forfait 7 heures (photo différente du forfait 4 heures) | https://www.pexels.com/photo/man-in-black-t-shirt-using-audio-mixer-9005432/ | 28/11/2026 (Jean-Luc) |
+| Brochure · bandeau Le lieu de votre événement | https://www.pexels.com/photo/beautifully-illuminated-and-decorated-hall-in-a-luxurious-restaurant-17023014/ | 28/11/2026 (Jean-Luc) |

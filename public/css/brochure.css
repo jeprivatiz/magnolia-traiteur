@@ -102,6 +102,13 @@ h2 { font-size: 27pt; }
 .som-l .niv1 a { margin-top: 4mm; font-family: var(--serif); font-size: 14pt; color: var(--vert); border-bottom: .4mm solid var(--vert); }
 .som-l .niv1:first-child a { margin-top: 0; }
 .som-l .niv1 i { border: 0; }
+/* liens « Et aussi, en ligne » du sommaire : avis, Instagram, reportages (Jean-Luc, 2026-11-28) */
+.som-plus { position: absolute; left: 15mm; right: 15mm; bottom: 17mm; background: var(--creme); border-radius: 3mm; padding: 3mm 4mm 3.5mm; }
+.som-plus .eyebrow { margin-bottom: 2mm; }
+.som-plus ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 3mm; }
+.som-plus li { display: flex; align-items: center; gap: 2.2mm; }
+.som-plus a { text-decoration: none; font-size: 7.4pt; color: var(--gris); line-height: 1.25; }
+.som-plus a b { display: block; font-family: var(--serif); font-size: 10.5pt; font-weight: 500; color: var(--vert); }
 
 /* ouverture de chapitre */
 .ouv { background: var(--vert); color: var(--creme); }
