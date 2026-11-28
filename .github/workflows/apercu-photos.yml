@@ -1,5 +1,5 @@
 name: Aperçu de photos libres (temporaire)
-# Outil temporaire accepté par Jean-Luc le 2026-11-23 : télécharge en petit des photos candidates pour les regarder. Retiré avant la fusion.
+# 2e série. Outil temporaire accepté par Jean-Luc le 2026-11-23 : télécharge en petit des photos candidates pour les regarder. Retiré avant la fusion.
 on:
   push:
     paths:
@@ -14,7 +14,7 @@ jobs:
       - name: Télécharger
         run: |
           mkdir -p apercu-photos
-          for id in 5175355 28588868 4717550 12688989 17056964 37975399 14646749 34594386 15964967 17315458 426976 15964956 6119578 10994595 15016142 38097863; do
+          for id in 9005428 10978732 9005427 7715524 4404792 38446275 13762138 635928 31129059 2263435; do
             curl -sL -o apercu-photos/$id.jpg "https://images.pexels.com/photos/$id/pexels-photo-$id.jpeg?auto=compress&cs=tinysrgb&w=700" || true
             curl -sL -o /tmp/$id.full "https://images.pexels.com/photos/$id/pexels-photo-$id.jpeg" && identify -format "$id %w x %h\n" /tmp/$id.full >> apercu-photos/tailles.txt || true
           done
