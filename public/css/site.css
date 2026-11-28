@@ -1062,7 +1062,11 @@ body.noscroll .partage { display: none; }
   .sm-pave.on { box-shadow: inset 0 -4px 0 #b08a4f; }
   .sm-pave img, .sm-pave .noimg { width: 40px; height: 40px; }
   .sm-pave b { max-width: 170px; }
-  .sm-globe .sm-ctrl { position: absolute; bottom: 14px; right: 12px; left: 12px; justify-content: center; }
+  /* téléphone : « Vue 3D » et « Recentrer » sous la carte, dans la bande blanche avant le pied de page (Jean-Luc, 2026-11-28) */
+  .sm-globe .sm-ctrl { position: static; order: 4; display: flex; justify-content: center; gap: 10px; padding: 18px 12px; margin: 0; background: #fdfbf6; }
+  .sm-globe .sm-ctrl[hidden] { display: none; }
+  .sm-globe.sm-plat .sm-map { height: 96vw; min-height: 300px; max-height: 62vh; }
+  .sm-page .foot { margin-top: 0; }
   .sm-aide { display: none; }
   .sm-case { padding: 5px 16px 5px 5px; }
   .sm-case img { width: 36px; height: 36px; }
