@@ -320,6 +320,11 @@ function html(c, opts = {}) {
 <div class="ouv-b"><p class="ouv-num">${num}</p><h2>${esc(titre)}</h2><p>${esc(texte)}</p>
 <div class="ouv-pied"><ul>${contenu.map(t => `<li>${esc(t)}</li>`).join('')}</ul>${cle ? qr(cle, 'm', 'Voir sur le site') : ''}</div></div>${pied(n)}</section>`, titre, 1);
 
+  /* contenu des menus en liste à puces (Jean-Luc, 2026-11-28) : « A · B · C » → une puce par élément ; une phrase seule reste un paragraphe */
+  const puces = x => {
+    const l = String(x || '').split(/\s+·\s+/).map(t => t.trim().replace(/\.$/, '')).filter(Boolean);
+    return l.length > 1 ? `<ul class="puces">${l.map(t => `<li>${esc(t)}</li>`).join('')}</ul>` : `<p>${esc(x)}</p>`;
+  };
   /* page formule : grande photo, composition, QR à la place du prix */
   const formule = (d, eyebrow) => {
     const p = d.slug ? P(d.slug) : null, s = d.sous ? sous(d.sous) : null;
@@ -335,7 +340,7 @@ function html(c, opts = {}) {
     ajoute(n => `<section class="pg form" id="p${n}"><div class="form-ph">${photo(ph2, titre)}<div class="form-voile"></div><div class="form-t"><p class="eyebrow or">${esc(eyebrow)}</p><h2>${esc(titre)}</h2></div></div>
 <div class="pg-in form-in"><div class="form-intro"><p class="accroche">${esc(d.accroche || '')}</p><ul class="tags">${(d.tags || []).map(t => `<li>${esc(t)}</li>`).join('')}</ul></div>
 <p class="chapo">${esc(d.chapo || '')}</p>
-<div class="compo">${compo.map(([t, x, slug]) => `<div class="compo-b"><h4>${slug ? `<a href="${esc(lien(slug))}">${esc(t)} ↗</a>` : esc(t)}</h4><p>${esc(x)}</p></div>`).join('')}</div></div>
+<div class="compo">${compo.map(([t, x, slug]) => `<div class="compo-b"><h4>${slug ? `<a href="${esc(lien(slug))}">${esc(t)} ↗</a>` : esc(t)}</h4>${puces(x)}</div>`).join('')}</div></div>
 <div class="form-bas">${qr(cle, 'l', '')}<div class="form-bas-t"><b>Le prix, les photos et la commande</b><span>Scannez ce QR code avec l’appareil photo de votre téléphone, ou cliquez dessus : vous arrivez directement sur la page du site.</span><a href="${esc(lien(cle))}">Voir sur le site →</a></div>${vign.map(v => `<div class="form-vg">${photo(v)}</div>`).join('')}</div>${pied(n)}</section>`, d.sommaire || titre);
   };
 
