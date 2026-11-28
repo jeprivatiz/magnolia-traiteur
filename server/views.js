@@ -1003,6 +1003,7 @@ ${fiches.length ? `<section class="wrap"><div class="sec-h"><div><p class="eyebr
   <div class="ent-a">${ATOUTS_ENT.map(([ic, t, x]) => `<div class="ent-a-i"><span class="ent-ic">${ic}</span><h3>${esc(t)}</h3><p>${esc(x)}</p></div>`).join('')}</div></div></section>
 ${avisEnt.length ? `<section class="wrap ent-avis"><div class="sec-h"><div><p class="eyebrow">Ils en parlent</p><h2>La parole à nos clients entreprises</h2></div><a class="lnk" href="/temoignages">Tous les avis ${icon.arrow}</a></div>
   <div class="ent-av">${avisEnt.map(a => `<figure class="ent-q"><p class="stars" aria-label="5 sur 5">★★★★★</p>${a.titre ? `<h3>${esc(titreAvis(a.titre))}</h3>` : ''}<blockquote>« ${esc(trunc(String(a.texte).replace(/\s*\n+\s*/g, ' '), 260))} »</blockquote><figcaption>${esc([a.auteur, a.lieu].filter(Boolean).join(' · ') || 'Client entreprise')}${a.date ? `<small>${esc(a.date)}</small>` : ''}</figcaption></figure>`).join('')}</div></section>` : ''}
+${require('./blog-pages').encart(c, { entreprises: true })}
 ${chiffres ? `<section class="chiffres wrap ent-chiffres">${chiffres}</section>` : ''}
 <section class="wrap ent-form" id="devis-entreprise"><div class="ent-form-in">
   <div class="ent-form-t"><p class="eyebrow">Devis entreprise</p><h2>Décrivez-nous votre événement</h2><p class="lead">Quelques champs suffisent : un conseiller vous rappelle et vous envoie votre devis sous 24 h, au nom de votre société.</p>

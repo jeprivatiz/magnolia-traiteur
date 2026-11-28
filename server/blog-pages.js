@@ -19,10 +19,14 @@ function carte(a, { grande = false } = {}) {
   const p = a.photos?.[0];
   return `<a class="rep-c${grande ? ' grande' : ''}" href="${href(a)}" data-cat="${esc(a.categorie)}">${photo(p?.src, p?.legende || a.titre)}<span class="badge">${esc(CATEGORIES[a.categorie] || '')}</span><span class="x"><small>${esc(surTitre(a))}</small><b>${esc(a.titre)}</b></span></a>`;
 }
-const ongletsCat = (actif, lien) => `<div class="rep-onglets" role="group" aria-label="Filtrer les reportages">${[['', 'Tous'], ['entreprises', 'Entreprises'], ['particuliers', 'Particuliers'], ['maison', 'La maison Magnolia']].map(([k, t]) => `<a href="/blog${k ? '?type=' + k : ''}"${lien ? '' : ` data-rep-f="${k.replace(/s$/, '')}"`} class="${actif === k ? 'on' : ''}"${actif === k ? ' aria-current="true"' : ''}>${t}</a>`).join('')}</div>`;
+const ONGLETS = [['', 'Tous'], ['entreprises', 'Entreprises'], ['particuliers', 'Particuliers'], ['maison', 'La maison Magnolia']];
+const ongletsCat = (actif, lien, onglets = ONGLETS) => `<div class="rep-onglets" role="group" aria-label="Filtrer les reportages">${onglets.map(([k, t, h]) => `<a href="${h || '/blog' + (k ? '?type=' + k : '')}"${lien ? '' : ` data-rep-f="${k.replace(/s$/, '')}"`} class="${actif === k ? 'on' : ''}"${actif === k ? ' aria-current="true"' : ''}>${t}</a>`).join('')}</div>`;
 
 /* bloc de l'accueil, juste après « Comment commander » (Jean-Luc, 2026-11-27) : seulement s'il y a des reportages publiés */
-function encart(c) {
+/* { entreprises: true } : version de la page Entreprises, seulement les reportages Entreprises et La maison Magnolia,
+   sans bouton Particuliers (Jean-Luc, 2026-11-28) */
+function encart(c, { entreprises = false } = {}) {
+  if (entreprises) return encartEntreprises(c);
   const l = c.blog || [];
   if (!l.length) return '';
   /* les 3 derniers, plus les 3 derniers de chaque catégorie pour les boutons Entreprises / Particuliers */
@@ -33,6 +37,20 @@ function encart(c) {
  ${ongletsCat('', false)}</div>
  <div class="rep-l n${Math.min(3, l.length)}">${choisis.map((a, i) => carte(a, { grande: i === 0 }).replace('<a class', `<a${l.indexOf(a) < 3 ? '' : ' hidden'} class`)).join('')}</div>
  <div class="rep-bas"><p>Un nouveau reportage chaque semaine.</p><a class="btn btn-vert" href="/blog">Voir tous nos reportages</a></div>
+</div></section>`;
+}
+
+function encartEntreprises(c) {
+  const l = (c.blog || []).filter(a => a.categorie === 'entreprise' || a.categorie === 'maison');
+  if (!l.length) return '';
+  const choisis = [...l.slice(0, 3), ...l.filter(a => a.categorie === 'entreprise').slice(0, 3), ...l.filter(a => a.categorie === 'maison').slice(0, 3)].filter((a, i, t) => t.indexOf(a) === i);
+  const onglets = [['', 'Tous', '/blog?type=entreprises'], ['entreprises', 'Entreprises'], ['maison', 'La maison Magnolia']];
+  return `<section class="rep-sec ent-blog" data-rep><div class="wrap">
+ <div class="rep-tete"><div class="t"><p class="eyebrow">Le blog Magnolia</p><h2>Nos événements d’entreprise en reportage</h2>
+ <p class="int">Séminaires, soirées, inaugurations : nous racontons certaines de nos prestations en photos, avec les coulisses de la maison Magnolia. Pour vous inspirer et voir concrètement comment nous travaillons.</p></div>
+ ${ongletsCat('', false, onglets)}</div>
+ <div class="rep-l n${Math.min(3, l.length)}">${choisis.map((a, i) => carte(a, { grande: i === 0 }).replace('<a class', `<a${l.indexOf(a) < 3 ? '' : ' hidden'} class`)).join('')}</div>
+ <div class="rep-bas"><p>Un nouveau reportage chaque semaine.</p><a class="btn btn-vert" href="/blog?type=entreprises">Voir nos reportages entreprises</a></div>
 </div></section>`;
 }
 

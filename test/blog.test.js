@@ -98,6 +98,13 @@ test('l’IA rédige le reportage, il reste caché jusqu’à « Publier », pui
     assert.match(maison, /Notre nouveau four à pizza/);
     assert.doesNotMatch(maison, /Un titre plus court/);
     assert.match(await (await fetch(base + '/blog/notre-nouveau-four-a-pizza')).text(), /signé Magnolia/);
+    /* page Entreprises : blog Entreprises + La maison Magnolia, sans Particuliers (Jean-Luc, 2026-11-28) */
+    const ent = await (await fetch(base + '/entreprises')).text();
+    assert.match(ent, /Nos événements d’entreprise en reportage/);
+    assert.match(ent, /Un titre plus court/);
+    assert.match(ent, /Notre nouveau four à pizza/);
+    assert.match(ent, /data-rep-f="maison"/);
+    assert.doesNotMatch(ent, /data-rep-f="particulier"|>Particuliers</);
     /* « Hors ligne » : le reportage disparaît du site (page, accueil, liste), puis revient */
     const enLigne = (await call('/api/admin/blog/' + m.j.id)).j;
     assert.equal((await call('/api/admin/blog/' + m.j.id, { method: 'PUT', body: { ...enLigne, statut: 'brouillon' } })).status, 200);
