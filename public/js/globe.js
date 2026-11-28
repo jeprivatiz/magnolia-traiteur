@@ -2,6 +2,8 @@
    Pavés des spécialités à gauche ; un clic fait tourner la Terre, une flèche part du pavé vers le pays,
    le pays se soulève en or, un point clignote et une case « Voir nos propositions » apparaît. */
 (function () {
+  /* version du site : les cartes (monde.json…) changent avec lui, sinon le téléphone garde l'ancienne 7 jours (Jean-Luc, 2026-11-28) */
+  const VER = ((document.currentScript && document.currentScript.src) || '').split('?v=')[1] || '2';
   'use strict';
   const root = document.querySelector('[data-sm]');
   if (!root) return;
@@ -324,9 +326,9 @@
     root.smMap = map;
     map.on('error', () => {});
     map.on('load', async () => {
-      try { [geo] = await Promise.all([fetch('/data/monde.json').then(r => r.json())]); } catch (e) { return; }
+      try { [geo] = await Promise.all([fetch('/data/monde.json?v=' + VER).then(r => r.json())]); } catch (e) { return; }
       let points = [];
-      try { points = await fetch('/data/monde-points.json').then(r => r.json()); } catch (e) { /* sans points */ }
+      try { points = await fetch('/data/monde-points.json?v=' + VER).then(r => r.json()); } catch (e) { /* sans points */ }
       root.classList.add('pret');
       const nos = new Set(items.flatMap(x => x.ids));
       map.addSource('pays', { type: 'geojson', data: geo });

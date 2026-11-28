@@ -2,6 +2,8 @@
    Globe dessiné en canvas 2D (projection orthographique), sans MapLibre : léger, fluide sur téléphone.
    Terres en points crème, nos pays en or ; il ne tourne que lorsqu'il est visible, image fixe si animations réduites. */
 (function () {
+  /* version du site : les cartes (monde.json…) changent avec lui, sinon le téléphone garde l'ancienne 7 jours (Jean-Luc, 2026-11-28) */
+  const VER = ((document.currentScript && document.currentScript.src) || '').split('?v=')[1] || '2';
   'use strict';
   const tile = document.querySelector('[data-vg]');
   if (!tile) return;
@@ -113,7 +115,7 @@
   addEventListener('resize', () => { taille(); if (calme || !vu) dessiner(performance.now()); });
   new IntersectionObserver(e => { vu = e[0].isIntersecting; relancer(); }, { rootMargin: '80px' }).observe(tile);
   document.addEventListener('visibilitychange', () => { if (document.hidden) { cancelAnimationFrame(raf); raf = 0; } else relancer(); });
-  Promise.all([fetch('/data/monde.json').then(r => r.json()), fetch('/data/monde-points.json').then(r => r.json())])
+  Promise.all([fetch('/data/monde.json?v=' + VER).then(r => r.json()), fetch('/data/monde-points.json?v=' + VER).then(r => r.json())])
     .then(([m, p]) => { charger(m, p); tile.classList.add('vg-pret'); dessiner(performance.now()); relancer(); })
     .catch(() => { /* la photo de la vignette reste affichée */ });
 })();
