@@ -335,3 +335,6 @@ Photos regardées une à une (vraies photos, sans texte ni logo), licence Pexels
 | Brochure · bandeau Le lieu de votre événement | https://www.pexels.com/photo/beautifully-illuminated-and-decorated-hall-in-a-luxurious-restaurant-17023014/ | 28/11/2026 (Jean-Luc) |
 | Brochure · Bar à pâtes (chef qui sert les pâtes) | https://www.pexels.com/photo/a-chef-putting-pasta-on-a-plate-17216559/ | 28/11/2026 (Jean-Luc) |
 | Brochure · Chef sushi à domicile (mains qui tranchent le saumon) | https://www.pexels.com/photo/photo-of-person-slicing-salmon-3296277/ | 28/11/2026 (Jean-Luc) |
+| Brochure · vignettes cocktails/buffets français : canapés et verrines (3933162), mini-brochettes (5039343), brochettes tomate-mozzarella (22820141), taboulé (5191816), nems (4001867), empanadas (12263158) | https://www.pexels.com/photo/<numéro>/ | 28/11/2026 (Jean-Luc) |
+| Brochure · vignettes cocktails/buffets français : canapés et verrines (3933162), mini-brochettes (5039343), brochettes tomate-mozzarella (22820141), taboulé (5191816), nems (4001867), empanadas (12263158) | https://www.pexels.com/photo/<numéro>/ | 28/11/2026 (Jean-Luc) |
+| Plateau de charcuteries (site et brochure) | https://www.pexels.com/photo/sliced-meat-on-brown-wooden-chopping-board-3593425/ | 28/11/2026 (Jean-Luc) |
