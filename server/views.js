@@ -23,6 +23,7 @@ const icon = {
   play: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>',
   arrow: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   share: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7.5 7.5 12 3l4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 11H6.5A1.5 1.5 0 0 0 5 12.5v7A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5v-7a1.5 1.5 0 0 0-1.5-1.5H16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  doc: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m-4.5-4.5L12 15l4.5-4.5M5 19h14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   phone: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>',
 };
 
@@ -115,6 +116,7 @@ ${schema ? `<script type="application/ld+json">${JSON.stringify(schema).replace(
     <button class="burger" type="button" aria-label="Ouvrir le menu" data-open-menu>${icon.menu}</button>
     <a class="brand" href="/" aria-label="${esc(R.nom)}, accueil">${MONO}<span class="brand-txt">Magnolia<small>${esc(R.sousNom || 'Traiteur · Événementiel')}</small></span></a>
     <nav class="nav" aria-label="Principal">
+      <a class="nav-l nav-broch" href="/telecharger-la-brochure" target="_blank" rel="noopener" title="Télécharger notre brochure (PDF à imprimer)">${icon.doc}<span>Brochure</span></a>
       <button type="button" class="nav-l" data-open-search>${icon.search}<span>Rechercher</span></button>
       <a class="nav-l" href="/boutique">La boutique</a>
       <a class="nav-l" href="/lieux">Lieux</a>
@@ -130,6 +132,7 @@ ${schema ? `<script type="application/ld+json">${JSON.stringify(schema).replace(
 <div class="drawer" data-menu hidden>
   <div class="drawer-in" role="dialog" aria-modal="true" aria-label="Menu">
     <div class="drawer-h"><span class="brand-txt">Magnolia<small>${esc(R.sousNom || '')}</small></span><button type="button" class="x" data-close-menu aria-label="Fermer">×</button></div>
+    <a class="drawer-broch" href="/telecharger-la-brochure" target="_blank" rel="noopener">${icon.doc}<span><b>Télécharger notre brochure</b>PDF à feuilleter ou à imprimer</span></a>
     <form class="drawer-s" action="/boutique" role="search"><input type="search" name="q" placeholder="Paëlla, DJ, fruits de mer…" aria-label="Rechercher"><button aria-label="Rechercher">${icon.search}</button></form>
     <p class="eyebrow">Nos univers</p>
     <ul class="drawer-l">${rubs.map(r => `<li><a href="${rubHref(r)}">${esc(r.nom)}<span>${c.byRub.get(r.slug)?.length || ''}</span></a></li>`).join('')}<li><a href="/lieux">Lieux de réception<span>${c.lieux.filter(l => l.statut !== 'masque').length}</span></a></li></ul>

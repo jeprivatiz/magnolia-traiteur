@@ -13,6 +13,7 @@ const { createBrevo, isEmail } = require('./brevo');
 const { createCatalogue } = require('./catalogue');
 const { seed, importerAvisAncienSite, initSousRubriques } = require('./seed');
 const views = require('./views');
+const BROCHURE = require('./brochure');
 const { preparerAlerte } = require('./relances');
 const STATS = require('./statistiques');
 const ANC = require('./anciens');
@@ -389,6 +390,25 @@ async function createApp(opts = {}) {
       { src: '/site/c/materiel/verres-tumbler-1.webp', alt: 'Verre tumbler en verre, vide, sur fond blanc' },
       { src: '/site/c/materiel/verres-tumbler-2.webp', alt: 'Verre tumbler rempli de citronnade avec glaçons et rondelles de citron' }] });
     await store.set('_migr/tumblerPhotos', { at: new Date().toISOString() });
+  }
+  /* une seule fois (Jean-Luc, 2026-11-27) : les produits de sa brochure absents du site sont créés avec le prix de la brochure.
+     Seule manquait l'enceinte Bose L1 Pro (72,00 € TTC la location, page 77), rangée à côté de la S1 Pro. */
+  if (!(await store.get('_migr/enceinteL1'))) {
+    const deja = (await store.list('produits')).some(d => d.data && (d.data.slug === 'enceinte-bose-l1-pro' || /\bL1\s*Pro\b/i.test(d.data.titre || '')));
+    const s1 = await store.get('produits/enceinte-bose-s1-pro');
+    if (!deja) {
+      const texte = 'Installez une ambiance qui rassemble vos invités. Avec son format en colonne, la Bose L1 Pro accompagne les discours, les moments musicaux et les temps forts de votre réception. Livrée avec son câble XLR.';
+      await store.set('produits/enceinte-bose-l1-pro', {
+        id: 'enceinte-bose-l1-pro', slug: 'enceinte-bose-l1-pro', rubrique: s1?.rubrique || 'musique-animations', autresRubriques: s1?.autresRubriques || ['mobilier-a-la-location'],
+        titre: 'Enceinte Bose L1 Pro', prixCents: 7200, prixTexte: '72,00 € TTC', unite: 'location', min: 1, minimumTexte: 'Quantité et conditions à confirmer',
+        extrait: texte, description: [texte], photos: [{ src: '/site/c/bose-l1-pro.webp', alt: 'Enceinte colonne Bose L1 Pro avec son caisson de basses' }],
+        video: null, groupes: [], variantes: [], sections: [], details: [], page: 77,
+        regles: s1?.regles || { portee: null, carte: null, adaptationCents: 0, horaire: false, personnel: null, packs: false, notePrix: null },
+        ordre: (s1?.ordre ?? 90) + 1, statut: 'visible', maison: true, tva: 20, coutCents: null, allergenes: [],
+        rangement: s1?.rangement || 'son-lumiere', rangements: s1?.rangements || { 'mobilier-a-la-location': 'son-lumiere' }, creeLe: new Date().toISOString(),
+      });
+    }
+    await store.set('_migr/enceinteL1', { at: new Date().toISOString(), cree: !deja });
   }
 
   /* ---------- titres et descriptions « dans Google » (Jean-Luc, 2026-11-24) ----------
@@ -3505,6 +3525,28 @@ Réponds uniquement en JSON : {${sms ? '' : '"sujet": "...", '}"texte": "..."}`;
   }));
   app.get('/lieux', page((c, req) => views.lieux(c, req.query)));
   app.get('/lieux/:slug', page((c, req, res, next) => { const l = c.lieux.find(x => x.slug === req.params.slug && (x.statut !== 'masque' || apercu(req))); if (!l) return next(); req._masque = l.statut === 'masque'; return views.lieu(c, l); }));
+  /* la brochure sans prix, avec QR codes (Jean-Luc, 2026-11-27) : voir server/brochure.js */
+  const PDF_BROCHURE = path.join(PUBLIC, 'magnolia-traiteur-brochure.pdf');
+  const baseBrochure = req => {
+    const q = String(req.query.base || '');
+    if (/^https?:\/\/[a-z0-9.-]+(:\d+)?$/i.test(q)) return q;
+    const e = String(env.BROCHURE_URL || '').replace(/\/+$/, '');
+    if (/^https?:\/\//.test(e)) return e;
+    return req.protocol + '://' + req.get('host');
+  };
+  app.get('/brochure', wrap(async (req, res) => {
+    const c = await cat.get();
+    const pdf = fs.existsSync(PDF_BROCHURE) ? '/telecharger-la-brochure' : '';
+    res.set('X-Robots-Tag', 'noindex').set('Cache-Control', 'no-store').type('html')
+      .send(BROCHURE.html(c, { base: baseBrochure(req), v: views.V, pdf, barre: !('impression' in req.query) }));
+  }));
+  app.get('/b/:cle', wrap(async (req, res) => { res.set('Cache-Control', 'no-store').redirect(302, BROCHURE.cible(await cat.get(), req.params.cle)); }));
+  app.get(['/telecharger-la-brochure', '/brochure.pdf'], (req, res) => {
+    if (!fs.existsSync(PDF_BROCHURE)) return res.redirect(302, '/brochure');
+    res.set('Cache-Control', 'no-cache').set('X-Robots-Tag', 'noindex');
+    res.set('Content-Disposition', 'inline; filename="Brochure-Magnolia-Traiteur.pdf"');
+    res.type('application/pdf').sendFile(PDF_BROCHURE);
+  });
   app.get('/ma-selection', page(c => views.selection(c)));
   app.get('/maison', page(c => views.maison(c)));
   app.get('/zone-de-livraison', page(c => views.livraison(c)));
