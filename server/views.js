@@ -554,8 +554,8 @@ const LANDINGS = {
   'buffet-antillais': {
     surtitre: 'Traiteur antillais · par Magnolia Traiteur',
     signature: 'Les Antilles s’invitent à votre table',
-    /* vidéos jouées à la suite de celle du bandeau (réglage back-office), en fondu, puis retour au début (Jean-Luc 2026-11-28 : mariage antillais en 2e) */
-    suite: [['/site/v/bandeaux/mariage-antillais.mp4', '/site/v/bandeaux/mariage-antillais.jpg']],
+    /* suite: [[vidéo, image]] = vidéos jouées après celle du bandeau, en fondu (option). Antillais : les mariés sont
+       désormais dans la vidéo du bandeau elle-même (buffet-antillais-mariage.mp4), plus fiable sur iPhone. */
     defile: ['Plus de 700 prestations par an', '★★★★★ 4,9/5 sur Google', '{avis} avis clients vérifiés', 'Le spécialiste de la cuisine antillaise sur Paris et l’Île-de-France', 'Accras, boudins, colombo : la vraie cuisine des îles', 'Livraison 7 j/7', 'Mariages · anniversaires · baptêmes · entreprises'],
     /* avis du site actuel qui parlent du buffet antillais (ids mt_ = data/avis-magnolia.json) */
     avis: ['mt_26884', 'mt_24710', 'mt_51780', 'mt_28562', 'mt_27254', 'mt_57508'],
