@@ -45,7 +45,7 @@ const REGLAGES_DEFAUT = {
   origine: ORIGINE_LABO,
   horaires: 'Du lundi au vendredi de 9 h à 18 h, le samedi de 10 h à 18 h.',
   instagram: 'https://www.instagram.com/magnoliatraiteur/',
-  avisGoogle: { note: '4,9', nombre: 'plus de 650', url: 'https://search.google.com/local/reviews?placeid=ChIJQb9vuprX5UcR2-iHFOth55k' },
+  avisGoogle: { note: '4,9', nombre: '', url: 'https://search.google.com/local/reviews?placeid=ChIJQb9vuprX5UcR2-iHFOth55k' },
   mentionPied: 'Paris & Île-de-France · Le Traiteur Antillais est un département de Magnolia Traiteur',
   accueil: {
     surtitre: 'L’art de recevoir, signé Magnolia',
@@ -57,7 +57,7 @@ const REGLAGES_DEFAUT = {
       { src: '/site/v/chinois-boucle.mp4', poster: '/site/v/chinois-boucle.jpg', titre: 'Buffet chinois', lien: '/buffet-chinois' },
     ],
     chiffres: [
-      { valeur: '4,9/5', label: 'Sur Google, plus de 650 avis' },
+      { valeur: '4,9/5', label: 'Note Google' },
       { valeur: '800', label: 'plus de 800 prestations par an' },
       { valeur: '7 j/7', label: 'livraison en Île-de-France' },
       { valeur: '1 seule', label: 'demande pour tout votre événement' },
@@ -1020,6 +1020,14 @@ async function initSousRubriques(store, { log = console } = {}) {
       : /sur google/i.test(x.label || '') ? { ...x, label: 'Sur Google, plus de 650 avis' } : x);
     const ag = RSh.avisGoogle && /800/.test(RSh.avisGoogle.nombre || '') ? { ...RSh.avisGoogle, nombre: 'plus de 650' } : RSh.avisGoogle;
     await store.set('site/reglages', { ...RSh, avisGoogle: ag, accueil: { ...(RSh.accueil || {}), chiffres: ch }, chiffre800: true });
+  }
+  /* Avis Google (Jean-Luc, 2026-11-28) : les 650 avis ne viennent PAS de Google (avis recueillis par Magnolia et publiés sur son site).
+     On garde la note Google 4,9 et ses étoiles, sans nombre d'avis rattaché à Google. Une fois. */
+  const RG = await store.get('site/reglages');
+  if (RG && !RG.avisGoogleSans650) {
+    const ch = (RG.accueil?.chiffres || []).map(x => /google/i.test(x.label || '') && /650/.test(x.label || '') ? { ...x, label: 'Note Google' } : x);
+    const ag = RG.avisGoogle && /650/.test(RG.avisGoogle.nombre || '') ? { ...RG.avisGoogle, nombre: '' } : RG.avisGoogle;
+    await store.set('site/reglages', { ...RG, avisGoogle: ag, accueil: { ...(RG.accueil || {}), chiffres: ch }, avisGoogleSans650: true });
   }
   /* bulles de l'accueil : nouvel ordre de Jean-Luc (2026-11-23). Une fois ; modifiables ensuite dans Photos & textes. */
   const RSb = await store.get('site/reglages');
