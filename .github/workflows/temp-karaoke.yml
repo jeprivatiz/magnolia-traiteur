@@ -1,0 +1,40 @@
+name: Temporaire photos karaoké
+# Outil temporaire : télécharge des photos libres candidates pour la fiche Animation karaoké. Retiré avant la fusion.
+on:
+  push:
+    paths:
+      - .github/workflows/temp-karaoke.yml
+permissions:
+  contents: write
+jobs:
+  dl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Téléchargement
+        run: |
+          mkdir -p apercu-karaoke && cd apercu-karaoke
+          for v in 30489716 18433817 16100487 18433845 7886998 9009602 6762298; do
+            curl -fsSL -A "Mozilla/5.0 (magnolia-recuperation)" -o "px-$v.jpg" "https://images.pexels.com/photos/$v/pexels-photo-$v.jpeg?auto=compress&cs=tinysrgb&w=700" || echo "échec $v"
+          done
+          curl -fsSL -A "MagnoliaTraiteurSite/1.0 (photos libres)" "https://api.openverse.org/v1/images/?q=karaoke%20party&page_size=12&license_type=commercial,modification" -o ov.json || echo "openverse ko"
+          python3 - <<'PY'
+          import json,urllib.request
+          try: d=json.load(open('ov.json'))
+          except Exception as e: print(e); d={'results':[]}
+          m=open('meta.jsonl','w')
+          for i,r in enumerate(d.get('results',[])):
+            try:
+              req=urllib.request.Request(r.get('thumbnail') or r['url'],headers={'User-Agent':'MagnoliaTraiteurSite/1.0'})
+              open(f'ov-{i}.jpg','wb').write(urllib.request.urlopen(req,timeout=30).read())
+              m.write(json.dumps({'f':f'ov-{i}.jpg','titre':r.get('title'),'page':r.get('foreign_landing_url'),'url':r.get('url'),'licence':f"{r.get('license')} {r.get('license_version')}",'auteur':r.get('creator')},ensure_ascii=False)+'\n')
+            except Exception as e: print('dl',i,e)
+          PY
+          ls -la
+      - name: Enregistrer
+        run: |
+          git config user.name "magnolia-bot"
+          git config user.email "magnolia-bot@users.noreply.github.com"
+          git add apercu-karaoke
+          git commit -m "Temporaire : photos karaoké candidates" && git push || echo rien
