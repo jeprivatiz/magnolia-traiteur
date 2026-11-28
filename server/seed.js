@@ -1205,6 +1205,51 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('site/reglages', { ...(await store.get('site/reglages')), blinis25: true });
   }
 
+  /* Escape game (Jean-Luc, 2026-11-28) : escape game mobile installé sur le lieu de l'événement, 70 € TTC par personne,
+     15 personnes minimum (prix d'achat 50 € par personne, jamais montré au client). Présentation dans la description sous le prix,
+     détail en puces dans la description sous la photo ; plus de « Sur devis ». Le personnel de service et les packs vaisselle
+     ne sont plus proposés sur cette fiche (les game masters sont compris). Une fois ; modifiable ensuite dans Catalogue > fiche. */
+  const REg = await store.get('site/reglages');
+  if (REg && !REg.escapeGame1) {
+    for (const { id, data: p } of await store.list('produits')) {
+      if ((p.slug || id) !== 'escape-game') continue;
+      await store.set('produits/' + id, { ...p, titre: 'Escape game mobile', prixCents: 7000, coutCents: 5000, prixTexte: null, unite: 'personne', min: 15, minimumTexte: null, aCompleter: false,
+        extrait: 'Une mission immersive installée sur le lieu de votre événement : en équipes, vos invités fouillent, décodent et résolvent les énigmes avant la fin du chrono.',
+        description: [
+          'Plongez vos équipes au cœur d’une mission immersive, directement sur le lieu de votre événement.',
+          'Notre escape game mobile transforme vos bureaux, votre salle de séminaire ou votre lieu de réception en terrain d’enquête. Réparties en équipes, les personnes fouillent, décodent, manipulent et résolvent une série d’énigmes liées entre elles pour dénouer l’intrigue avant la fin du chrono. Idéal pour fédérer, faire réfléchir et faire collaborer vos invités.',
+        ],
+        sousPhoto: [
+          '**CE QUE VIVENT LES PARTICIPANTS**',
+          '- **Une immersion immédiate** : un briefing mis en scène, une ambiance dédiée et un fil rouge qui embarquent tout le groupe, quel que soit le profil des joueurs.',
+          '- **Des énigmes variées et accessibles** : logique, codes, indices cachés, manipulations et défis à plusieurs, pour apprendre à s’écouter, se répartir les rôles et décider ensemble.',
+          '- **Un encadrement attentif** : nos game masters donnent le rythme, glissent un indice quand une équipe bloque et gardent la tension jusqu’aux dernières secondes.',
+          '- **Un moment d’échange pour finir** : le dénouement de l’histoire, les résultats et un débriefing convivial sur la coopération de chaque équipe.',
+          '',
+          '**INFOS CLÉS**',
+          '- **Tarif** : 70 € TTC par personne, 15 personnes minimum.',
+          '- **Équipes** : de 4 à 7 joueurs.',
+          '- **Durée conseillée** : 1 h 30 à 2 h, accueil, briefing, jeu et débriefing compris.',
+          '- **Lieu** : en intérieur, à l’endroit de votre choix (bureaux, hôtel, salle de séminaire, lieu de réception).',
+          '- **Encadrement** : game masters dédiés et matériel de jeu complet fourni.',
+          '',
+          '**COMPRIS DANS LE PRIX**',
+          '- Le scénario, les supports d’enquête et tout le matériel d’énigmes.',
+          '- L’animation et l’encadrement de la partie par notre équipe.',
+          '- L’installation et le démontage sur place.',
+          '',
+          '**EN OPTION, SUR DEMANDE**',
+          '- Une partie aux couleurs de votre entreprise ou de votre événement (visuels, messages clés, clin d’œil à votre métier ou à votre thème).',
+          '- Des comédiens, des récompenses pour l’équipe gagnante, des photos ou une vidéo de la partie.',
+          '- Hors Île-de-France : nous consulter pour le déplacement.',
+        ],
+        sousPhotoAuto: false,
+        regles: { ...(p.regles || {}), personnel: null, packs: false },
+        updatedAt: new Date().toISOString() });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), escapeGame1: true });
+  }
+
   /* Duo Flaming Soul (Jean-Luc, 2026-11-28) : 1 790 € TTC la prestation (prix d'achat 1 000 € TTC, jamais montré au client) ;
      la mention « Sur devis » disparaît. Une fois ; modifiable ensuite dans Catalogue > fiche. */
   const RFs = await store.get('site/reglages');
