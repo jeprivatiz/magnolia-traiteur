@@ -944,7 +944,8 @@ const BESOINS_ENT = [
   ['Personnel de réception', 'Maîtres d’hôtel, serveurs, barmen', '/personnel'],
   /* mange-debout dans un lieu d'entreprise, plus de photo de mariage (Jean-Luc, 2026-11-28) */
   ['Mobilier & matériel', 'Mange-debout, nappes, vaisselle, buffets', '/mobilier-a-la-location', '/site/c/entreprises/mange-debout.webp'],
-  ['Soirée d’entreprise', 'DJ, musiciens, animations et spectacles', '/musique-animations'],
+  /* titre voulu par Jean-Luc (2026-11-28) */
+  ['Personnel pour animation', 'DJ, musiciens, animations et spectacles', '/musique-animations'],
   ['Lieux pour vos événements', 'Péniches, lofts, salons à privatiser', '/lieux'],
 ];
 /* avis d'entreprises (repérés par une phrase de leur texte, la liste des avis vient du back-office) */
