@@ -982,7 +982,7 @@ body.noscroll .partage { display: none; }
 .sm-globe .sm-map { position: absolute; inset: 0; z-index: 2; }
 .sm-globe .maplibregl-canvas { outline: none; }
 .sm-fleche { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 4; pointer-events: none; overflow: visible; }
-.sm-fleche path { stroke: #b08a4f; }
+.sm-fleche path[data-sm-trait] { filter: drop-shadow(0 0 2px rgba(226, 196, 149, .7)); }
 .sm-tete { position: absolute; z-index: 5; top: clamp(20px, 4vh, 44px); left: 50%; transform: translateX(-50%); width: min(860px, calc(100% - 420px)); margin-left: 170px; text-align: center; pointer-events: none; }
 .sm-tete > * { pointer-events: auto; }
 .sm-tete .eyebrow { color: #b08a4f; margin: 0 0 .35em; }
@@ -1024,6 +1024,14 @@ body.noscroll .partage { display: none; }
 .sm-paris { display: flex; align-items: center; gap: 6px; pointer-events: none; }
 .sm-paris i { width: 9px; height: 9px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 2px #c9a46a; }
 /* la pointe s'arrête juste avant le point de Paris (centre de la boîte = Paris, triangle à gauche) */
+/* arrivée du pointillé : le point s'allume dans une petite explosion de lumière, puis la page s'ouvre (Jean-Luc, 2026-11-28) */
+.sm-case.attente { visibility: hidden; }
+.sm-point.boum::before, .sm-point.boum::after { content: ''; position: absolute; left: 50%; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%; pointer-events: none; }
+.sm-point.boum::before { background: radial-gradient(circle, #fff 0, #ffe9b8 30%, rgba(226, 196, 149, .6) 55%, rgba(226, 196, 149, 0) 72%); animation: smBoum .8s ease-out forwards; }
+.sm-point.boum::after { border: 2px solid #f6e3b8; animation: smBoumOnde .9s ease-out forwards; }
+.sm-point.boum b { animation: none; background: #fff; box-shadow: 0 0 0 3px #e2c495, 0 0 26px 10px rgba(255, 236, 190, .95); }
+@keyframes smBoum { 0% { transform: scale(.3); opacity: 1; } 60% { opacity: .9; } 100% { transform: scale(5); opacity: 0; } }
+@keyframes smBoumOnde { from { transform: scale(.5); opacity: 1; } to { transform: scale(8); opacity: 0; } }
 /* nos spécialités sur la carte : point doré qui clignote + nom du pays (Jean-Luc, 2026-11-28, comme la brochure) */
 .sm-spe { position: relative; width: 16px; height: 16px; padding: 0; border: 0; background: none; cursor: pointer; font: inherit; }
 .sm-spe b { position: absolute; inset: 4px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 2px #c9a46a, 0 0 10px 2px rgba(226, 196, 149, .8); animation: smClign 1.3s ease-in-out infinite; }
