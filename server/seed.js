@@ -2007,6 +2007,14 @@ async function initSousRubriques(store, { log = console } = {}) {
     if (sm) await store.set('rubriques/saveurs-du-monde', { ...sm, sous: (sm.sous || []).map(x => x.slug === 'buffet-antillais' ? { ...x, bandeauVideo: '/site/v/bandeaux/buffet-antillais.mp4', bandeauPoster: '/site/v/bandeaux/buffet-antillais.jpg' } : x) });
     await store.set('site/reglages', { ...(await store.get('site/reglages')), bandeauxVideos2: true });
   }
+  /* Buffet antillais (Jean-Luc, 2026-11-28) : vidéo des mariés antillais (Pexels 6429383, envoyée par lui) EN PREMIER,
+     puis les accras, puis le repas à table, dans un seul fichier (en fondu). Seulement si la vidéo n'a pas été changée. Une fois. */
+  const RBm = await store.get('site/reglages');
+  if (RBm && !RBm.bandeauAntillaisMariage) {
+    const sm = await store.get('rubriques/saveurs-du-monde');
+    if (sm) await store.set('rubriques/saveurs-du-monde', { ...sm, sous: (sm.sous || []).map(x => x.slug === 'buffet-antillais' && (!x.bandeauVideo || x.bandeauVideo === '/site/v/bandeaux/buffet-antillais.mp4') ? { ...x, bandeauVideo: '/site/v/bandeaux/buffet-antillais-mariage.mp4', bandeauPoster: '/site/v/bandeaux/buffet-antillais-mariage.jpg' } : x) });
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), bandeauAntillaisMariage: true });
+  }
   /* Jean-Luc (2026-11-24) : vraies vidéos en haut de 2 autres pages, sans photo dessous. Spécialités japonaises :
      un chef pose le saumon sur le maki puis le tranche (Pexels 8901982 + 8901980). Cocktails & buffets : petits fours
      pris sur le buffet, invités en tenue avec un verre, cocktail du soir en smoking (Pexels 6760602, 6761146, 12350362). Une fois. */
