@@ -285,7 +285,7 @@ async function createApp(opts = {}) {
   /* une seule fois (Jean-Luc, 2026-11-28) : dans les reportages, la photo des 3 serveurs SANS logo est remplacée par celle
      tirée de la vidéo, où le logo Magnolia se voit sur les tabliers */
   if (!(await store.get('_migr/blogServeursLogo'))) {
-    const SANS = '/site/c/antilles-menus/buffet-equipe-colombo-20261103-sans-logo-20261106.webp.webp', AVEC = '/site/c/antilles-menus/equipe-3-serveurs-logo.webp';
+    const SANS = '/site/c/antilles-menus/buffet-equipe-colombo-20261103-sans-logo-20261106.webp.webp', AVEC = '/site/c/antilles-menus/equipe-3-serveurs-mt.webp';
     let n = 0;
     for (const d of await store.list('blog')) {
       const a = d.data; if (!a || !(a.photos || []).some(p => p.src === SANS)) continue;
