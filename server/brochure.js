@@ -387,7 +387,7 @@ function html(c, opts = {}) {
   };
 
   /* ---------- chapitre 1 : le traiteur français ---------- */
-  ouverture('01', 'Le traiteur français', 'Du petit-déjeuner au dîner : cocktails déjeunatoires ou dînatoires, buffets généreux et repas servis à table, des recettes de tradition et des bouchées raffinées préparées pour vos invités.', '/site/c/carte-magnolia-bandeau-chef.webp', 'cocktails-buffets', ['Nos petits-déjeuners', 'Nos cocktails & buffets français', 'La carte Magnolia : repas servi à table, entrées, plats, desserts']);
+  ouverture('01', 'Le traiteur français', 'Du petit-déjeuner au dîner : cocktails déjeunatoires ou dînatoires, buffets généreux et repas servis à table, des recettes de tradition et des bouchées raffinées préparées pour vos invités.', '/site/c/chef-toque-buffet.webp' /* chef en toque, manches longues : jamais de bras poilus sur les pages traiteur (Jean-Luc, 2026-11-28) */, 'cocktails-buffets', ['Nos petits-déjeuners', 'Nos cocktails & buffets français', 'La carte Magnolia : repas servi à table, entrées, plats, desserts']);
   /* les petits-déjeuners ouvrent l'offre traiteur : c'est le premier moment de la journée (Jean-Luc, 2026-11-28) */
   grille(GRILLES.petitsDej);
   for (const d of FRANCAIS) formule(d, 'Cocktails & buffets français');
