@@ -1172,6 +1172,26 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('site/reglages', { ...(await store.get('site/reglages')), christophineSupp: true });
   }
 
+  /* Blinis par 25 (Jean-Luc, 2026-11-28) : sur la page Plateaux de fruits de mer, les blinis sont vendus par lot de 25 pièces
+     (au lieu de 4 ou 5). Textes, unité et minimum mis à jour ; prix gardé au même prix à la pièce (6,00 € les 4 → 37,50 € les 25)
+     tant que Jean-Luc ne l'a pas confirmé. Une fois ; modifiable ensuite dans la fiche. */
+  const RBl = await store.get('site/reglages');
+  if (RBl && !RBl.blinis25) {
+    for (const { id, data: p } of await store.list('produits')) {
+      if (p.slug !== 'blinis' && id !== 'marc-produit-blinis') continue;
+      const vingtCinq = v => typeof v === 'string' ? v.replace(/\b[45](\s|\u00a0)+(pièces?|blinis?)\b/gi, (m, e, mot) => '25' + e + (/^pi/i.test(mot) ? 'pièces' : 'blinis')).replace(/\blot de [45]\b/gi, 'lot de 25')
+        : Array.isArray(v) ? v.map(vingtCinq) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, /^(photos|video|id|slug|url)$/.test(k) ? x : vingtCinq(x)])) : v;
+      const n = vingtCinq(p);
+      const u = String(p.unite || '').trim();
+      const k = /^lot de [45]$/i.test(u) ? 25 / +u.slice(-1) : /^pi[eè]ces?$/i.test(u) ? 25 : 1;
+      const prixCents = p.prixCents != null ? Math.round(p.prixCents * k) : p.prixCents;
+      await store.set('produits/' + id, { ...n, unite: 'lot de 25', min: 1, minimumTexte: 'Minimum : 1 lot de 25 blinis', prixCents,
+        ...(p.coutCents != null ? { coutCents: Math.round(p.coutCents * k) } : {}),
+        ...(p.prixTexte ? { prixTexte: (prixCents / 100).toFixed(2).replace('.', ',') + ' € TTC' } : {}) });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), blinis25: true });
+  }
+
   /* Duo Flaming Soul (Jean-Luc, 2026-11-28) : 1 790 € TTC la prestation (prix d'achat 1 000 € TTC, jamais montré au client) ;
      la mention « Sur devis » disparaît. Une fois ; modifiable ensuite dans Catalogue > fiche. */
   const RFs = await store.get('site/reglages');
