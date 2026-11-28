@@ -1,6 +1,9 @@
 'use strict';
 /* Catalogue en mémoire (relu après chaque modification du back-office). */
 const { norm } = require('./util');
+const { finAtteinte, prochaineFin } = require('./noel');
+/* offre de saison (champ `finLe`, ex. Menu de Noël) : passée la date, la fiche ou la rubrique est traitée comme masquée */
+const finie = x => (finAtteinte(x) ? { ...x, statut: 'masque', finie: true } : x);
 
 function createCatalogue(store) {
   let cache = null, loading = null;
@@ -9,8 +12,8 @@ function createCatalogue(store) {
     const [rub, prod, lieux, avis, reglages, pages, blog, medias] = await Promise.all([
       store.list('rubriques'), store.list('produits'), store.list('lieux'), store.list('avis'), store.get('site/reglages'), store.list('pages'), store.list('blog'), store.get('site/medias'),
     ]);
-    const rubriques = rub.map(d => d.data).sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
-    const produits = prod.map(d => d.data).sort((a, b) => (b.maison ? 1 : 0) - (a.maison ? 1 : 0) || (a.ordre ?? 0) - (b.ordre ?? 0));
+    const rubriques = rub.map(d => finie(d.data)).sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
+    const produits = prod.map(d => finie(d.data)).sort((a, b) => (b.maison ? 1 : 0) - (a.maison ? 1 : 0) || (a.ordre ?? 0) - (b.ordre ?? 0));
     const bySlug = new Map(produits.map(p => [p.slug, p]));
     const byRub = new Map(rubriques.map(r => [r.slug, []]));
     for (const p of produits) {
@@ -30,6 +33,8 @@ function createCatalogue(store) {
       /* médiathèque : nom donné à chaque image (texte alternatif pour Google) et images retirées (Jean-Luc, 2026-11-27) */
       medias: { noms: medias?.noms || {}, caches: medias?.caches || [] },
       loadedAt: Date.now(),
+      /* moment où une offre de saison se termine : le catalogue est relu à cet instant */
+      finA: prochaineFin([...rub.map(d => d.data), ...prod.map(d => d.data)]),
     };
     cache.search = (c, q, limit) => search(c || cache, q, limit);
     return cache;
@@ -50,7 +55,7 @@ function createCatalogue(store) {
 
   return {
     search,
-    async get() { if (cache) return cache; if (!loading) loading = load().finally(() => { loading = null; }); return loading; },
+    async get() { if (cache && Date.now() >= cache.finA) cache = null; if (cache) return cache; if (!loading) loading = load().finally(() => { loading = null; }); return loading; },
     invalidate() { cache = null; },
   };
 }
