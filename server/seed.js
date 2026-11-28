@@ -1094,6 +1094,19 @@ async function initSousRubriques(store, { log = console } = {}) {
     await store.set('site/reglages', { ...(await store.get('site/reglages')), sansBrochure: true });
   }
 
+  /* Ambiance lumière et sonorisation (Jean-Luc, 2026-11-28) : la scène drapée vert/blanc avec texte est remplacée par une salle
+     de réception élégante avec jeux de lumière et enceintes (Pexels 12688989, recadrée, panneau « sortie » effacé). Une fois. */
+  const RLs = await store.get('site/reglages');
+  if (RLs && !RLs.lumiereSono2) {
+    const NOUVELLE = { src: '/site/c/musique/lumiere-sonorisation-salle.webp', alt: 'Salle de réception avec jeux de lumière et enceintes' };
+    for (const { id, data: pr } of await store.list('produits')) {
+      if ((pr.slug || id) !== 'ambiance-lumiere-et-sonorisation') continue;
+      const ph = (pr.photos || []).filter(x => !String((x && x.src) || x || '').includes('39204572') && (x && x.src) !== NOUVELLE.src);
+      await store.set('produits/' + id, { ...pr, photos: [NOUVELLE, ...ph] });
+    }
+    await store.set('site/reglages', { ...(await store.get('site/reglages')), lumiereSono2: true });
+  }
+
   /* Plateau de fruits de mer (Jean-Luc, 2026-11-24) : toutes les photos sur fond blanc pur, produit détouré et centré,
      format carré (comme les praires). Une fois : seule une photo encore d'origine est remplacée, jamais une photo
      changée ensuite dans le back-office. */
