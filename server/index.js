@@ -265,6 +265,18 @@ async function createApp(opts = {}) {
     }
     await store.set('_migr/blogEntreprises1', { at: new Date().toISOString(), n: exemples.length });
   }
+  /* une seule fois (Jean-Luc, 2026-11-28) : la fiche « Matériel traiteur » (verres suspendus, Sur devis) n'est plus utile.
+     Elle est masquée (pas effacée : anciens devis intacts, réactivable au back-office) ; son adresse renvoie vers Les indispensables.
+     Les vrais produits de matériel (rack, étuve, bain-marie…) ne bougent pas. */
+  if (!(await store.get('_migr/sansMaterielTraiteur'))) {
+    let n = 0;
+    for (const { id, data: p } of await store.list('produits')) {
+      if (!p || (p.slug !== 'materiel-traiteur' && id !== 'materiel-traiteur') || p.statut === 'masque') continue;
+      await store.set('produits/' + id, { ...p, statut: 'masque', updatedAt: new Date().toISOString() }); n++;
+    }
+    cat.invalidate?.();
+    await store.set('_migr/sansMaterielTraiteur', { at: new Date().toISOString(), fiches: n });
+  }
   if (!(await store.get('_migr/caveMagnolia'))) {
     const net = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
     for (const { id, data: p } of await store.list('produits')) {
@@ -3758,6 +3770,12 @@ Réponds uniquement en JSON : {${sms ? '' : '"sujet": "...", '}"texte": "..."}`;
     if (views.sousVisibles(r).length) return views.pageSpecialites(c, r);
     const p3 = r.slug === 'grand-large' && r.plateau3d !== false ? views.plateau3dHtml(c, r, c.byRub.get(r.slug)) : '';
     return views.boutique(c, { intro: { titre: r.introTitre, texte: r.introTexte }, rub: r.slug, titre: r.nom, chapo: r.chapo || r.accroche, photo: r.bandeauPhoto || r.photoAccueil || r.photo, path: '/' + r.slug, liste: c.byRub.get(r.slug), sections: views.sectionsRub(r, c.byRub.get(r.slug)), avant: p3, scripts: p3 ? `<script src="/js/plateau.js?v=${views.V}" defer></script>` : '' });
+  }));
+  /* fiche « Matériel traiteur » retirée (2026-11-28) : l'ancienne adresse mène à Les indispensables */
+  app.get('/:rub/materiel-traiteur', wrap(async (req, res, next) => {
+    const p = (await cat.get()).bySlug.get('materiel-traiteur');
+    if (p && p.statut !== 'masque') return next();
+    res.redirect(301, '/indispensables');
   }));
   app.get('/:rub/:slug', page((c, req, res, next) => {
     const ru = c.rubriques.find(x => x.slug === req.params.rub && (x.statut !== 'masque' || apercu(req)));
