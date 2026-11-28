@@ -2740,3 +2740,12 @@ tr.rem-det > td { padding: 4px 0 12px 14px; }
 .pc-rbn { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px; margin-left: 4px; font-size: .75rem; border-radius: 10px; background: rgba(255,255,255,.25); }
 .pc-rbtn .ghost .pc-rbn { background: #efe6d2; }
 .pc-rbv { flex-basis: 100%; text-align: center; }
+
+/* tableau de départ : cases et impression sous la ligne, sur toute la largeur (Jean-Luc, 2026-11-28) */
+.pc-lt tr[data-href] > td { border-bottom: 0; }
+.pc-lt tr.pc-sous > td { padding-top: 0; padding-bottom: 12px; }
+.pc-lt td.pc-etc { width: auto; min-width: 0; }
+.pc-etl { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.pc-etl .pc-et { width: auto; margin: 0; white-space: nowrap; }
+.pc-etl .pc-sp { flex: 1; }
+.pc-lt tr.pc-fait.pc-sous > td { background: #dfe9e1; }
