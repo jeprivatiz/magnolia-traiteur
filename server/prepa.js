@@ -228,23 +228,25 @@ function itemsDoc(l) {
 }
 
 /* le bon en A4 (aperçu, impression, PDF, lien envoyé à la cuisine) — sans aucun prix */
-function documentHtml(b, { R = {}, retour = '', maintenant = new Date(), par = '', recup = false } = {}) {
+/* liv = bon de livraison (Jean-Luc, 2026-11-28) : les produits livrés au client (sans les packs internes), à faire signer à la livraison */
+function documentHtml(b, { R = {}, retour = '', maintenant = new Date(), par = '', recup = false, liv = false } = {}) {
+  if (recup) liv = false;
   const E = R.entreprise || {};
   const nomM = E.raisonSociale || 'Magnolia Traiteur';
   const v = x => x ? esc(x) : '<span class="pt"></span>';
   const equipe = (k, lab) => `<div class="eq"><h4>${esc(lab)}</h4>${(b[k] || []).length ? `<ul>${b[k].map(p => `<li><b>${esc(p.nom)}</b>${p.tel ? ` <span>${esc(p.tel)}</span>` : ''}</li>`).join('')}</ul>` : '<p class="vide">—</p>'}${k === 'personnel' && b.personnelDevis.length ? `<p class="pd">Prévu au devis : ${esc(b.personnelDevis.join(' · '))}</p>` : ''}</div>`;
   /* bon de récupération (Jean-Luc, 2026-11-27) : seulement les lignes cochées « À récupérer », pour que le livreur n'oublie rien à la reprise */
-  const lignesDoc = recup ? b.lignes.filter(l => l.type !== 'titre' && l.recup) : b.lignes;
+  const lignesDoc = recup ? b.lignes.filter(l => l.type !== 'titre' && l.recup) : liv ? b.lignes.filter(l => l.liste !== 'kit') : b.lignes;
   const prod = lignesDoc.filter(l => l.type !== 'titre');
   let n = 0;
   const rows = recup ? lignesDoc.map(l => `<tr><td class="no">${++n}</td><td class="nm"><div class="nmt"><span class="cb cbp" role="checkbox" aria-checked="false" tabindex="0" aria-label="${recup ? 'Récupéré' : 'Préparé'} : ${esc(l.designation)}"></span><b>${esc(l.designation)}</b></div>${l.detail ? `<small>${nl(l.detail)}</small>` : ''}${itemsDoc(l)}</td><td class="q">${esc(qteTexte(l)) || '—'}</td><td class="q prep">${esc(l.qtePrepa).split(' · ').join('<br>')}</td><td class="nt">${nl(l.note)}</td></tr>`).join('') : lignesDoc.map(l => l.type === 'titre'
     ? `<tr class="ti"><td colspan="5">${esc(l.designation)}</td></tr>`
-    : `<tr><td class="no">${++n}</td><td class="nm"><div class="nmt"><span class="cb cbp" role="checkbox" aria-checked="false" tabindex="0" aria-label="${recup ? 'Récupéré' : 'Préparé'} : ${esc(l.designation)}"></span><b>${esc(l.designation)}</b></div>${l.detail ? `<small>${nl(l.detail)}</small>` : ''}${itemsDoc(l)}${(l.allergenes || []).length ? `<small class="al">⚠ ${esc(l.allergenes.join(', '))}</small>` : ''}</td><td class="q">${esc(qteTexte(l)) || '—'}</td><td class="q prep">${esc(l.qtePrepa).split(' · ').join('<br>')}</td><td class="nt">${nl(l.note)}</td></tr>`).join('');
+    : `<tr><td class="no">${++n}</td><td class="nm"><div class="nmt"><span class="cb cbp" role="checkbox" aria-checked="false" tabindex="0" aria-label="${liv ? 'Livré' : 'Préparé'} : ${esc(l.designation)}"></span><b>${esc(l.designation)}</b></div>${l.detail ? `<small>${nl(l.detail)}</small>` : ''}${itemsDoc(l)}${(l.allergenes || []).length ? `<small class="al">⚠ ${esc(l.allergenes.join(', '))}</small>` : ''}</td><td class="q">${esc(qteTexte(l)) || '—'}</td><td class="q prep">${liv ? '' : esc(l.qtePrepa).split(' · ').join('<br>')}</td><td class="nt">${liv ? '' : nl(l.note)}</td></tr>`).join('');
   const HV = horairesVus(b), hor = HORAIRES.filter(([k]) => HV[k] && (!recup || ['fin', 'reprise'].includes(k)));
-  const roles = recup ? [ROLE_RECUP] : ROLES;
+  const roles = recup ? [ROLE_RECUP] : liv ? ROLES.filter(([k]) => k === 'livreurs') : ROLES;
   const RI = recupInfos(b);
   return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex, nofollow">
-<title>${recup ? 'Bon de récupération · ' + esc(b.client.nom || '') : esc(titreBon(b))}</title>
+<title>${recup ? 'Bon de récupération · ' + esc(b.client.nom || '') : liv ? 'Bon de livraison · ' + esc(b.client.nom || '') : esc(titreBon(b))}</title>
 <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 @page { size: A4 portrait; margin: 11mm 10mm 12mm; }
@@ -327,9 +329,9 @@ footer { margin-top: 3mm; display: flex; justify-content: space-between; font-si
 @media print { body { background: #fff; } .barre { display: none; } .pg { margin: 0; padding: 0; box-shadow: none; width: auto; min-height: 0; } }
 @media screen and (max-width: 820px) { .pg { zoom: .46; } }
 </style></head><body>
-<div class="barre"><span>${recup ? 'Bon de récupération' : 'Bon de préparation'} · ${prod.length} produit${prod.length > 1 ? 's' : ''} · sans prix</span><button type="button" onclick="window.print()">🖨 Imprimer ou enregistrer en PDF</button>${retour ? `<a class="g" href="${esc(retour)}">← Retour au back-office</a>` : ''}</div>
+<div class="barre"><span>${recup ? 'Bon de récupération' : liv ? 'Bon de livraison' : 'Bon de préparation'} · ${prod.length} produit${prod.length > 1 ? 's' : ''} · sans prix</span><button type="button" onclick="window.print()">🖨 Imprimer ou enregistrer en PDF</button>${retour ? `<a class="g" href="${esc(retour)}">← Retour au back-office</a>` : ''}</div>
 <section class="pg">
-<header><div class="logo"><img src="${esc(E.logo || '/brand/monogramme.svg')}" alt=""></div><div class="tx"><h1>${recup ? 'BON DE RÉCUPÉRATION' : 'BON DE PRÉPARATION DE COMMANDE'}</h1><p class="st">${esc(nomM)} · ${recup ? 'à l’attention du livreur : tout ce qu’il faut reprendre après l’événement' : 'à l’attention de la cuisine et du service préparation'}</p></div>
+<header><div class="logo"><img src="${esc(E.logo || '/brand/monogramme.svg')}" alt=""></div><div class="tx"><h1>${recup ? 'BON DE RÉCUPÉRATION' : liv ? 'BON DE LIVRAISON' : 'BON DE PRÉPARATION DE COMMANDE'}</h1><p class="st">${esc(nomM)} · ${recup ? 'à l’attention du livreur : tout ce qu’il faut reprendre après l’événement' : liv ? 'produits livrés, à vérifier et signer à la réception' : 'à l’attention de la cuisine et du service préparation'}</p></div>
 <div class="rf">${b.devisNumero ? `<b>Devis ${esc(b.devisNumero)}</b>` : ''}${b.factureNumero ? `<span>Facture ${esc(b.factureNumero)}</span>` : ''}<span>Édité le ${esc(dateCourte(maintenant))}${par ? ' par ' + esc(par) : ''}</span></div></header>
 <div class="blocs">
 <div class="bl"><h3>Client</h3><p class="big">${v(b.client.nom)}</p>${b.client.societe ? `<p class="l"><i>Société</i> ${esc(b.client.societe)}</p>` : ''}<p class="l"><i>Téléphone</i> ${v(b.client.tel)}</p>${b.contactSurPlace ? `<p class="l"><i>Contact sur place</i> ${esc(b.contactSurPlace)}</p>` : ''}</div>
@@ -337,13 +339,14 @@ footer { margin-top: 3mm; display: flex; justify-content: space-between; font-si
 </div>
 ${!recup && (b.allergies || b.allergenesProduits.length) ? `<div class="alerte">${b.allergies ? `<p><b>⚠ Allergies / régimes signalés :</b> ${nl(b.allergies)}</p>` : ''}${b.allergenesProduits.length ? `<p><b>Allergènes présents dans la commande :</b> ${esc(b.allergenesProduits.join(', '))}</p>` : ''}</div>` : ''}
 ${recup ? `<div class="hor" style="grid-template-columns:1fr 1fr 2fr"><div><small>Jour de la récupération</small><b>${esc(RI.quand)}</b></div><div><small>Heure</small><b>${RI.heure ? esc(RI.heure) : '<span class="pt"></span>'}</b></div><div class="lr"><small>Lieu de la récupération</small><b>${esc(RI.lieu)}</b></div></div>` : hor.length ? `<div class="hor">${hor.map(([k, lab]) => `<div><small>${esc(lab)}</small><b>${esc(HV[k])}</b></div>`).join('')}</div>` : ''}
-<div class="equipe${recup ? ' eq2' : ''}">${roles.map(([k, lab]) => equipe(k, lab)).join('')}</div>
-<h2>${recup ? 'À RÉCUPÉRER' : 'À PRÉPARER'} <span>${prod.length} produit${prod.length > 1 ? 's' : ''}${b.evenement.invites ? ' · ' + esc(b.evenement.invites) + ' invités' : ''}</span></h2>
-<table><thead><tr><th class="no">N°</th><th>☐ Produit et choix</th><th class="q">Quantité du devis</th><th class="q">${recup ? 'Quantité livrée' : 'Quantité à préparer'}</th><th class="nt">${recup ? 'Remarque' : 'Remarque pour la préparation'}</th></tr></thead><tbody>${rows || `<tr><td colspan="5">${recup ? 'Rien à récupérer : cochez « À récupérer » sur les lignes du bon de préparation.' : 'Aucun produit.'}</td></tr>`}</tbody></table>
-${b.remarques && !recup ? `<div class="rq"><h3>Remarque pour la préparation</h3><p>${nl(b.remarques)}</p></div>` : ''}
-<div class="sig">${recup ? '<div><b>Récupéré par</b>Nom, date et heure</div><div><b>Contrôlé au retour au laboratoire par</b>Nom, date et heure</div>' : '<div><b>Préparé par</b>Nom, date et heure</div><div><b>Vérifié au départ par</b>Nom, date et heure</div>'}</div>
-<footer><span>Document interne · ${esc(nomM)} · ne pas remettre au client</span><span>${esc(b.client.nom)}${b.evenement.date ? ' · ' + esc(dateCourte(b.evenement.date)) : ''}</span></footer>
+<div class="equipe${recup || liv ? ' eq2' : ''}">${roles.map(([k, lab]) => equipe(k, lab)).join('')}</div>
+<h2>${recup ? 'À RÉCUPÉRER' : liv ? 'LIVRÉ' : 'À PRÉPARER'} <span>${prod.length} produit${prod.length > 1 ? 's' : ''}${b.evenement.invites ? ' · ' + esc(b.evenement.invites) + ' invités' : ''}</span></h2>
+<table><thead><tr><th class="no">N°</th><th>☐ Produit et choix</th><th class="q">Quantité du devis</th><th class="q">${recup || liv ? 'Quantité livrée' : 'Quantité à préparer'}</th><th class="nt">${recup || liv ? 'Remarque' : 'Remarque pour la préparation'}</th></tr></thead><tbody>${rows || `<tr><td colspan="5">${recup ? 'Rien à récupérer : cochez « À récupérer » sur les lignes du bon de préparation.' : 'Aucun produit.'}</td></tr>`}</tbody></table>
+${b.remarques && !recup && !liv ? `<div class="rq"><h3>Remarque pour la préparation</h3><p>${nl(b.remarques)}</p></div>` : ''}
+<div class="sig">${recup ? '<div><b>Récupéré par</b>Nom, date et heure</div><div><b>Contrôlé au retour au laboratoire par</b>Nom, date et heure</div>' : liv ? '<div><b>Livré par</b>Nom, date et heure</div><div><b>Reçu par le client</b>Nom, date, heure et signature</div>' : '<div><b>Préparé par</b>Nom, date et heure</div><div><b>Vérifié au départ par</b>Nom, date et heure</div>'}</div>
+<footer><span>${liv ? `${esc(nomM)} · bon de livraison · sans prix` : `Document interne · ${esc(nomM)} · ne pas remettre au client`}</span><span>${esc(b.client.nom)}${b.evenement.date ? ' · ' + esc(dateCourte(b.evenement.date)) : ''}</span></footer>
 </section>
+<script>if (/[?&]imprimer=1/.test(location.search)) addEventListener('load', () => setTimeout(() => print(), 300));</script>
 <script>
 (() => {
   const K = 'mg_prep_coche_' + location.pathname + location.search.replace(/[?&]t=\d+/, ''), cases = [...document.querySelectorAll('.cb')];
