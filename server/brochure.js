@@ -62,10 +62,14 @@ function court(t, max = 170) {
   const x = t.slice(0, max); const i = Math.max(x.lastIndexOf('. '), x.lastIndexOf(' · '));
   return (i > max * .55 ? x.slice(0, i + 1) : x.replace(/\s+\S*$/, '') + '…').trim();
 }
+/* photos choisies pour la brochure seulement (Jean-Luc, 2026-11-28 : un burger, pas des frites, pour le stand à burgers) */
+const PHOTO_BROCHURE = { 'stand-a-burgers': '/site/c/page19-burger-poster.jpg.webp' };
 const photoDe = x => {
+  if (x && PHOTO_BROCHURE[x.slug]) return PHOTO_BROCHURE[x.slug];
   const ph = (x && x.photos) || [];
   const s = ph.map(y => (y && y.src) || y).filter(Boolean);
-  return s[0] || '';
+  /* fiche en vidéo sans photo (open bars, bar à shots, sangria…) : l'image d'aperçu de la vidéo (Jean-Luc, 2026-11-28) */
+  return s[0] || (x && x.video && x.video.poster) || '';
 };
 
 /* ---------------- contenu ---------------- */
