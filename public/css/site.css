@@ -1644,3 +1644,16 @@ h1 .formule { font-size: .5em; margin-top: .45em; }
 .lien-ent svg { width: 16px; height: 16px; }
 @media (max-width: 560px) { .lien-ent a { border-radius: 14px; padding: 12px 16px; font-size: .86rem; } .lien-ent b { display: block; width: 100%; } }
 @media (max-width: 1180px) and (min-width: 1081px) { .nav-l { padding: 10px 6px; letter-spacing: .06em; font-size: .7rem; } }
+/* titre de bandeau sur deux lignes (page Entreprises : « Magnolia » / « le traiteur des entreprises ») */
+.phero h1 .h1-l2 { display: block; font-size: .56em; line-height: 1.15; margin-top: .25em; font-weight: 500; letter-spacing: .01em; }
+/* vignette double (Animations salées | sucrées) : deux moitiés cliquables + deux boutons */
+.tile-duo .duo-a { position: absolute; top: 0; bottom: 0; width: 50%; overflow: hidden; }
+.tile-duo .duo-a:first-child { left: 0; }
+.tile-duo .duo-a + .duo-a { right: 0; border-left: 2px solid rgba(255, 255, 255, .85); }
+.tile-duo:hover img { transform: none; }
+.tile-duo .duo-a:hover img { transform: scale(1.06); }
+.tile-duo .tile-t { pointer-events: none; }
+.duo-b { display: flex; gap: 6px; margin-top: 9px; pointer-events: auto; }
+.duo-b a { flex: 1; text-align: center; padding: 6px 4px; border-radius: 999px; background: var(--or, #c9a45c); color: #1d2a22; font-size: .8rem; font-weight: 600; text-decoration: none; white-space: nowrap; }
+.duo-b a:hover { background: #fff; }
+@media (max-width: 640px) { .duo-b a { font-size: .72rem; padding: 5px 2px; } }
