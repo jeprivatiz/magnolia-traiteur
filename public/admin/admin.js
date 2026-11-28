@@ -4920,7 +4920,7 @@
     const r = await api(A + '/blog'); BL.l = r;
     const e = r.rappel, g = r.reglages;
     const carte = a => { const p = a.photos?.[0]; return `<div class="bl-cw${a.statut === 'publie' ? ' on' : ''}"><a class="bl-c" href="#/blog/${esc(a.id)}"><span class="bl-img">${p ? `<img src="${esc(p.src)}" alt="" loading="lazy">` : '<span class="muted sm">Pas de photo</span>'}</span>
-      <span class="bl-t"><span class="row">${a.statut === 'publie' ? '<span class="pill d-accepte">✓ Publié</span>' : '<span class="pill d-envoye">Brouillon à relire</span>'}<small class="muted">${esc(BLOG_CAT[a.categorie] || '')}${a.invites ? ' · ' + a.invites + ' invités' : ''}</small></span>
+      <span class="bl-t"><span class="row">${a.statut === 'publie' ? '<span class="pill d-accepte">✓ Publié</span>' : '<span class="pill d-envoye">Brouillon à relire</span>'}<small class="muted">${esc(BLOG_CAT[a.categorie] || '')}${a.invites ? ' · ' + a.invites + ' invités' : ''}${a.specialite ? ' · 📍 page ' + esc((r.specialites || []).find(x => x.slug === a.specialite)?.nom || a.specialite) : ''}</small></span>
       <b>${esc(a.titre || 'Sans titre')}</b><small class="bl-date">📅 ${dateFr(a.dateEvenement || a.publieLe || a.createdAt)}</small><small class="muted">${a.statut === 'publie' ? 'Publié le ' + dateFr(a.publieLe) : 'Créé le ' + dateFr(a.createdAt)}${a.creePar ? ' · ' + esc(a.creePar) : ''}</small></span></a>${interEnLigne(a, 'data-blbasc="' + esc(a.id) + '"')}</div>`; };
     const tel = g.tel || g.alertesSms, mail = g.email || g.alertesEmails;
     return page('📝 Blog · nos reportages', `<a class="btn" href="#/blog/nouveau">✨ Nouveau reportage avec l’IA</a><a class="btn ghost" href="/blog" target="_blank" rel="noopener">Voir le blog ↗</a>`, `
@@ -5019,11 +5019,12 @@
     const [a, l] = await Promise.all([api(A + '/blog/' + id), cache.produits ? Promise.resolve(cache.produits) : api(A + '/produits')]);
     cache.produits = l; BL.a = a;
     BL.e = { photos: (a.photos || []).map(p => ({ ...p })), sections: (a.sections || []).map(s => ({ ...s })), produits: [...(a.produits || [])], video: a.video || '' };
-    const types = (BL.l?.types) || (await api(A + '/blog')).types;
+    const infosBlog = BL.l?.specialites ? BL.l : await api(A + '/blog');
+    const types = infosBlog.types, speBlog = infosBlog.specialites;
     const pub = a.statut === 'publie';
     const ch = a.chiffres || [];
     return page(`${esc(a.titre || 'Reportage')} ${pub ? '<span class="pill d-accepte">✓ Publié</span>' : '<span class="pill d-envoye">Brouillon</span>'}`, `<a class="btn ghost" href="#/blog">← Tous les reportages</a><button type="button" class="btn ghost" data-blvoir>👁 Voir le blog</button>`, `
-      <section class="box bl-enligne${pub ? ' on' : ''}"><div><h2>Sur le site</h2><p class="muted sm">${pub ? 'Ce reportage est visible sur la page du blog et sur l’accueil.' : 'Ce reportage n’est pas visible par les clients. Relisez-le, puis mettez-le en ligne.'}</p></div>${interEnLigne(a, 'data-blinter')}</section>
+      <section class="box bl-enligne${pub ? ' on' : ''}"><div><h2>Sur le site</h2><p class="muted sm">${pub ? (a.specialite ? 'Ce reportage est visible en bas de sa page spécialité (pas sur l’accueil ni la page Blog).' : 'Ce reportage est visible sur la page du blog et sur l’accueil.') : 'Ce reportage n’est pas visible par les clients. Relisez-le, puis mettez-le en ligne.'}</p></div>${interEnLigne(a, 'data-blinter')}</section>
       <section class="box hl bl-ia"><h2>✨ Demander une modification à l’IA</h2>
         <p class="muted sm">Ex. : « plus court », « parle davantage du bar à spritz », « ton plus chaleureux », « ajoute que le montage a pris une journée ». L’IA réécrit le reportage ; vous relisez avant de publier.</p>
         <div class="bl-ia-row"><textarea data-blcons rows="2" placeholder="Votre demande à l’IA… (tapez ou dictez avec 🎤)"></textarea><div class="bl-ia-btns"><button type="button" class="btn ghost" data-blmic>🎤 Dicter</button><button type="button" class="btn" data-blre>✨ Réécrire</button></div></div><p class="muted sm" data-blmicmsg></p>
@@ -5035,7 +5036,10 @@
         <div class="g3"><label>Rubrique<select name="categorie">${Object.entries(BLOG_CAT).map(([k, v]) => `<option value="${k}"${a.categorie === k ? ' selected' : ''}>${v}</option>`).join('')}</select></label>
         <label>Type d’événement ou d’histoire<select name="typeEvenement"><option value="">—</option>${[...new Set([...(types || []), a.typeEvenement].filter(Boolean))].map(t => `<option${a.typeEvenement === t ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></label>
         <label>📅 Date du reportage <small class="muted">(classe les reportages sur le site)</small><input type="date" name="dateEvenement" value="${esc(a.dateEvenement || String(a.publieLe || a.createdAt || '').slice(0, 10))}" required></label>
-        <label>Lieu<input name="lieu" value="${esc(a.lieu || '')}"></label><label>Nombre d’invités<input name="invites" inputmode="numeric" value="${esc(a.invites || '')}"></label></div></section>
+        <label>Lieu<input name="lieu" value="${esc(a.lieu || '')}"></label><label>Nombre d’invités<input name="invites" inputmode="numeric" value="${esc(a.invites || '')}"></label></div>
+        <div class="g3"><label>Où l’afficher sur le site<select name="specialite"><option value="">Le blog (accueil et page Blog)</option>${[...(speBlog || []), ...(a.specialite && !(speBlog || []).some(x => x.slug === a.specialite) ? [{ slug: a.specialite, nom: a.specialite }] : [])].map(x => `<option value="${esc(x.slug)}"${a.specialite === x.slug ? ' selected' : ''}>Seulement en bas de la page ${esc(x.nom)}</option>`).join('')}</select></label>
+        <label class="ck"><input type="checkbox" name="illustrations"${a.illustrations ? ' checked' : ''}> Photos d’illustration <small class="muted">(mention « les photos de cet événement arriveront bientôt » ; décochez quand vous mettez les vraies photos)</small></label></div>
+        ${a.avisSource ? `<p class="muted sm">📝 Écrit à partir de l’avis client n° ${esc(a.avisSource)} (cité mot pour mot plus bas). Avant de le mettre en ligne : appelez le client pour son accord, son prénom et ses photos.</p>` : ''}</section>
       <section class="box"><h2>Chiffres clés <small class="muted">(bandeau sous la photo, 4 maximum)</small></h2>
         <div class="bl-chiffres">${[0, 1, 2, 3].map(i => `<div><input data-chv="${i}" value="${esc(ch[i]?.valeur || '')}" placeholder="${['400', '14', '3', '2 400'][i]}" maxlength="14"><input data-chl="${i}" value="${esc(ch[i]?.libelle || '')}" placeholder="${['invités', 'serveurs', 'buffets', 'pièces cocktail'][i]}" maxlength="40"></div>`).join('')}</div></section>
       <section class="box"><div class="bh"><h2>Le texte</h2><button type="button" class="btn ghost sm" data-secadd>+ Ajouter une partie</button></div><div id="blSec"></div></section>
@@ -5091,7 +5095,7 @@
     f.addEventListener('input', dirty);
     const donnees = statut => {
       const o = Object.fromEntries(new FormData(f));
-      return { ...BL.a, titre: o.titre, chapo: o.chapo, categorie: o.categorie, typeEvenement: o.typeEvenement, dateEvenement: o.dateEvenement, lieu: o.lieu, invites: o.invites,
+      return { ...BL.a, titre: o.titre, chapo: o.chapo, categorie: o.categorie, typeEvenement: o.typeEvenement, dateEvenement: o.dateEvenement, lieu: o.lieu, invites: o.invites, specialite: o.specialite || '', illustrations: !!o.illustrations,
         chiffres: [0, 1, 2, 3].map(i => ({ valeur: $(`[data-chv="${i}"]`).value, libelle: $(`[data-chl="${i}"]`).value })),
         sections: e.sections, photos: e.photos.filter(p => !p.envoi), video: e.video, produits: e.produits,
         citation: o.citTexte.trim() ? { texte: o.citTexte, auteur: o.citAuteur } : null,

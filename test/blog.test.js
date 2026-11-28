@@ -140,3 +140,24 @@ test('l’IA rédige le reportage, il reste caché jusqu’à « Publier », pui
     assert.equal((await fetch(base + '/blog/' + a.slug)).status, 404);
   } finally { srv.close(); }
 });
+
+test('reportages des spécialités : citation = avis mot pour mot, hors ligne, jamais sur le blog général', () => {
+  const L = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'blog-specialites.json'), 'utf8'));
+  const avis = new Map(JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'avis-magnolia.json'), 'utf8')).avis.map(a => [a.id, a]));
+  const net = s => String(s).replace(/[\s\u{1F300}-\u{1FAFF}☀-➿]+/gu, ' ').replace(/\s+([,.!])/g, '$1').trim();
+  for (const e of L) {
+    const a = BLOG.nettoyerArticle(e);
+    assert.equal(a.statut, 'brouillon');
+    assert.ok(a.specialite && a.illustrations, e.specialite);
+    const src = avis.get(e.avisSource);
+    assert.ok(src, 'avis ' + e.avisSource);
+    /* chaque morceau de la citation (coupé par […]) figure tel quel dans l'avis */
+    const ref = [net(src.texte), net(src.titre + '. ' + src.texte), net(src.titre + ' ' + src.texte)];
+    for (const m of a.citation.texte.split('[…]').map(net).filter(Boolean)) assert.ok(ref.some(r => r.includes(m)), `${e.specialite} : « ${m} »`);
+  }
+  const BLOGV = require('../server/blog-pages');
+  const c = { blog: [{ ...BLOG.nettoyerArticle(L[0]), statut: 'publie' }], rubriques: [], reglages: {} };
+  assert.equal(BLOGV.encart(c), '', 'pas sur l’accueil');
+  assert.match(BLOGV.blocSpecialite(c, { slug: L[0].specialite, nom: 'Buffet antillais' }), /Ils l’ont vécu avec nous/);
+  assert.equal(BLOGV.blocSpecialite(c, { slug: 'buffet-indien' }), '');
+});

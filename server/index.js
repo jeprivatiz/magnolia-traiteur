@@ -265,6 +265,23 @@ async function createApp(opts = {}) {
     }
     await store.set('_migr/blogEntreprises1', { at: new Date().toISOString(), n: exemples.length });
   }
+  /* une seule fois (Jean-Luc, 2026-11-28) : un reportage par spécialité, écrit à partir d'un avis client récent du site
+     (data/avis-magnolia.json, cité mot pour mot). Ajoutés HORS LIGNE : Jean-Luc relit, appelle le client (nom, accord, vraies photos),
+     puis les met en ligne. Affichés seulement en bas de la page de leur spécialité. */
+  if (!(await store.get('_migr/blogSpecialites1'))) {
+    const exemples = JSON.parse(require('fs').readFileSync(path.join(__dirname, '..', 'data', 'blog-specialites.json'), 'utf8'));
+    const slugsProduits = new Set((await store.list('produits')).map(d => d.data?.slug || d.id));
+    const pris = new Set((await store.list('blog')).map(d => d.data?.slug));
+    for (const e of exemples) {
+      const a = BLOG.nettoyerArticle({ ...e, produits: (e.produits || []).filter(s => slugsProduits.has(s)), statut: 'brouillon' });
+      let slug = a.slug, n = 2; while (pris.has(slug)) slug = a.slug + '-' + n++;
+      pris.add(slug);
+      const id = 'b_spe_' + e.specialite;
+      const now = new Date().toISOString();
+      await store.set('blog/' + id, { ...a, slug, id, createdAt: now, creePar: 'Claude', ia: null, updatedAt: now });
+    }
+    await store.set('_migr/blogSpecialites1', { at: new Date().toISOString(), n: exemples.length });
+  }
   /* une seule fois (Jean-Luc, 2026-11-28) : la fiche « Matériel traiteur » (verres suspendus, Sur devis) n'est plus utile.
      Elle est masquée (pas effacée : anciens devis intacts, réactivable au back-office) ; son adresse renvoie vers Les indispensables.
      Les vrais produits de matériel (rack, étuve, bain-marie…) ne bougent pas. */
@@ -1569,7 +1586,7 @@ async function createApp(opts = {}) {
   A.get('/blog', peut('site'), wrap(async (req, res) => {
     const l = (await articlesBlog()).sort(BLOG.parDate);
     const R = (await store.get('site/reglages')) || {};
-    res.set('Cache-Control', 'no-store').json({ articles: l, rappel: await etatBlog(), reglages: { ...BLOG.reglagesRappel(R), tel: R.blog?.rappel?.tel || '', email: R.blog?.rappel?.email || '', alertesSms: R.alertes?.sms || '', alertesEmails: R.alertes?.emails || '' }, types: BLOG.TYPES, ia: ia.actif });
+    res.set('Cache-Control', 'no-store').json({ articles: l, rappel: await etatBlog(), reglages: { ...BLOG.reglagesRappel(R), tel: R.blog?.rappel?.tel || '', email: R.blog?.rappel?.email || '', alertesSms: R.alertes?.sms || '', alertesEmails: R.alertes?.emails || '' }, types: BLOG.TYPES, specialites: ((await store.get('rubriques/saveurs-du-monde'))?.sous || []).filter(x => x.statut !== 'masque').map(x => ({ slug: x.slug, nom: x.nom })), ia: ia.actif });
   }));
   A.get('/blog/etat', wrap(async (req, res) => res.set('Cache-Control', 'no-store').json(await etatBlog())));
   A.put('/blog/reglages', sameSite, json, peut('site'), wrap(async (req, res) => {

@@ -43,6 +43,12 @@ function nettoyerArticle(a = {}, before = null) {
     seoDescription: str(a.seoDescription, 170),
     notes: para(a.notes, 6000),
     statut: a.statut === 'publie' ? 'publie' : 'brouillon',
+    /* reportage d'une spécialité (Jean-Luc, 2026-11-28) : affiché seulement en bas de /saveurs-du-monde/<specialite>,
+       jamais sur l'accueil ni la page Blog */
+    specialite: /^[a-z0-9-]{2,60}$/.test(String(a.specialite || '')) ? a.specialite : '',
+    /* photos d'illustration en attendant les vraies photos du client : mention sous les photos */
+    illustrations: !!a.illustrations,
+    avisSource: str(a.avisSource, 20),
   };
   out.slug = before?.slug || slugify(a.slug || out.titre || 'reportage').slice(0, 80);
   out.publieLe = out.statut === 'publie' ? (before?.publieLe || a.publieLe || new Date().toISOString()) : (before?.publieLe || '');
