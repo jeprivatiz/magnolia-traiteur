@@ -685,7 +685,11 @@ async function createApp(opts = {}) {
     const contact = { nom: nomPropre(s(b.nom, 120)), email: s(b.email, 160).toLowerCase(), tel: s(b.tel, 30), societe: s(b.societe, 120) };
     if (!contact.nom || !isEmail(contact.email)) return res.status(400).json({ error: 'Merci d’indiquer votre nom et un e-mail valide.' });
     const lignesIn = Array.isArray(b.lignes) ? b.lignes.slice(0, 80) : [];
-    if (!lignesIn.length && b.type !== 'contact') return res.status(400).json({ error: 'Votre sélection est vide.' });
+    /* demande de la page Entreprises (Jean-Luc 2026-11-28) : sans sélection, société obligatoire, marquée « Entreprise » */
+    const ent = b.entreprise === true || b.entreprise === '1';
+    if (ent && !contact.societe) return res.status(400).json({ error: 'Merci d’indiquer le nom de votre société.' });
+    if (ent && s(b.site, 10)) return res.json({ ok: true, ref: '' }); /* case piège à robots */
+    if (!lignesIn.length && b.type !== 'contact' && !ent) return res.status(400).json({ error: 'Votre sélection est vide.' });
     const lignes = lignesIn.map(l => {
       const p = c.bySlug.get(s(l.slug, 120));
       const est = estimerLigne(l, p, T);
@@ -711,15 +715,16 @@ async function createApp(opts = {}) {
       evenement: { type: s(b.evenement, 40), date: /^\d{4}-\d{2}-\d{2}$/.test(b.date) ? b.date : '', invites: Math.min(10000, Math.max(0, +b.invites | 0)), cp: s(b.cp, 5), ville: s(b.ville, 80), horaire: s(b.horaire, 60) },
       livraison: km ? { km, kmCents: kmC, cents: km * kmC, ...(offerte ? { offerte: true } : {}), ...(hz ? { horsZone: true } : {}) } : null,
       lignes, sousTotalCents: sousTotal, totalEstimeCents: sousTotal + km * kmC,
-      message: s(b.message, 3000), sujet: s(b.sujet, 80), statut: 'demande', historique: [{ at: new Date().toISOString(), statut: 'demande', par: 'site' }],
-      createdAt: new Date().toISOString(), ip: req.ip, canal: 'Site', /* source de la demande : venue du site */
+      message: s(b.message, 3000), sujet: s(b.sujet, 80) || (ent ? 'Demande entreprise' : ''), statut: 'demande',
+      ...(ent ? { entreprise: true, paiement: views.PAIEMENTS_ENT.includes(b.paiement) ? b.paiement : '' } : {}), historique: [{ at: new Date().toISOString(), statut: 'demande', par: 'site' }],
+      createdAt: new Date().toISOString(), ip: req.ip, canal: ent ? 'Site · page Entreprises' : 'Site', /* source de la demande : venue du site */
     };
     await store.set('demandes/' + id, demande);
     const lien = await lienEspace(clientId);
     const R = c.reglages;
     let auto = null;
     if (demande.type === 'devis') {
-      try { auto = await devisAutomatique(demande); }
+      try { auto = ent ? { essaye: new Date().toISOString(), envoye: false, raisons: ['demande entreprise : devis sur mesure à préparer'] } : await devisAutomatique(demande); }
       catch (e) { console.error('devis automatique', e); auto = { essaye: new Date().toISOString(), envoye: false, raisons: ['erreur pendant la préparation automatique'] }; }
       const d0 = (await store.get('demandes/' + id)) || demande;
       await store.set('demandes/' + id, { ...d0, devisAuto: auto });
@@ -729,7 +734,7 @@ async function createApp(opts = {}) {
     brevo.sendEmail({ to: contact.email, name: contact.nom, subject: `Magnolia Traiteur : votre demande ${ref} est bien reçue`, replyTo: R.email,
       html: `<p>Bonjour ${esc(contact.nom.split(' ')[0])},</p><p>Merci pour votre demande${demande.evenement.date ? ' pour le ' + esc(dateFr(demande.evenement.date)) : ''}. Notre équipe vérifie les disponibilités et revient vers vous rapidement avec votre devis.</p>${recap ? `<ul>${recap}</ul><p>Total estimé : <b>${euros(demande.totalEstimeCents)} TTC</b> (à confirmer).</p>` : ''}<p>Suivez votre demande dans votre espace : <a href="${lien}">Mon espace Magnolia</a></p><p>À très vite,<br>L’équipe Magnolia Traiteur<br>${esc(R.telephone)}</p>`,
       text: `Merci pour votre demande ${ref}. Votre espace : ${lien}` }).catch(() => {});
-    alerterDemande(demande, auto, `${auto?.raisons?.length ? '⚠ ' : ''}Nouvelle ${demande.type === 'contact' ? 'question' : 'demande de devis'} ${ref} : ${contact.nom}`, `<p><b>${esc(contact.nom)}</b> ${esc(contact.societe)} · ${esc(contact.email)} · ${esc(contact.tel)}</p><p>${esc(demande.evenement.type)} · ${esc(dateFr(demande.evenement.date))} · ${demande.evenement.invites} invités · ${esc(demande.evenement.ville)}</p><ul>${recap}</ul><p>${esc(demande.message)}</p>${auto?.raisons?.length ? `<p><b>Devis à préparer à la main :</b> ${esc(auto.raisons.join(' ; '))}.</p>` : ''}<p><a href="${SITE}/admin#/demandes/${id}">Ouvrir dans le back-office</a></p>`, `Magnolia : nouvelle demande ${ref} de ${contact.nom}${demande.totalEstimeCents ? ', ' + euros(demande.totalEstimeCents) : ''}, ${demande.evenement.invites} pers. le ${dateFr(demande.evenement.date)}${auto?.raisons?.length ? '. Devis à faire à la main' : ''}.`).catch(() => {});
+    alerterDemande(demande, auto, `${auto?.raisons?.length ? '⚠ ' : ''}Nouvelle ${demande.type === 'contact' ? 'question' : ent ? 'demande ENTREPRISE' : 'demande de devis'} ${ref} : ${contact.nom}${ent ? ' (' + contact.societe + ')' : ''}`, `<p><b>${esc(contact.nom)}</b> ${esc(contact.societe)} · ${esc(contact.email)} · ${esc(contact.tel)}</p><p>${esc(demande.evenement.type)} · ${esc(dateFr(demande.evenement.date))} · ${demande.evenement.invites} invités · ${esc(demande.evenement.ville)}</p><ul>${recap}</ul>${ent ? `<p><b>🏢 Demande Entreprise</b> (page Entreprises)${demande.paiement ? ' · paiement souhaité : ' + esc(demande.paiement) : ''}</p>` : ''}<p>${esc(demande.message)}</p>${auto?.raisons?.length ? `<p><b>Devis à préparer à la main :</b> ${esc(auto.raisons.join(' ; '))}.</p>` : ''}<p><a href="${SITE}/admin#/demandes/${id}">Ouvrir dans le back-office</a></p>`, `Magnolia : nouvelle demande ${ent ? 'ENTREPRISE ' : ''}${ref} de ${contact.nom}${ent ? ' (' + contact.societe + ')' : ''}${demande.totalEstimeCents ? ', ' + euros(demande.totalEstimeCents) : ''}, ${demande.evenement.invites} pers. le ${dateFr(demande.evenement.date)}${auto?.raisons?.length ? '. Devis à faire à la main' : ''}.`).catch(() => {});
     /* le lien direct vers l'espace n'est rendu qu'à un nouveau client ; un client connu le reçoit par e-mail */
     res.json({ ok: true, ref, totalEstimeCents: demande.totalEstimeCents, espace: nouveau ? lien.replace(SITE, '') : '/espace-client' });
   }));
@@ -3554,6 +3559,8 @@ Réponds uniquement en JSON : {${sms ? '' : '"sujet": "...", '}"texte": "..."}`;
   app.get('/comment-commander', page(c => views.commander(c)));
   app.get('/temoignages', page(c => views.temoignages(c)));
   app.get('/contact', page(c => views.contact(c)));
+  app.get('/entreprises', page(c => views.entreprises(c)));
+  app.get(['/entreprise', '/traiteur-entreprise', '/traiteur-entreprises'], (req, res) => res.redirect(301, '/entreprises'));
   app.get('/blog', page((c, req) => BLOGV.liste(c, { type: String(req.query.type || '') })));
   app.get(['/reportages', '/nos-reportages'], (req, res) => res.redirect(301, '/blog'));
   app.get('/blog/:slug', page(async (c, req, res, next) => {
